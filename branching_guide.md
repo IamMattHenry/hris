@@ -97,32 +97,6 @@ release/*  →  main
 
 ---
 
-## 🧑‍💻 Example Scenario
-
-Let’s say:
-- **Matt** is working on the **Employee Management module**  
-- **Kyle** is working on **Attendance tracking**  
-
-Here’s how it goes:
-```
-Matt:
-  git checkout develop
-  git checkout -b feature/employee-module
-  (code, commit, push)
-  → PR → develop
-
-Kyle:
-  git checkout develop
-  git checkout -b feature/attendance-system
-  (code, commit, push)
-  → PR → develop
-```
-
-Once both PRs are merged into `develop`, the team tests everything together.  
-When everything works → merge `develop` into `main`.
-
----
-
 ## ⚙️ Best Practices
 
 - ✅ **Pull before you start** – always run `git pull origin develop`
