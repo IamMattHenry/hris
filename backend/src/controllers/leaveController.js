@@ -1,5 +1,6 @@
 import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
+import { generateLeaveCode } from '../utils/codeGenerator.js';
 
 export const getLeaveRequests = async (req, res, next) => {
   try {
@@ -7,8 +8,8 @@ export const getLeaveRequests = async (req, res, next) => {
 
     let sql = `
       SELECT l.*, e.first_name, e.last_name
-      FROM employee_leave l
-      LEFT JOIN employee e ON l.employee_id = e.employee_id
+      FROM leaves l
+      LEFT JOIN employees e ON l.employee_id = e.employee_id
       WHERE 1=1
     `;
     const params = [];
@@ -43,7 +44,7 @@ export const getLeaveByEmployee = async (req, res, next) => {
     const { employee_id } = req.params;
 
     const leaves = await db.getAll(`
-      SELECT * FROM employee_leave
+      SELECT * FROM leaves
       WHERE employee_id = ?
       ORDER BY start_date DESC
     `, [employee_id]);
@@ -79,7 +80,7 @@ export const applyLeave = async (req, res, next) => {
       });
     }
 
-    const leaveId = await db.insert('employee_leave', {
+    const leaveId = await db.insert('leaves', {
       employee_id,
       leave_type,
       start_date,
@@ -87,6 +88,10 @@ export const applyLeave = async (req, res, next) => {
       status: 'pending',
       remarks,
     });
+
+    // Generate leave code
+    const leaveCode = generateLeaveCode(leaveId);
+    await db.update('leaves', { leave_code: leaveCode }, 'leave_id = ?', [leaveId]);
 
     logger.info(`Leave request submitted by employee ${employee_id}`);
 
@@ -106,7 +111,7 @@ export const approveLeave = async (req, res, next) => {
     const { id } = req.params;
 
     // Check if leave request exists
-    const leave = await db.getOne('SELECT * FROM employee_leave WHERE leave_id = ?', [id]);
+    const leave = await db.getOne('SELECT * FROM leaves WHERE leave_id = ?', [id]);
     if (!leave) {
       return res.status(404).json({
         success: false,
@@ -114,7 +119,7 @@ export const approveLeave = async (req, res, next) => {
       });
     }
 
-    await db.update('employee_leave', { status: 'approved' }, 'leave_id = ?', [id]);
+    await db.update('leaves', { status: 'approved' }, 'leave_id = ?', [id]);
 
     logger.info(`Leave request approved: ${id}`);
 
@@ -134,7 +139,7 @@ export const rejectLeave = async (req, res, next) => {
     const { remarks } = req.body;
 
     // Check if leave request exists
-    const leave = await db.getOne('SELECT * FROM employee_leave WHERE leave_id = ?', [id]);
+    const leave = await db.getOne('SELECT * FROM leaves WHERE leave_id = ?', [id]);
     if (!leave) {
       return res.status(404).json({
         success: false,
@@ -142,7 +147,7 @@ export const rejectLeave = async (req, res, next) => {
       });
     }
 
-    await db.update('employee_leave', { status: 'rejected', remarks }, 'leave_id = ?', [id]);
+    await db.update('leaves', { status: 'rejected', remarks }, 'leave_id = ?', [id]);
 
     logger.info(`Leave request rejected: ${id}`);
 

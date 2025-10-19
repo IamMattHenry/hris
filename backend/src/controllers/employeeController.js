@@ -1,14 +1,15 @@
 import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
+import { generateEmployeeCode } from '../utils/codeGenerator.js';
 
 export const getAllEmployees = async (req, res, next) => {
   try {
     const employees = await db.getAll(`
       SELECT e.*, jp.position_name, d.department_name, u.username
-      FROM employee e
-      LEFT JOIN job_position jp ON e.position_id = jp.position_id
-      LEFT JOIN department d ON jp.department_id = d.department_id
-      LEFT JOIN user u ON e.user_id = u.user_id
+      FROM employees e
+      LEFT JOIN job_positions jp ON e.position_id = jp.position_id
+      LEFT JOIN departments d ON jp.department_id = d.department_id
+      LEFT JOIN users u ON e.user_id = u.user_id
       ORDER BY e.employee_id DESC
     `);
 
@@ -29,10 +30,10 @@ export const getEmployeeById = async (req, res, next) => {
 
     const employee = await db.getOne(`
       SELECT e.*, jp.position_name, d.department_name, u.username
-      FROM employee e
-      LEFT JOIN job_position jp ON e.position_id = jp.position_id
-      LEFT JOIN department d ON jp.department_id = d.department_id
-      LEFT JOIN user u ON e.user_id = u.user_id
+      FROM employees e
+      LEFT JOIN job_positions jp ON e.position_id = jp.position_id
+      LEFT JOIN departments d ON jp.department_id = d.department_id
+      LEFT JOIN users u ON e.user_id = u.user_id
       WHERE e.employee_id = ?
     `, [id]);
 
@@ -55,28 +56,50 @@ export const getEmployeeById = async (req, res, next) => {
 
 export const createEmployee = async (req, res, next) => {
   try {
-    const { user_id, first_name, last_name, email, birthdate, position_id, hire_date, contact_number, socmed_link, status } = req.body;
+    const { user_id, first_name, last_name, email, birthdate, position_id, hire_date, contact_number, status } = req.body;
 
     // Validate required fields
-    if (!user_id || !first_name || !last_name || !birthdate || !hire_date || !contact_number) {
+    if (!user_id || !first_name || !last_name || !birthdate || !hire_date) {
       return res.status(400).json({
         success: false,
         message: 'Missing required fields',
       });
     }
 
-    const employeeId = await db.insert('employee', {
+    // Get the next employee ID by inserting a placeholder first
+    const tempEmployeeId = await db.insert('employees', {
       user_id,
       first_name,
       last_name,
-      email,
       birthdate,
       position_id,
       hire_date,
-      contact_number,
-      socmed_link,
       status: status || 'active',
     });
+
+    // Generate employee code based on the ID
+    const employeeCode = generateEmployeeCode(tempEmployeeId);
+
+    // Update the employee with the generated code
+    await db.update('employees', { employee_code: employeeCode }, 'employee_id = ?', [tempEmployeeId]);
+
+    const employeeId = tempEmployeeId;
+
+    // Add contact number if provided
+    if (contact_number) {
+      await db.insert('employee_contact_numbers', {
+        employee_id: employeeId,
+        contact_number,
+      });
+    }
+
+    // Add email if provided
+    if (email) {
+      await db.insert('employee_emails', {
+        employee_id: employeeId,
+        email,
+      });
+    }
 
     logger.info(`Employee created: ${employeeId}`);
 
@@ -97,7 +120,7 @@ export const updateEmployee = async (req, res, next) => {
     const updates = req.body;
 
     // Check if employee exists
-    const employee = await db.getOne('SELECT * FROM employee WHERE employee_id = ?', [id]);
+    const employee = await db.getOne('SELECT * FROM employees WHERE employee_id = ?', [id]);
     if (!employee) {
       return res.status(404).json({
         success: false,
@@ -105,7 +128,7 @@ export const updateEmployee = async (req, res, next) => {
       });
     }
 
-    const affectedRows = await db.update('employee', updates, 'employee_id = ?', [id]);
+    const affectedRows = await db.update('employees', updates, 'employee_id = ?', [id]);
 
     logger.info(`Employee updated: ${id}`);
 
@@ -125,7 +148,7 @@ export const deleteEmployee = async (req, res, next) => {
     const { id } = req.params;
 
     // Check if employee exists
-    const employee = await db.getOne('SELECT * FROM employee WHERE employee_id = ?', [id]);
+    const employee = await db.getOne('SELECT * FROM employees WHERE employee_id = ?', [id]);
     if (!employee) {
       return res.status(404).json({
         success: false,
@@ -133,7 +156,7 @@ export const deleteEmployee = async (req, res, next) => {
       });
     }
 
-    const affectedRows = await db.deleteRecord('employee', 'employee_id = ?', [id]);
+    const affectedRows = await db.deleteRecord('employees', 'employee_id = ?', [id]);
 
     logger.info(`Employee deleted: ${id}`);
 

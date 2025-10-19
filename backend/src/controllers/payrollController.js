@@ -1,5 +1,6 @@
 import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
+import { generatePayrollCode } from '../utils/codeGenerator.js';
 
 export const getPayrollRecords = async (req, res, next) => {
   try {
@@ -8,7 +9,7 @@ export const getPayrollRecords = async (req, res, next) => {
     let sql = `
       SELECT p.*, e.first_name, e.last_name, e.email
       FROM payroll p
-      LEFT JOIN employee e ON p.employee_id = e.employee_id
+      LEFT JOIN employees e ON p.employee_id = e.employee_id
       WHERE 1=1
     `;
     const params = [];
@@ -50,7 +51,7 @@ export const getPayrollByEmployee = async (req, res, next) => {
     const payroll = await db.getAll(`
       SELECT p.*, e.first_name, e.last_name
       FROM payroll p
-      LEFT JOIN employee e ON p.employee_id = e.employee_id
+      LEFT JOIN employees e ON p.employee_id = e.employee_id
       WHERE p.employee_id = ?
       ORDER BY p.pay_period_start DESC
     `, [employee_id]);
@@ -90,6 +91,10 @@ export const generatePayroll = async (req, res, next) => {
       deductions: deductions || 0,
       net_pay,
     });
+
+    // Generate payroll code
+    const payrollCode = generatePayrollCode(payrollId);
+    await db.update('payroll', { payroll_code: payrollCode }, 'payroll_id = ?', [payrollId]);
 
     logger.info(`Payroll generated for employee ${employee_id}`);
 

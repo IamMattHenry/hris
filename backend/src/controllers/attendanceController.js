@@ -1,5 +1,6 @@
 import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
+import { generateAttendanceCode } from '../utils/codeGenerator.js';
 
 export const getAttendanceRecords = async (req, res, next) => {
   try {
@@ -8,7 +9,7 @@ export const getAttendanceRecords = async (req, res, next) => {
     let sql = `
       SELECT a.*, e.first_name, e.last_name
       FROM attendance a
-      LEFT JOIN employee e ON a.employee_id = e.employee_id
+      LEFT JOIN employees e ON a.employee_id = e.employee_id
       WHERE 1=1
     `;
     const params = [];
@@ -75,6 +76,10 @@ export const clockIn = async (req, res, next) => {
       time_in: timeIn,
       status: 'present',
     });
+
+    // Generate attendance code
+    const attendanceCode = generateAttendanceCode(attendanceId);
+    await db.update('attendance', { attendance_code: attendanceCode }, 'attendance_id = ?', [attendanceId]);
 
     logger.info(`Clock in recorded for employee ${employee_id}`);
 
