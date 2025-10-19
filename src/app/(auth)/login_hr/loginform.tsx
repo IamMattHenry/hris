@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import InputBox from "../components/inputbox";
-import PasswordBox from "../components/passwordbox";
+import InputBox from "@/components/auth/inputbox";
+import PasswordBox from "@/components/auth/passwordbox";
 import { useRouter } from "next/navigation";
 
 export default function LoginForm() {
@@ -29,8 +29,8 @@ export default function LoginForm() {
         if (data.success) {
           localStorage.setItem("token", data.token);
           alert("Login successful");
-          router.refresh();
-          /*router.push("/hr/dashboard"); */ //redirect to dashboard, check the route link
+          //router.refresh();
+          router.push("/dashboard"); 
         }
         if (!data.success) {
           alert(data.message);
@@ -57,13 +57,11 @@ export default function LoginForm() {
       <PasswordBox label="Password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
 
       {/* Submit button */}
-      <button
-        type="submit"
-        className="w-full bg-[#4B0B14] hover:bg-[#60101C] text-[#FAEFD8] font-poppins font-semibold py-3 mt-8 rounded-lg transition cursor-pointer"
-      >
+      <button type="submit" className="w-full bg-[#4B0B14] hover:bg-[#60101C] text-[#FAEFD8] font-poppins font-semibold py-3 mt-8 rounded-lg transition cursor-pointer">
         Login
       </button>
 
+    
       {/* Support */}
       <p className="text-center text-sm text-gray-300 mt-3 font-poppins">
         Having trouble logging in?{" "}
