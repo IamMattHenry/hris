@@ -1,52 +1,62 @@
-CREATE TABLE IF NOT EXISTS user (
+CREATE TABLE IF NOT EXISTS users (
     user_id INT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(30) NOT NULL UNIQUE,
+    username VARCHAR(100) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     role ENUM('admin', 'employee') NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS admin (
-    admin_id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    first_name VARCHAR(50) NOT NULL,
-    last_name VARCHAR(50),
-    email VARCHAR(100),
-    sub_role ENUM('hr', 'manager', 'finance', 'it'),
-    contact_number VARCHAR(15),
-    FOREIGN KEY (user_id) REFERENCES user(user_id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS department (
+CREATE TABLE IF NOT EXISTS departments (
     department_id INT AUTO_INCREMENT PRIMARY KEY,
     department_name VARCHAR(100) NOT NULL,
     description TEXT
 );
 
-CREATE TABLE IF NOT EXISTS job_position (
+CREATE TABLE IF NOT EXISTS job_positions (
     position_id INT AUTO_INCREMENT PRIMARY KEY,
     position_name VARCHAR(100) NOT NULL,
-    position_desc VARCHAR(100),
+    position_desc VARCHAR(255),
     department_id INT,
     salary DECIMAL(10,2),
-    availability INT(10),
-    FOREIGN KEY (department_id) REFERENCES department(department_id) ON DELETE SET NULL
+    availability INT DEFAULT 0,
+    FOREIGN KEY (department_id) REFERENCES departments(department_id) ON DELETE SET NULL
 );
 
-CREATE TABLE IF NOT EXISTS employee (
+CREATE TABLE IF NOT EXISTS employees (
     employee_id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
+    user_id INT UNIQUE,
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
-    email VARCHAR(100),
-    birthdate DATE NOT NULL,
+    birthdate DATE,
     position_id INT,
-    hire_date DATE NOT NULL,
-    contact_number VARCHAR(15) NOT NULL,
-    socmed_link VARCHAR(100),
-    status ENUM('active', 'resigned', 'terminated') NOT NULL DEFAULT 'active',
-    FOREIGN KEY (user_id) REFERENCES user(user_id) ON DELETE CASCADE,
-    FOREIGN KEY (position_id) REFERENCES job_position(position_id) ON DELETE SET NULL
+    hire_date DATE,
+    status ENUM('active', 'resigned', 'terminated') DEFAULT 'active',
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (position_id) REFERENCES job_positions(position_id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS admins (
+    admin_id INT AUTO_INCREMENT PRIMARY KEY,
+    employee_id INT NOT NULL,
+    user_id INT NOT NULL,
+    sub_role ENUM('hr', 'manager', 'finance', 'it') NOT NULL,
+    FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    UNIQUE KEY (employee_id)
+);
+
+CREATE TABLE IF NOT EXISTS employee_contact_numbers (
+    contact_number_id INT AUTO_INCREMENT PRIMARY KEY,
+    employee_id INT NOT NULL,
+    contact_number VARCHAR(20) NOT NULL,
+    FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS employee_emails (
+    email_id INT AUTO_INCREMENT PRIMARY KEY,
+    employee_id INT NOT NULL,
+    email VARCHAR(100) NOT NULL,
+    FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS attendance (
@@ -57,19 +67,19 @@ CREATE TABLE IF NOT EXISTS attendance (
     time_out TIME,
     status ENUM('present', 'absent', 'late', 'on_leave') NOT NULL,
     overtime_hours DECIMAL(5,2) DEFAULT 0,
-    FOREIGN KEY (employee_id) REFERENCES employee(employee_id) ON DELETE CASCADE,
+    FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE,
     UNIQUE KEY (employee_id, date)
 );
 
-CREATE TABLE IF NOT EXISTS employee_leave (
+CREATE TABLE IF NOT EXISTS leaves (
     leave_id INT AUTO_INCREMENT PRIMARY KEY,
     employee_id INT NOT NULL,
     leave_type ENUM('vacation', 'sick', 'emergency', 'others') NOT NULL,
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
-    status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+    status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
     remarks TEXT,
-    FOREIGN KEY (employee_id) REFERENCES employee(employee_id) ON DELETE CASCADE
+    FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS payroll (
@@ -82,5 +92,5 @@ CREATE TABLE IF NOT EXISTS payroll (
     deductions DECIMAL(10,2) DEFAULT 0,
     net_pay DECIMAL(10,2) NOT NULL,
     generated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (employee_id) REFERENCES employee(employee_id) ON DELETE CASCADE
+    FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE
 );

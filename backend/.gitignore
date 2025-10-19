@@ -1,0 +1,22 @@
+# Node
+node_modules/
+dist/
+.env
+npm-debug.log
+.DS_Store
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+*.tmp
+*.temp
+
+# Documentations
+API_DOCUMENTATION.md
+QUICK_REFERENCE.md
+README.md
