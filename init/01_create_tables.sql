@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- DEPARTMENTS TABLE
 CREATE TABLE IF NOT EXISTS departments (
     department_id INT AUTO_INCREMENT PRIMARY KEY,
-    department_code VARCHAR(10) UNIQUE NOT NULL,
+    department_code VARCHAR(10) UNIQUE,
     department_name VARCHAR(100) NOT NULL,
     description TEXT,
     CHECK (department_code REGEXP '^DEP-[0-9]{4}$')
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS departments (
 -- JOB POSITIONS TABLE
 CREATE TABLE IF NOT EXISTS job_positions (
     position_id INT AUTO_INCREMENT PRIMARY KEY,
-    position_code VARCHAR(10) UNIQUE NOT NULL,
+    position_code VARCHAR(10) UNIQUE,
     position_name VARCHAR(100) NOT NULL,
     position_desc VARCHAR(255),
     department_id INT,
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS job_positions (
 -- EMPLOYEES TABLE
 CREATE TABLE IF NOT EXISTS employees (
     employee_id INT AUTO_INCREMENT PRIMARY KEY,
-    employee_code VARCHAR(10) UNIQUE NOT NULL,
+    employee_code VARCHAR(10) UNIQUE,
     user_id INT UNIQUE,
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS employees (
 -- ADMINS TABLE
 CREATE TABLE IF NOT EXISTS admins (
     admin_id INT AUTO_INCREMENT PRIMARY KEY,
-    admin_code VARCHAR(10) UNIQUE NOT NULL,
+    admin_code VARCHAR(10) UNIQUE,
     employee_id INT NOT NULL,
     user_id INT NOT NULL,
     sub_role ENUM('hr', 'manager', 'finance', 'it') NOT NULL,
@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS employee_emails (
 -- ATTENDANCE TABLE
 CREATE TABLE IF NOT EXISTS attendance (
     attendance_id INT AUTO_INCREMENT PRIMARY KEY,
-    attendance_code VARCHAR(10) UNIQUE NOT NULL,
+    attendance_code VARCHAR(10) UNIQUE,
     employee_id INT NOT NULL,
     date DATE NOT NULL,
     time_in TIME,
@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS attendance (
 -- LEAVES TABLE
 CREATE TABLE IF NOT EXISTS leaves (
     leave_id INT AUTO_INCREMENT PRIMARY KEY,
-    leave_code VARCHAR(10) UNIQUE NOT NULL,
+    leave_code VARCHAR(10) UNIQUE,
     employee_id INT NOT NULL,
     leave_type ENUM('vacation', 'sick', 'emergency', 'others') NOT NULL,
     start_date DATE NOT NULL,
@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS leaves (
 -- PAYROLL TABLE
 CREATE TABLE IF NOT EXISTS payroll (
     payroll_id INT AUTO_INCREMENT PRIMARY KEY,
-    payroll_code VARCHAR(10) UNIQUE NOT NULL,
+    payroll_code VARCHAR(10) UNIQUE,
     employee_id INT NOT NULL,
     pay_period_start DATE NOT NULL,
     pay_period_end DATE NOT NULL,

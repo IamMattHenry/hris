@@ -40,6 +40,15 @@ export const login = async (req, res, next) => {
       });
     }
 
+    // Check the user's role
+    if (user.role !== 'admin') {
+      return res.status(401).json({
+        success: false,
+        message: 'Only admins are allowed to access this portal',
+        role: user.role,
+      })
+    }
+
     // Generate JWT token
     const token = jwt.sign(
       {
