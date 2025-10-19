@@ -22,6 +22,7 @@ export default function InputBox({
         value={value}
         placeholder={`Enter your ${placeholder}`}
         onChange={onChange}
+        required
       />
     </div>
   );

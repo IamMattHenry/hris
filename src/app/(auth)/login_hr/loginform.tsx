@@ -3,22 +3,55 @@
 import { useState } from "react";
 import InputBox from "../components/inputbox";
 import PasswordBox from "../components/passwordbox";
+import { useRouter } from "next/navigation";
 
 export default function LoginForm() {
-  const [employeeId, setEmployeeId] = useState("");
+  const router = useRouter();
+
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Logging in with:", employeeId, password);
+    fetch("http://localhost:5000/api/auth/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        username,
+        password,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        console.log(data);
+        if (data.success) {
+          localStorage.setItem("token", data.token);
+          alert("Login successful");
+          router.refresh();
+          /*router.push("/hr/dashboard"); */ //redirect to dashboard, check the route link
+        }
+        if (!data.success) {
+          alert(data.message);
+        }
+        if (data.message === "Invalid credentials") {
+          alert("Invalid credentials");
+        }
+        if (data.message === "No token provided") {
+          alert("No token provided");
+        }
+        if (data.message === "User not authenticated") {
+          alert("User not authenticated");
+        }
+      });
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       
-      {/* Employee ID */}
-      <InputBox type="text" label="Employee ID" placeholder="Employee ID" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} />
+      {/* username */}
+      <InputBox type="text" label="Username" placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} />
 
       {/* Password */}
       <PasswordBox label="Password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />

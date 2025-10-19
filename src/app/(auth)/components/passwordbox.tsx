@@ -12,7 +12,6 @@ export default function PasswordBox({
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
 
   return (
     <div>
@@ -24,6 +23,7 @@ export default function PasswordBox({
           value={value}
           placeholder={placeholder}
           onChange={onChange}
+          required
         />
         <span
           className="absolute right-4 top-3 text-gray-600 cursor-pointer material-icons"
@@ -34,15 +34,6 @@ export default function PasswordBox({
       </div>
 
       <div className="flex items-center justify-between mb-4 text-[#FFF2E0] text-sm font-poppins">
-        <label className="flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            checked={rememberMe}
-            onChange={(e) => setRememberMe(e.target.checked)}
-            className="mr-2 w-4 h-4 rounded border-gray-300 focus:ring-[#D4A056]"
-          />
-          Remember Me
-        </label>
 
         <a href="#" className="text-[#D4A056] hover:underline">
           Forgot Password?
