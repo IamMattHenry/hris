@@ -35,15 +35,6 @@ export default function LoginForm() {
         if (!data.success) {
           alert(data.message);
         }
-        if (data.message === "Invalid credentials") {
-          alert("Invalid credentials");
-        }
-        if (data.message === "No token provided") {
-          alert("No token provided");
-        }
-        if (data.message === "User not authenticated") {
-          alert("User not authenticated");
-        }
       });
   };
 

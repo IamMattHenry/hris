@@ -25,9 +25,9 @@ VALUES
 ('POS-0003', 'IT Support Specialist', 'Maintains hardware and software systems', 3, 38000.00, 1);
 
 -- EMPLOYEES
-INSERT INTO employees (employee_code, user_id, first_name, last_name, birthdate, position_id, hire_date, status)
+INSERT INTO employees (employee_code, user_id, first_name, last_name, birthdate, gender, position_id, hire_date, status)
 VALUES
-('EMP-0001', 2, 'Juan', 'Dela Cruz', '1998-06-15', 3, '2023-05-01', 'active');
+('EMP-0001', 2, 'Juan', 'Dela Cruz', '1998-06-15', 'male', 3, '2023-05-01', 'active');
 
 -- ADMINS
 INSERT INTO admins (admin_code, employee_id, user_id, sub_role)

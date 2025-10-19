@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS employees (
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
     birthdate DATE,
+    gender ENUM('male', 'female', 'others') NOT NULL,
     position_id INT,
     hire_date DATE,
     status ENUM('active', 'resigned', 'terminated') DEFAULT 'active',
