@@ -81,5 +81,124 @@ export const deleteRecord = async (table, whereClause, whereValues) => {
   return result.affectedRows;
 };
 
+// ========================================
+// TRANSACTION SUPPORT
+// ========================================
+
+// Store for active connections (used for transactions)
+let transactionConnection = null;
+
+/**
+ * Begin a database transaction
+ * Gets a dedicated connection from the pool and starts a transaction
+ */
+export const beginTransaction = async () => {
+  try {
+    // Get a connection from the pool
+    transactionConnection = await pool.getConnection();
+
+    // Start transaction
+    await transactionConnection.beginTransaction();
+
+    console.log('✅ Transaction started');
+    return transactionConnection;
+  } catch (error) {
+    console.error('❌ Failed to start transaction:', error);
+    throw error;
+  }
+};
+
+/**
+ * Commit the current transaction
+ * Commits all changes and releases the connection back to the pool
+ */
+export const commit = async () => {
+  try {
+    if (!transactionConnection) {
+      throw new Error('No active transaction to commit');
+    }
+
+    await transactionConnection.commit();
+    transactionConnection.release();
+    transactionConnection = null;
+
+    console.log('✅ Transaction committed');
+  } catch (error) {
+    console.error('❌ Failed to commit transaction:', error);
+    throw error;
+  }
+};
+
+/**
+ * Rollback the current transaction
+ * Reverts all changes and releases the connection back to the pool
+ */
+export const rollback = async () => {
+  try {
+    if (!transactionConnection) {
+      console.warn('⚠️ No active transaction to rollback');
+      return;
+    }
+
+    await transactionConnection.rollback();
+    transactionConnection.release();
+    transactionConnection = null;
+
+    console.log('✅ Transaction rolled back');
+  } catch (error) {
+    console.error('❌ Failed to rollback transaction:', error);
+    throw error;
+  }
+};
+
+/**
+ * Execute a query within a transaction
+ * If a transaction is active, uses the transaction connection
+ * Otherwise, uses the pool
+ */
+export const transactionQuery = async (sql, values = []) => {
+  try {
+    if (transactionConnection) {
+      // Use transaction connection
+      const [results] = await transactionConnection.execute(sql, values);
+      return results;
+    } else {
+      // Use pool (no active transaction)
+      return await query(sql, values);
+    }
+  } catch (error) {
+    console.error('Transaction query error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Insert a record (transaction-aware)
+ * Uses transaction connection if available, otherwise uses pool
+ */
+export const transactionInsert = async (table, data) => {
+  const columns = Object.keys(data);
+  const values = Object.values(data);
+  const placeholders = columns.map(() => '?').join(', ');
+
+  const sql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`;
+  const result = await transactionQuery(sql, values);
+  return result.insertId;
+};
+
+/**
+ * Update a record (transaction-aware)
+ * Uses transaction connection if available, otherwise uses pool
+ */
+export const transactionUpdate = async (table, data, whereClause, whereValues) => {
+  const columns = Object.keys(data);
+  const values = Object.values(data);
+  const setClause = columns.map(col => `${col} = ?`).join(', ');
+
+  const sql = `UPDATE ${table} SET ${setClause} WHERE ${whereClause}`;
+  const result = await transactionQuery(sql, [...values, ...whereValues]);
+  return result.affectedRows;
+};
+
 export default pool;
 

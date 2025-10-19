@@ -54,6 +54,7 @@ export const verifyToken = (req, res, next) => {
 export const verifyRole = (allowedRoles) => {
   return (req, res, next) => {
     if (!req.user) {
+      logger.warn('Role verification failed: User not authenticated');
       return res.status(401).json({
         success: false,
         message: 'User not authenticated',
@@ -61,23 +62,14 @@ export const verifyRole = (allowedRoles) => {
     }
 
     if (!allowedRoles.includes(req.user.role)) {
-      logger.warn(`Unauthorized access attempt by user ${req.user.user_id} with role ${req.user.role}`);
+      logger.warn(`Access denied: User ${req.user.username} (ID: ${req.user.user_id}) with role '${req.user.role}' attempted to access endpoint requiring roles: [${allowedRoles.join(', ')}]`);
       return res.status(403).json({
         success: false,
-        message: 'Insufficient permissions',
+        message: 'Insufficient permissions. This action requires admin privileges.',
       });
     }
 
-    // Checks if the user's role is admin or an employee
-    if (req.user.role !== 'admin') {
-      logger.warn(`User: ${req.user.username} is not an admin`);
-
-      return res.status(401).json({
-        success: false,
-        message: 'Unauthorized access',
-      })
-    }
-
+    logger.debug(`Access granted: User ${req.user.username} with role '${req.user.role}'`);
     next();
   };
 };
