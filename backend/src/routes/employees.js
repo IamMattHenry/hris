@@ -19,17 +19,20 @@ router.get('/', verifyToken, getAllEmployees);
 router.get('/:id', verifyToken, getEmployeeById);
 
 // Create employee (admin only)
+// Automatically creates user account, employee record, and admin record (if role is 'admin')
 router.post(
   '/',
   verifyToken,
   verifyRole(['admin']),
   [
-    body('user_id').isInt().withMessage('User ID must be an integer'),
+    body('username').trim().notEmpty().withMessage('Username is required'),
+    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+    body('role').optional().isIn(['admin', 'employee']).withMessage('Role must be either admin or employee'),
+    body('sub_role').optional().isIn(['hr', 'manager', 'finance', 'it']).withMessage('Sub-role must be one of: hr, manager, finance, it'),
     body('first_name').trim().notEmpty().withMessage('First name is required'),
     body('last_name').trim().notEmpty().withMessage('Last name is required'),
     body('birthdate').isISO8601().withMessage('Invalid birthdate format'),
     body('hire_date').isISO8601().withMessage('Invalid hire date format'),
-    body('contact_number').trim().notEmpty().withMessage('Contact number is required'),
   ],
   handleValidationErrors,
   createEmployee
