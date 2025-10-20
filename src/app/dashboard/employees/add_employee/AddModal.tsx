@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, X } from "lucide-react";
 import FormInput from "@/components/forms/FormInput";
 import FormSelect from "@/components/forms/FormSelect";
 
@@ -239,8 +239,11 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       password,
     };
     console.log("Employee Registration Complete:", data);
-
-    // Reset everything
+    alert("Employee added successfully!");
+    handleCloseModal();
+  };
+  const handleCloseModal = () => {
+    // Reset all form fields
     setFirstName("");
     setLastName("");
     setBirthDate("");
@@ -255,27 +258,40 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     setPayStart("");
     setPayEnd("");
     setShift("");
+    setImagePreview(null);
     setEmail("");
     setContactNumber("");
     setSocialMedia("");
     setUsername("");
     setPassword("");
     setConfirmPassword("");
-    setImagePreview(null);
+    setShowPassword(false);
+    setShowConfirmPassword(false);
     setStep(1);
     setErrors({});
+
     onClose();
   };
 
   // ─── UI ───────────────────────────────────────
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={handleCloseModal}>
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0 }}
-        className="bg-[#f9ecd7] w-full max-w-4xl p-8 rounded-2xl shadow-lg"
+        className="bg-[#f9ecd7] w-full max-w-4xl p-8 rounded-2xl shadow-lg relative"
+        onClick={(e) => e.stopPropagation()}
       >
+
+         {/* Close Button */}
+            <button
+              onClick={handleCloseModal}
+              className="absolute top-4 right-4 text-[#3b2b1c] hover:opacity-70 text-xl font-bold"
+            >
+              &times;
+            </button>
+
         {/* Header */}
         <h2 className="text-lg font-bold text-[#3b2b1c] mb-6 text-center">
           {["Basic Information", "Job Information", "Contact Information", "Authentication"][step - 1]}
@@ -381,7 +397,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
                 <div className="flex flex-col justify-end">
                   <label className="block text-[#3b2b1c] mb-1">Register Your Fingerprint</label>
-                  <button onClick={handleFingerprintScan} className="bg-[#3b2b1c] text-[#FFF2E0] border border-[#e6d2b5] rounded-lg px-3 py-2 shadow-inner hover:bg-[#60101c] transition">
+                  <button onClick={handleFingerprintScan} className="bg-[#3b2b1c] text-[#FFF2E0] border border-[#e6d2b5] rounded-lg px-3 py-2 w-50 shadow-inner hover:bg-[#60101c] transition">
                     Scan Now
                   </button>
                 </div>
