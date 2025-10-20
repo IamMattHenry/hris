@@ -4,38 +4,31 @@ import { useState } from "react";
 import InputBox from "@/components/auth/inputbox";
 import PasswordBox from "@/components/auth/passwordbox";
 import { useRouter } from "next/navigation";
+import { authApi } from "@/lib/api";
 
 export default function LoginForm() {
   const router = useRouter();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    fetch("http://localhost:5000/api/auth/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        username,
-        password,
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        console.log(data);
-        if (data.success) {
-          localStorage.setItem("token", data.token);
-          alert("Login successful");
-          //router.refresh();
-          router.push("/dashboard"); 
-        }
-        if (!data.success) {
-          alert(data.message);
-        }
-      });
+    setIsLoading(true);
+
+    const result = await authApi.login(username, password);
+
+    console.log("Result:", result);
+
+    if (result.success) {
+      localStorage.setItem("token", result.data!.token);
+      router.push("/dashboard");
+    } else {
+      alert("Login failed. Please check your username and password.");
+    }
+
+    setIsLoading(false);
   };
 
   return (
@@ -48,8 +41,12 @@ export default function LoginForm() {
       <PasswordBox label="Password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
 
       {/* Submit button */}
-      <button type="submit" className="w-full bg-[#4B0B14] hover:bg-[#60101C] text-[#FAEFD8] font-poppins font-semibold py-3 mt-8 rounded-lg transition cursor-pointer">
-        Login
+      <button
+        type="submit"
+        disabled={isLoading}
+        className="w-full bg-[#4B0B14] hover:bg-[#60101C] text-[#FAEFD8] font-poppins font-semibold py-3 mt-8 rounded-lg transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {isLoading ? "Logging in..." : "Login"}
       </button>
 
     

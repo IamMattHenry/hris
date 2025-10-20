@@ -37,7 +37,15 @@ CREATE TABLE IF NOT EXISTS employees (
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
     birthdate DATE,
-    gender ENUM('male', 'female', 'others') NOT NULL,
+    gender ENUM('male', 'female', 'others')
+        CHARACTER SET utf8mb4
+        COLLATE utf8mb4_general_ci
+        NOT NULL
+        DEFAULT 'others',
+    civil_status ENUM('single', 'married', 'divorced', 'widowed') DEFAULT 'single',
+    home_address TEXT,
+    city VARCHAR(100),
+    region VARCHAR(100),
     position_id INT,
     hire_date DATE,
     status ENUM('active', 'resigned', 'terminated') DEFAULT 'active',

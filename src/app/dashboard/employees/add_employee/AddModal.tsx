@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Eye, EyeOff } from "lucide-react";
 import FormInput from "@/components/forms/FormInput";
 import FormSelect from "@/components/forms/FormSelect";
+import { employeeApi, departmentApi, positionApi } from "@/lib/api";
+import { Department, Position } from "@/types/api";
 
 interface EmployeeModalProps {
   isOpen: boolean;
@@ -23,8 +25,8 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [homeAddress, setHomeAddress] = useState("");
   const [city, setCity] = useState("");
   const [region, setRegion] = useState("");
-  const [jobTitle, setJobTitle] = useState("");
-  const [department, setDepartment] = useState("");
+  const [departmentId, setDepartmentId] = useState<number | null>(null);
+  const [positionId, setPositionId] = useState<number | null>(null);
   const [hireDate, setHireDate] = useState("");
   const [payStart, setPayStart] = useState("");
   const [payEnd, setPayEnd] = useState("");
@@ -38,10 +40,15 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [grantAdminPrivilege, setGrantAdminPrivilege] = useState(false);
+  const [subRole, setSubRole] = useState("");
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [cities, setCities] = useState<string[]>([]);
   const [regions, setRegions] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // set the pay end date based on pay start date
   useEffect(() => {
@@ -90,6 +97,44 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     loadRegions();
   }, []);
 
+  // Fetch departments when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchDepartments();
+    }
+  }, [isOpen]);
+
+  // Fetch positions when department changes
+  useEffect(() => {
+    if (departmentId) {
+      fetchPositions(departmentId);
+    } else {
+      setPositions([]);
+      setPositionId(null);
+    }
+  }, [departmentId]);
+
+  const fetchDepartments = async () => {
+    try {
+      const result = await departmentApi.getAll();
+      if (result.success && result.data) {
+        setDepartments(result.data);
+      }
+    } catch (error) {
+      console.error("Error fetching departments:", error);
+    }
+  };
+
+  const fetchPositions = async (deptId: number) => {
+    try {
+      const result = await positionApi.getAll(deptId);
+      if (result.success && result.data) {
+        setPositions(result.data);
+      }
+    } catch (error) {
+      console.error("Error fetching positions:", error);
+    }
+  };
 
   // Close modal if not open
   if (!isOpen) return null;
@@ -139,6 +184,12 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       if (!homeAddress.trim()) newErrors.homeAddress = "Home address is required";
     }
 
+    if (step === 2) {
+      if (!departmentId) newErrors.department = "Department is required";
+      if (!positionId) newErrors.position = "Position is required";
+      if (!hireDate) newErrors.hireDate = "Hire date is required";
+    }
+
     if (step === 3) {
       if (!email.trim()) {
         newErrors.email = "Email is required";
@@ -164,8 +215,8 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     newErrors.password = "Password is required";
   } else {
     const passwordErrors = [];
-    if (password.length < 8)
-      passwordErrors.push("At least 8 characters long");
+    if (password.length < 6)
+      passwordErrors.push("At least 6 characters long");
     if (!/[A-Z]/.test(password))
       passwordErrors.push("At least one uppercase letter");
     if (!/[a-z]/.test(password))
@@ -183,6 +234,11 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     newErrors.confirmPassword = "Please confirm your password";
   } else if (password !== confirmPassword) {
     newErrors.confirmPassword = "Passwords do not match";
+  }
+
+  // Validate sub_role if admin privilege is granted
+  if (grantAdminPrivilege && !subRole) {
+    newErrors.subRole = "Sub-role is required for admin privilege";
   }
 }
 
@@ -214,57 +270,79 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     alert("🔒 Fingerprint scanner initialized...");
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validateStep()) return;
 
-    const data = {
-      firstName,
-      lastName,
-      birthDate,
-      gender,
-      civilStatus,
-      homeAddress,
-      city,
-      region,
-      jobTitle,
-      department,
-      hireDate,
-      payStart,
-      payEnd,
-      shift,
-      email,
-      contactNumber,
-      socialMedia,
-      username,
-      password,
-    };
-    console.log("Employee Registration Complete:", data);
+    setIsSubmitting(true);
 
-    // Reset everything
-    setFirstName("");
-    setLastName("");
-    setBirthDate("");
-    setGender("");
-    setCivilStatus("");
-    setHomeAddress("");
-    setCity("");
-    setRegion("");
-    setJobTitle("");
-    setDepartment("");
-    setHireDate("");
-    setPayStart("");
-    setPayEnd("");
-    setShift("");
-    setEmail("");
-    setContactNumber("");
-    setSocialMedia("");
-    setUsername("");
-    setPassword("");
-    setConfirmPassword("");
-    setImagePreview(null);
-    setStep(1);
-    setErrors({});
-    onClose();
+    try {
+      // Prepare data for API - filter out empty strings and convert to null
+      const employeeData: any = {
+        username,
+        password,
+        role: grantAdminPrivilege ? 'admin' : 'employee',
+        first_name: firstName,
+        last_name: lastName,
+        birthdate: birthDate,
+        gender: gender ? gender.toLowerCase() : null,
+        civil_status: civilStatus ? civilStatus.toLowerCase() : null,
+        home_address: homeAddress,
+        city: city,
+        region: region,
+        position_id: positionId, // ✅ Include position_id
+        hire_date: hireDate,
+        email: email,
+        contact_number: contactNumber ? contactNumber.replace(/\s/g, '') : null,
+        status: 'active' as const,
+      };
+
+      // Add sub_role if admin privilege is granted
+      if (grantAdminPrivilege && subRole) {
+        employeeData.sub_role = subRole.toLowerCase();
+      }
+
+      const result = await employeeApi.create(employeeData);
+
+      if (result.success) {
+        alert("Employee created successfully!");
+
+        // Reset everything
+        setFirstName("");
+        setLastName("");
+        setBirthDate("");
+        setGender("");
+        setCivilStatus("");
+        setHomeAddress("");
+        setCity("");
+        setRegion("");
+        setDepartmentId(null);
+        setPositionId(null);
+        setHireDate("");
+        setPayStart("");
+        setPayEnd("");
+        setShift("");
+        setEmail("");
+        setContactNumber("");
+        setSocialMedia("");
+        setUsername("");
+        setPassword("");
+        setConfirmPassword("");
+        setGrantAdminPrivilege(false);
+        setSubRole("");
+        setImagePreview(null);
+        setStep(1);
+        setErrors({});
+
+        onClose();
+      } else {
+        alert(result.message || "Failed to create employee");
+      }
+    } catch (error) {
+      console.error("Error creating employee:", error);
+      alert("An error occurred while creating the employee");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // ─── UI ───────────────────────────────────────
@@ -313,8 +391,53 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
               transition={{ duration: 0.3 }}
             >
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-                <FormSelect label="Job Title:" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} options={["Manager", "Waiter", "Chef", "Cleaner", "Receptionist"]} />
-                <FormSelect label="Department:" value={department} onChange={(e) => setDepartment(e.target.value)} options={["HR", "IT", "Sales", "Maintenance", "Customer Service"]} />
+                {/* Department Dropdown - Cascading */}
+                <div>
+                  <label className="block text-[#3b2b1c] mb-1">Department: <span className="text-red-500">*</span></label>
+                  <select
+                    value={departmentId || ""}
+                    onChange={(e) => {
+                      const value = e.target.value ? Number(e.target.value) : null;
+                      setDepartmentId(value);
+                      setPositionId(null);
+                      setErrors((prev) => ({ ...prev, department: "" }));
+                    }}
+                    className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14]"
+                  >
+                    <option value="">Select Department</option>
+                    {departments.map((dept) => (
+                      <option key={dept.department_id} value={dept.department_id}>
+                        {dept.department_name}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.department && <p className="text-red-500 text-xs mt-1">{errors.department}</p>}
+                </div>
+
+                {/* Position Dropdown - Filtered by Department */}
+                <div>
+                  <label className="block text-[#3b2b1c] mb-1">Position: <span className="text-red-500">*</span></label>
+                  <select
+                    value={positionId || ""}
+                    onChange={(e) => {
+                      const value = e.target.value ? Number(e.target.value) : null;
+                      setPositionId(value);
+                      setErrors((prev) => ({ ...prev, position: "" }));
+                    }}
+                    disabled={!departmentId}
+                    className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <option value="">
+                      {departmentId ? "Select Position" : "Select Department First"}
+                    </option>
+                    {positions.map((pos) => (
+                      <option key={pos.position_id} value={pos.position_id}>
+                        {pos.position_name}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.position && <p className="text-red-500 text-xs mt-1">{errors.position}</p>}
+                </div>
 
                 <div className="flex flex-col items-center justify-center space-y-3">
                   <div className="w-32 h-32 bg-gray-300 rounded-lg overflow-hidden flex items-center justify-center">
@@ -330,9 +453,9 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                   </label>
                 </div>
 
-                <FormInput label="Hire Date:" type="date" value={hireDate} onChange={(e) => setHireDate(e.target.value)} />
+                <FormInput label="Hire Date:" type="date" value={hireDate} onChange={(e) => setHireDate(e.target.value)} error={errors.hireDate} />
                 <FormInput label="Pay Period Start:" type="date" value={payStart} onChange={(e) => setPayStart(e.target.value)} readOnly={true} />
-                <FormSelect label="Shift:" value={shift} onChange={(e) => setShift(e.target.value)} options={["Morning", "Afternoon", "Night"]} />
+                <FormSelect label="Shift:" value={shift} onChange={(e) => setShift(e.target.value)} options={["Morning", "Night"]} />
                 <FormInput label="Pay Period End:" type="date" value={payEnd} onChange={(e) => setPayEnd(e.target.value)} readOnly={true} />
               </div>
             </motion.div>
@@ -385,6 +508,39 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                     Scan Now
                   </button>
                 </div>
+
+                {/* Admin Privilege Checkbox */}
+                <div className="col-span-2 flex items-center gap-3 mt-4 p-4 bg-[#FFF2E0] rounded-lg border border-[#e6d2b5]">
+                  <input
+                    type="checkbox"
+                    id="grantAdminPrivilege"
+                    checked={grantAdminPrivilege}
+                    onChange={(e) => {
+                      setGrantAdminPrivilege(e.target.checked);
+                      if (!e.target.checked) {
+                        setSubRole("");
+                        setErrors((prev) => ({ ...prev, subRole: "" }));
+                      }
+                    }}
+                    className="w-5 h-5 text-[#4b0b14] bg-white border-[#3b2b1c] rounded focus:ring-[#4b0b14] focus:ring-2 cursor-pointer"
+                  />
+                  <label htmlFor="grantAdminPrivilege" className="text-[#3b2b1c] font-semibold cursor-pointer select-none">
+                    Grant Admin Privilege
+                  </label>
+                </div>
+
+                {/* Sub-role dropdown - only show if admin privilege is granted */}
+                {grantAdminPrivilege && (
+                  <div className="col-span-2">
+                    <FormSelect
+                      label="Admin Sub-Role:"
+                      value={subRole}
+                      onChange={(e) => setSubRole(e.target.value)}
+                      options={["HR", "Manager", "Finance", "IT"]}
+                      error={errors.subRole}
+                    />
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
@@ -430,8 +586,12 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
               Next
             </button>
           ) : (
-            <button onClick={handleSubmit} className="bg-[#4b0b14] text-white px-6 py-2 rounded-lg shadow-md hover:opacity-80">
-              Save
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="bg-[#4b0b14] text-white px-6 py-2 rounded-lg shadow-md hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? "Saving..." : "Save"}
             </button>
           )}
         </div>

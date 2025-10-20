@@ -20,14 +20,24 @@ VALUES
 -- JOB POSITIONS
 INSERT INTO job_positions (position_code, position_name, position_desc, department_id, salary, availability)
 VALUES
+-- HR Department Positions
 ('POS-0001', 'HR Manager', 'Oversees HR operations and employee management', 1, 45000.00, 1),
-('POS-0002', 'Finance Officer', 'Handles accounting and payroll computations', 2, 40000.00, 1),
-('POS-0003', 'IT Support Specialist', 'Maintains hardware and software systems', 3, 38000.00, 1);
+('POS-0002', 'HR Specialist', 'Handles recruitment and employee relations', 1, 35000.00, 1),
+('POS-0003', 'Recruiter', 'Sources and screens job candidates', 1, 32000.00, 1),
+-- Finance Department Positions
+('POS-0004', 'Finance Manager', 'Manages financial operations and reporting', 2, 50000.00, 1),
+('POS-0005', 'Finance Officer', 'Handles accounting and payroll computations', 2, 40000.00, 1),
+('POS-0006', 'Accountant', 'Maintains financial records and reports', 2, 38000.00, 1),
+-- IT Department Positions
+('POS-0007', 'IT Manager', 'Oversees IT infrastructure and projects', 3, 55000.00, 1),
+('POS-0008', 'Software Developer', 'Develops and maintains software applications', 3, 45000.00, 1),
+('POS-0009', 'IT Support Specialist', 'Maintains hardware and software systems', 3, 38000.00, 1),
+('POS-0010', 'System Administrator', 'Manages servers and network infrastructure', 3, 42000.00, 1);
 
 -- EMPLOYEES
-INSERT INTO employees (employee_code, user_id, first_name, last_name, birthdate, gender, position_id, hire_date, status)
+INSERT INTO employees (employee_code, user_id, first_name, last_name, birthdate, gender, civil_status, home_address, city, region, position_id, hire_date, status)
 VALUES
-('EMP-0001', 2, 'Juan', 'Dela Cruz', '1998-06-15', 'male', 3, '2023-05-01', 'active');
+('EMP-0001', 2, 'Juan', 'Dela Cruz', '1998-06-15', 'male', 'single', '123 Main Street, Barangay San Jose', 'Quezon City', 'NCR', 9, '2023-05-01', 'active');
 
 -- ADMINS
 INSERT INTO admins (admin_code, employee_id, user_id, sub_role)

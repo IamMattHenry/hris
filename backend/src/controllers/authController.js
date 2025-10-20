@@ -63,15 +63,18 @@ export const login = async (req, res, next) => {
     logger.info(`User logged in: ${username}`);
 
     res.json({
-      success: true,
-      message: 'Login successful',
-      token,
-      user: {
-        user_id: user.user_id,
-        username: user.username,
-        role: user.role,
-      },
-    });
+  success: true,
+  message: 'Login successful',
+  data: {
+    token,
+    user: {
+      user_id: user.user_id,
+      username: user.username,
+      role: user.role,
+    },
+  },
+});
+
   } catch (error) {
     logger.error('Login error:', error);
     next(error);
@@ -80,10 +83,28 @@ export const login = async (req, res, next) => {
 
 export const getCurrentUser = async (req, res, next) => {
   try {
-    const user = await db.getOne(
-      'SELECT user_id, username, role, created_at FROM users WHERE user_id = ?',
-      [req.user.user_id]
-    );
+    // Get user with employee and admin details
+    const user = await db.getOne(`
+      SELECT
+        u.user_id,
+        u.username,
+        u.role,
+        u.created_at,
+        e.employee_id,
+        e.employee_code,
+        e.first_name,
+        e.last_name,
+        e.birthdate,
+        e.hire_date,
+        e.status,
+        a.admin_id,
+        a.admin_code,
+        a.sub_role
+      FROM users u
+      LEFT JOIN employees e ON u.user_id = e.user_id
+      LEFT JOIN admins a ON u.user_id = a.user_id
+      WHERE u.user_id = ?
+    `, [req.user.user_id]);
 
     if (!user) {
       return res.status(404).json({
@@ -94,7 +115,7 @@ export const getCurrentUser = async (req, res, next) => {
 
     res.json({
       success: true,
-      user,
+      data: user,
     });
   } catch (error) {
     logger.error('Get current user error:', error);

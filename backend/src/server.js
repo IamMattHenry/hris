@@ -13,13 +13,13 @@ const startServer = async () => {
     const dbConnected = await testConnection();
     
     if (!dbConnected) {
-      logger.error('Failed to connect to database. Exiting...');
+      logger.error('Failed to connect to database.');
       process.exit(1);
     }
 
     const server = app.listen(PORT, () => {
-      logger.info(`🚀 Server is running on http://localhost:${PORT}`);
-      logger.info(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
+      logger.info(`Server is running on http://localhost:${PORT}`);
+      logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
     });
 
     // Graceful shutdown

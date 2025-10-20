@@ -11,6 +11,8 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import employeeRoutes from './routes/employees.js';
+import departmentRoutes from './routes/departments.js';
+import positionRoutes from './routes/positions.js';
 import attendanceRoutes from './routes/attendance.js';
 import payrollRoutes from './routes/payroll.js';
 import leaveRoutes from './routes/leave.js';
@@ -59,6 +61,8 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/employees', employeeRoutes);
+app.use('/api/departments', departmentRoutes);
+app.use('/api/positions', positionRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/payroll', payrollRoutes);
 app.use('/api/leave', leaveRoutes);

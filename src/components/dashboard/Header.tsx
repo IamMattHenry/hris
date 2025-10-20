@@ -1,5 +1,8 @@
+"use client";
+
 import { useState } from "react";
 import { UserIcon, Cog6ToothIcon, ArrowRightOnRectangleIcon } from "@heroicons/react/24/outline";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface DropdownItem {
   label: string;
@@ -21,23 +24,24 @@ export default function Header({
   dropdownItems,
 }: DashboardHeaderProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const { logout } = useAuth();
 
   const handleProfile = () => {
     console.log("Profile clicked");
     setDropdownOpen(false);
-    
+    // TODO: Navigate to profile page
   };
 
   const handleSettings = () => {
     console.log("Settings clicked");
     setDropdownOpen(false);
-    
+    // TODO: Navigate to settings page
   };
 
   const handleLogout = () => {
     console.log("Logout clicked");
     setDropdownOpen(false);
-   
+    logout();
   };
 
   // --- Default dropdown items ---
