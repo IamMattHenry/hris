@@ -340,8 +340,8 @@ const validateStep = () => {
               transition={{ duration: 0.3 }}
             >
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-                <FormSelect label="Job Title:" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} options={["Manager", "Waiter", "Chef", "Cleaner", "Receptionist"]} />
-                <FormSelect label="Department:" value={department} onChange={(e) => setDepartment(e.target.value)} options={["HR", "IT", "Sales", "Maintenance", "Customer Service"]} />
+                <FormSelect label="Job Title:" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} options={["Manager", "Waiter", "Chef", "Cleaner", "Receptionist"]} error={errors.jobTitle} />
+                <FormSelect label="Department:" value={department} onChange={(e) => setDepartment(e.target.value)} options={["HR", "IT", "Sales", "Maintenance", "Customer Service"]} error={errors.department} />
 
                 <div className="flex flex-col items-center justify-center space-y-3">
                   <div className="w-32 h-32 bg-gray-300 rounded-lg overflow-hidden flex items-center justify-center">
