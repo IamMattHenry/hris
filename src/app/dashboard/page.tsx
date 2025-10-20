@@ -3,7 +3,7 @@ import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, Resp
 
 const genderData = [
     { name: "Male", value: 45, color: "#1e40af" },
-    { name: "Female", value: 30, color: "#f97316" },
+    { name: "Female", value: 50, color: "#f97316" },
     { name: "Other", value: 10, color: "#dc2626" },
 ];
 
@@ -20,7 +20,6 @@ const positionData = [
 export default function Dashboard() {
     return (
         <div className="min-h-screen p-8 space-y-8 font-poppins text-[#3C1E1E]">
-            {/* Top Stats */}
             {/* Top Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {[
@@ -83,7 +82,7 @@ export default function Dashboard() {
                 <div className="bg-[#fff4e6] border border-orange-200 rounded-xl shadow-md p-5">
                     <h3 className="font-semibold mb-4">Positions</h3>
                     <div className="overflow-x-auto">
-                        <div className="min-w-[800px]"> {/* Adjust width as needed */}
+                        <div className="min-w-[800px]">
                             <ResponsiveContainer width="100%" height={300}>
                                 <BarChart data={positionData}>
                                     <XAxis dataKey="name" interval={0} angle={-20} textAnchor="end" height={60} />
