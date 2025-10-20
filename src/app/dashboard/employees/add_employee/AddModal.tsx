@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Eye, EyeOff, X } from "lucide-react";
 import FormInput from "@/components/forms/FormInput";
 import FormSelect from "@/components/forms/FormSelect";
-
+import DaySelectorDropdown from "@/components/features/ShiftDaySelector";
 interface EmployeeModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -28,7 +28,8 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [hireDate, setHireDate] = useState("");
   const [payStart, setPayStart] = useState("");
   const [payEnd, setPayEnd] = useState("");
-  const [shift, setShift] = useState("");
+  const [dayShift, setDayShift] = useState<string[]>([]);
+  const [timeShift, setTimeShift] = useState<string>("");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [contactNumber, setContactNumber] = useState("");
@@ -48,7 +49,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     if (hireDate) {
       const start = new Date(hireDate);
       const end = new Date(start);
-      end.setDate(start.getDate() + 15); // Add 15 days for example
+      end.setDate(start.getDate() + 30); // Add 15 days for example
 
       // Format to YYYY-MM-DD for input[type="date"]
       const formatDate = (d: Date) => d.toISOString().split("T")[0];
@@ -129,67 +130,77 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
 
   // ─── Validation ───────────────────────────────
-  const validateStep = () => {
-    const newErrors: { [key: string]: string } = {};
+const validateStep = () => {
+  const newErrors: { [key: string]: string } = {};
 
-    if (step === 1) {
-      if (!firstName.trim()) newErrors.firstName = "First name is required";
-      if (!lastName.trim()) newErrors.lastName = "Last name is required";
-      if (!birthDate) newErrors.birthDate = "Birth date is required";
-      if (!homeAddress.trim()) newErrors.homeAddress = "Home address is required";
+  // ─── Step 1: Basic Information ───
+  if (step === 1) {
+    if (!firstName.trim()) newErrors.firstName = "First name is required";
+    if (!lastName.trim()) newErrors.lastName = "Last name is required";
+    if (!birthDate) newErrors.birthDate = "Birth date is required";
+    if (!homeAddress.trim()) newErrors.homeAddress = "Home address is required";
+
+    if (!gender) newErrors.gender = "Gender is required";
+    if (!civilStatus) newErrors.civilStatus = "Civil status is required";
+    if (!city) newErrors.city = "City is required";
+    if (!region) newErrors.region = "Region is required";
+  }
+
+  // ─── Step 2: Job Information ───
+  if (step === 2) {
+    if (!jobTitle) newErrors.jobTitle = "Job title is required";
+    if (!department) newErrors.department = "Department is required";
+    if (!hireDate) newErrors.hireDate = "Hire date is required";
+
+    if (dayShift.length === 0) newErrors.dayShift = "Please select at least one day";
+    if (!timeShift) newErrors.timeShift = "Time shift is required";
+  }
+
+  // ─── Step 3: Contact Information ───
+  if (step === 3) {
+    if (!email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(email.trim())) {
+      newErrors.email = "Email must be a valid Gmail address";
     }
 
-    if (step === 3) {
-      if (!email.trim()) {
-        newErrors.email = "Email is required";
-      } else if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(email.trim())) {
-        newErrors.email = "Email must be a valid Gmail address";
-      }
+    if (!contactNumber.trim()) {
+      newErrors.contactNumber = "Contact number is required";
+    } else if (!/^(\+639|09)\d{9}$/.test(contactNumber.replace(/\s/g, ""))) {
+      newErrors.contactNumber = "Invalid contact number format";
+    }
+  }
 
-      if (!contactNumber.trim()) {
-        newErrors.contactNumber = "Contact number is required";
-      } else if (!/^(\+639|09)\d{9}$/.test(contactNumber.replace(/\s/g, ""))) {
-        newErrors.contactNumber = "Invalid contact number format";
-      }
+  // ─── Step 4: Authentication ───
+  if (step === 4) {
+    if (!username.trim()) newErrors.username = "Username is required";
+
+    if (!password.trim()) {
+      newErrors.password = "Password is required";
+    } else {
+      const passwordErrors = [];
+      if (password.length < 8) passwordErrors.push("At least 8 characters long");
+      if (!/[A-Z]/.test(password)) passwordErrors.push("At least one uppercase letter");
+      if (!/[a-z]/.test(password)) passwordErrors.push("At least one lowercase letter");
+      if (!/\d/.test(password)) passwordErrors.push("At least one number");
+      if (!/[@$!%*?&]/.test(password)) passwordErrors.push(
+        "At least one special character (@, $, !, %, *, ?, &)"
+      );
+
+      if (passwordErrors.length > 0) newErrors.password = passwordErrors.join(", ");
     }
 
-
-
-    if (step === 4) {
-  if (!username.trim()) {
-    newErrors.username = "Username is required";
+    if (!confirmPassword.trim()) {
+      newErrors.confirmPassword = "Please confirm your password";
+    } else if (password !== confirmPassword) {
+      newErrors.confirmPassword = "Passwords do not match";
+    }
   }
 
-  if (!password.trim()) {
-    newErrors.password = "Password is required";
-  } else {
-    const passwordErrors = [];
-    if (password.length < 8)
-      passwordErrors.push("At least 8 characters long");
-    if (!/[A-Z]/.test(password))
-      passwordErrors.push("At least one uppercase letter");
-    if (!/[a-z]/.test(password))
-      passwordErrors.push("At least one lowercase letter");
-    if (!/\d/.test(password))
-      passwordErrors.push("At least one number");
-    if (!/[@$!%*?&]/.test(password))
-      passwordErrors.push("At least one special character (@, $, !, %, *, ?, &)");
+  setErrors(newErrors);
+  return Object.keys(newErrors).length === 0;
+};
 
-    if (passwordErrors.length > 0)
-      newErrors.password = passwordErrors.join(", ");
-  }
-
-  if (!confirmPassword.trim()) {
-    newErrors.confirmPassword = "Please confirm your password";
-  } else if (password !== confirmPassword) {
-    newErrors.confirmPassword = "Passwords do not match";
-  }
-}
-
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
 
   const handleNext = () => {
     if (validateStep()) setStep((prev) => prev + 1);
@@ -231,7 +242,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       hireDate,
       payStart,
       payEnd,
-      shift,
+      dayShift,
       email,
       contactNumber,
       socialMedia,
@@ -257,7 +268,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     setHireDate("");
     setPayStart("");
     setPayEnd("");
-    setShift("");
+    setDayShift([]);
     setImagePreview(null);
     setEmail("");
     setContactNumber("");
@@ -284,13 +295,13 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         onClick={(e) => e.stopPropagation()}
       >
 
-         {/* Close Button */}
-            <button
-              onClick={handleCloseModal}
-              className="absolute top-4 right-4 text-[#3b2b1c] hover:opacity-70 text-xl font-bold"
-            >
-              &times;
-            </button>
+        {/* Close Button */}
+        <button
+          onClick={handleCloseModal}
+          className="absolute top-4 right-4 text-[#3b2b1c] hover:opacity-70 text-xl font-bold"
+        >
+          &times;
+        </button>
 
         {/* Header */}
         <h2 className="text-lg font-bold text-[#3b2b1c] mb-6 text-center">
@@ -312,10 +323,10 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                 <FormInput label="Last Name:" type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} error={errors.lastName} />
                 <FormInput label="Birth Date:" type="date" value={birthDate} onChange={handleBirthDateChange} error={errors.birthDate} />
                 <FormSelect label="Gender:" value={gender} onChange={(e) => setGender(e.target.value)} options={["Male", "Female", "Other"]} error={errors.gender} />
-                <FormSelect label="Civil Status:" value={civilStatus} onChange={(e) => setCivilStatus(e.target.value)} options={["Single", "Married", "Widowed", "Divorced"]} />
+                <FormSelect label="Civil Status:" value={civilStatus} onChange={(e) => setCivilStatus(e.target.value)} options={["Single", "Married", "Widowed", "Divorced"]} error={errors.civilStatus} />
                 <FormInput label="Home Address:" type="text" value={homeAddress} onChange={(e) => setHomeAddress(e.target.value)} error={errors.homeAddress} />
-                <FormSelect label="City" value={city} onChange={(e) => setCity(e.target.value)} options={cities} />
-                <FormSelect label="Region" value={region} onChange={(e) => setRegion(e.target.value)} options={regions.map((reg) => reg.name)} />
+                <FormSelect label="City" value={city} onChange={(e) => setCity(e.target.value)} options={cities}  error={errors.city} />
+                <FormSelect label="Region" value={region} onChange={(e) => setRegion(e.target.value)} options={regions.map((reg) => reg.name)} error={errors.region} />
               </div>
             </motion.div>
           )}
@@ -346,10 +357,11 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                   </label>
                 </div>
 
-                <FormInput label="Hire Date:" type="date" value={hireDate} onChange={(e) => setHireDate(e.target.value)} />
+                <FormInput label="Hire Date:" type="date" value={hireDate} onChange={(e) => setHireDate(e.target.value)} error={errors.hireDate} />
                 <FormInput label="Pay Period Start:" type="date" value={payStart} onChange={(e) => setPayStart(e.target.value)} readOnly={true} />
-                <FormSelect label="Shift:" value={shift} onChange={(e) => setShift(e.target.value)} options={["Morning", "Afternoon", "Night"]} />
                 <FormInput label="Pay Period End:" type="date" value={payEnd} onChange={(e) => setPayEnd(e.target.value)} readOnly={true} />
+                <DaySelectorDropdown label="Day Shift:" selectedDays={dayShift} onChange={setDayShift} error={errors.dayShift} />
+                <FormSelect label="Time Shift:" value={timeShift} onChange={(e) => setTimeShift(e.target.value)} options={["Morning shift (8AM to 5PM)", "Graveyard shift (5PM to 8AM)"]} error={errors.timeShift}  />
               </div>
             </motion.div>
           )}

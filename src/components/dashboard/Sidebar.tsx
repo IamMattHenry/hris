@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, CheckCircle, FileText, Mail, Briefcase } from "lucide-react";
+import { LayoutDashboard, Users, CheckCircle, FileText, Mail, Briefcase, Building } from "lucide-react";
 import Image from "next/image";
 
 export default function Sidebar() {
@@ -14,6 +14,7 @@ export default function Sidebar() {
         { name: "Payroll", icon: FileText, path: "/dashboard/payroll" },
         { name: "Requests", icon: Mail, path: "/dashboard/requests" },
         { name: "Positions", icon: Briefcase, path: "/dashboard/positions" },
+        { name: "Departments", icon: Building, path: "/dashboard/departments" },
     ];
 
     return (
