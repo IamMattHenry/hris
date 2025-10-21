@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS employees (
     city VARCHAR(100),
     region VARCHAR(100),
     position_id INT,
+    shift ENUM('morning', 'night') DEFAULT 'morning',
     hire_date DATE,
     status ENUM('active', 'resigned', 'terminated') DEFAULT 'active',
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,

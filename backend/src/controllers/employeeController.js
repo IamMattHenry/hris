@@ -1,7 +1,10 @@
-import * as db from '../config/db.js';
-import logger from '../utils/logger.js';
-import bcryptjs from 'bcryptjs';
-import { generateEmployeeCode, generateAdminCode } from '../utils/codeGenerator.js';
+import * as db from "../config/db.js";
+import logger from "../utils/logger.js";
+import bcryptjs from "bcryptjs";
+import {
+  generateEmployeeCode,
+  generateAdminCode,
+} from "../utils/codeGenerator.js";
 
 export const getAllEmployees = async (req, res, next) => {
   try {
@@ -20,7 +23,7 @@ export const getAllEmployees = async (req, res, next) => {
       count: employees.length,
     });
   } catch (error) {
-    logger.error('Get all employees error:', error);
+    logger.error("Get all employees error:", error);
     next(error);
   }
 };
@@ -29,19 +32,31 @@ export const getEmployeeById = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    const employee = await db.getOne(`
-      SELECT e.*, jp.position_name, d.department_name, u.username
-      FROM employees e
-      LEFT JOIN job_positions jp ON e.position_id = jp.position_id
-      LEFT JOIN departments d ON jp.department_id = d.department_id
-      LEFT JOIN users u ON e.user_id = u.user_id
-      WHERE e.employee_id = ?
-    `, [id]);
+    const employee = await db.getOne(
+      `
+  SELECT 
+    e.*, 
+    jp.position_name, 
+    d.department_name, 
+    u.username,
+    GROUP_CONCAT(DISTINCT ea.email ORDER BY ea.email SEPARATOR ', ') AS emails,
+    GROUP_CONCAT(DISTINCT c.contact_number ORDER BY c.contact_number SEPARATOR ', ') AS contact_numbers
+  FROM employees e
+  LEFT JOIN job_positions jp ON e.position_id = jp.position_id
+  LEFT JOIN departments d ON jp.department_id = d.department_id
+  LEFT JOIN users u ON e.user_id = u.user_id
+  LEFT JOIN employee_emails ea ON e.employee_id = ea.employee_id
+  LEFT JOIN employee_contact_numbers c ON e.employee_id = c.employee_id
+  WHERE e.employee_id = ?
+  GROUP BY e.employee_id
+`,
+      [id]
+    );
 
     if (!employee) {
       return res.status(404).json({
         success: false,
-        message: 'Employee not found',
+        message: "Employee not found",
       });
     }
 
@@ -50,7 +65,7 @@ export const getEmployeeById = async (req, res, next) => {
       data: employee,
     });
   } catch (error) {
-    logger.error('Get employee by ID error:', error);
+    logger.error("Get employee by ID error:", error);
     next(error);
   }
 };
@@ -74,20 +89,20 @@ export const createEmployee = async (req, res, next) => {
       position_id,
       hire_date,
       contact_number,
-      status
+      status,
     } = req.body;
 
     // Validate required fields
     if (!username || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Username and password are required to create a user account',
+        message: "Username and password are required to create a user account",
       });
     }
 
     // Validate role
-    const validRoles = ['admin', 'employee'];
-    const userRole = role || 'employee'; // Default to 'employee' if not provided
+    const validRoles = ["admin", "employee"];
+    const userRole = role || "employee"; // Default to 'employee' if not provided
 
     if (!validRoles.includes(userRole)) {
       return res.status(400).json({
@@ -97,19 +112,23 @@ export const createEmployee = async (req, res, next) => {
     }
 
     // Validate sub_role if role is 'admin'
-    const validSubRoles = ['hr', 'manager', 'finance', 'it'];
-    if (userRole === 'admin') {
+    const validSubRoles = ["hr", "manager", "finance", "it"];
+    if (userRole === "admin") {
       if (!sub_role) {
         return res.status(400).json({
           success: false,
-          message: `sub_role is required when creating an admin. Valid values: ${validSubRoles.join(', ')}.`,
+          message: `sub_role is required when creating an admin. Valid values: ${validSubRoles.join(
+            ", "
+          )}.`,
         });
       }
 
       if (!validSubRoles.includes(sub_role)) {
         return res.status(400).json({
           success: false,
-          message: `Invalid sub_role. Must be one of: ${validSubRoles.join(', ')}.`,
+          message: `Invalid sub_role. Must be one of: ${validSubRoles.join(
+            ", "
+          )}.`,
         });
       }
     }
@@ -119,7 +138,7 @@ export const createEmployee = async (req, res, next) => {
 
     // Check if username already exists
     const existingUser = await db.transactionQuery(
-      'SELECT user_id FROM users WHERE username = ?',
+      "SELECT user_id FROM users WHERE username = ?",
       [username]
     );
 
@@ -135,16 +154,18 @@ export const createEmployee = async (req, res, next) => {
     const hashedPassword = await bcryptjs.hash(password, 10);
 
     // Create user account
-    const userId = await db.transactionInsert('users', {
+    const userId = await db.transactionInsert("users", {
       username,
       password: hashedPassword,
       role: userRole,
     });
 
-    logger.info(`User account created: ${username} (ID: ${userId}, Role: ${userRole})`);
+    logger.info(
+      `User account created: ${username} (ID: ${userId}, Role: ${userRole})`
+    );
 
     // Insert employee without code first
-    const tempEmployeeId = await db.transactionInsert('employees', {
+    const tempEmployeeId = await db.transactionInsert("employees", {
       user_id: userId,
       first_name,
       last_name,
@@ -156,20 +177,25 @@ export const createEmployee = async (req, res, next) => {
       region,
       position_id,
       hire_date,
-      status: status || 'active',
+      status: status || "active",
     });
 
     // Generate employee code based on the ID
     const employeeCode = generateEmployeeCode(tempEmployeeId);
 
     // Update the employee with the generated code
-    await db.transactionUpdate('employees', { employee_code: employeeCode }, 'employee_id = ?', [tempEmployeeId]);
+    await db.transactionUpdate(
+      "employees",
+      { employee_code: employeeCode },
+      "employee_id = ?",
+      [tempEmployeeId]
+    );
 
     const employeeId = tempEmployeeId;
 
     // Add contact number if provided
     if (contact_number) {
-      await db.transactionInsert('employee_contact_numbers', {
+      await db.transactionInsert("employee_contact_numbers", {
         employee_id: employeeId,
         contact_number,
       });
@@ -177,7 +203,7 @@ export const createEmployee = async (req, res, next) => {
 
     // Add email if provided
     if (email) {
-      await db.transactionInsert('employee_emails', {
+      await db.transactionInsert("employee_emails", {
         employee_id: employeeId,
         email,
       });
@@ -186,9 +212,9 @@ export const createEmployee = async (req, res, next) => {
     // If role is 'admin', create admin record
     let adminCode = null;
     let adminId = null;
-    if (userRole === 'admin') {
+    if (userRole === "admin") {
       // Insert admin without code first
-      const tempAdminId = await db.transactionInsert('admins', {
+      const tempAdminId = await db.transactionInsert("admins", {
         employee_id: employeeId,
         user_id: userId,
         sub_role: sub_role,
@@ -198,17 +224,26 @@ export const createEmployee = async (req, res, next) => {
       adminCode = generateAdminCode(tempAdminId);
 
       // Update the admin with the generated code
-      await db.transactionUpdate('admins', { admin_code: adminCode }, 'admin_id = ?', [tempAdminId]);
+      await db.transactionUpdate(
+        "admins",
+        { admin_code: adminCode },
+        "admin_id = ?",
+        [tempAdminId]
+      );
 
       adminId = tempAdminId;
 
-      logger.info(`Admin record created: ${adminCode} (ID: ${adminId}, Sub-role: ${sub_role})`);
+      logger.info(
+        `Admin record created: ${adminCode} (ID: ${adminId}, Sub-role: ${sub_role})`
+      );
     }
 
     // Commit transaction
     await db.commit();
 
-    logger.info(`Employee created: ${employeeCode} (ID: ${employeeId}, User: ${username})`);
+    logger.info(
+      `Employee created: ${employeeCode} (ID: ${employeeId}, User: ${username})`
+    );
 
     // Build response data
     const responseData = {
@@ -220,7 +255,7 @@ export const createEmployee = async (req, res, next) => {
     };
 
     // Add admin data if applicable
-    if (userRole === 'admin') {
+    if (userRole === "admin") {
       responseData.admin_id = adminId;
       responseData.admin_code = adminCode;
       responseData.sub_role = sub_role;
@@ -228,15 +263,16 @@ export const createEmployee = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      message: userRole === 'admin'
-        ? 'Admin employee and user account created successfully'
-        : 'Employee and user account created successfully',
+      message:
+        userRole === "admin"
+          ? "Admin employee and user account created successfully"
+          : "Employee and user account created successfully",
       data: responseData,
     });
   } catch (error) {
     // Rollback transaction on error
     await db.rollback();
-    logger.error('Create employee error:', error);
+    logger.error("Create employee error:", error);
     next(error);
   }
 };
@@ -247,25 +283,33 @@ export const updateEmployee = async (req, res, next) => {
     const updates = req.body;
 
     // Check if employee exists
-    const employee = await db.getOne('SELECT * FROM employees WHERE employee_id = ?', [id]);
+    const employee = await db.getOne(
+      "SELECT * FROM employees WHERE employee_id = ?",
+      [id]
+    );
     if (!employee) {
       return res.status(404).json({
         success: false,
-        message: 'Employee not found',
+        message: "Employee not found",
       });
     }
 
-    const affectedRows = await db.update('employees', updates, 'employee_id = ?', [id]);
+    const affectedRows = await db.update(
+      "employees",
+      updates,
+      "employee_id = ?",
+      [id]
+    );
 
     logger.info(`Employee updated: ${id}`);
 
     res.json({
       success: true,
-      message: 'Employee updated successfully',
+      message: "Employee updated successfully",
       affectedRows,
     });
   } catch (error) {
-    logger.error('Update employee error:', error);
+    logger.error("Update employee error:", error);
     next(error);
   }
 };
@@ -275,25 +319,30 @@ export const deleteEmployee = async (req, res, next) => {
     const { id } = req.params;
 
     // Check if employee exists
-    const employee = await db.getOne('SELECT * FROM employees WHERE employee_id = ?', [id]);
+    const employee = await db.getOne(
+      "SELECT * FROM employees WHERE employee_id = ?",
+      [id]
+    );
     if (!employee) {
       return res.status(404).json({
         success: false,
-        message: 'Employee not found',
+        message: "Employee not found",
       });
     }
 
-    const affectedRows = await db.deleteRecord('employees', 'employee_id = ?', [id]);
+    const affectedRows = await db.deleteRecord("employees", "employee_id = ?", [
+      id,
+    ]);
 
     logger.info(`Employee deleted: ${id}`);
 
     res.json({
       success: true,
-      message: 'Employee deleted successfully',
+      message: "Employee deleted successfully",
       affectedRows,
     });
   } catch (error) {
-    logger.error('Delete employee error:', error);
+    logger.error("Delete employee error:", error);
     next(error);
   }
 };
@@ -305,4 +354,3 @@ export default {
   updateEmployee,
   deleteEmployee,
 };
-

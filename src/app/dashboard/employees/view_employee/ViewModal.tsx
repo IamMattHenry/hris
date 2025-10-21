@@ -24,8 +24,8 @@ interface EmployeeData {
     department_name: string;
     position_name: string;
     hire_date: string;
-    email: string;
-    contact_number: string;
+    emails: string;
+    contact_numbers: string;
     shift: string;
     sub_role?: string;
     status: string;
@@ -137,14 +137,14 @@ export default function ViewEmployeeModal({ isOpen, onClose, id }: ViewEmployeeM
                                 <InfoBox label="Job Title" value={employee.position_name} />
                                 <InfoBox label="Department" value={employee.department_name} />
                                 <InfoBox label="Shift" value={employee.shift} />
-                                <InfoBox label="Email" value={employee.email} />
+                                <InfoBox label="Email" value={employee.emails} />
                                 {employee.sub_role && <InfoBox label="Sub Role" value={employee.sub_role} />}
                             </div>
 
                             {/* Contact Information */}
                             <div className="space-y-5">
 
-                                <InfoBox label="Contact Number" value={employee.contact_number} />
+                                <InfoBox label="Contact Number" value={employee.contact_numbers} />
                                 <InfoBox label="Address" value={employee.home_address} />
                                 <InfoBox label="City" value={employee.city} />
                                 <InfoBox label="Region" value={employee.region} />

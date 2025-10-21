@@ -35,14 +35,14 @@ VALUES
 ('POS-0010', 'System Administrator', 'Manages servers and network infrastructure', 3, 42000.00, 1);
 
 -- EMPLOYEES
-INSERT INTO employees (employee_code, user_id, first_name, last_name, birthdate, gender, civil_status, home_address, city, region, position_id, hire_date, status)
+INSERT INTO employees (employee_code, user_id, first_name, last_name, birthdate, gender, civil_status, home_address, city, region, position_id, shift, hire_date, status)
 VALUES
-('EMP-0001', 2, 'Juan', 'Dela Cruz', '1998-06-15', 'male', 'single', '123 Main Street, Barangay San Jose', 'Quezon City', 'NCR', 9, '2023-05-01', 'active');
+('EMP-0001', 1, 'Juan', 'Dela Cruz', '1998-06-15', 'male', 'single', '123 Main Street, Barangay San Jose', 'Quezon City', 'NCR', 9, 'morning', '2023-05-01', 'active');
 
 -- ADMINS
 INSERT INTO admins (admin_code, employee_id, user_id, sub_role)
 VALUES
-('ADM-0001', 1, 2, 'hr');
+('ADM-0001', 1, 1, 'hr');
 
 -- EMPLOYEE CONTACT NUMBERS
 INSERT INTO employee_contact_numbers (employee_id, contact_number)
