@@ -72,7 +72,7 @@ export default function Header({
 
   return (
     <header className="bg-[#FDF6EC]">
-      <div className="max-w-8xl mx-auto px-8 py-6 flex items-center justify-between">
+      <div className="max-w-8xl mx-auto px-8 py-6 flex items-center justify-between z-100">
         {/* Left: Title */}
         <div className="flex items-center gap-6">
           <h1 className="text-4xl font-poppins font-[400] text-[#3C1E1E]">{titleHeader}</h1>
@@ -102,7 +102,7 @@ export default function Header({
           </button>
 
           {dropdownOpen && (
-            <ul className="absolute text-[#4B0B14] font-poppins right-0 mt-2 px-0 py-2 w-44 bg-[#FFF2E0] rounded-md shadow-lg overflow-hidden">
+            <ul className="absolute text-[#4B0B14] font-poppins right-0 mt-2 px-0 py-2 w-44 bg-[#FFF2E0] z-120 rounded-md shadow-lg overflow-hidden">
               {items.map((item, idx) => (
                 <li
                   key={idx}

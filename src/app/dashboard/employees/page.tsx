@@ -178,7 +178,7 @@ export default function EmployeeTable() {
         <div className="flex flex-wrap items-center gap-3 relative">
           {/* Search Bar */}
           <div className="flex items-center bg-[#fff1dd] px-4 py-4 rounded-full shadow-sm w-72 md:w-68">
-            <Search className="text-[#3b2b1c] mr-2" size={18} />
+            <Search className="text-[#FFA237] mr-2" size={18} />
             <input
               type="text"
               placeholder="Search"
