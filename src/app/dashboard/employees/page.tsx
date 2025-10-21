@@ -1,11 +1,20 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { Search, Plus, Filter, MoreVertical, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useEffect } from "react";
+import {
+  Search,
+  Plus,
+  Filter,
+  MoreVertical,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import AddModal from "./add_employee/AddModal";
+import ViewEmployeeModal from "./view_employee/ViewModal";
+import EditEmployeeModal from "./edit_employee/EditModal";
 import { employeeApi } from "@/lib/api";
 import { Employee } from "@/types/api";
-import ViewEmployeeModal from "./view_employee/ViewModal";
+
 
 export default function EmployeeTable() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -15,31 +24,32 @@ export default function EmployeeTable() {
   const [error, setError] = useState<string | null>(null);
   const [selectedMenu, setSelectedMenu] = useState<number | null>(null);
   const [employeeToView, setEmployeeToView] = useState<number | null>(null);
+  const [employeeToEdit, setEmployeeToEdit] = useState<number | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [sortBy, setSortBy] = useState<string>(""); // column
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc"); // order
+  const [sortBy, setSortBy] = useState<string>("");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const filterRef = useRef<HTMLDivElement>(null);
-
-  // Close any dropdowns when clicking outside
+  // 🔹 Close menus when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      // Only close if click is outside dropdowns or buttons
       if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node) &&
-        filterRef.current &&
-        !filterRef.current.contains(event.target as Node)
+        !target.closest(".employee-dropdown") &&
+        !target.closest(".menu-button") &&
+        !target.closest(".filter-dropdown") &&
+        !target.closest(".filter-button")
       ) {
         setSelectedMenu(null);
         setIsFilterOpen(false);
       }
     };
+
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Fetch employees from API
+  // 🔹 Fetch employees
   useEffect(() => {
     fetchEmployees();
   }, []);
@@ -59,7 +69,7 @@ export default function EmployeeTable() {
     setLoading(false);
   };
 
-  // Sort logic
+  // 🔹 Sort employees
   const sortEmployees = (list: Employee[]) => {
     if (!sortBy) return list;
     return [...list].sort((a, b) => {
@@ -67,6 +77,10 @@ export default function EmployeeTable() {
       let valB: string | number = "";
 
       switch (sortBy) {
+        case "id":
+          valA = a.employee_id;
+          valB = b.employee_id;
+          break;
         case "name":
           valA = `${a.first_name} ${a.last_name}`.toLowerCase();
           valB = `${b.first_name} ${b.last_name}`.toLowerCase();
@@ -93,7 +107,8 @@ export default function EmployeeTable() {
     });
   };
 
-  // Filter employees by search term
+
+  // 🔹 Filter employees by search
   const filtered = employees.filter((e) => {
     const fullName = `${e.first_name} ${e.last_name}`.toLowerCase();
     const employeeCode = e.employee_code?.toLowerCase() || "";
@@ -109,12 +124,11 @@ export default function EmployeeTable() {
     );
   });
 
-  // Apply sorting
   const sortedEmployees = sortEmployees(filtered);
 
-  // Handlers
+  // 🔹 Handlers
   const handleView = (id: number) => setEmployeeToView(id);
-  const handleEdit = (id: number) => alert(`Edit employee ID: ${id}`);
+  const handleEdit = (id: number) => setEmployeeToEdit(id);
   const handleDelete = async (id: number) => {
     if (!confirm("Are you sure you want to delete this employee?")) return;
     const result = await employeeApi.delete(id);
@@ -141,7 +155,7 @@ export default function EmployeeTable() {
     setIsFilterOpen(false);
   };
 
-  // UI — Loading / Error states
+  // 🔹 Loading / Error states
   if (loading) {
     return (
       <div className="min-h-screen bg-[#fff7ec] flex items-center justify-center">
@@ -169,6 +183,7 @@ export default function EmployeeTable() {
     );
   }
 
+  // 🔹 UI
   return (
     <div className="min-h-screen bg-[#fff7ec] p-8 space-y-6 text-gray-800 font-poppins">
       {/* Header */}
@@ -176,41 +191,66 @@ export default function EmployeeTable() {
         <h1 className="text-xl font-bold">{employees.length} Employees</h1>
 
         <div className="flex flex-wrap items-center gap-3 relative">
-          {/* Search Bar */}
+          {/* Search */}
           <div className="flex items-center bg-[#fff1dd] px-4 py-4 rounded-full shadow-sm w-72 md:w-68">
             <Search className="text-[#3b2b1c] mr-2" size={18} />
             <input
               type="text"
-              placeholder="Search"
+              placeholder="Search Employee"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="bg-transparent focus:outline-none w-full text-sm"
             />
           </div>
 
-          {/* Filter Dropdown */}
-          <div className="relative">
+          {/* Sort Filter */}
+          <div className="relative filter-dropdown">
             <button
               onClick={() => setIsFilterOpen(!isFilterOpen)}
-              className="flex items-center bg-[#3b2b1c] text-white px-6 py-4 rounded-full mr-16 shadow-md hover:opacity-90 transition"
+              className="flex items-center bg-[#3b2b1c] text-white px-6 py-4 rounded-full mr-16 shadow-md hover:opacity-90 transition filter-button"
             >
               <Filter size={16} className="mr-2" /> Sort
-              {isFilterOpen ? <ChevronUp className="ml-1" size={16} /> : <ChevronDown className="ml-1" size={16} />}
+              {isFilterOpen ? (
+                <ChevronUp className="ml-1" size={16} />
+              ) : (
+                <ChevronDown className="ml-1" size={16} />
+              )}
             </button>
 
             {isFilterOpen && (
-              <div className="absolute right-0 mt-2 w-44 bg-[#FFF2E0] rounded-lg shadow-lg text-sm z-60">
-                <button onClick={() => handleSortChange("name")} className="w-full text-left px-4 py-2 hover:bg-gray-100">
+              <div className="absolute right-0 mt-2 w-44 bg-[#FFF2E0] rounded-lg shadow-lg text-sm z-50 employee-dropdown">
+                <button
+                  onClick={() => handleSortChange("id")}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100"
+                >
+                  ID {sortBy === "id" && (sortOrder === "asc" ? "↑" : "↓")}
+                </button>
+                <button
+                  onClick={() => handleSortChange("name")}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100"
+                >
                   Name {sortBy === "name" && (sortOrder === "asc" ? "↑" : "↓")}
                 </button>
-                <button onClick={() => handleSortChange("position")} className="w-full text-left px-4 py-2 hover:bg-gray-100">
-                  Position {sortBy === "position" && (sortOrder === "asc" ? "↑" : "↓")}
+                <button
+                  onClick={() => handleSortChange("position")}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100"
+                >
+                  Position{" "}
+                  {sortBy === "position" && (sortOrder === "asc" ? "↑" : "↓")}
                 </button>
-                <button onClick={() => handleSortChange("department")} className="w-full text-left px-4 py-2 hover:bg-gray-100">
-                  Department {sortBy === "department" && (sortOrder === "asc" ? "↑" : "↓")}
+                <button
+                  onClick={() => handleSortChange("department")}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100"
+                >
+                  Department{" "}
+                  {sortBy === "department" && (sortOrder === "asc" ? "↑" : "↓")}
                 </button>
-                <button onClick={() => handleSortChange("status")} className="w-full text-left px-4 py-2 hover:bg-gray-100">
-                  Status {sortBy === "status" && (sortOrder === "asc" ? "↑" : "↓")}
+                <button
+                  onClick={() => handleSortChange("status")}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100"
+                >
+                  Status{" "}
+                  {sortBy === "status" && (sortOrder === "asc" ? "↑" : "↓")}
                 </button>
               </div>
             )}
@@ -241,12 +281,15 @@ export default function EmployeeTable() {
           </thead>
         </table>
 
-        <div className="overflow-y-auto max-h-100 h-96">
+        <div className="overflow-y-auto max-h-136 h-136">
           <table className="w-full text-sm table-fixed border-separate border-spacing-y-2">
             <tbody>
               {sortedEmployees.length > 0 ? (
                 sortedEmployees.map((emp) => (
-                  <tr key={emp.employee_id} className="bg-[#fff4e6] border border-orange-100 rounded-lg hover:shadow-sm transition relative">
+                  <tr
+                    key={emp.employee_id}
+                    className="bg-[#fff4e6] border border-orange-100 rounded-lg hover:shadow-sm transition relative"
+                  >
                     <td className="py-3 px-4">{emp.employee_code}</td>
                     <td className="py-3 px-4 flex items-center space-x-3">
                       <div className="w-8 h-8 rounded-full bg-[#800000] flex items-center justify-center text-white text-sm font-semibold">
@@ -254,40 +297,62 @@ export default function EmployeeTable() {
                           ? `${emp.first_name[0]}${emp.last_name[0]}`.toUpperCase()
                           : "?"}
                       </div>
-                      <span>{emp.first_name} {emp.last_name}</span>
+                      <span>
+                        {emp.first_name} {emp.last_name}
+                      </span>
                     </td>
-                    <td className="py-3 px-4">{emp.position_name || "N/A"}</td>
-                    <td className="py-3 px-4">{emp.department_name || "N/A"}</td>
+                    <td className="py-3 px-4">
+                      {emp.position_name || "N/A"}
+                    </td>
+                    <td className="py-3 px-4">
+                      {emp.department_name || "N/A"}
+                    </td>
                     <td className="py-3 px-4">
                       <span
-                        className={`px-3 py-2 rounded-full text-xs font-medium ${
-                          emp.status === "active"
-                            ? "bg-green-100 text-green-700"
-                            : emp.status === "resigned"
+                        className={`px-3 py-2 rounded-full text-xs font-medium ${emp.status === "active"
+                          ? "bg-green-100 text-green-700"
+                          : emp.status === "resigned"
                             ? "bg-yellow-100 text-yellow-700"
                             : "bg-red-100 text-red-700"
-                        }`}
+                          }`}
                       >
-                        {emp.status.charAt(0).toUpperCase() + emp.status.slice(1)}
+                        {emp.status.charAt(0).toUpperCase() +
+                          emp.status.slice(1)}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-left relative">
                       <button
-                        onClick={() => setSelectedMenu(selectedMenu === emp.employee_id ? null : emp.employee_id)}
-                        className="p-1 rounded hover:bg-gray-200"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedMenu(
+                            selectedMenu === emp.employee_id
+                              ? null
+                              : emp.employee_id
+                          );
+                        }}
+                        className="p-1 rounded hover:bg-gray-200 menu-button"
                       >
                         <MoreVertical size={18} className="text-gray-600" />
                       </button>
 
                       {selectedMenu === emp.employee_id && (
-                        <div ref={dropdownRef} className="absolute right-4 top-10 bg-[#FFF2E0] rounded-lg shadow-lg w-36 z-10">
-                          <button onClick={() => handleView(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-gray-50">
+                        <div className="absolute right-4 top-10 bg-[#FFF2E0] rounded-lg shadow-lg w-36 z-50 employee-dropdown">
+                          <button
+                            onClick={() => handleView(emp.employee_id)}
+                            className="w-full text-left px-4 py-2 hover:bg-gray-50"
+                          >
                             View
                           </button>
-                          <button onClick={() => handleEdit(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-gray-50">
+                          <button
+                            onClick={() => handleEdit(emp.employee_id)}
+                            className="w-full text-left px-4 py-2 hover:bg-gray-50"
+                          >
                             Edit
                           </button>
-                          <button onClick={() => handleDelete(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-red-100 text-red-600">
+                          <button
+                            onClick={() => handleDelete(emp.employee_id)}
+                            className="w-full text-left px-4 py-2 hover:bg-red-100 text-red-600"
+                          >
                             Delete
                           </button>
                         </div>
@@ -307,8 +372,10 @@ export default function EmployeeTable() {
         </div>
       </div>
 
+      {/* Modals */}
       <AddModal isOpen={isModalOpen} onClose={handleModalClose} />
-      <ViewEmployeeModal isOpen={employeeToView !== null} onClose={() => setEmployeeToView(null)} id={employeeToView!} />
+      <ViewEmployeeModal isOpen={employeeToView !== null} onClose={() => setEmployeeToView(null)} id={employeeToView!}/>
+      <EditEmployeeModal isOpen={employeeToEdit !== null} onClose={() => setEmployeeToEdit(null)} id={employeeToEdit!}/>
     </div>
   );
 }

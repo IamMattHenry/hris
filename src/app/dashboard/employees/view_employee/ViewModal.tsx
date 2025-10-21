@@ -61,6 +61,21 @@ export default function ViewEmployeeModal({ isOpen, onClose, id }: ViewEmployeeM
     };
 
 
+    // Compute age from birthdate
+    const calculateAge = (birthdate: string) => {
+        if (!birthdate) return "";
+        const birth = new Date(birthdate);
+        const today = new Date();
+        let age = today.getFullYear() - birth.getFullYear();
+        const monthDiff = today.getMonth() - birth.getMonth();
+        const dayDiff = today.getDate() - birth.getDate();
+        if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
+            age--; // Not yet had birthday this year
+        }
+        return age.toString();
+    };
+
+
     if (!isOpen) return null;
 
     return (
@@ -122,13 +137,13 @@ export default function ViewEmployeeModal({ isOpen, onClose, id }: ViewEmployeeM
                                 <InfoBox label="Job Title" value={employee.position_name} />
                                 <InfoBox label="Department" value={employee.department_name} />
                                 <InfoBox label="Shift" value={employee.shift} />
-                                 <InfoBox label="Email" value={employee.email} />
+                                <InfoBox label="Email" value={employee.email} />
                                 {employee.sub_role && <InfoBox label="Sub Role" value={employee.sub_role} />}
                             </div>
 
                             {/* Contact Information */}
                             <div className="space-y-5">
-                               
+
                                 <InfoBox label="Contact Number" value={employee.contact_number} />
                                 <InfoBox label="Address" value={employee.home_address} />
                                 <InfoBox label="City" value={employee.city} />
@@ -141,6 +156,7 @@ export default function ViewEmployeeModal({ isOpen, onClose, id }: ViewEmployeeM
 
                         {/* Personal Information */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            <InfoBox label="Age" value={calculateAge(employee.birthdate)} />
                             <InfoBox label="Birthdate" value={formatDate(employee.birthdate)} />
                             <InfoBox label="Gender" value={employee.gender} />
                             <InfoBox label="Civil Status" value={employee.civil_status} />
