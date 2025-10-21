@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { Search, Plus, Filter, MoreVertical, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Search, Plus, Filter, ChevronDown, ChevronUp, MoreVertical } from "lucide-react";
 import AddModal from "./add_employee/AddModal";
 import { employeeApi } from "@/lib/api";
 import { Employee } from "@/types/api";
@@ -16,30 +16,42 @@ export default function EmployeeTable() {
   const [selectedMenu, setSelectedMenu] = useState<number | null>(null);
   const [employeeToView, setEmployeeToView] = useState<number | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [sortBy, setSortBy] = useState<string>(""); // column
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc"); // order
+  const [sortBy, setSortBy] = useState<string>("");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const filterRef = useRef<HTMLDivElement>(null);
-
-  // Close any dropdowns when clicking outside
+  // Click outside handler for dropdowns
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      if (selectedMenu !== null) {
+        const button = document.getElementById(`dropdown-btn-${selectedMenu}`);
+        const menu = document.getElementById(`dropdown-menu-${selectedMenu}`);
+        if (
+          (menu && !menu.contains(event.target as Node)) &&
+          (button && !button.contains(event.target as Node))
+        ) {
+          setSelectedMenu(null);
+        }
+      }
+
+      // Close filter dropdown if clicked outside
+      const filterBtn = document.getElementById("filter-btn");
+      const filterMenu = document.getElementById("filter-menu");
       if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node) &&
-        filterRef.current &&
-        !filterRef.current.contains(event.target as Node)
+        isFilterOpen &&
+        filterMenu &&
+        !filterMenu.contains(event.target as Node) &&
+        filterBtn &&
+        !filterBtn.contains(event.target as Node)
       ) {
-        setSelectedMenu(null);
         setIsFilterOpen(false);
       }
     };
+
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [selectedMenu, isFilterOpen]);
 
-  // Fetch employees from API
+  // Fetch employees
   useEffect(() => {
     fetchEmployees();
   }, []);
@@ -59,7 +71,7 @@ export default function EmployeeTable() {
     setLoading(false);
   };
 
-  // Sort logic
+  // Sorting logic
   const sortEmployees = (list: Employee[]) => {
     if (!sortBy) return list;
     return [...list].sort((a, b) => {
@@ -109,7 +121,6 @@ export default function EmployeeTable() {
     );
   });
 
-  // Apply sorting
   const sortedEmployees = sortEmployees(filtered);
 
   // Handlers
@@ -191,6 +202,7 @@ export default function EmployeeTable() {
           {/* Filter Dropdown */}
           <div className="relative">
             <button
+              id="filter-btn"
               onClick={() => setIsFilterOpen(!isFilterOpen)}
               className="flex items-center bg-[#3b2b1c] text-white px-6 py-4 rounded-full mr-16 shadow-md hover:opacity-90 transition"
             >
@@ -199,7 +211,7 @@ export default function EmployeeTable() {
             </button>
 
             {isFilterOpen && (
-              <div className="absolute right-0 mt-2 w-44 bg-[#FFF2E0] rounded-lg shadow-lg text-sm z-60">
+              <div id="filter-menu" className="absolute right-0 mt-2 w-44 bg-[#FFF2E0] rounded-lg shadow-lg text-sm z-60">
                 <button onClick={() => handleSortChange("name")} className="w-full text-left px-4 py-2 hover:bg-gray-100">
                   Name {sortBy === "name" && (sortOrder === "asc" ? "↑" : "↓")}
                 </button>
@@ -228,6 +240,7 @@ export default function EmployeeTable() {
 
       {/* Table */}
       <div className="w-full">
+        <h2 className="text-lg font-semibold mb-2">Employee Records</h2>
         <table className="w-full text-sm table-fixed border-separate border-spacing-y-2">
           <thead className="bg-[#3b2b1c] text-white text-left sticky top-0 z-20">
             <tr>
@@ -246,7 +259,10 @@ export default function EmployeeTable() {
             <tbody>
               {sortedEmployees.length > 0 ? (
                 sortedEmployees.map((emp) => (
-                  <tr key={emp.employee_id} className="bg-[#fff4e6] border border-orange-100 rounded-lg hover:shadow-sm transition relative">
+                  <tr
+                    key={emp.employee_id}
+                    className="bg-[#fff4e6] border border-orange-100 rounded-lg hover:shadow-sm transition relative"
+                  >
                     <td className="py-3 px-4">{emp.employee_code}</td>
                     <td className="py-3 px-4 flex items-center space-x-3">
                       <div className="w-8 h-8 rounded-full bg-[#800000] flex items-center justify-center text-white text-sm font-semibold">
@@ -254,7 +270,9 @@ export default function EmployeeTable() {
                           ? `${emp.first_name[0]}${emp.last_name[0]}`.toUpperCase()
                           : "?"}
                       </div>
-                      <span>{emp.first_name} {emp.last_name}</span>
+                      <span>
+                        {emp.first_name} {emp.last_name}
+                      </span>
                     </td>
                     <td className="py-3 px-4">{emp.position_name || "N/A"}</td>
                     <td className="py-3 px-4">{emp.department_name || "N/A"}</td>
@@ -273,21 +291,36 @@ export default function EmployeeTable() {
                     </td>
                     <td className="py-3 px-4 text-left relative">
                       <button
-                        onClick={() => setSelectedMenu(selectedMenu === emp.employee_id ? null : emp.employee_id)}
+                        id={`dropdown-btn-${emp.employee_id}`}
+                        onClick={() =>
+                          setSelectedMenu(selectedMenu === emp.employee_id ? null : emp.employee_id)
+                        }
                         className="p-1 rounded hover:bg-gray-200"
                       >
                         <MoreVertical size={18} className="text-gray-600" />
                       </button>
 
                       {selectedMenu === emp.employee_id && (
-                        <div ref={dropdownRef} className="absolute right-4 top-10 bg-[#FFF2E0] rounded-lg shadow-lg w-36 z-10">
-                          <button onClick={() => handleView(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-gray-50">
+                        <div
+                          id={`dropdown-menu-${emp.employee_id}`}
+                          className="absolute right-4 top-10 bg-[#FFF2E0] rounded-lg shadow-lg w-36 z-10"
+                        >
+                          <button
+                            onClick={() => handleView(emp.employee_id)}
+                            className="w-full text-left px-4 py-2 hover:bg-gray-50"
+                          >
                             View
                           </button>
-                          <button onClick={() => handleEdit(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-gray-50">
+                          <button
+                            onClick={() => handleEdit(emp.employee_id)}
+                            className="w-full text-left px-4 py-2 hover:bg-gray-50"
+                          >
                             Edit
                           </button>
-                          <button onClick={() => handleDelete(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-red-100 text-red-600">
+                          <button
+                            onClick={() => handleDelete(emp.employee_id)}
+                            className="w-full text-left px-4 py-2 hover:bg-red-100 text-red-600"
+                          >
                             Delete
                           </button>
                         </div>
@@ -308,7 +341,11 @@ export default function EmployeeTable() {
       </div>
 
       <AddModal isOpen={isModalOpen} onClose={handleModalClose} />
-      <ViewEmployeeModal isOpen={employeeToView !== null} onClose={() => setEmployeeToView(null)} id={employeeToView!} />
+      <ViewEmployeeModal
+        isOpen={employeeToView !== null}
+        onClose={() => setEmployeeToView(null)}
+        id={employeeToView!}
+      />
     </div>
   );
 }

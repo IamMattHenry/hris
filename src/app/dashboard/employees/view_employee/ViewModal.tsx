@@ -60,8 +60,7 @@ export default function ViewEmployeeModal({ isOpen, onClose, id }: ViewEmployeeM
             year: "numeric", // "2025"
         });
     };
-
-
+    
     if (!isOpen) return null;
 
     return (
