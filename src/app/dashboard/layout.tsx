@@ -1,5 +1,6 @@
 "use client";
 import { usePathname } from "next/navigation";
+import Head from "next/head";
 import Sidebar from "@/components/dashboard/Sidebar";
 import Header from "@/components/dashboard/Header";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -11,10 +12,8 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const currentPage =
     pathname.split("/").filter(Boolean).pop() || "dashboard";
 
-  const titleHeader =
-    currentPage.charAt(0).toUpperCase() + currentPage.slice(1);
+  const titleHeader = currentPage.charAt(0).toUpperCase() + currentPage.slice(1);
 
-  // Get user display name and type
   const adminName = user?.first_name && user?.last_name
     ? `${user.first_name} ${user.last_name}`
     : user?.username || "User";
@@ -23,7 +22,6 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     ? user.sub_role.toUpperCase()
     : user?.role?.toUpperCase() || "USER";
 
-  // Show loading state while fetching user
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#FDF6EC]">
@@ -36,13 +34,15 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar />
-      <div className="flex-1 flex flex-col">
-        <Header titleHeader={titleHeader} adminName={adminName} adminType={adminType} />
-        <main className="p-6 bg-[#FDF6EC]">{children}</main>
+    <>
+      <div className="flex min-h-screen">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header titleHeader={titleHeader} adminName={adminName} adminType={adminType} />
+          <main className="p-6 bg-[#FDF6EC]">{children}</main>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

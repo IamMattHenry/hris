@@ -102,7 +102,7 @@ export default function Header({
           </button>
 
           {dropdownOpen && (
-            <ul className="absolute text-[#4B0B14] font-poppins right-0 mt-2 px-0 py-2 w-44 bg-[#FFF2E0] rounded-md shadow-lg overflow-hidden">
+            <ul className="absolute text-[#4B0B14] font-poppins right-0 mt-2 px-0 py-2 w-44 bg-[#FFF2E0] z-70 rounded-md shadow-lg overflow-hidden">
               {items.map((item, idx) => (
                 <li
                   key={idx}

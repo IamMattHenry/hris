@@ -33,7 +33,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [shift, setShift] = useState("");
   const [email, setEmail] = useState("");
   const [contactNumber, setContactNumber] = useState("");
-  const [socialMedia, setSocialMedia] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -191,9 +190,20 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     if (step === 2) {
       if (!departmentId) newErrors.department = "Department is required";
       if (!positionId) newErrors.position = "Position is required";
-      if (!hireDate) newErrors.hireDate = "Hire date is required";
+      if (!hireDate) {
+        newErrors.hireDate = "Hire date is required";
+      } else {
+        const selectedDate = new Date(hireDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // reset time to 00:00
+
+        if (selectedDate > today) {
+          newErrors.hireDate = "Hire date cannot be in the future";
+        }
+      }
       if (!shift) newErrors.shift = "Shift is required";
     }
+
 
     // Step 3 - Contact Info
     if (step === 3) {
@@ -317,7 +327,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         setShift("");
         setEmail("");
         setContactNumber("");
-        setSocialMedia("");
         setUsername("");
         setPassword("");
         setConfirmPassword("");
@@ -358,12 +367,14 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
           ✕
         </motion.button>
 
+
         {/* Header */}
-        <h2 className="text-lg font-bold text-[#3b2b1c] mb-6 text-center">
-          {["Basic Information", "Job Information", "Contact Information", "Authentication"][step - 1]}
-        </h2>
-
-
+        <div className="flex flex-col items-start mb-6 space-y-1">
+          <h2 className="text-2xl font-extrabold text-[#3b2b1c]">Add Employee</h2>
+          <h3 className="text-lg font-[300] text-[#3b2b1c]">
+            {["Basic Information", "Job Information", "Contact Information", "Authentication"][step - 1]}
+          </h3>
+        </div>
 
         {/* Step Content */}
         <AnimatePresence mode="wait">
@@ -451,7 +462,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                     {firstName && lastName
                       ? `${firstName[0]}${lastName[0]}`.toUpperCase()
                       : "?"}
-                  </div> 
+                  </div>
                 </div>
 
 
@@ -474,7 +485,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
                 <FormInput label="Email:" type="email" value={email} onChange={(e) => setEmail(e.target.value)} error={errors.email} placeholder="(use gmail)" />
                 <FormInput label="Contact Number:" type="text" value={contactNumber} onChange={handleContactNumberChange} error={errors.contactNumber} />
-                <FormInput label="Social Media Link:" type="text" value={socialMedia} onChange={(e) => setSocialMedia(e.target.value)} placeholder="(Optional)" />
               </div>
             </motion.div>
           )}
