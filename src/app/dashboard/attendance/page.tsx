@@ -1,37 +1,36 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Search, Calendar } from "lucide-react";
+import ViewAttendanceModal from "./view_attendance/ViewModal";
+
 
 interface Attendance {
-  id: number;
+  id: string;
   name: string;
   position: string;
   remarks: string;
   timeIn: string;
   timeOut: string;
   shift: string;
-  dateTime: string;
+  dateTime: string; // YYYY-MM-DD
 }
 
 const getCurrentPHDate = () => {
-  return new Date().toLocaleString("sv-SE", {
+  return new Date().toLocaleDateString("sv-SE", {
     timeZone: "Asia/Manila",
-    hour12: false,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
+  }); // YYYY-MM-DD
 };
 
 export default function AttendanceTable() {
   const [selectedDate, setSelectedDate] = useState<string>(getCurrentPHDate());
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>("");
-  const [currentPHDate, setCurrentPHDate] = useState<Date>(new Date());
-  const [attendanceList, setAttendanceList] = useState<Attendance[]>([
+  const [employeeToView, setEmployeeToView] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+
+  const attendanceList: Attendance[] = [
     {
-      id: 1,
+      id: "001",
       name: "Alice Johnson",
       position: "Software Engineer",
       remarks: "Present",
@@ -41,7 +40,7 @@ export default function AttendanceTable() {
       dateTime: "2025-10-21",
     },
     {
-      id: 2,
+      id: "002",
       name: "Bob Smith",
       position: "Designer",
       remarks: "Late",
@@ -51,7 +50,7 @@ export default function AttendanceTable() {
       dateTime: "2025-10-21",
     },
     {
-      id: 3,
+      id: "003",
       name: "Carol Williams",
       position: "HR Manager",
       remarks: "Present",
@@ -60,39 +59,17 @@ export default function AttendanceTable() {
       shift: "Morning Shift",
       dateTime: "2025-10-20",
     },
-  ]);
+  ];
 
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentPHDate(new Date());
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleViewAttendance = (id: number) =>
-    alert(`View attendance ID: ${id}`);
-
-
-  const formattedCurrentPHDate = currentPHDate.toLocaleString("en-US", {
+  const currentDate = new Date();
+  const formattedDate = currentDate.toLocaleDateString("en-US", {
+    weekday: "long",
     year: "numeric",
     month: "long",
     day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-    timeZone: "Asia/Manila",
   });
 
-  // Short date for button
-  const shortDate = new Date(selectedDate).toLocaleString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
 
-  // Filter attendance
   const filteredAttendance = attendanceList.filter(
     (record) =>
       record.dateTime === selectedDate &&
@@ -100,18 +77,27 @@ export default function AttendanceTable() {
         record.position.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
+  const handleViewAttendance = (id: string) => {
+    setEmployeeToView(id);
+  };
+
+  const shortDate = new Date(selectedDate).toLocaleString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+
   return (
     <div className="min-h-screen bg-[#fff7ec] p-8 space-y-6 text-gray-800 font-poppins z-30">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-xl font-bold">
-          Date Today:
-          <span className="text-[#3b2b1c] font-[500] ml-2">
-            {formattedCurrentPHDate}
-          </span>
+          Date Today:{" "}
+          <span className="text-[#3b2b1c] font-[500]">{formattedDate}</span>
         </h1>
 
         <div className="flex items-center gap-4">
+          {/* Search */}
           <div className="relative w-64">
             <input
               type="text"
@@ -122,7 +108,6 @@ export default function AttendanceTable() {
             />
             <Search className="absolute left-3 top-3 text-[#FFA237]" size={18} />
           </div>
-
 
           {/* Date Selector */}
           <div className="relative">
@@ -230,6 +215,13 @@ export default function AttendanceTable() {
           </tbody>
         </table>
       </div>
+
+      {/* Modal */}
+      <ViewAttendanceModal
+        isOpen={employeeToView !== null}
+        onClose={() => setEmployeeToView(null)}
+        id={employeeToView!}
+      />
     </div>
   );
 }

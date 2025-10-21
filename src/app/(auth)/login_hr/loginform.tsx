@@ -76,7 +76,6 @@ export default function LoginForm() {
         onChange={(e) => setPassword(e.target.value)}
       />
 
-      {/* Error message (auto disappears after 5s) */}
 
       {/* Submit button */}
       <button
