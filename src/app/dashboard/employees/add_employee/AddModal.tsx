@@ -31,7 +31,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [payStart, setPayStart] = useState("");
   const [payEnd, setPayEnd] = useState("");
   const [shift, setShift] = useState("");
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [contactNumber, setContactNumber] = useState("");
   const [socialMedia, setSocialMedia] = useState("");
@@ -136,7 +135,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     }
   };
 
-  // Close modal if not open
   if (!isOpen) return null;
 
 
@@ -177,19 +175,27 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const validateStep = () => {
     const newErrors: { [key: string]: string } = {};
 
+    // Step 1 - Basic Info
     if (step === 1) {
       if (!firstName.trim()) newErrors.firstName = "First name is required";
       if (!lastName.trim()) newErrors.lastName = "Last name is required";
       if (!birthDate) newErrors.birthDate = "Birth date is required";
+      if (!gender) newErrors.gender = "Gender is required";
+      if (!civilStatus) newErrors.civilStatus = "Civil status is required";
       if (!homeAddress.trim()) newErrors.homeAddress = "Home address is required";
+      if (!city) newErrors.city = "City is required";
+      if (!region) newErrors.region = "Region is required";
     }
 
+    // Step 2 - Job Info
     if (step === 2) {
       if (!departmentId) newErrors.department = "Department is required";
       if (!positionId) newErrors.position = "Position is required";
       if (!hireDate) newErrors.hireDate = "Hire date is required";
+      if (!shift) newErrors.shift = "Shift is required";
     }
 
+    // Step 3 - Contact Info
     if (step === 3) {
       if (!email.trim()) {
         newErrors.email = "Email is required";
@@ -204,48 +210,39 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       }
     }
 
-
-
+    // Step 4 - Authentication
     if (step === 4) {
-  if (!username.trim()) {
-    newErrors.username = "Username is required";
-  }
+      if (!username.trim()) newErrors.username = "Username is required";
 
-  if (!password.trim()) {
-    newErrors.password = "Password is required";
-  } else {
-    const passwordErrors = [];
-    if (password.length < 6)
-      passwordErrors.push("At least 6 characters long");
-    if (!/[A-Z]/.test(password))
-      passwordErrors.push("At least one uppercase letter");
-    if (!/[a-z]/.test(password))
-      passwordErrors.push("At least one lowercase letter");
-    if (!/\d/.test(password))
-      passwordErrors.push("At least one number");
-    if (!/[@$!%*?&]/.test(password))
-      passwordErrors.push("At least one special character (@, $, !, %, *, ?, &)");
+      if (!password.trim()) {
+        newErrors.password = "Password is required";
+      } else {
+        const passwordErrors = [];
+        if (password.length < 6) passwordErrors.push("At least 6 characters long");
+        if (!/[A-Z]/.test(password)) passwordErrors.push("At least one uppercase letter");
+        if (!/[a-z]/.test(password)) passwordErrors.push("At least one lowercase letter");
+        if (!/\d/.test(password)) passwordErrors.push("At least one number");
+        if (!/[@$!%*?&]/.test(password))
+          passwordErrors.push("At least one special character (@, $, !, %, *, ?, &)");
+        if (passwordErrors.length > 0)
+          newErrors.password = passwordErrors.join(", ");
+      }
 
-    if (passwordErrors.length > 0)
-      newErrors.password = passwordErrors.join(", ");
-  }
+      if (!confirmPassword.trim()) {
+        newErrors.confirmPassword = "Please confirm your password";
+      } else if (password !== confirmPassword) {
+        newErrors.confirmPassword = "Passwords do not match";
+      }
 
-  if (!confirmPassword.trim()) {
-    newErrors.confirmPassword = "Please confirm your password";
-  } else if (password !== confirmPassword) {
-    newErrors.confirmPassword = "Passwords do not match";
-  }
-
-  // Validate sub_role if admin privilege is granted
-  if (grantAdminPrivilege && !subRole) {
-    newErrors.subRole = "Sub-role is required for admin privilege";
-  }
-}
-
+      if (grantAdminPrivilege && !subRole) {
+        newErrors.subRole = "Sub-role is required for admin privilege";
+      }
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
+
 
   const handleNext = () => {
     if (validateStep()) setStep((prev) => prev + 1);
@@ -261,10 +258,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     if (newStep <= step || validateStep()) setStep(newStep);
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) setImagePreview(URL.createObjectURL(file));
-  };
+
 
   const handleFingerprintScan = () => {
     alert("🔒 Fingerprint scanner initialized...");
@@ -329,7 +323,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         setConfirmPassword("");
         setGrantAdminPrivilege(false);
         setSubRole("");
-        setImagePreview(null);
         setStep(1);
         setErrors({});
 
@@ -352,12 +345,25 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0 }}
-        className="bg-[#f9ecd7] w-full max-w-4xl p-8 rounded-2xl shadow-lg"
+        transition={{ duration: 0.2 }}
+        className="bg-[#f9ecd7] w-full max-w-4xl p-8 rounded-2xl shadow-lg relative"
       >
+        <motion.button
+          whileHover={{ scale: 1.2, rotate: 90 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={onClose}
+          className="absolute top-4 right-4 text-[#3b2b1c] hover:text-[#60101C] transition text-2xl"
+          aria-label="Close Modal"
+        >
+          ✕
+        </motion.button>
+
         {/* Header */}
         <h2 className="text-lg font-bold text-[#3b2b1c] mb-6 text-center">
           {["Basic Information", "Job Information", "Contact Information", "Authentication"][step - 1]}
         </h2>
+
+
 
         {/* Step Content */}
         <AnimatePresence mode="wait">
@@ -374,10 +380,10 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                 <FormInput label="Last Name:" type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} error={errors.lastName} />
                 <FormInput label="Birth Date:" type="date" value={birthDate} onChange={handleBirthDateChange} error={errors.birthDate} />
                 <FormSelect label="Gender:" value={gender} onChange={(e) => setGender(e.target.value)} options={["Male", "Female", "Other"]} error={errors.gender} />
-                <FormSelect label="Civil Status:" value={civilStatus} onChange={(e) => setCivilStatus(e.target.value)} options={["Single", "Married", "Widowed", "Divorced"]} />
+                <FormSelect label="Civil Status:" value={civilStatus} onChange={(e) => setCivilStatus(e.target.value)} options={["Single", "Married", "Widowed", "Divorced"]} error={errors.civilStatus} />
                 <FormInput label="Home Address:" type="text" value={homeAddress} onChange={(e) => setHomeAddress(e.target.value)} error={errors.homeAddress} />
-                <FormSelect label="City" value={city} onChange={(e) => setCity(e.target.value)} options={cities} />
-                <FormSelect label="Region" value={region} onChange={(e) => setRegion(e.target.value)} options={regions.map((reg) => reg.name)} />
+                <FormSelect label="City" value={city} onChange={(e) => setCity(e.target.value)} options={cities} error={errors.city} />
+                <FormSelect label="Region" value={region} onChange={(e) => setRegion(e.target.value)} options={regions.map((reg) => reg.name)} error={errors.region} />
               </div>
             </motion.div>
           )}
@@ -440,22 +446,18 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                 </div>
 
                 <div className="flex flex-col items-center justify-center space-y-3">
-                  <div className="w-32 h-32 bg-gray-300 rounded-lg overflow-hidden flex items-center justify-center">
-                    {imagePreview ? (
-                      <img src={imagePreview} alt="Preview" className="object-cover w-full h-full" />
-                    ) : (
-                      <span className="text-gray-500 text-xs">No Image</span>
-                    )}
-                  </div>
-                  <label className="text-sm font-medium cursor-pointer bg-[#fdf4e3] px-4 py-2 rounded-lg shadow-inner border border-[#e6d2b5] hover:bg-[#f8e8cc] transition">
-                    Add Image
-                    <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
-                  </label>
+                  {/* Profile Initial Circle */}
+                  <div className="w-32 h-32 rounded-full bg-[#800000] flex items-center justify-center text-white text-4xl font-bold">
+                    {firstName && lastName
+                      ? `${firstName[0]}${lastName[0]}`.toUpperCase()
+                      : "?"}
+                  </div> 
                 </div>
+
 
                 <FormInput label="Hire Date:" type="date" value={hireDate} onChange={(e) => setHireDate(e.target.value)} error={errors.hireDate} />
                 <FormInput label="Pay Period Start:" type="date" value={payStart} onChange={(e) => setPayStart(e.target.value)} readOnly={true} />
-                <FormSelect label="Shift:" value={shift} onChange={(e) => setShift(e.target.value)} options={["Morning", "Night"]} />
+                <FormSelect label="Shift:" value={shift} onChange={(e) => setShift(e.target.value)} options={["Morning", "Night"]} error={errors.shift} />
                 <FormInput label="Pay Period End:" type="date" value={payEnd} onChange={(e) => setPayEnd(e.target.value)} readOnly={true} />
               </div>
             </motion.div>
@@ -504,7 +506,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
                 <div className="flex flex-col justify-end">
                   <label className="block text-[#3b2b1c] mb-1">Register Your Fingerprint</label>
-                  <button onClick={handleFingerprintScan} className="bg-[#3b2b1c] text-[#FFF2E0] border border-[#e6d2b5] rounded-lg px-3 py-2 shadow-inner hover:bg-[#60101c] transition">
+                  <button onClick={handleFingerprintScan} className="bg-[#3b2b1c] text-[#FFF2E0] w-50 cursor-pointer border border-[#e6d2b5] rounded-lg px-3 py-2 shadow-inner hover:bg-[#60101c] transition">
                     Scan Now
                   </button>
                 </div>

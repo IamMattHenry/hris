@@ -1,7 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { UserIcon, Cog6ToothIcon, ArrowRightOnRectangleIcon } from "@heroicons/react/24/outline";
+import { useState, useEffect, useRef } from "react";
+import {
+  UserIcon,
+  Cog6ToothIcon,
+  ArrowRightOnRectangleIcon,
+} from "@heroicons/react/24/outline";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface DropdownItem {
@@ -24,18 +28,32 @@ export default function Header({
   dropdownItems,
 }: DashboardHeaderProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const { logout } = useAuth();
+
+  // ✅ Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleProfile = () => {
     console.log("Profile clicked");
     setDropdownOpen(false);
-    // TODO: Navigate to profile page
   };
 
   const handleSettings = () => {
     console.log("Settings clicked");
     setDropdownOpen(false);
-    // TODO: Navigate to settings page
   };
 
   const handleLogout = () => {
@@ -44,7 +62,6 @@ export default function Header({
     logout();
   };
 
-  // --- Default dropdown items ---
   const defaultDropdown: DropdownItem[] = [
     { label: "Profile", icon: <UserIcon className="w-5 h-5" />, onClick: handleProfile },
     { label: "Settings", icon: <Cog6ToothIcon className="w-5 h-5" />, onClick: handleSettings },
@@ -62,12 +79,14 @@ export default function Header({
         </div>
 
         {/* Right: User Dropdown */}
-        <div className="relative">
+        <div ref={dropdownRef} className="relative">
           <button
             onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="flex items-center gap-2 bg-[#FFF2E0] text-[#4B0B14] px-4 py-2 rounded-lg shadow hover:shadow-md transition cursor-pointer"
+            className="flex items-center gap-2 bg-[#FFF2E0] text-[#4B0B14] px-8 py-2 rounded-lg shadow hover:shadow-md transition cursor-pointer"
           >
-            <div className="w-8 h-8 bg-[#4B0B14] rounded-full"></div>
+            <div className="w-8 h-8 bg-[#4B0B14] rounded-full text-white flex items-center justify-center font-semibold">
+              {adminName ? adminName[0].toUpperCase() : "A"}
+            </div>
             <div className="flex flex-col text-left">
               <span className="font-semibold font-poppins">{adminName}</span>
               <span className="text-xs text-gray-500 font-poppins">{adminType}</span>
@@ -83,7 +102,7 @@ export default function Header({
           </button>
 
           {dropdownOpen && (
-            <ul className="absolute text-[#4B0B14] font-poppins right-0 mt-2 px-0 py-2 w-44 bg-[#FFF2E0] rounded-sm shadow-lg overflow-hidden">
+            <ul className="absolute text-[#4B0B14] font-poppins right-0 mt-2 px-0 py-2 w-44 bg-[#FFF2E0] rounded-md shadow-lg overflow-hidden">
               {items.map((item, idx) => (
                 <li
                   key={idx}
