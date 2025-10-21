@@ -143,6 +143,7 @@ export const employeeApi = {
     city?: string;
     region?: string;
     position_id?: number;
+    shift?: string; 
     department_id?: number;
     hire_date: string;
     email?: string;

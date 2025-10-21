@@ -34,21 +34,16 @@ export const getEmployeeById = async (req, res, next) => {
 
     const employee = await db.getOne(
       `
-  SELECT 
-    e.*, 
-    jp.position_name, 
-    d.department_name, 
-    u.username,
-    GROUP_CONCAT(DISTINCT ea.email ORDER BY ea.email SEPARATOR ', ') AS emails,
-    GROUP_CONCAT(DISTINCT c.contact_number ORDER BY c.contact_number SEPARATOR ', ') AS contact_numbers
+  SELECT
+    e.*,
+    jp.position_name,
+    d.department_name,
+    u.username
   FROM employees e
   LEFT JOIN job_positions jp ON e.position_id = jp.position_id
   LEFT JOIN departments d ON jp.department_id = d.department_id
   LEFT JOIN users u ON e.user_id = u.user_id
-  LEFT JOIN employee_emails ea ON e.employee_id = ea.employee_id
-  LEFT JOIN employee_contact_numbers c ON e.employee_id = c.employee_id
   WHERE e.employee_id = ?
-  GROUP BY e.employee_id
 `,
       [id]
     );
@@ -59,6 +54,22 @@ export const getEmployeeById = async (req, res, next) => {
         message: "Employee not found",
       });
     }
+
+    // Fetch individual emails
+    const emails = await db.getAll(
+      "SELECT email_id, email FROM employee_emails WHERE employee_id = ? ORDER BY email_id",
+      [id]
+    );
+
+    // Fetch individual contact numbers
+    const contact_numbers = await db.getAll(
+      "SELECT contact_number_id, contact_number FROM employee_contact_numbers WHERE employee_id = ? ORDER BY contact_number_id",
+      [id]
+    );
+
+    // Attach contact info to employee object
+    employee.emails = emails;
+    employee.contact_numbers = contact_numbers;
 
     res.json({
       success: true,
@@ -87,6 +98,7 @@ export const createEmployee = async (req, res, next) => {
       city,
       region,
       position_id,
+      shift,
       hire_date,
       contact_number,
       status,
@@ -176,6 +188,7 @@ export const createEmployee = async (req, res, next) => {
       city,
       region,
       position_id,
+      shift,
       hire_date,
       status: status || "active",
     });
@@ -280,7 +293,7 @@ export const createEmployee = async (req, res, next) => {
 export const updateEmployee = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const { emails, contact_numbers, ...updates } = req.body;
 
     // Check if employee exists
     const employee = await db.getOne(
@@ -294,20 +307,72 @@ export const updateEmployee = async (req, res, next) => {
       });
     }
 
-    const affectedRows = await db.update(
-      "employees",
-      updates,
-      "employee_id = ?",
-      [id]
-    );
+    // Start transaction for atomic operations
+    await db.beginTransaction();
 
-    logger.info(`Employee updated: ${id}`);
+    try {
+      // Update employee basic info (only valid employee fields)
+      if (Object.keys(updates).length > 0) {
+        await db.transactionUpdate(
+          "employees",
+          updates,
+          "employee_id = ?",
+          [id]
+        );
+      }
 
-    res.json({
-      success: true,
-      message: "Employee updated successfully",
-      affectedRows,
-    });
+      // Handle emails if provided
+      if (emails && Array.isArray(emails)) {
+        // Delete all existing emails
+        await db.transactionQuery(
+          "DELETE FROM employee_emails WHERE employee_id = ?",
+          [id]
+        );
+
+        // Insert new emails
+        for (const email of emails) {
+          if (email && email.trim()) {
+            await db.transactionInsert("employee_emails", {
+              employee_id: id,
+              email: email.trim(),
+            });
+          }
+        }
+      }
+
+      // Handle contact numbers if provided
+      if (contact_numbers && Array.isArray(contact_numbers)) {
+        // Delete all existing contact numbers
+        await db.transactionQuery(
+          "DELETE FROM employee_contact_numbers WHERE employee_id = ?",
+          [id]
+        );
+
+        // Insert new contact numbers
+        for (const contact_number of contact_numbers) {
+          if (contact_number && contact_number.trim()) {
+            await db.transactionInsert("employee_contact_numbers", {
+              employee_id: id,
+              contact_number: contact_number.trim(),
+            });
+          }
+        }
+      }
+
+      // Commit transaction
+      await db.commit();
+
+      logger.info(`Employee updated: ${id}`);
+
+      res.json({
+        success: true,
+        message: "Employee updated successfully",
+      });
+    } catch (error) {
+      // Rollback on error
+      await db.rollback();
+      throw error;
+    }
   } catch (error) {
     logger.error("Update employee error:", error);
     next(error);

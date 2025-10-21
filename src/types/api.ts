@@ -49,12 +49,13 @@ export interface Employee {
   city?: string;
   region?: string;
   position_id?: number;
+  shift?: string;
   position_name?: string;
   department_id?: number;
   department_name?: string;
   hire_date: string;
-  email?: string;
-  contact_number?: string;
+  emails?: string[];
+  contact_numbers?: string[];
   status: 'active' | 'resigned' | 'terminated';
   created_at: string;
   // Associated user info

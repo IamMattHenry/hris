@@ -294,6 +294,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         city: city,
         region: region,
         position_id: positionId, // ✅ Include position_id
+        shift: shift ? shift.toLowerCase() : null,
         hire_date: hireDate,
         email: email,
         contact_number: contactNumber ? contactNumber.replace(/\s/g, '') : null,
