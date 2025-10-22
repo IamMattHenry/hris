@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Search, Calendar } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
+import SearchBar from "@/components/forms/FormSearch";
 import ViewAttendanceModal from "./view_attendance/ViewModal";
 
 
@@ -99,16 +100,7 @@ export default function AttendanceTable() {
 
         <div className="flex items-center gap-4">
           {/* Search */}
-          <div className="relative w-64">
-            <input
-              type="text"
-              placeholder="Search employee..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#3b2b1c]"
-            />
-            <Search className="absolute left-3 top-3 text-[#FFA237]" size={18} />
-          </div>
+          <SearchBar placeholder="Search employee..." value={searchTerm} onChange={setSearchTerm}/>
 
           {/* Date Selector */}
           <div className="relative">

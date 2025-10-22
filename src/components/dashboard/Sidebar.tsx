@@ -17,7 +17,7 @@ export default function Sidebar() {
     ];
 
     return (
-        <aside className="w-96 bg-[#FDF6EC] text-[#3C1E1E] font-poppins p-4 min-h-screen shadow-lg relative">
+        <aside className="w-96 bg-[linear-gradient(180deg,#190006_23%,#480C1B_67%,#300611_100%)] text-[#FFF2E0] font-poppins p-4 min-h-screen shadow-xl relative">
             <div className="mb-8 flex items-center justify-center">
                 <Image
                     src="/logo/celestia-hr-logo.png"
@@ -34,8 +34,8 @@ export default function Sidebar() {
                         <Link
                             href={path}
                             className={`flex items-center space-x-2 p-3 py-4 rounded-xl ${pathname === path
-                                ? "bg-[#4A0E0E] text-white"
-                                : "hover:bg-[#EBD8C3]"
+                                ? "bg-[#5B1924] text-white"
+                                : "hover:bg-[#530C1F]"
                                 }`}
                         >
                             <Icon className="w-5 h-5 me-4" />

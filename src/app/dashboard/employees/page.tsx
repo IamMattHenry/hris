@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import AddModal from "./add_employee/AddModal";
 import ActionButton from "@/components/buttons/ActionButton";
+import SearchBar from "@/components/forms/FormSearch";
 import ViewEmployeeModal from "./view_employee/ViewModal";
 import EditEmployeeModal from "./edit_employee/EditModal";
 import { employeeApi } from "@/lib/api";
@@ -185,20 +186,13 @@ export default function EmployeeTable() {
     <div className="min-h-screen bg-[#fff7ec] p-8 space-y-6 text-gray-800 font-poppins">
       {/* Header */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <h1 className="text-xl font-bold">{employees.length} Employees</h1>
-
+       
+        <h1 className="text-xl font-bold">{employees.length} {employees.length > 1 ? "employees" : "employee"} </h1>
+      
+       
         <div className="flex flex-wrap items-center gap-3 relative">
           {/* Search */}
-          <div className="flex items-center bg-[#fff1dd] px-4 py-4 rounded-full shadow-sm w-72 md:w-68">
-            <Search className="text-[#3b2b1c] mr-2" size={18} />
-            <input
-              type="text"
-              placeholder="Search Employee"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-transparent focus:outline-none w-full text-sm"
-            />
-          </div>
+          <SearchBar placeholder="Search Employee" value={searchTerm} onChange={setSearchTerm} />
 
           {/* Sort Filter */}
           <div className="relative filter-dropdown">
@@ -263,6 +257,7 @@ export default function EmployeeTable() {
 
       {/* Table */}
       <div className="w-full">
+       <h2 className="text-lg font-semibold mb-2">Employee Records</h2>
         <table className="w-full text-sm table-fixed border-separate border-spacing-y-2">
           <thead className="bg-[#3b2b1c] text-white text-left sticky top-0 z-20">
             <tr>
