@@ -10,10 +10,12 @@ import {
   ChevronUp,
 } from "lucide-react";
 import AddModal from "./add_employee/AddModal";
+import ActionButton from "@/components/buttons/ActionButton";
 import ViewEmployeeModal from "./view_employee/ViewModal";
 import EditEmployeeModal from "./edit_employee/EditModal";
 import { employeeApi } from "@/lib/api";
 import { Employee } from "@/types/api";
+
 
 
 export default function EmployeeTable() {
@@ -172,12 +174,7 @@ export default function EmployeeTable() {
       <div className="min-h-screen bg-[#fff7ec] flex items-center justify-center">
         <div className="text-center">
           <p className="text-lg text-red-600 mb-4">{error}</p>
-          <button
-            onClick={fetchEmployees}
-            className="bg-[#3b2b1c] text-white px-6 py-2 rounded-lg hover:opacity-90 transition"
-          >
-            Retry
-          </button>
+          <ActionButton label="Retry" onClick={fetchEmployees} className="" />
         </div>
       </div>
     );
@@ -209,6 +206,8 @@ export default function EmployeeTable() {
               onClick={() => setIsFilterOpen(!isFilterOpen)}
               className="flex items-center bg-[#3b2b1c] text-white px-6 py-4 rounded-full mr-16 shadow-md hover:opacity-90 transition filter-button"
             >
+
+            
               <Filter size={16} className="mr-2" /> Sort
               {isFilterOpen ? (
                 <ChevronUp className="ml-1" size={16} />
@@ -257,12 +256,8 @@ export default function EmployeeTable() {
           </div>
 
           {/* Add Button */}
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center bg-[#3b2b1c] text-white px-6 py-4 rounded-full shadow-md hover:opacity-90 transition"
-          >
-            <Plus size={16} className="mr-2" /> Add Employee
-          </button>
+        <ActionButton label="Add Employee" onClick={() => setIsModalOpen(true)} icon={Plus} className="py-4"/>
+
         </div>
       </div>
 
