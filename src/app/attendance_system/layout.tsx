@@ -20,7 +20,6 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        {/* ✅ Material Icons CDN */}
         <link
           href="https://fonts.googleapis.com/icon?family=Material+Icons"
           rel="stylesheet"

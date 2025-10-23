@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { motion } from "framer-motion";
 import { employeeApi } from "@/lib/api";
+import InfoBox from "@/components/forms/FormDisplay";
 
 interface ViewEmployeeModalProps {
   isOpen: boolean;
@@ -205,14 +206,3 @@ export default function ViewEmployeeModal({
   );
 }
 
-/* Small reusable info box */
-function InfoBox({ label, value }: { label: string; value?: string | React.ReactNode; }) {
-  return (
-    <div>
-      <p className="text-sm font-medium text-gray-600 mb-1">{label}</p>
-      <div className="bg-[#fff7ec] px-4 py-2 rounded-xl shadow-inner min-h-[42px]">
-        {value || "—"}
-      </div>
-    </div>
-  );
-}

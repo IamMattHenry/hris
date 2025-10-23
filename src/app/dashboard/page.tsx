@@ -96,7 +96,7 @@ export default function Dashboard() {
         ].map((item, i) => (
           <div
             key={i}
-            className="bg-[#fff4e6] border border-orange-200 rounded-xl shadow-md p-5 py-8 text-center hover:shadow-lg transition"
+            className="bg-[#fff4e6] border-t-2 border-l-2 border-b-2 border-r-2 border-t-[#f8e9d2] border-l-[#f8e9d2] border-b-[#6d2b24] border-r-[#6d2b24] rounded-lg shadow-lg p-5 py-8 text-center hover:shadow-xl transition"
           >
             <h2 className="text-3xl font-bold text-orange-800">{item.value}</h2>
             <p className="text-sm text-gray-700 mt-2">{item.title}</p>
