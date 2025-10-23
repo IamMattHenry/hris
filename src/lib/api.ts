@@ -257,3 +257,69 @@ export const positionApi = {
   },
 };
 
+// ============ LEAVE API FUNCTIONS ============
+
+export const leaveApi = {
+  /**
+   * Get all leave requests
+   */
+  getAll: async () => {
+    return apiCall<any[]>('/leave', {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get leave by ID
+   */
+  getById: async (id: number) => {
+    return apiCall<any>(`/leave/${id}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Create leave request
+   */
+  create: async (data: {
+    employee_id: number;
+    leave_type: string;
+    start_date: string;
+    end_date: string;
+    remarks?: string;
+  }) => {
+    return apiCall<any>('/leave/apply', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Approve leave request
+   */
+  approve: async (id: number) => {
+    return apiCall<any>(`/leave/${id}/approve`, {
+      method: 'PUT',
+    });
+  },
+
+  /**
+   * Reject leave request
+   */
+  reject: async (id: number, remarks?: string) => {
+    return apiCall<any>(`/leave/${id}/reject`, {
+      method: 'PUT',
+      body: JSON.stringify({ remarks }),
+    });
+  },
+
+  /**
+   * Delete leave request
+   */
+  delete: async (id: number) => {
+    return apiCall<any>(`/leave/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+

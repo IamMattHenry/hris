@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS leaves (
     leave_id INT AUTO_INCREMENT PRIMARY KEY,
     leave_code VARCHAR(10) UNIQUE,
     employee_id INT NOT NULL,
-    leave_type ENUM('vacation', 'sick', 'emergency', 'others') NOT NULL,
+    leave_type ENUM('vacation', 'sick', 'emergency', 'personal', 'parental', 'bereavement', 'others') NOT NULL,
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
     status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',

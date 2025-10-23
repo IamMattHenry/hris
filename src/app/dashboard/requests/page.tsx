@@ -1,39 +1,169 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, MoreVertical } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Plus, MoreVertical, Filter, ChevronDown, ChevronUp, X } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
+import { leaveApi } from "@/lib/api";
 
-type TabKey = "Leave Request" | "Benefit Request" | "Other Requests" | "History";
+type TabKey = "Leave Request" | "History";
+type LeaveType = "vacation" | "sick" | "personal" | "parental" | "bereavement" | "emergency" | "others";
+type LeaveStatus = "pending" | "approved" | "rejected";
 
-const tabs: TabKey[] = ["Leave Request", "Benefit Request", "Other Requests", "History"];
+interface Leave {
+  leave_id: number;
+  leave_code: string;
+  employee_id: number;
+  first_name: string;
+  last_name: string;
+  leave_type: LeaveType;
+  start_date: string;
+  end_date: string;
+  status: LeaveStatus;
+  remarks?: string;
+}
+
+const tabs: TabKey[] = ["Leave Request", "History"];
+
+const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
+  vacation: "Vacation Leave",
+  sick: "Sick Leave",
+  personal: "Personal Leave",
+  parental: "Parental Leave",
+  bereavement: "Bereavement Leave",
+  emergency: "Emergency Leave",
+  others: "Others",
+};
 
 export default function RequestsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>("Leave Request");
   const [searchRequest, setSearchRequest] = useState<string>("");
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  // sample data 
-  const data: Record<TabKey, { id: string; name: string; position: string; email: string; status: string }[]> = {
-    "Leave Request": [
-      { id: "001", name: "King, Oliver J.", position: "Manager", email: "HR", status: "Active" },
-      { id: "002", name: "Montgomery, Sophie L.", position: "Waiter", email: "HR", status: "On Leave" },
-    ],
-    "Benefit Request": [
-      { id: "101", name: "Anderson, Maria", position: "HR", email: "HR", status: "Approved" },
-      { id: "102", name: "Lee, Marcus", position: "Cashier", email: "Finance", status: "Pending" },
-    ],
-    "Other Requests": [
-      { id: "201", name: "Garcia, Paul", position: "Waiter", email: "Admin", status: "Pending" },
-    ],
-    "History": [
-      { id: "301", name: "Brown, Sarah", position: "Manager", email: "HR", status: "Completed" },
-      { id: "302", name: "Taylor, John", position: "Chef", email: "HR", status: "Completed" },
-    ],
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [leaves, setLeaves] = useState<Leave[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedLeave, setSelectedLeave] = useState<Leave | null>(null);
+  const [selectedMenu, setSelectedMenu] = useState<number | null>(null);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [filterLeaveType, setFilterLeaveType] = useState<LeaveType | "">("");
+  const [filterStatus, setFilterStatus] = useState<LeaveStatus | "">("");
+
+  // Close menus when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (
+        !target.closest(".leave-dropdown") &&
+        !target.closest(".menu-button") &&
+        !target.closest(".filter-dropdown") &&
+        !target.closest(".filter-button")
+      ) {
+        setSelectedMenu(null);
+        setIsFilterOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Fetch leaves
+  useEffect(() => {
+    fetchLeaves();
+  }, []);
+
+  const fetchLeaves = async () => {
+    setLoading(true);
+    const result = await leaveApi.getAll();
+    if (result.success && result.data) {
+      setLeaves(result.data as Leave[]);
+    }
+    setLoading(false);
   };
 
-  const handleAddRequest = (isOpen: boolean) => {
-    setIsModalOpen(isOpen);
+  // Filter leaves based on tab and search
+  const getFilteredLeaves = () => {
+    let filtered = leaves;
+
+    // Filter by tab
+    if (activeTab === "Leave Request") {
+      filtered = filtered.filter(l => l.status === "pending");
+    } else {
+      filtered = filtered.filter(l => l.status !== "pending");
+    }
+
+    // Filter by search
+    if (searchRequest) {
+      const search = searchRequest.toLowerCase();
+      filtered = filtered.filter(l =>
+        `${l.first_name} ${l.last_name}`.toLowerCase().includes(search) ||
+        l.leave_code.toLowerCase().includes(search)
+      );
+    }
+
+    // Filter by leave type
+    if (filterLeaveType) {
+      filtered = filtered.filter(l => l.leave_type === filterLeaveType);
+    }
+
+    // Filter by status
+    if (filterStatus) {
+      filtered = filtered.filter(l => l.status === filterStatus);
+    }
+
+    return filtered;
+  };
+
+  const filteredLeaves = getFilteredLeaves();
+
+  const handleView = (leave: Leave) => {
+    setSelectedLeave(leave);
+    setIsViewModalOpen(true);
+    setSelectedMenu(null);
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this leave request?")) return;
+    const result = await leaveApi.delete(id);
+    if (result.success) {
+      alert("Leave request deleted successfully");
+      fetchLeaves();
+    } else {
+      alert(result.message || "Failed to delete leave request");
+    }
+  };
+
+  const handleApprove = async (id: number) => {
+    const result = await leaveApi.approve(id);
+    if (result.success) {
+      alert("Leave request approved");
+      fetchLeaves();
+      setIsViewModalOpen(false);
+    } else {
+      alert(result.message || "Failed to approve leave request");
+    }
+  };
+
+  const handleReject = async (id: number) => {
+    const result = await leaveApi.reject(id);
+    if (result.success) {
+      alert("Leave request rejected");
+      fetchLeaves();
+      setIsViewModalOpen(false);
+    } else {
+      alert(result.message || "Failed to reject leave request");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#fff7ec] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#3b2b1c] mx-auto mb-4"></div>
+          <p className="text-lg text-gray-600">Loading leave requests...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -43,12 +173,9 @@ export default function RequestsPage() {
         <h1 className="text-2xl font-extrabold">Requests</h1>
 
         <div className="flex gap-2">
-          {/* Search */}
-          <SearchBar placeholder="Search Request" onChange={setSearchRequest} value={searchRequest}/>
-
-          {/* Add Button */}
-          <ActionButton label="Add Request" onClick={() => setIsModalOpen(true)} icon={Plus} />
-        </div> 
+          <SearchBar placeholder="Search Request" onChange={setSearchRequest} value={searchRequest} />
+          <ActionButton label="Add Request" onClick={() => setIsAddModalOpen(true)} icon={Plus} />
+        </div>
       </div>
 
       {/* Tabs */}
@@ -69,48 +196,356 @@ export default function RequestsPage() {
           ))}
         </div>
 
+        {/* Filter Button */}
+        <div className="px-4 py-3 border-b border-[#d5b9a1] flex items-center gap-2 relative filter-dropdown">
+          <button
+            onClick={() => setIsFilterOpen(!isFilterOpen)}
+            className="flex items-center bg-[#3b2b1c] text-white px-4 py-2 rounded-lg text-sm hover:opacity-90 transition filter-button"
+          >
+            <Filter size={14} className="mr-2" /> Filter
+            {isFilterOpen ? (
+              <ChevronUp className="ml-1" size={14} />
+            ) : (
+              <ChevronDown className="ml-1" size={14} />
+            )}
+          </button>
+
+          {isFilterOpen && (
+            <div className="absolute left-4 top-12 bg-white rounded-lg shadow-lg p-4 z-50 w-64 leave-dropdown">
+              <div className="mb-4">
+                <label className="block text-sm font-semibold mb-2">Leave Type</label>
+                <select
+                  value={filterLeaveType}
+                  onChange={(e) => setFilterLeaveType(e.target.value as LeaveType | "")}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value="">All Types</option>
+                  {Object.entries(LEAVE_TYPE_LABELS).map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2">Status</label>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value as LeaveStatus | "")}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value="">All Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-sm  text-md">
+          <table className="w-full text-sm">
             <thead>
               <tr className="bg-[#3b2b1c] text-white">
-                <th className="py-2 px-4 text-left">ID</th>
-                <th className="py-2 px-4 text-left">Name</th>
-                <th className="py-2 px-4 text-left">Position</th>
-                <th className="py-2 px-4 text-left">Email</th>
-                <th className="py-2 px-4 text-left">Request Date</th>
-                <th className="py-2 px-4 text-center"></th>
+                <th className="py-2 px-4 text-left">Code</th>
+                <th className="py-2 px-4 text-left">Employee</th>
+                <th className="py-2 px-4 text-left">Leave Type</th>
+                <th className="py-2 px-4 text-left">Start Date</th>
+                <th className="py-2 px-4 text-left">End Date</th>
+                <th className="py-2 px-4 text-left">Status</th>
+                <th className="py-2 px-4 text-center">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {data[activeTab].map((req) => (
-                <tr
-                  key={req.id}
-                  className="border-b border-[#eadfcd] hover:bg-[#fdf4e7] transition"
-                >
-                  <td className="py-3 px-4">{req.id}</td>
-                  <td className="py-3 px-4 flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-[#e5d1b8]" />
-                    {req.name}
+              {filteredLeaves.map((leave) => (
+                <tr key={leave.leave_id} className="border-b border-[#eadfcd] hover:bg-[#fdf4e7] transition">
+                  <td className="py-3 px-4">{leave.leave_code}</td>
+                  <td className="py-3 px-4">{leave.first_name} {leave.last_name}</td>
+                  <td className="py-3 px-4">{LEAVE_TYPE_LABELS[leave.leave_type]}</td>
+                  <td className="py-3 px-4">{new Date(leave.start_date).toLocaleDateString()}</td>
+                  <td className="py-3 px-4">{new Date(leave.end_date).toLocaleDateString()}</td>
+                  <td className="py-3 px-4">
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      leave.status === "approved" ? "bg-green-100 text-green-800" :
+                      leave.status === "rejected" ? "bg-red-100 text-red-800" :
+                      "bg-yellow-100 text-yellow-800"
+                    }`}>
+                      {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
+                    </span>
                   </td>
-                  <td className="py-3 px-4">{req.position}</td>
-                  <td className="py-3 px-4">{req.email}</td>
-                  <td className="py-3 px-4">{req.status}</td>
-                  <td className="py-3 px-4 text-center">
-                    <MoreVertical size={18} className="text-[#3b2b1c]/70 cursor-pointer" />
+                  <td className="py-3 px-4 text-center relative">
+                    <button
+                      onClick={() => setSelectedMenu(selectedMenu === leave.leave_id ? null : leave.leave_id)}
+                      className="menu-button inline-block"
+                    >
+                      <MoreVertical size={18} className="text-[#3b2b1c]/70 cursor-pointer" />
+                    </button>
+
+                    {selectedMenu === leave.leave_id && (
+                      <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg z-50 leave-dropdown">
+                        <button
+                          onClick={() => handleView(leave)}
+                          className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm"
+                        >
+                          View
+                        </button>
+                        <button
+                          onClick={() => {
+                            handleDelete(leave.leave_id);
+                            setSelectedMenu(null);
+                          }}
+                          className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm text-red-600"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
 
-          {/* Empty State */}
-          {data[activeTab].length === 0 && (
+          {filteredLeaves.length === 0 && (
             <div className="text-center py-6 text-[#7a5c4a]/70">
               No {activeTab.toLowerCase()} found.
             </div>
           )}
         </div>
+      </div>
+
+      {/* Add Leave Modal */}
+      {isAddModalOpen && (
+        <AddLeaveModal
+          isOpen={isAddModalOpen}
+          onClose={() => setIsAddModalOpen(false)}
+          onSuccess={() => {
+            setIsAddModalOpen(false);
+            fetchLeaves();
+          }}
+        />
+      )}
+
+      {/* View Leave Modal */}
+      {isViewModalOpen && selectedLeave && (
+        <ViewLeaveModal
+          isOpen={isViewModalOpen}
+          leave={selectedLeave}
+          onClose={() => setIsViewModalOpen(false)}
+          onApprove={() => handleApprove(selectedLeave.leave_id)}
+          onReject={() => handleReject(selectedLeave.leave_id)}
+        />
+      )}
+    </div>
+  );
+}
+
+// Add Leave Modal Component
+function AddLeaveModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClose: () => void; onSuccess: () => void }) {
+  const [formData, setFormData] = useState({
+    employee_id: 1, // Default to current user's employee ID
+    leave_type: "vacation" as LeaveType,
+    start_date: "",
+    end_date: "",
+    remarks: "",
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    if (!formData.start_date) newErrors.start_date = "Start date is required";
+    if (!formData.end_date) newErrors.end_date = "End date is required";
+    if (new Date(formData.end_date) <= new Date(formData.start_date)) {
+      newErrors.end_date = "End date must be after start date"; 
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validate()) return;
+    setIsSubmitting(true);
+    const result = await leaveApi.create(formData);
+    if (result.success) {
+      alert("Leave request submitted successfully");
+      onSuccess();
+    } else {
+      alert(result.message || "Failed to submit leave request");
+    }
+    setIsSubmitting(false);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
+      <div
+        className="bg-[#fdf3e2] w-full max-w-md p-8 rounded-2xl shadow-lg relative text-[#3b2b1c]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button onClick={onClose} className="absolute top-4 right-4 text-[#3b2b1c] hover:opacity-70">
+          <X size={24} />
+        </button>
+
+        <h2 className="text-2xl font-semibold mb-6">Leave Request</h2>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-semibold mb-2">Leave Type</label>
+            <select
+              value={formData.leave_type}
+              onChange={(e) => setFormData({ ...formData, leave_type: e.target.value as LeaveType })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+            >
+              {Object.entries(LEAVE_TYPE_LABELS).map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold mb-2">Start Date</label>
+            <input
+              type="date"
+              value={formData.start_date}
+              onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+            />
+            {errors.start_date && <p className="text-red-600 text-xs mt-1">{errors.start_date}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold mb-2">End Date</label>
+            <input
+              type="date"
+              value={formData.end_date}
+              onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+            />
+            {errors.end_date && <p className="text-red-600 text-xs mt-1">{errors.end_date}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold mb-2">Remarks</label>
+            <textarea
+              value={formData.remarks}
+              onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+              rows={3}
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 mt-6">
+          <button
+            onClick={onClose}
+            className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-100"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="px-6 py-2 bg-[#4b0b14] text-white rounded-lg hover:opacity-80 disabled:opacity-50"
+          >
+            {isSubmitting ? "Submitting..." : "Submit"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// View Leave Modal Component
+function ViewLeaveModal({
+  isOpen,
+  leave,
+  onClose,
+  onApprove,
+  onReject,
+}: {
+  isOpen: boolean;
+  leave: Leave;
+  onClose: () => void;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
+      <div
+        className="bg-[#fdf3e2] w-full max-w-md p-8 rounded-2xl shadow-lg relative text-[#3b2b1c]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button onClick={onClose} className="absolute top-4 right-4 text-[#3b2b1c] hover:opacity-70">
+          <X size={24} />
+        </button>
+
+        <h2 className="text-2xl font-semibold mb-6">Leave Request Details</h2>
+
+        <div className="space-y-4 mb-6">
+          <div>
+            <p className="text-sm text-gray-600">Code</p>
+            <p className="font-semibold">{leave.leave_code}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">Employee</p>
+            <p className="font-semibold">{leave.first_name} {leave.last_name}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">Leave Type</p>
+            <p className="font-semibold">{LEAVE_TYPE_LABELS[leave.leave_type]}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">Start Date</p>
+            <p className="font-semibold">{new Date(leave.start_date).toLocaleDateString()}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">End Date</p>
+            <p className="font-semibold">{new Date(leave.end_date).toLocaleDateString()}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">Status</p>
+            <p className="font-semibold">{leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}</p>
+          </div>
+          {leave.remarks && (
+            <div>
+              <p className="text-sm text-gray-600">Remarks</p>
+              <p className="font-semibold">{leave.remarks}</p>
+            </div>
+          )}
+        </div>
+
+        {leave.status === "pending" && (
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={onReject}
+              className="px-6 py-2 border border-red-600 text-red-600 rounded-lg hover:bg-red-50"
+            >
+              Reject
+            </button>
+            <button
+              onClick={onApprove}
+              className="px-6 py-2 bg-green-600 text-white rounded-lg hover:opacity-80"
+            >
+              Approve
+            </button>
+          </div>
+        )}
+
+        {leave.status !== "pending" && (
+          <div className="flex justify-end">
+            <button
+              onClick={onClose}
+              className="px-6 py-2 bg-[#4b0b14] text-white rounded-lg hover:opacity-80"
+            >
+              Close
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

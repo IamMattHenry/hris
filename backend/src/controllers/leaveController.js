@@ -147,7 +147,7 @@ export const rejectLeave = async (req, res, next) => {
       });
     }
 
-    await db.update('leaves', { status: 'rejected', remarks }, 'leave_id = ?', [id]);
+    await db.update('leaves', { status: 'rejected', remarks: remarks || null }, 'leave_id = ?', [id]);
 
     logger.info(`Leave request rejected: ${id}`);
 
@@ -161,11 +161,40 @@ export const rejectLeave = async (req, res, next) => {
   }
 };
 
+export const deleteLeave = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Check if leave request exists
+    const leave = await db.getOne('SELECT * FROM leaves WHERE leave_id = ?', [id]);
+    if (!leave) {
+      return res.status(404).json({
+        success: false,
+        message: 'Leave request not found',
+      });
+    }
+
+    const affectedRows = await db.deleteRecord('leaves', 'leave_id = ?', [id]);
+
+    logger.info(`Leave request deleted: ${id}`);
+
+    res.json({
+      success: true,
+      message: 'Leave request deleted successfully',
+      affectedRows,
+    });
+  } catch (error) {
+    logger.error('Delete leave error:', error);
+    next(error);
+  }
+};
+
 export default {
   getLeaveRequests,
   getLeaveByEmployee,
   applyLeave,
   approveLeave,
   rejectLeave,
+  deleteLeave,
 };
 
