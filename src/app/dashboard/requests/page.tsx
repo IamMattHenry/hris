@@ -185,11 +185,10 @@ export default function RequestsPage() {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`relative px-6 py-3 text-md cursor-pointer transition-all ${
-                activeTab === tab
+              className={`relative px-6 py-3 text-md cursor-pointer transition-all ${activeTab === tab
                   ? "text-[#6d2b24] border-b-4 border-[#6d2b24]"
                   : "text-[#7a5c4a] hover:text-[#6d2b24]/80"
-              }`}
+                }`}
             >
               {tab}
             </button>
@@ -211,7 +210,9 @@ export default function RequestsPage() {
           </button>
 
           {isFilterOpen && (
-            <div className="absolute left-4 top-12 bg-white rounded-lg shadow-lg p-4 z-50 w-64 leave-dropdown">
+            <div
+              className="absolute flex flex-column left-4 top-12 bg-white gap-4 rounded-lg shadow-lg p-4 z-[9999] w-80 leave-dropdown"
+            >
               <div className="mb-4">
                 <label className="block text-sm font-semibold mb-2">Leave Type</label>
                 <select
@@ -241,11 +242,12 @@ export default function RequestsPage() {
               </div>
             </div>
           )}
+
         </div>
 
         {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto z-50">
+          <table className="w-full text-sm ">
             <thead>
               <tr className="bg-[#3b2b1c] text-white">
                 <th className="py-2 px-4 text-left">Code</th>
@@ -266,11 +268,10 @@ export default function RequestsPage() {
                   <td className="py-3 px-4">{new Date(leave.start_date).toLocaleDateString()}</td>
                   <td className="py-3 px-4">{new Date(leave.end_date).toLocaleDateString()}</td>
                   <td className="py-3 px-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      leave.status === "approved" ? "bg-green-100 text-green-800" :
-                      leave.status === "rejected" ? "bg-red-100 text-red-800" :
-                      "bg-yellow-100 text-yellow-800"
-                    }`}>
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${leave.status === "approved" ? "bg-green-100 text-green-800" :
+                        leave.status === "rejected" ? "bg-red-100 text-red-800" :
+                          "bg-yellow-100 text-yellow-800"
+                      }`}>
                       {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
                     </span>
                   </td>
@@ -358,7 +359,7 @@ function AddLeaveModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClos
     if (!formData.start_date) newErrors.start_date = "Start date is required";
     if (!formData.end_date) newErrors.end_date = "End date is required";
     if (new Date(formData.end_date) <= new Date(formData.start_date)) {
-      newErrors.end_date = "End date must be after start date"; 
+      newErrors.end_date = "End date must be after start date";
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;

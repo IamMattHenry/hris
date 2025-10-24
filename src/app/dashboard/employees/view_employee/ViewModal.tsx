@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { motion } from "framer-motion";
 import { employeeApi } from "@/lib/api";
 import InfoBox from "@/components/forms/FormDisplay";
+import QRCodeGenerator from "../QRgenerator/QRCodeGenerator";
 
 interface ViewEmployeeModalProps {
   isOpen: boolean;
@@ -142,6 +143,7 @@ export default function ViewEmployeeModal({
                 <div className="bg-[#f4e6cf] px-6 py-2 rounded-xl text-sm shadow-inner">
                   Hire Date: <strong>{formatDate(employee.hire_date)}</strong>
                 </div>
+
               </div>
 
               {/* Job Information */}
@@ -154,8 +156,8 @@ export default function ViewEmployeeModal({
                   value={
                     employee.emails?.length
                       ? employee.emails.map((e) => (
-                          <div key={e.email_id}>{e.email}</div>
-                        ))
+                        <div key={e.email_id}>{e.email}</div>
+                      ))
                       : "N/A"
                   }
                 />
@@ -171,14 +173,17 @@ export default function ViewEmployeeModal({
                   value={
                     employee.contact_numbers?.length
                       ? employee.contact_numbers
-                          .map((c) => c.contact_number)
-                          .join(", ")
+                        .map((c) => c.contact_number)
+                        .join(", ")
                       : "N/A"
                   }
                 />
                 <InfoBox label="Address" value={employee.home_address} />
                 <InfoBox label="City" value={employee.city} />
                 <InfoBox label="Region" value={employee.region} />
+                 <QRCodeGenerator
+                  defaultText={`ID:${employee}|Name:${employee.first_name} ${employee.last_name}|Dept:${employee.department_name}|Role:${employee.position_name}|Birth:${employee.birthdate}`}
+                />
               </div>
             </div>
 
