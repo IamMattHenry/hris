@@ -4,13 +4,25 @@ import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
+interface EmployeeQRData {
+  employee_id: number;
+  employee_code: string;
+  first_name: string;
+  last_name: string;
+  position_name: string;
+  shift: string;
+  schedule_time: string; // "08:00" for morning, "17:00" for night
+}
+
 interface QRCodeGeneratorProps {
-  defaultText: string; // required text (employee data, etc.)
+  employeeData?: EmployeeQRData; // Employee data to encode in QR
+  defaultText?: string; // Fallback text if no employee data
   size?: number; // QR size in px (default 160)
 }
 
 export default function QRCodeGenerator({
-  defaultText,
+  employeeData,
+  defaultText = "",
   size = 160,
 }: QRCodeGeneratorProps) {
   const [qrUrl, setQrUrl] = useState("");
@@ -19,12 +31,23 @@ export default function QRCodeGenerator({
 
   // Generate QR automatically
   useEffect(() => {
-    if (!defaultText.trim()) return;
-
     const generate = async () => {
       setLoading(true);
       try {
-        const url = await QRCode.toDataURL(defaultText, {
+        // If employee data is provided, encode it as JSON; otherwise use defaultText
+        let dataToEncode = defaultText;
+
+        if (employeeData) {
+          dataToEncode = JSON.stringify(employeeData);
+        }
+
+        if (!dataToEncode.trim()) {
+          setQrUrl("");
+          setLoading(false);
+          return;
+        }
+
+        const url = await QRCode.toDataURL(dataToEncode, {
           width: size,
           margin: 1,
           color: {
@@ -41,7 +64,7 @@ export default function QRCodeGenerator({
     };
 
     generate();
-  }, [defaultText, size]);
+  }, [employeeData, defaultText, size]);
 
   // Download QR as PNG
   const downloadQR = () => {

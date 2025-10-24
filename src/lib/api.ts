@@ -297,11 +297,13 @@ export const attendanceApi = {
 
   /**
    * Clock in for an employee
+   * @param employee_id - Employee ID
+   * @param status - Optional attendance status (present, absent, late, etc.)
    */
-  clockIn: async (employee_id: number) => {
+  clockIn: async (employee_id: number, status?: string) => {
     return apiCall<any>('/attendance/clock-in', {
       method: 'POST',
-      body: JSON.stringify({ employee_id }),
+      body: JSON.stringify({ employee_id, status }),
     });
   },
 
@@ -407,6 +409,76 @@ export const leaveApi = {
   delete: async (id: number) => {
     return apiCall<any>(`/leave/${id}`, {
       method: 'DELETE',
+    });
+  },
+
+  /**
+   * Check and revert leave status for expired leaves
+   */
+  checkAndRevertStatus: async () => {
+    return apiCall<any>('/leave/check-revert-status', {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Get pending leave count
+   */
+  getPendingCount: async () => {
+    return apiCall<any>('/leave/stats/pending-count', {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get all pending leaves
+   */
+  getPendingLeaves: async () => {
+    return apiCall<any>('/leave/stats/pending-leaves', {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get absence records
+   * @param start_date - Optional filter by start date (YYYY-MM-DD)
+   * @param end_date - Optional filter by end date (YYYY-MM-DD)
+   */
+  getAbsenceRecords: async (start_date?: string, end_date?: string) => {
+    let url = '/leave/stats/absence-records';
+    const params = new URLSearchParams();
+    if (start_date) params.append('start_date', start_date);
+    if (end_date) params.append('end_date', end_date);
+    if (params.toString()) url += `?${params.toString()}`;
+
+    return apiCall<any>(url, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get absence count
+   * @param start_date - Optional filter by start date (YYYY-MM-DD)
+   * @param end_date - Optional filter by end date (YYYY-MM-DD)
+   */
+  getAbsenceCount: async (start_date?: string, end_date?: string) => {
+    let url = '/leave/stats/absence-count';
+    const params = new URLSearchParams();
+    if (start_date) params.append('start_date', start_date);
+    if (end_date) params.append('end_date', end_date);
+    if (params.toString()) url += `?${params.toString()}`;
+
+    return apiCall<any>(url, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get dashboard statistics
+   */
+  getDashboardStats: async () => {
+    return apiCall<any>('/leave/stats/dashboard', {
+      method: 'GET',
     });
   },
 };

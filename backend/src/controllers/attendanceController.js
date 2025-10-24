@@ -73,11 +73,41 @@ export const getAttendanceById = async (req, res, next) => {
   }
 };
 
+// Helper function to get Philippine timezone date and time
+const getPhilippineDateTime = () => {
+  const now = new Date();
+  const phTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+
+  // Get date in YYYY-MM-DD format
+  const year = phTime.getFullYear();
+  const month = String(phTime.getMonth() + 1).padStart(2, '0');
+  const day = String(phTime.getDate()).padStart(2, '0');
+  const date = `${year}-${month}-${day}`;
+
+  // Get time in HH:MM:SS format
+  const hours = String(phTime.getHours()).padStart(2, '0');
+  const minutes = String(phTime.getMinutes()).padStart(2, '0');
+  const seconds = String(phTime.getSeconds()).padStart(2, '0');
+  const time = `${hours}:${minutes}:${seconds}`;
+
+  // Get time with AM/PM
+  const timeWithAMPM = phTime.toLocaleString('en-US', {
+    timeZone: 'Asia/Manila',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
+
+  return { date, time, timeWithAMPM };
+};
+
 export const clockIn = async (req, res, next) => {
   try {
-    const { employee_id } = req.body;
-    const today = new Date().toISOString().split('T')[0];
-    const timeIn = new Date().toTimeString().split(' ')[0];
+    const { employee_id, status = 'present' } = req.body;
+
+    // Get today's date and time in Philippine timezone
+    const { date: today, time: timeIn, timeWithAMPM: timeInWithAMPM } = getPhilippineDateTime();
 
     if (!employee_id) {
       return res.status(400).json({
@@ -99,23 +129,26 @@ export const clockIn = async (req, res, next) => {
       });
     }
 
+    const validStatuses = ['present', 'absent', 'late', 'half_day', 'on_leave', 'work_from_home', 'others'];
+    const finalStatus = validStatuses.includes(status) ? status : 'present';
+
     const attendanceId = await db.insert('attendance', {
       employee_id,
       date: today,
       time_in: timeIn,
-      status: 'present',
+      status: finalStatus,
     });
 
     // Generate attendance code
     const attendanceCode = generateAttendanceCode(attendanceId);
     await db.update('attendance', { attendance_code: attendanceCode }, 'attendance_id = ?', [attendanceId]);
 
-    logger.info(`Clock in recorded for employee ${employee_id}`);
+    logger.info(`Clock in recorded for employee ${employee_id} with status ${finalStatus}`);
 
     res.status(201).json({
       success: true,
       message: 'Clocked in successfully',
-      data: { attendance_id: attendanceId, time_in: timeIn },
+      data: { attendance_id: attendanceId, time_in: timeInWithAMPM, status: finalStatus },
     });
   } catch (error) {
     logger.error('Clock in error:', error);
@@ -126,8 +159,9 @@ export const clockIn = async (req, res, next) => {
 export const clockOut = async (req, res, next) => {
   try {
     const { employee_id } = req.body;
-    const today = new Date().toISOString().split('T')[0];
-    const timeOut = new Date().toTimeString().split(' ')[0];
+
+    // Get today's date and time in Philippine timezone
+    const { date: today, time: timeOut, timeWithAMPM: timeOutWithAMPM } = getPhilippineDateTime();
 
     if (!employee_id) {
       return res.status(400).json({
@@ -149,14 +183,52 @@ export const clockOut = async (req, res, next) => {
       });
     }
 
-    await db.update('attendance', { time_out: timeOut }, 'attendance_id = ?', [attendance.attendance_id]);
+    // Calculate duration between time_in and time_out
+    const timeInParts = attendance.time_in.split(':');
+    const timeOutParts = timeOut.split(':');
 
-    logger.info(`Clock out recorded for employee ${employee_id}`);
+    const timeInMinutes = parseInt(timeInParts[0]) * 60 + parseInt(timeInParts[1]);
+    const timeOutMinutes = parseInt(timeOutParts[0]) * 60 + parseInt(timeOutParts[1]);
+
+    const durationMinutes = timeOutMinutes - timeInMinutes;
+    const durationHours = durationMinutes / 60;
+
+    // Determine status based on duration
+    let newStatus = attendance.status;
+    let overtimeHours = 0;
+
+    if (durationHours < 4) {
+      // Less than 4 hours = half day
+      newStatus = 'half_day';
+    } else if (durationHours > 8) {
+      // More than 8 hours = overtime
+      newStatus = 'overtime';
+      overtimeHours = durationHours - 8;
+    }
+    // Between 6.5 and 8 hours = just update time_out, keep status
+
+    // Update attendance record
+    const updateData = { time_out: timeOut };
+    if (newStatus !== attendance.status) {
+      updateData.status = newStatus;
+    }
+    if (overtimeHours > 0) {
+      updateData.overtime_hours = overtimeHours;
+    }
+
+    await db.update('attendance', updateData, 'attendance_id = ?', [attendance.attendance_id]);
+
+    logger.info(`Clock out recorded for employee ${employee_id} with duration ${durationHours.toFixed(2)} hours`);
 
     res.json({
       success: true,
       message: 'Clocked out successfully',
-      data: { time_out: timeOut },
+      data: {
+        time_out: timeOutWithAMPM,
+        duration_hours: durationHours.toFixed(2),
+        status: newStatus,
+        overtime_hours: overtimeHours > 0 ? overtimeHours.toFixed(2) : 0
+      },
     });
   } catch (error) {
     logger.error('Clock out error:', error);

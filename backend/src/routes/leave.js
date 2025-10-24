@@ -9,15 +9,17 @@ import {
   approveLeave,
   rejectLeave,
   deleteLeave,
+  checkAndRevertLeaveStatus,
+  getPendingLeaveCount,
+  getPendingLeaves,
+  getAbsenceRecords,
+  getAbsenceCount,
+  getDashboardStats,
 } from '../controllers/leaveController.js';
 
 const router = express.Router();
 
-// Get all leave requests (protected)
-router.get('/', verifyToken, getLeaveRequests);
-
-// Get leave by employee (protected)
-router.get('/employee/:employee_id', verifyToken, getLeaveByEmployee);
+// ============ SPECIFIC ROUTES (must come before generic :id routes) ============
 
 // Apply for leave (protected)
 router.post(
@@ -32,6 +34,36 @@ router.post(
   handleValidationErrors,
   applyLeave
 );
+
+// Check and revert leave status (admin only)
+router.post(
+  '/check-revert-status',
+  verifyToken,
+  verifyRole(['admin']),
+  checkAndRevertLeaveStatus
+);
+
+// Get pending leave count (protected)
+router.get('/stats/pending-count', verifyToken, getPendingLeaveCount);
+
+// Get all pending leaves (protected)
+router.get('/stats/pending-leaves', verifyToken, getPendingLeaves);
+
+// Get absence records (protected)
+// Supports query params: ?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
+router.get('/stats/absence-records', verifyToken, getAbsenceRecords);
+
+// Get absence count (protected)
+// Supports query params: ?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
+router.get('/stats/absence-count', verifyToken, getAbsenceCount);
+
+// Get dashboard statistics (protected)
+router.get('/stats/dashboard', verifyToken, getDashboardStats);
+
+// Get leave by employee (protected)
+router.get('/employee/:employee_id', verifyToken, getLeaveByEmployee);
+
+// ============ GENERIC ROUTES (must come after specific routes) ============
 
 // Approve leave (admin only)
 router.put(
@@ -56,6 +88,9 @@ router.delete(
   verifyRole(['admin']),
   deleteLeave
 );
+
+// Get all leave requests (protected)
+router.get('/', verifyToken, getLeaveRequests);
 
 export default router;
 

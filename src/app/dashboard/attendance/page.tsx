@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Calendar } from "lucide-react";
+import { Search, Calendar, RotateCw } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
 import ViewAttendanceModal from "./view_attendance/ViewModal";
@@ -47,6 +47,7 @@ export default function AttendanceTable() {
   const [isDateModalOpen, setIsDateModalOpen] = useState<boolean>(false);
   const [attendanceList, setAttendanceList] = useState<Attendance[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const currentDate = new Date();
   const formattedDate = currentDate.toLocaleDateString("en-US", {
@@ -68,6 +69,12 @@ export default function AttendanceTable() {
       setAttendanceList(result.data as Attendance[]);
     }
     setLoading(false);
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchAttendance();
+    setIsRefreshing(false);
   };
 
   const filteredAttendance = attendanceList.filter(
@@ -109,6 +116,16 @@ export default function AttendanceTable() {
         <div className="flex items-center gap-4">
           {/* Search */}
           <SearchBar placeholder="Search employee..." value={searchTerm} onChange={setSearchTerm}/>
+
+          {/* Refresh Button */}
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="p-2 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white transition flex items-center gap-2"
+            title="Refresh attendance records"
+          >
+            <RotateCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </button>
 
           {/* Date Selector */}
           <div className="relative">

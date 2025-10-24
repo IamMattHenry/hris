@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, MoreVertical, Filter, ChevronDown, ChevronUp, X } from "lucide-react";
+import { Plus, MoreVertical, Filter, ChevronDown, ChevronUp, X, RotateCw } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
 import { leaveApi } from "@/lib/api";
@@ -47,6 +47,7 @@ export default function RequestsPage() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [filterLeaveType, setFilterLeaveType] = useState<LeaveType | "">("");
   const [filterStatus, setFilterStatus] = useState<LeaveStatus | "">("");
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -79,6 +80,12 @@ export default function RequestsPage() {
       setLeaves(result.data as Leave[]);
     }
     setLoading(false);
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchLeaves();
+    setIsRefreshing(false);
   };
 
   // Filter leaves based on tab and search
@@ -137,7 +144,6 @@ export default function RequestsPage() {
     const result = await leaveApi.approve(id);
     if (result.success) {
       alert("Leave request approved");
-      fetchLeaves();
       setIsViewModalOpen(false);
     } else {
       alert(result.message || "Failed to approve leave request");
@@ -148,7 +154,6 @@ export default function RequestsPage() {
     const result = await leaveApi.reject(id);
     if (result.success) {
       alert("Leave request rejected");
-      fetchLeaves();
       setIsViewModalOpen(false);
     } else {
       alert(result.message || "Failed to reject leave request");
@@ -174,6 +179,17 @@ export default function RequestsPage() {
 
         <div className="flex gap-2">
           <SearchBar placeholder="Search Request" onChange={setSearchRequest} value={searchRequest} />
+
+          {/* Refresh Button */}
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="p-2 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white transition flex items-center gap-2"
+            title="Refresh leave requests"
+          >
+            <RotateCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </button>
+
           <ActionButton label="Add Request" onClick={() => setIsAddModalOpen(true)} icon={Plus} />
         </div>
       </div>

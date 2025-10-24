@@ -5,11 +5,13 @@ import { useEffect, useRef, useState } from "react";
 
 interface QRCodeScannerProps {
   onScan: (value: string) => void;
+  isActive?: boolean;
 }
 
-export default function QRCodeScanner({ onScan }: QRCodeScannerProps) {
+export default function QRCodeScanner({ onScan, isActive = true }: QRCodeScannerProps) {
   const [isScanning, setIsScanning] = useState(false);
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
+  const lastScannedRef = useRef<string>("");
 
   // Initialize the QR code instance once
   useEffect(() => {
@@ -24,12 +26,12 @@ export default function QRCodeScanner({ onScan }: QRCodeScannerProps) {
 
   // Start scanning
   const startScanner = async () => {
-    if (!html5QrCodeRef.current) return;
+    if (!html5QrCodeRef.current || !isActive) return;
 
     try {
       const devices = await Html5Qrcode.getCameras();
       if (devices && devices.length) {
-        const cameraId = devices[0].id; 
+        const cameraId = devices[0].id;
         await html5QrCodeRef.current.start(
           cameraId,
           {
@@ -37,10 +39,14 @@ export default function QRCodeScanner({ onScan }: QRCodeScannerProps) {
             qrbox: { width: 200, height: 200 },
           },
           (decodedText) => {
-            onScan(decodedText);
+            // Prevent duplicate scans
+            if (decodedText !== lastScannedRef.current) {
+              lastScannedRef.current = decodedText;
+              onScan(decodedText);
+            }
           },
           (errorMessage) => {
-            console.warn(errorMessage);
+            
           }
         );
         setIsScanning(true);
@@ -51,6 +57,13 @@ export default function QRCodeScanner({ onScan }: QRCodeScannerProps) {
       console.error("Failed to start scanner:", err);
     }
   };
+
+  // Auto-start scanner on mount
+  useEffect(() => {
+    if (isActive && !isScanning) {
+      startScanner();
+    }
+  }, [isActive]);
 
  
   const stopScanner = async () => {

@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS employees (
     position_id INT,
     shift ENUM('morning', 'night') DEFAULT 'morning',
     hire_date DATE,
-    status ENUM('active', 'resigned', 'terminated') DEFAULT 'active',
+    status ENUM('active', 'resigned', 'terminated', 'on-leave') DEFAULT 'active',
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
     FOREIGN KEY (position_id) REFERENCES job_positions(position_id) ON DELETE SET NULL,
     CHECK (employee_code REGEXP '^EMP-[0-9]{4}$')

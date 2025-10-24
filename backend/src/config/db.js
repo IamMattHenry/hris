@@ -1,5 +1,6 @@
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
+import { AsyncLocalStorage } from 'async_hooks';
 
 dotenv.config();
 
@@ -85,8 +86,8 @@ export const deleteRecord = async (table, whereClause, whereValues) => {
 // TRANSACTION SUPPORT
 // ========================================
 
-// Store for active connections (used for transactions)
-let transactionConnection = null;
+// Use AsyncLocalStorage for request-scoped transaction connections
+const transactionStorage = new AsyncLocalStorage();
 
 /**
  * Begin a database transaction
@@ -95,13 +96,17 @@ let transactionConnection = null;
 export const beginTransaction = async () => {
   try {
     // Get a connection from the pool
-    transactionConnection = await pool.getConnection();
+    const connection = await pool.getConnection();
 
     // Start transaction
-    await transactionConnection.beginTransaction();
+    await connection.beginTransaction();
 
     console.log('✅ Transaction started');
-    return transactionConnection;
+
+    // Store connection in AsyncLocalStorage for this request context
+    transactionStorage.enterWith(connection);
+
+    return connection;
   } catch (error) {
     console.error('❌ Failed to start transaction:', error);
     throw error;
@@ -114,13 +119,13 @@ export const beginTransaction = async () => {
  */
 export const commit = async () => {
   try {
-    if (!transactionConnection) {
+    const connection = transactionStorage.getStore();
+    if (!connection) {
       throw new Error('No active transaction to commit');
     }
 
-    await transactionConnection.commit();
-    transactionConnection.release();
-    transactionConnection = null;
+    await connection.commit();
+    connection.release();
 
     console.log('✅ Transaction committed');
   } catch (error) {
@@ -135,14 +140,14 @@ export const commit = async () => {
  */
 export const rollback = async () => {
   try {
-    if (!transactionConnection) {
+    const connection = transactionStorage.getStore();
+    if (!connection) {
       console.warn('⚠️ No active transaction to rollback');
       return;
     }
 
-    await transactionConnection.rollback();
-    transactionConnection.release();
-    transactionConnection = null;
+    await connection.rollback();
+    connection.release();
 
     console.log('✅ Transaction rolled back');
   } catch (error) {
@@ -158,9 +163,10 @@ export const rollback = async () => {
  */
 export const transactionQuery = async (sql, values = []) => {
   try {
-    if (transactionConnection) {
+    const connection = transactionStorage.getStore();
+    if (connection) {
       // Use transaction connection
-      const [results] = await transactionConnection.execute(sql, values);
+      const [results] = await connection.execute(sql, values);
       return results;
     } else {
       // Use pool (no active transaction)
