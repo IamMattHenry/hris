@@ -92,8 +92,9 @@ CREATE TABLE IF NOT EXISTS attendance (
     date DATE NOT NULL,
     time_in TIME,
     time_out TIME,
-    status ENUM('present', 'absent', 'late', 'on_leave') NOT NULL,
+    status ENUM('present', 'absent', 'late', 'half_day', 'on_leave', 'work_from_home', 'others') NOT NULL,
     overtime_hours DECIMAL(5,2) DEFAULT 0,
+    remarks TEXT,
     FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE,
     UNIQUE KEY (employee_id, date),
     CHECK (attendance_code REGEXP '^ATT-[0-9]{4}$')

@@ -7,7 +7,7 @@ export const getAttendanceRecords = async (req, res, next) => {
     const { employee_id, start_date, end_date } = req.query;
 
     let sql = `
-      SELECT a.*, e.first_name, e.last_name
+      SELECT a.*, e.first_name, e.last_name, e.employee_code
       FROM attendance a
       LEFT JOIN employees e ON a.employee_id = e.employee_id
       WHERE 1=1
@@ -40,6 +40,35 @@ export const getAttendanceRecords = async (req, res, next) => {
     });
   } catch (error) {
     logger.error('Get attendance records error:', error);
+    next(error);
+  }
+};
+
+export const getAttendanceById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const record = await db.getOne(
+      `SELECT a.*, e.first_name, e.last_name, e.employee_code
+       FROM attendance a
+       LEFT JOIN employees e ON a.employee_id = e.employee_id
+       WHERE a.attendance_id = ?`,
+      [id]
+    );
+
+    if (!record) {
+      return res.status(404).json({
+        success: false,
+        message: 'Attendance record not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: record,
+    });
+  } catch (error) {
+    logger.error('Get attendance by ID error:', error);
     next(error);
   }
 };
@@ -135,9 +164,166 @@ export const clockOut = async (req, res, next) => {
   }
 };
 
+export const updateOvertimeHours = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { overtime_hours } = req.body;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Attendance ID is required',
+      });
+    }
+
+    if (overtime_hours === undefined || overtime_hours === null) {
+      return res.status(400).json({
+        success: false,
+        message: 'Overtime hours is required',
+      });
+    }
+
+    if (isNaN(overtime_hours) || overtime_hours < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Overtime hours must be a positive number',
+      });
+    }
+
+    if (overtime_hours > 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Overtime hours cannot exceed 8 hours',
+      });
+    }
+
+    // Check if attendance record exists
+    const attendance = await db.getOne(
+      'SELECT * FROM attendance WHERE attendance_id = ?',
+      [id]
+    );
+
+    if (!attendance) {
+      return res.status(404).json({
+        success: false,
+        message: 'Attendance record not found',
+      });
+    }
+
+    await db.update('attendance', { overtime_hours }, 'attendance_id = ?', [id]);
+
+    logger.info(`Overtime hours updated for attendance ${id}`);
+
+    res.json({
+      success: true,
+      message: 'Overtime hours updated successfully',
+      data: { overtime_hours },
+    });
+  } catch (error) {
+    logger.error('Update overtime hours error:', error);
+    next(error);
+  }
+};
+
+export const updateAttendanceStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Attendance ID is required',
+      });
+    }
+
+    if (!status) {
+      return res.status(400).json({
+        success: false,
+        message: 'Status is required',
+      });
+    }
+
+    const validStatuses = ['present', 'absent', 'late', 'half_day', 'on_leave', 'work_from_home', 'others'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+      });
+    }
+
+    // Check if attendance record exists
+    const attendance = await db.getOne(
+      'SELECT * FROM attendance WHERE attendance_id = ?',
+      [id]
+    );
+
+    if (!attendance) {
+      return res.status(404).json({
+        success: false,
+        message: 'Attendance record not found',
+      });
+    }
+
+    await db.update('attendance', { status }, 'attendance_id = ?', [id]);
+
+    logger.info(`Attendance status updated for attendance ${id} to ${status}`);
+
+    res.json({
+      success: true,
+      message: 'Attendance status updated successfully',
+      data: { status },
+    });
+  } catch (error) {
+    logger.error('Update attendance status error:', error);
+    next(error);
+  }
+};
+
+export const getAttendanceSummary = async (req, res, next) => {
+  try {
+    const { employee_id } = req.params;
+
+    if (!employee_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Employee ID is required',
+      });
+    }
+
+    const summary = await db.getOne(
+      `SELECT
+        SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present_count,
+        SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) as absent_count,
+        SUM(CASE WHEN status = 'on_leave' THEN 1 ELSE 0 END) as leave_count,
+        SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) as late_count
+       FROM attendance
+       WHERE employee_id = ?`,
+      [employee_id]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        present: summary?.present_count || 0,
+        absent: summary?.absent_count || 0,
+        leave: summary?.leave_count || 0,
+        late: summary?.late_count || 0,
+      },
+    });
+  } catch (error) {
+    logger.error('Get attendance summary error:', error);
+    next(error);
+  }
+};
+
 export default {
   getAttendanceRecords,
+  getAttendanceById,
   clockIn,
   clockOut,
+  updateOvertimeHours,
+  updateAttendanceStatus,
+  getAttendanceSummary,
 };
 
