@@ -1,35 +1,43 @@
-import type { Metadata } from "next";
-import { Abril_Fatface } from "next/font/google";
+"use client";
+import Image from "next/image";
 
-export const metadata: Metadata = {
-  title: "Welcome to Celestia Hotel HRIS",
-  description: "Human Resource Information System for Celestia Hotel",
-};
-
-const abrilFatface = Abril_Fatface({
-  variable: "--font-abril",
-  weight: "400",
-  subsets: ["latin"],
-});
-
-export default function RootLayout({
+export default function AttendanceSystemLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
-    <html lang="en">
-      <head>
-        <link
-          href="https://fonts.googleapis.com/icon?family=Material+Icons"
-          rel="stylesheet"
-        />
-      </head>
-      <body
-        className={`${abrilFatface.variable} antialiased bg-[#fdf3e2] text-[#3b2b1c]`}
-      >
-        {children}
-      </body>
-    </html>
+    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-[#4b0e0e] via-[#5b1212] to-[#250808] text-[#fdf3e2] relative overflow-hidden">
+      {/* Subtle background texture */}
+      <div className="absolute inset-0 opacity-10 bg-repeat"></div>
+
+      {/* Page container */}
+      <div className="relative z-10 text-[#3b2b1c] w-full max-w-5xl px-6">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="mb-8 flex items-center justify-center">
+            <Image
+              src="/logo/celestia-hr-logo.png"
+              alt="Logo"
+              width={250}
+              height={250}
+              className="object-contain"
+              priority
+            />
+          </div>
+          <p className="text-sm font-medium text-[#fdf3e2]/80">
+            Human Resource Information System
+          </p>
+        </div>
+
+        {/* Dynamic page content */}
+        <div>{children}</div>
+      </div>
+
+      {/* Footer */}
+      <footer className="absolute bottom-4 text-xs text-[#fdf3e2]/70">
+        © {new Date().getFullYear()} Celestia Hotel HRIS
+      </footer>
+    </div>
   );
 }
