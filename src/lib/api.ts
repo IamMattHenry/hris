@@ -255,6 +255,13 @@ export const positionApi = {
       method: 'GET',
     });
   },
+
+  // Get Total Availability
+  getTotalAvailability: async () => {
+    return apiCall<any>('/positions/total-availability', {
+      method: 'GET',
+    });
+  },
 };
 
 // ============ LEAVE API FUNCTIONS ============
