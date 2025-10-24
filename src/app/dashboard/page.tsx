@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { employeeApi } from "@/lib/api";
-import { Employee } from "@/types/api";
+import { employeeApi, positionApi } from "@/lib/api";
+import { Employee, Position } from "@/types/api";
 
 export default function Dashboard() {
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [positionAvailability, setPositionAvailability] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,7 +27,23 @@ export default function Dashboard() {
       setLoading(false);
     };
 
+    const fetchPositionAvailability = async () => {
+      setLoading(true);
+      setError(null);
+
+      const result = await positionApi.getTotalAvailability();
+
+      if (result.success && result.data) {
+        setPositionAvailability(result.data.total_availability as number)
+      } else {
+        setError(result.message || "Failed to fetch position availability");
+      }
+
+      setLoading(false);
+    }
+
     fetchEmployees();
+    fetchPositionAvailability();
   }, []);
 
   if (loading) {
@@ -89,7 +106,7 @@ export default function Dashboard() {
         {[
           { title: "Employee Count", value: employeeCount },
           { title: "Active Employees", value: activeEmployees },
-          { title: "Available Positions", value: 15 },
+          { title: "Available Positions", value: positionAvailability },
           { title: "No. Of Leave", value: 21 },
           { title: "No. Of Absence", value: 29 },
           { title: "No. Of Requests", value: 32 },

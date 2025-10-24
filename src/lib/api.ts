@@ -255,6 +255,94 @@ export const positionApi = {
       method: 'GET',
     });
   },
+
+  // Get Total Availability
+  getTotalAvailability: async () => {
+    return apiCall<any>('/positions/total-availability', {
+      method: 'GET',
+    });
+  },
+};
+
+// ============ ATTENDANCE API FUNCTIONS ============
+
+export const attendanceApi = {
+  /**
+   * Get all attendance records
+   * @param employee_id - Optional filter by employee ID
+   * @param start_date - Optional filter by start date (YYYY-MM-DD)
+   * @param end_date - Optional filter by end date (YYYY-MM-DD)
+   */
+  getAll: async (employee_id?: number, start_date?: string, end_date?: string) => {
+    let url = '/attendance';
+    const params = new URLSearchParams();
+    if (employee_id) params.append('employee_id', employee_id.toString());
+    if (start_date) params.append('start_date', start_date);
+    if (end_date) params.append('end_date', end_date);
+    if (params.toString()) url += `?${params.toString()}`;
+
+    return apiCall<any[]>(url, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get attendance by ID
+   */
+  getById: async (id: number) => {
+    return apiCall<any>(`/attendance/${id}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Clock in for an employee
+   */
+  clockIn: async (employee_id: number) => {
+    return apiCall<any>('/attendance/clock-in', {
+      method: 'POST',
+      body: JSON.stringify({ employee_id }),
+    });
+  },
+
+  /**
+   * Clock out for an employee
+   */
+  clockOut: async (employee_id: number) => {
+    return apiCall<any>('/attendance/clock-out', {
+      method: 'POST',
+      body: JSON.stringify({ employee_id }),
+    });
+  },
+
+  /**
+   * Update overtime hours for an attendance record
+   */
+  updateOvertime: async (id: number, overtime_hours: number) => {
+    return apiCall<any>(`/attendance/${id}/overtime`, {
+      method: 'PUT',
+      body: JSON.stringify({ overtime_hours }),
+    });
+  },
+
+  /**
+   * Update attendance status
+   */
+  updateStatus: async (id: number, status: string) => {
+    return apiCall<any>(`/attendance/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+  },
+
+  /**
+   * Get attendance summary for an employee
+   */
+  getSummary: async (employee_id: number) => {
+    return apiCall<any>(`/attendance/summary/${employee_id}`, {
+      method: 'GET',
+    });
+  },
 };
 
 // ============ LEAVE API FUNCTIONS ============
