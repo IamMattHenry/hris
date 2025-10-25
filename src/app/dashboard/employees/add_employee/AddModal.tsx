@@ -47,6 +47,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [departments, setDepartments] = useState<Department[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // set the pay end date based on pay start date
   useEffect(() => {
@@ -271,7 +272,8 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
 
   const handleFingerprintScan = () => {
-    alert("🔒 Fingerprint scanner initialized...");
+    setMessage({ type: "success", text: "🔒 Fingerprint scanner initialized..." });
+    setTimeout(() => setMessage(null), 2000);
   };
 
   const handleSubmit = async () => {
@@ -309,40 +311,43 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       const result = await employeeApi.create(employeeData);
 
       if (result.success) {
-        alert("Employee created successfully!");
+        setMessage({ type: "success", text: "Employee created successfully!" });
 
-        // Reset everything
-        setFirstName("");
-        setLastName("");
-        setBirthDate("");
-        setGender("");
-        setCivilStatus("");
-        setHomeAddress("");
-        setCity("");
-        setRegion("");
-        setDepartmentId(null);
-        setPositionId(null);
-        setHireDate("");
-        setPayStart("");
-        setPayEnd("");
-        setShift("");
-        setEmail("");
-        setContactNumber("");
-        setUsername("");
-        setPassword("");
-        setConfirmPassword("");
-        setGrantAdminPrivilege(false);
-        setSubRole("");
-        setStep(1);
-        setErrors({});
+        // Reset everything after 2 seconds
+        setTimeout(() => {
+          setFirstName("");
+          setLastName("");
+          setBirthDate("");
+          setGender("");
+          setCivilStatus("");
+          setHomeAddress("");
+          setCity("");
+          setRegion("");
+          setDepartmentId(null);
+          setPositionId(null);
+          setHireDate("");
+          setPayStart("");
+          setPayEnd("");
+          setShift("");
+          setEmail("");
+          setContactNumber("");
+          setUsername("");
+          setPassword("");
+          setConfirmPassword("");
+          setGrantAdminPrivilege(false);
+          setSubRole("");
+          setStep(1);
+          setErrors({});
+          setMessage(null);
 
-        onClose();
+          onClose();
+        }, 2000);
       } else {
-        alert(result.message || "Failed to create employee");
+        setMessage({ type: "error", text: result.message || "Failed to create employee" });
       }
     } catch (error) {
       console.error("Error creating employee:", error);
-      alert("An error occurred while creating the employee");
+      setMessage({ type: "error", text: "An error occurred while creating the employee" });
     } finally {
       setIsSubmitting(false);
     }
@@ -368,6 +373,13 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
           ✕
         </motion.button>
 
+
+        {/* Message Display */}
+        {message && (
+          <div className={`mb-4 p-3 rounded-lg ${message.type === "success" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+            {message.text}
+          </div>
+        )}
 
         {/* Header */}
         <div className="flex flex-col items-start mb-6 space-y-1">

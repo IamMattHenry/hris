@@ -120,12 +120,12 @@ export const beginTransaction = async () => {
 export const commit = async () => {
   try {
     const connection = transactionStorage.getStore();
-    if (!connection) {
-      throw new Error('No active transaction to commit');
-    }
 
     await connection.commit();
     connection.release();
+
+    // Clear the AsyncLocalStorage context
+    transactionStorage.enterWith(null);
 
     console.log('✅ Transaction committed');
   } catch (error) {
@@ -148,6 +148,9 @@ export const rollback = async () => {
 
     await connection.rollback();
     connection.release();
+
+    // Clear the AsyncLocalStorage context
+    transactionStorage.enterWith(null);
 
     console.log('✅ Transaction rolled back');
   } catch (error) {
