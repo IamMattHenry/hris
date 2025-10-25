@@ -202,8 +202,8 @@ export default function RequestsPage() {
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`relative px-6 py-3 text-md cursor-pointer transition-all ${activeTab === tab
-                  ? "text-[#6d2b24] border-b-4 border-[#6d2b24]"
-                  : "text-[#7a5c4a] hover:text-[#6d2b24]/80"
+                ? "text-[#6d2b24] border-b-4 border-[#6d2b24]"
+                : "text-[#7a5c4a] hover:text-[#6d2b24]/80"
                 }`}
             >
               {tab}
@@ -263,66 +263,83 @@ export default function RequestsPage() {
 
         {/* Table */}
         <div className="overflow-x-auto z-50">
-          <table className="w-full text-sm ">
-            <thead>
-              <tr className="bg-[#3b2b1c] text-white">
-                <th className="py-2 px-4 text-left">Code</th>
-                <th className="py-2 px-4 text-left">Employee</th>
-                <th className="py-2 px-4 text-left">Leave Type</th>
-                <th className="py-2 px-4 text-left">Start Date</th>
-                <th className="py-2 px-4 text-left">End Date</th>
-                <th className="py-2 px-4 text-left">Status</th>
-                <th className="py-2 px-4 text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredLeaves.map((leave) => (
-                <tr key={leave.leave_id} className="border-b border-[#eadfcd] hover:bg-[#fdf4e7] transition">
-                  <td className="py-3 px-4">{leave.leave_code}</td>
-                  <td className="py-3 px-4">{leave.first_name} {leave.last_name}</td>
-                  <td className="py-3 px-4">{LEAVE_TYPE_LABELS[leave.leave_type]}</td>
-                  <td className="py-3 px-4">{new Date(leave.start_date).toLocaleDateString()}</td>
-                  <td className="py-3 px-4">{new Date(leave.end_date).toLocaleDateString()}</td>
-                  <td className="py-3 px-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${leave.status === "approved" ? "bg-green-100 text-green-800" :
-                        leave.status === "rejected" ? "bg-red-100 text-red-800" :
-                          "bg-yellow-100 text-yellow-800"
-                      }`}>
-                      {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-center relative">
-                    <button
-                      onClick={() => setSelectedMenu(selectedMenu === leave.leave_id ? null : leave.leave_id)}
-                      className="menu-button inline-block"
-                    >
-                      <MoreVertical size={18} className="text-[#3b2b1c]/70 cursor-pointer" />
-                    </button>
-
-                    {selectedMenu === leave.leave_id && (
-                      <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg z-50 leave-dropdown">
-                        <button
-                          onClick={() => handleView(leave)}
-                          className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm"
-                        >
-                          View
-                        </button>
-                        <button
-                          onClick={() => {
-                            handleDelete(leave.leave_id);
-                            setSelectedMenu(null);
-                          }}
-                          className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm text-red-600"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    )}
-                  </td>
+          <div className="overflow-x-auto overflow-y-auto max-h-[500px] h-200 shadow-sm z-50">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 z-10 bg-[#3b2b1c] text-white">
+                <tr>
+                  <th className="py-4 px-4 text-left">Code</th>
+                  <th className="py-4 px-4 text-left">Employee</th>
+                  <th className="py-4 px-4 text-left">Leave Type</th>
+                  <th className="py-4 px-4 text-left">Start Date</th>
+                  <th className="py-4 px-4 text-left">End Date</th>
+                  <th className="py-4 px-4 text-left">Status</th>
+                  <th className="py-4 px-4 text-center">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredLeaves.map((leave) => (
+                  <tr
+                    key={leave.leave_id}
+                    className="border-b border-[#eadfcd] hover:bg-[#fdf4e7] transition"
+                  >
+                    <td className="py-3 px-4">{leave.leave_code}</td>
+                    <td className="py-3 px-4">{leave.first_name} {leave.last_name}</td>
+                    <td className="py-3 px-4">{LEAVE_TYPE_LABELS[leave.leave_type]}</td>
+                    <td className="py-3 px-4">{new Date(leave.start_date).toLocaleDateString()}</td>
+                    <td className="py-3 px-4">{new Date(leave.end_date).toLocaleDateString()}</td>
+                    <td className="py-3 px-4">
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-semibold ${leave.status === "approved"
+                            ? "bg-green-100 text-green-800"
+                            : leave.status === "rejected"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-yellow-100 text-yellow-800"
+                          }`}
+                      >
+                        {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-center relative">
+                      <button
+                        onClick={() =>
+                          setSelectedMenu(
+                            selectedMenu === leave.leave_id ? null : leave.leave_id
+                          )
+                        }
+                        className="menu-button inline-block"
+                      >
+                        <MoreVertical
+                          size={18}
+                          className="text-[#3b2b1c]/70 cursor-pointer"
+                        />
+                      </button>
+
+                      {selectedMenu === leave.leave_id && (
+                        <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg z-50 leave-dropdown">
+                          <button
+                            onClick={() => handleView(leave)}
+                            className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm"
+                          >
+                            View
+                          </button>
+                          <button
+                            onClick={() => {
+                              handleDelete(leave.leave_id);
+                              setSelectedMenu(null);
+                            }}
+                            className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm text-red-600"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
 
           {filteredLeaves.length === 0 && (
             <div className="text-center py-6 text-[#7a5c4a]/70">

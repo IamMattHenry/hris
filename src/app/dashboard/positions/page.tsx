@@ -1,3 +1,214 @@
-export default function positionsPage() {
-  return <h1>Positions List</h1>;
+"use client";
+
+import { useState, useEffect, useRef } from "react";
+import { MoreVertical, Plus, Eye, Trash2, Pencil } from "lucide-react";
+import ActionButton from "@/components/buttons/ActionButton";
+import AddJobModal from "./add_positions/AddModal";
+import ViewJobModal from "./view_positions/ViewModal";
+import EditJobModal from "./edit_positions/EditModal";
+
+export default function PositionTable() {
+  const [isInsertOpen, setInsertIsOpen] = useState(false);
+  const [isViewOpen, setIsViewOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [selectedJob, setSelectedJob] = useState<any>(null);
+  const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null);
+
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(e.target as Node)
+      ) {
+        setOpenMenuIndex(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const toggleMenu = (index: number) => {
+    setOpenMenuIndex(openMenuIndex === index ? null : index);
+  };
+
+  const handleView = (job: any) => {
+    setSelectedJob({
+      title: job.position,
+      description: job.description,
+      salary: job.salary,
+      department: job.department,
+      available: job.availability === "Yes",
+    });
+    setIsViewOpen(true);
+  };
+
+  const handleEdit = (job: any) => {
+    setSelectedJob({
+      title: job.position,
+      description: job.description,
+      salary: job.salary,
+      department: job.department,
+      available: job.availability === "Yes",
+    });
+    setIsEditOpen(true);
+  };
+
+  const handleDelete = (id: any) => {
+    console.log("Delete:", id);
+  };
+
+  const [positions] = useState([
+    {
+      id: "POS-001",
+      department: "HR",
+      position: "Manager",
+      availability: "Yes",
+      salary: "20000",
+      assigned: 20,
+      description:
+        "Responsible for managing HR operations and employee welfare.",
+    },
+    {
+      id: "POS-002",
+      department: "Marketing",
+      position: "Adviser",
+      availability: "No",
+      salary: "18000",
+      assigned: 15,
+      description: "Advises on marketing strategies and promotional activities.",
+    },
+    {
+      id: "POS-003",
+      department: "Finance",
+      position: "Accountant",
+      availability: "Yes",
+      salary: "25000",
+      assigned: 10,
+      description: "Handles financial records, reports, and budget analysis.",
+    },
+  ]);
+
+  return (
+    <div className="p-6 min-h-screen font-poppins bg-[#fff7ec]">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-semibold text-[#3b2b1c]">
+          Total Positions:
+        </h2>
+        <ActionButton
+          label="Add Position"
+          onClick={() => setInsertIsOpen(true)}
+          icon={Plus}
+          className="py-4"
+        />
+      </div>
+
+      {/* Table */}
+      <div className="overflow-x-auto shadow-sm bg-[#faeddc] rounded-lg max-h-136 h-136">
+        <table className="w-full text-sm border-collapse">
+          <thead className="text-md">
+            <tr className="bg-[#3b2b1c] text-white">
+              <th className="py-4 px-4 text-left">ID</th>
+              <th className="py-4 px-4 text-left">Department</th>
+              <th className="py-4 px-4 text-left">Job Position</th>
+              <th className="py-4 px-4 text-left">Availability</th>
+              <th className="py-4 px-4 text-left">Salary</th>
+              <th className="py-4 px-4 text-left">Total Assigned</th>
+              <th className="py-4 px-4 text-center">Actions</th>
+            </tr>
+          </thead>
+
+          <tbody className="text-[#3b2b1c] text-base">
+            {positions.map((pos, index) => (
+              <tr
+                key={index}
+                className="border-b border-[#e2d5c3] hover:bg-[#fdf4e7] transition"
+              >
+                <td className="py-4 px-4">{pos.id}</td>
+                <td className="py-4 px-4">{pos.department}</td>
+                <td className="py-4 px-4">{pos.position}</td>
+                <td className="py-4 px-4">{pos.availability}</td>
+                <td className="py-4 px-4">₱ {pos.salary}</td>
+                <td className="py-4 px-4">{pos.assigned}</td>
+
+                <td className="py-4 px-4 text-center relative">
+                  {/* 3 Dots Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleMenu(index);
+                    }}
+                    className="p-2 rounded-full hover:bg-[#e8d6bb] transition"
+                  >
+                    <MoreVertical size={18} className="text-[#3b2b1c]" />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {openMenuIndex === index && (
+                    <div className="absolute right-4 mt-2 w-36 bg-white border border-[#e2d5c3] rounded-lg shadow-md z-50"  ref={menuRef}>
+                      <button
+                        onClick={() => {
+                          handleView(pos);
+                          setOpenMenuIndex(null);
+                        }}
+                        className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#fdf4e7] text-[#3b2b1c]"
+                      >
+                        <Eye size={16} /> View
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          handleEdit(pos);
+                          setOpenMenuIndex(null);
+                        }}
+                        className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#fdf4e7] text-[#3b2b1c]"
+                      >
+                        <Pencil size={16} /> Edit
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          handleDelete(pos);
+                          setOpenMenuIndex(null);
+                        }}
+                        className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#ffe5e5] text-[#b91c1c]"
+                      >
+                        <Trash2 size={16} /> Delete
+                      </button>
+                    </div>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Modals */}
+      <AddJobModal
+        isOpen={isInsertOpen}
+        onClose={() => setInsertIsOpen(false)}
+      />
+
+      <ViewJobModal
+        isOpen={isViewOpen}
+        onClose={() => setIsViewOpen(false)}
+        job={selectedJob}
+      />
+
+      <EditJobModal 
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        job={selectedJob}
+        onSave={(updatedJob) => {
+          console.log("Updated job:", updatedJob);
+          setIsEditOpen(false);
+        // You can also update your state here if you have a real list of jobs
+       }}
+       />
+    </div>
+  );
 }

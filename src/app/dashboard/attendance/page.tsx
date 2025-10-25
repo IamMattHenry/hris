@@ -219,7 +219,7 @@ export default function AttendanceTable() {
                   <td className="py-3 px-4 text-center">
                     <button
                       onClick={() => handleViewAttendance(record.attendance_id)}
-                      className="p-1 rounded hover:bg-gray-200"
+                      className="p-1 rounded hover:bg-gray-200 cursor-pointer"
                     >
                       <Search size={18} className="text-gray-600" />
                     </button>
