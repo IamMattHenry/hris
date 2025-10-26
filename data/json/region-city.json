@@ -1,0 +1,705 @@
+[
+  {
+    "regionCode": "010000000",
+    "regionName": "Ilocos Region",
+    "regionLabel": "Region I",
+    "cities": [
+      {
+        "code": "012805000",
+        "name": "City of Batac"
+      },
+      {
+        "code": "012812000",
+        "name": "City of Laoag"
+      },
+      {
+        "code": "012906000",
+        "name": "City of Candon"
+      },
+      {
+        "code": "012934000",
+        "name": "City of Vigan"
+      },
+      {
+        "code": "013314000",
+        "name": "City of San Fernando"
+      },
+      {
+        "code": "015503000",
+        "name": "City of Alaminos"
+      },
+      {
+        "code": "015518000",
+        "name": "City of Dagupan"
+      },
+      {
+        "code": "015532000",
+        "name": "City of San Carlos"
+      },
+      {
+        "code": "015546000",
+        "name": "City of Urdaneta"
+      }
+    ]
+  },
+  {
+    "regionCode": "020000000",
+    "regionName": "Cagayan Valley",
+    "regionLabel": "Region II",
+    "cities": [
+      {
+        "code": "021529000",
+        "name": "Tuguegarao City"
+      },
+      {
+        "code": "023108000",
+        "name": "City of Cauayan"
+      },
+      {
+        "code": "023114000",
+        "name": "City of Ilagan"
+      },
+      {
+        "code": "023135000",
+        "name": "City of Santiago"
+      }
+    ]
+  },
+  {
+    "regionCode": "030000000",
+    "regionName": "Central Luzon",
+    "regionLabel": "Region III",
+    "cities": [
+      {
+        "code": "030803000",
+        "name": "City of Balanga"
+      },
+      {
+        "code": "031410000",
+        "name": "City of Malolos"
+      },
+      {
+        "code": "031412000",
+        "name": "City of Meycauayan"
+      },
+      {
+        "code": "031420000",
+        "name": "City of San Jose Del Monte"
+      },
+      {
+        "code": "034903000",
+        "name": "City of Cabanatuan"
+      },
+      {
+        "code": "034908000",
+        "name": "City of Gapan"
+      },
+      {
+        "code": "034917000",
+        "name": "Science City of Muñoz"
+      },
+      {
+        "code": "034919000",
+        "name": "City of Palayan"
+      },
+      {
+        "code": "034926000",
+        "name": "San Jose City"
+      },
+      {
+        "code": "035401000",
+        "name": "City of Angeles"
+      },
+      {
+        "code": "035409000",
+        "name": "Mabalacat City"
+      },
+      {
+        "code": "035416000",
+        "name": "City of San Fernando"
+      },
+      {
+        "code": "036916000",
+        "name": "City of Tarlac"
+      },
+      {
+        "code": "037107000",
+        "name": "City of Olongapo"
+      }
+    ]
+  },
+  {
+    "regionCode": "040000000",
+    "regionName": "CALABARZON",
+    "regionLabel": "Region IV-A",
+    "cities": [
+      {
+        "code": "041005000",
+        "name": "Batangas City"
+      },
+      {
+        "code": "041014000",
+        "name": "City of Lipa"
+      },
+      {
+        "code": "041028000",
+        "name": "City of Sto. Tomas"
+      },
+      {
+        "code": "041031000",
+        "name": "City of Tanauan"
+      },
+      {
+        "code": "042103000",
+        "name": "City of Bacoor"
+      },
+      {
+        "code": "042105000",
+        "name": "City of Cavite"
+      },
+      {
+        "code": "042106000",
+        "name": "City of Dasmariñas"
+      },
+      {
+        "code": "042108000",
+        "name": "City of General Trias"
+      },
+      {
+        "code": "042109000",
+        "name": "City of Imus"
+      },
+      {
+        "code": "042119000",
+        "name": "City of Tagaytay"
+      },
+      {
+        "code": "042122000",
+        "name": "City of Trece Martires"
+      },
+      {
+        "code": "043403000",
+        "name": "City of Biñan"
+      },
+      {
+        "code": "043404000",
+        "name": "City of Cabuyao"
+      },
+      {
+        "code": "043405000",
+        "name": "City of Calamba"
+      },
+      {
+        "code": "043424000",
+        "name": "City of San Pablo"
+      },
+      {
+        "code": "043425000",
+        "name": "City of San Pedro"
+      },
+      {
+        "code": "043428000",
+        "name": "City of Santa Rosa"
+      },
+      {
+        "code": "045624000",
+        "name": "City of Lucena"
+      },
+      {
+        "code": "045647000",
+        "name": "City of Tayabas"
+      },
+      {
+        "code": "045802000",
+        "name": "City of Antipolo"
+      }
+    ]
+  },
+  {
+    "regionCode": "170000000",
+    "regionName": "MIMAROPA Region",
+    "regionLabel": "MIMAROPA Region",
+    "cities": [
+      {
+        "code": "175205000",
+        "name": "City of Calapan"
+      },
+      {
+        "code": "175316000",
+        "name": "City of Puerto Princesa"
+      }
+    ]
+  },
+  {
+    "regionCode": "050000000",
+    "regionName": "Bicol Region",
+    "regionLabel": "Region V",
+    "cities": [
+      {
+        "code": "050506000",
+        "name": "City of Legazpi"
+      },
+      {
+        "code": "050508000",
+        "name": "City of Ligao"
+      },
+      {
+        "code": "050517000",
+        "name": "City of Tabaco"
+      },
+      {
+        "code": "051716000",
+        "name": "City of Iriga"
+      },
+      {
+        "code": "051724000",
+        "name": "City of Naga"
+      },
+      {
+        "code": "054111000",
+        "name": "City of Masbate"
+      },
+      {
+        "code": "056216000",
+        "name": "City of Sorsogon"
+      }
+    ]
+  },
+  {
+    "regionCode": "060000000",
+    "regionName": "Western Visayas",
+    "regionLabel": "Region VI",
+    "cities": [
+      {
+        "code": "061914000",
+        "name": "City of Roxas"
+      },
+      {
+        "code": "063022000",
+        "name": "City of Iloilo"
+      },
+      {
+        "code": "063035000",
+        "name": "City of Passi"
+      },
+      {
+        "code": "064501000",
+        "name": "City of Bacolod"
+      },
+      {
+        "code": "064502000",
+        "name": "City of Bago"
+      },
+      {
+        "code": "064504000",
+        "name": "City of Cadiz"
+      },
+      {
+        "code": "064509000",
+        "name": "City of Escalante"
+      },
+      {
+        "code": "064510000",
+        "name": "City of Himamaylan"
+      },
+      {
+        "code": "064515000",
+        "name": "City of Kabankalan"
+      },
+      {
+        "code": "064516000",
+        "name": "City of La Carlota"
+      },
+      {
+        "code": "064523000",
+        "name": "City of Sagay"
+      },
+      {
+        "code": "064524000",
+        "name": "City of San Carlos"
+      },
+      {
+        "code": "064526000",
+        "name": "City of Silay"
+      },
+      {
+        "code": "064527000",
+        "name": "City of Sipalay"
+      },
+      {
+        "code": "064528000",
+        "name": "City of Talisay"
+      },
+      {
+        "code": "064531000",
+        "name": "City of Victorias"
+      }
+    ]
+  },
+  {
+    "regionCode": "070000000",
+    "regionName": "Central Visayas",
+    "regionLabel": "Region VII",
+    "cities": [
+      {
+        "code": "071242000",
+        "name": "City of Tagbilaran"
+      },
+      {
+        "code": "072211000",
+        "name": "City of Bogo"
+      },
+      {
+        "code": "072214000",
+        "name": "City of Carcar"
+      },
+      {
+        "code": "072217000",
+        "name": "City of Cebu"
+      },
+      {
+        "code": "072223000",
+        "name": "Danao City"
+      },
+      {
+        "code": "072226000",
+        "name": "City of Lapu-Lapu"
+      },
+      {
+        "code": "072230000",
+        "name": "City of Mandaue"
+      },
+      {
+        "code": "072234000",
+        "name": "City of Naga"
+      },
+      {
+        "code": "072250000",
+        "name": "City of Talisay"
+      },
+      {
+        "code": "072251000",
+        "name": "City of Toledo"
+      },
+      {
+        "code": "074604000",
+        "name": "City of Bais"
+      },
+      {
+        "code": "074606000",
+        "name": "City of Bayawan"
+      },
+      {
+        "code": "074608000",
+        "name": "City of Canlaon"
+      },
+      {
+        "code": "074610000",
+        "name": "City of Dumaguete"
+      },
+      {
+        "code": "074611000",
+        "name": "City of Guihulngan"
+      },
+      {
+        "code": "074621000",
+        "name": "City of Tanjay"
+      }
+    ]
+  },
+  {
+    "regionCode": "080000000",
+    "regionName": "Eastern Visayas",
+    "regionLabel": "Region VIII",
+    "cities": [
+      {
+        "code": "082604000",
+        "name": "City of Borongan"
+      },
+      {
+        "code": "083708000",
+        "name": "City of Baybay"
+      },
+      {
+        "code": "083738000",
+        "name": "Ormoc City"
+      },
+      {
+        "code": "083747000",
+        "name": "City of Tacloban"
+      },
+      {
+        "code": "086003000",
+        "name": "City of Calbayog"
+      },
+      {
+        "code": "086005000",
+        "name": "City of Catbalogan"
+      },
+      {
+        "code": "086407000",
+        "name": "City of Maasin"
+      }
+    ]
+  },
+  {
+    "regionCode": "090000000",
+    "regionName": "Zamboanga Peninsula",
+    "regionLabel": "Region IX",
+    "cities": [
+      {
+        "code": "097201000",
+        "name": "City of Dapitan"
+      },
+      {
+        "code": "097202000",
+        "name": "City of Dipolog"
+      },
+      {
+        "code": "097322000",
+        "name": "City of Pagadian"
+      },
+      {
+        "code": "097332000",
+        "name": "City of Zamboanga"
+      },
+      {
+        "code": "099701000",
+        "name": "City of Isabela"
+      }
+    ]
+  },
+  {
+    "regionCode": "100000000",
+    "regionName": "Northern Mindanao",
+    "regionLabel": "Region X",
+    "cities": [
+      {
+        "code": "101312000",
+        "name": "City of Malaybalay"
+      },
+      {
+        "code": "101321000",
+        "name": "City of Valencia"
+      },
+      {
+        "code": "103504000",
+        "name": "City of Iligan"
+      },
+      {
+        "code": "104209000",
+        "name": "City of Oroquieta"
+      },
+      {
+        "code": "104210000",
+        "name": "City of Ozamiz"
+      },
+      {
+        "code": "104215000",
+        "name": "City of Tangub"
+      },
+      {
+        "code": "104305000",
+        "name": "City of Cagayan De Oro"
+      },
+      {
+        "code": "104307000",
+        "name": "City of El Salvador"
+      },
+      {
+        "code": "104308000",
+        "name": "City of Gingoog"
+      }
+    ]
+  },
+  {
+    "regionCode": "110000000",
+    "regionName": "Davao Region",
+    "regionLabel": "Region XI",
+    "cities": [
+      {
+        "code": "112315000",
+        "name": "City of Panabo"
+      },
+      {
+        "code": "112317000",
+        "name": "Island Garden City of Samal"
+      },
+      {
+        "code": "112319000",
+        "name": "City of Tagum"
+      },
+      {
+        "code": "112402000",
+        "name": "City of Davao"
+      },
+      {
+        "code": "112403000",
+        "name": "City of Digos"
+      },
+      {
+        "code": "112509000",
+        "name": "City of Mati"
+      }
+    ]
+  },
+  {
+    "regionCode": "120000000",
+    "regionName": "SOCCSKSARGEN",
+    "regionLabel": "Region XII",
+    "cities": [
+      {
+        "code": "124704000",
+        "name": "City of Kidapawan"
+      },
+      {
+        "code": "126303000",
+        "name": "City of General Santos"
+      },
+      {
+        "code": "126306000",
+        "name": "City of Koronadal"
+      },
+      {
+        "code": "126511000",
+        "name": "City of Tacurong"
+      },
+      {
+        "code": "129804000",
+        "name": "City of Cotabato"
+      }
+    ]
+  },
+  {
+    "regionCode": "130000000",
+    "regionName": "NCR",
+    "regionLabel": "National Capital Region",
+    "cities": [
+      {
+        "code": "133900000",
+        "name": "City of Manila"
+      },
+      {
+        "code": "137401000",
+        "name": "City of Mandaluyong"
+      },
+      {
+        "code": "137402000",
+        "name": "City of Marikina"
+      },
+      {
+        "code": "137403000",
+        "name": "City of Pasig"
+      },
+      {
+        "code": "137404000",
+        "name": "Quezon City"
+      },
+      {
+        "code": "137405000",
+        "name": "City of San Juan"
+      },
+      {
+        "code": "137501000",
+        "name": "City of Caloocan"
+      },
+      {
+        "code": "137502000",
+        "name": "City of Malabon"
+      },
+      {
+        "code": "137503000",
+        "name": "City of Navotas"
+      },
+      {
+        "code": "137504000",
+        "name": "City of Valenzuela"
+      },
+      {
+        "code": "137601000",
+        "name": "City of Las Piñas"
+      },
+      {
+        "code": "137602000",
+        "name": "City of Makati"
+      },
+      {
+        "code": "137603000",
+        "name": "City of Muntinlupa"
+      },
+      {
+        "code": "137604000",
+        "name": "City of Parañaque"
+      },
+      {
+        "code": "137605000",
+        "name": "Pasay City"
+      },
+      {
+        "code": "137607000",
+        "name": "City of Taguig"
+      }
+    ]
+  },
+  {
+    "regionCode": "140000000",
+    "regionName": "CAR",
+    "regionLabel": "Cordillera Administrative Region",
+    "cities": [
+      {
+        "code": "141102000",
+        "name": "City of Baguio"
+      },
+      {
+        "code": "143213000",
+        "name": "City of Tabuk"
+      }
+    ]
+  },
+  {
+    "regionCode": "160000000",
+    "regionName": "Caraga",
+    "regionLabel": "Region XIII",
+    "cities": [
+      {
+        "code": "160202000",
+        "name": "City of Butuan"
+      },
+      {
+        "code": "160203000",
+        "name": "City of Cabadbaran"
+      },
+      {
+        "code": "160301000",
+        "name": "City of Bayugan"
+      },
+      {
+        "code": "166724000",
+        "name": "City of Surigao"
+      },
+      {
+        "code": "166803000",
+        "name": "City of Bislig"
+      },
+      {
+        "code": "166819000",
+        "name": "City of Tandag"
+      }
+    ]
+  },
+  {
+    "regionCode": "150000000",
+    "regionName": "BARMM",
+    "regionLabel": "Bangsamoro Autonomous Region in Muslim Mindanao",
+    "cities": [
+      {
+        "code": "150702000",
+        "name": "City of Lamitan"
+      },
+      {
+        "code": "153617000",
+        "name": "City of Marawi"
+      }
+    ]
+  }
+]

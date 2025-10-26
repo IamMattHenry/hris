@@ -31,6 +31,8 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [payStart, setPayStart] = useState("");
   const [payEnd, setPayEnd] = useState("");
   const [shift, setShift] = useState("");
+  const [salary, setSalary] = useState("");
+  const [salaryDisplay, setSalaryDisplay] = useState("");
   const [email, setEmail] = useState("");
   const [contactNumber, setContactNumber] = useState("");
   const [username, setUsername] = useState("");
@@ -44,10 +46,14 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [cities, setCities] = useState<string[]>([]);
   const [regions, setRegions] = useState<any[]>([]);
+  const [province, setProvince] = useState("");
+  const [provinceCities, setProvinceCities] = useState<string[]>([]);
+  const [provinceCity, setProvinceCity] = useState("");
   const [departments, setDepartments] = useState<Department[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [regionCityData, setRegionCityData] = useState<any[]>([]);
 
   // set the pay end date based on pay start date
   useEffect(() => {
@@ -68,33 +74,52 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   }, [hireDate]);
 
 
-  //to fetch cities and regions
+  // Load region-city data from JSON file
   useEffect(() => {
-    async function loadCities() {
+    async function loadRegionCityData() {
       try {
-        const res = await fetch("https://psgc.gitlab.io/api/cities/");
-        if (!res.ok) throw new Error("Failed to fetch cities");
+        const res = await fetch("/data/json/region-city.json");
+        if (!res.ok) throw new Error("Failed to fetch region-city data");
         const data = await res.json();
-
-        // Extract city names
-        const cityList = data.map((city: any) => `${city.name}`);
-        setCities(cityList);
+        setRegionCityData(data);
+        setRegions(data);
       } catch (error) {
-        console.error("Error loading cities:", error);
+        console.error("Error loading region-city data:", error);
       }
     }
 
-    loadCities();
+    loadRegionCityData();
   }, []);
 
+  // Update cities when region changes (for home address)
   useEffect(() => {
-    async function loadRegions() {
-      const res = await fetch("https://psgc.gitlab.io/api/regions/");
-      const data = await res.json();
-      setRegions(data);
+    if (region) {
+      const selectedRegion = regionCityData.find((r: any) => r.regionName === region);
+      if (selectedRegion) {
+        const cityNames = selectedRegion.cities.map((city: any) => city.name);
+        setCities(cityNames);
+      } else {
+        setCities([]);
+      }
+    } else {
+      setCities([]);
     }
-    loadRegions();
-  }, []);
+  }, [region, regionCityData]);
+
+  // Update cities when province changes (for province)
+  useEffect(() => {
+    if (province) {
+      const selectedProvince = regionCityData.find((r: any) => r.regionName === province);
+      if (selectedProvince) {
+        const cityNames = selectedProvince.cities.map((city: any) => city.name);
+        setProvinceCities(cityNames);
+      } else {
+        setProvinceCities([]);
+      }
+    } else {
+      setProvinceCities([]);
+    }
+  }, [province, regionCityData]);
 
   // Fetch departments when modal opens
   useEffect(() => {
@@ -169,7 +194,23 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     setContactNumber(input);
   };
 
+  // handle salary input with comma formatting
+  const handleSalaryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let input = e.target.value.replace(/,/g, ""); // Remove existing commas
 
+    if (input === "") {
+      setSalary("");
+      setSalaryDisplay("");
+      return;
+    }
+
+    // Store the raw value
+    setSalary(input);
+
+    // Format with commas for display
+    const formatted = input.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    setSalaryDisplay(formatted);
+  };
 
   // ─── Validation ───────────────────────────────
   const validateStep = () => {
@@ -185,6 +226,8 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       if (!homeAddress.trim()) newErrors.homeAddress = "Home address is required";
       if (!city) newErrors.city = "City is required";
       if (!region) newErrors.region = "Region is required";
+      if (!province) newErrors.province = "Province is required";
+      if (!provinceCity) newErrors.provinceCity = "Province city is required";
     }
 
     // Step 2 - Job Info
@@ -295,6 +338,8 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         home_address: homeAddress,
         city: city,
         region: region,
+        province: province,
+        province_city: provinceCity,
         position_id: positionId, // ✅ Include position_id
         shift: shift ? shift.toLowerCase() : null,
         hire_date: hireDate,
@@ -323,12 +368,16 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
           setHomeAddress("");
           setCity("");
           setRegion("");
+          setProvince("");
+          setProvinceCity("");
           setDepartmentId(null);
           setPositionId(null);
           setHireDate("");
           setPayStart("");
           setPayEnd("");
           setShift("");
+          setSalary("");
+          setSalaryDisplay("");
           setEmail("");
           setContactNumber("");
           setUsername("");
@@ -400,15 +449,113 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
               transition={{ duration: 0.3 }}
             >
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-                <FormInput label="First Name:" type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} error={errors.firstName} />
-                <FormInput label="Last Name:" type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} error={errors.lastName} />
-                <FormInput label="Birth Date:" type="date" value={birthDate} onChange={handleBirthDateChange} error={errors.birthDate} />
-                <FormSelect label="Gender:" value={gender} onChange={(e) => setGender(e.target.value)} options={["Male", "Female", "Other"]} error={errors.gender} />
-                <FormSelect label="Civil Status:" value={civilStatus} onChange={(e) => setCivilStatus(e.target.value)} options={["Single", "Married", "Widowed", "Divorced"]} error={errors.civilStatus} />
-                <FormInput label="Home Address:" type="text" value={homeAddress} onChange={(e) => setHomeAddress(e.target.value)} error={errors.homeAddress} />
-                <FormSelect label="City" value={city} onChange={(e) => setCity(e.target.value)} options={cities} error={errors.city} />
-                <FormSelect label="Region" value={region} onChange={(e) => setRegion(e.target.value)} options={regions.map((reg) => reg.name)} error={errors.region} />
+                {/* Personal Info */}
+                <FormInput
+                  label="First Name:"
+                  type="text"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  error={errors.firstName}
+                />
+                <FormInput
+                  label="Last Name:"
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  error={errors.lastName}
+                />
+                <FormInput
+                  label="Birth Date:"
+                  type="date"
+                  value={birthDate}
+                  onChange={handleBirthDateChange}
+                  error={errors.birthDate}
+                />
+                <FormSelect
+                  label="Gender:"
+                  value={gender}
+                  onChange={(e) => setGender(e.target.value)}
+                  options={["Male", "Female", "Other"]}
+                  error={errors.gender}
+                />
+                <FormSelect
+                  label="Civil Status:"
+                  value={civilStatus}
+                  onChange={(e) => setCivilStatus(e.target.value)}
+                  options={["Single", "Married", "Widowed", "Divorced"]}
+                  error={errors.civilStatus}
+                />
+
+                {/* 🏠 Home Address Section */}
+                <div className="col-span-3 flex items-center gap-3 mt-6 mb-2">
+                  <div className="flex-grow border-t border-[#d6bfa3]"></div>
+                  <span className="text-[#3b2b1c] font-semibold text-sm uppercase tracking-wide">
+                    Home Address
+                  </span>
+                  <div className="flex-grow border-t border-[#d6bfa3]"></div>
+                </div>
+
+                <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <FormInput
+                    label="Address:"
+                    type="text"
+                    value={homeAddress}
+                    onChange={(e) => setHomeAddress(e.target.value)}
+                    error={errors.homeAddress}
+                  />
+
+                  <FormSelect
+                    label="Region:"
+                    value={region}
+                    onChange={(e) => {
+                      setRegion(e.target.value);
+                      setCity("");
+                    }}
+                    options={regions.map((reg) => reg.regionName)}
+                    error={errors.region}
+                  />
+
+                  <FormSelect
+                    label="City:"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    options={region ? cities : []}
+                    error={errors.city}
+                  />
+                </div>
+
+                {/* 🌍 Province Section */}
+                <div className="col-span-3 flex items-center gap-3 mt-6 mb-2">
+                  <div className="flex-grow border-t border-[#d6bfa3]"></div>
+                  <span className="text-[#3b2b1c] font-semibold text-sm uppercase tracking-wide">
+                    Province
+                  </span>
+                  <div className="flex-grow border-t border-[#d6bfa3]"></div>
+                </div>
+
+                <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <FormSelect
+                    label="Province Region:"
+                    value={province}
+                    onChange={(e) => {
+                      setProvince(e.target.value);
+                      setProvinceCity("");
+                    }}
+                    options={regions.map((reg) => reg.regionName)}
+                    error={errors.province}
+                  />
+
+                  <FormSelect
+                    label="Province City:"
+                    value={provinceCity}
+                    onChange={(e) => setProvinceCity(e.target.value)}
+                    options={province ? provinceCities : []}
+                    error={errors.provinceCity}
+                  />
+                </div>
+
               </div>
+
             </motion.div>
           )}
 
@@ -481,8 +628,24 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
                 <FormInput label="Hire Date:" type="date" value={hireDate} onChange={(e) => setHireDate(e.target.value)} error={errors.hireDate} />
                 <FormInput label="Pay Period Start:" type="date" value={payStart} onChange={(e) => setPayStart(e.target.value)} readOnly={true} />
+
                 <FormSelect label="Shift:" value={shift} onChange={(e) => setShift(e.target.value)} options={["Morning", "Night"]} error={errors.shift} />
                 <FormInput label="Pay Period End:" type="date" value={payEnd} onChange={(e) => setPayEnd(e.target.value)} readOnly={true} />
+
+                <div>
+                  <label className="block text-[#3b2b1c] mb-1">Salary:</label>
+                  <div className="flex items-center border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] overflow-hidden">
+                    <span className="px-3 py-2 text-[#3b2b1c] font-semibold">₱</span>
+                    <input
+                      type="text"
+                      value={salaryDisplay}
+                      onChange={handleSalaryChange}
+                      placeholder="0.00"
+                      className="flex-1 px-3 py-2 bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14] focus:ring-inset"
+                    />
+                  </div>
+                  {errors.salary && <p className="text-red-500 text-xs mt-1">{errors.salary}</p>}
+                </div>
               </div>
             </motion.div>
           )}
@@ -602,7 +765,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
         {/* Buttons */}
         <div className="flex justify-between mt-10">
-          <button onClick={handleBack} className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg shadow-md hover:opacity-80">
+          <button onClick={handleBack} className="bg-gray-300 text-gray-700 px-6 py-2 cursor-pointer rounded-lg shadow-md hover:opacity-80">
             {step === 1 ? "Close" : "Back"}
           </button>
 

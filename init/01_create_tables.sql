@@ -46,6 +46,8 @@ CREATE TABLE IF NOT EXISTS employees (
     home_address TEXT,
     city VARCHAR(100),
     region VARCHAR(100),
+    province VARCHAR(100),
+    province_city VARCHAR(100),
     position_id INT,
     shift ENUM('morning', 'night') DEFAULT 'morning',
     hire_date DATE,
