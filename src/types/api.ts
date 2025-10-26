@@ -48,6 +48,8 @@ export interface Employee {
   home_address?: string;
   city?: string;
   region?: string;
+  province?: string;
+  province_city?: string;
   position_id?: number;
   shift?: string;
   position_name?: string;

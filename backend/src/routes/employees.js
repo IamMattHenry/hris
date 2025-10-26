@@ -37,6 +37,8 @@ router.post(
     body('home_address').optional().trim(),
     body('city').optional().trim(),
     body('region').optional().trim(),
+    body('province').optional().trim(),
+    body('province_city').optional().trim(),
     body('hire_date').isISO8601().withMessage('Invalid hire date format'),
     body('email').optional().isEmail().withMessage('Invalid email format'),
     body('contact_number').optional().trim(),
