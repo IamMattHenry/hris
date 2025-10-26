@@ -13,12 +13,23 @@ interface EmployeeModalProps {
   onClose: () => void;
 }
 
+interface Dependent {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  contactInfo: string;
+  relationship: string;
+  relationshipSpecify?: string;
+}
+
 export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps) {
   const [step, setStep] = useState(1);
 
   // Step data states
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [suffix, setSuffix] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [gender, setGender] = useState("");
   const [civilStatus, setCivilStatus] = useState("");
@@ -54,6 +65,16 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [regionCityData, setRegionCityData] = useState<any[]>([]);
+
+  // Dependent information
+  const [dependents, setDependents] = useState<Dependent[]>([]);
+  const [dependentFirstName, setDependentFirstName] = useState("");
+  const [dependentLastName, setDependentLastName] = useState("");
+  const [dependentEmail, setDependentEmail] = useState("");
+  const [dependentContactInfo, setDependentContactInfo] = useState("");
+  const [dependentRelationship, setDependentRelationship] = useState("");
+  const [dependentRelationshipSpecify, setDependentRelationshipSpecify] = useState("");
+  const [dependentErrors, setDependentErrors] = useState<{ [key: string]: string }>({});
 
   // set the pay end date based on pay start date
   useEffect(() => {
@@ -212,6 +233,20 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     setSalaryDisplay(formatted);
   };
 
+  // handle dependent contact info with formatting (similar to contact number)
+  const handleDependentContactInfoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let input = e.target.value.replace(/\D/g, "");
+    if (input.length > 11) input = input.slice(0, 11);
+
+    if (input.length > 4 && input.length <= 7) {
+      input = `${input.slice(0, 4)} ${input.slice(4)}`;
+    } else if (input.length > 7) {
+      input = `${input.slice(0, 4)} ${input.slice(4, 7)} ${input.slice(7)}`;
+    }
+
+    setDependentContactInfo(input);
+  };
+
   // ─── Validation ───────────────────────────────
   const validateStep = () => {
     const newErrors: { [key: string]: string } = {};
@@ -249,7 +284,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     }
 
 
-    // Step 3 - Contact Info
+    // Step 3 - Contact Info & Dependents
     if (step === 3) {
       if (!email.trim()) {
         newErrors.email = "Email is required";
@@ -261,6 +296,26 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         newErrors.contactNumber = "Contact number is required";
       } else if (!/^(\+639|09)\d{9}$/.test(contactNumber.replace(/\s/g, ""))) {
         newErrors.contactNumber = "Invalid contact number format";
+      }
+
+      // Validate dependents - at least 1 required
+      if (dependents.length === 0) {
+        newErrors.dependents = "must have at least 1 dependent information is required";
+      } else {
+        dependents.forEach((dependent, index) => {
+          // Validate dependent email if provided
+          if (dependent.email && !/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(dependent.email.trim())) {
+            newErrors[`dependent_${index}_email`] = "Dependent email must be a valid Gmail address";
+          }
+
+          // Validate dependent contact info if provided
+          if (dependent.contactInfo && !/^(\+639|09)\d{9}$/.test(dependent.contactInfo.replace(/\s/g, ""))) {
+            // Allow other formats for contact info (not just phone)
+            if (!/^[0-9\s\-\+\(\)]+$/.test(dependent.contactInfo)) {
+              newErrors[`dependent_${index}_contact`] = "Dependent contact info format is invalid";
+            }
+          }
+        });
       }
     }
 
@@ -332,6 +387,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         role: grantAdminPrivilege ? 'admin' : 'employee',
         first_name: firstName,
         last_name: lastName,
+        suffix: suffix || null,
         birthdate: birthDate,
         gender: gender ? gender.toLowerCase() : null,
         civil_status: civilStatus ? civilStatus.toLowerCase() : null,
@@ -362,6 +418,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         setTimeout(() => {
           setFirstName("");
           setLastName("");
+          setSuffix("");
           setBirthDate("");
           setGender("");
           setCivilStatus("");
@@ -380,6 +437,14 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
           setSalaryDisplay("");
           setEmail("");
           setContactNumber("");
+          setDependents([]);
+          setDependentFirstName("");
+          setDependentLastName("");
+          setDependentEmail("");
+          setDependentContactInfo("");
+          setDependentRelationship("");
+          setDependentRelationshipSpecify("");
+          setDependentErrors({});
           setUsername("");
           setPassword("");
           setConfirmPassword("");
@@ -410,7 +475,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.2 }}
-        className="bg-[#f9ecd7] w-full max-w-4xl p-8 rounded-2xl shadow-lg relative"
+        className="bg-[#f9ecd7] w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-lg relative flex flex-col"
       >
         <motion.button
           whileHover={{ scale: 1.2, rotate: 90 }}
@@ -422,24 +487,25 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
           ✕
         </motion.button>
 
-
         {/* Message Display */}
         {message && (
-          <div className={`mb-4 p-3 rounded-lg ${message.type === "success" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+          <div className={`mx-8 mt-8 mb-4 p-3 rounded-lg ${message.type === "success" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
             {message.text}
           </div>
         )}
 
-        {/* Header */}
-        <div className="flex flex-col items-start mb-6 space-y-1">
-          <h2 className="text-2xl font-extrabold text-[#3b2b1c]">Add Employee</h2>
-          <h3 className="text-lg font-[300] text-[#3b2b1c]">
-            {["Basic Information", "Job Information", "Contact Information", "Authentication"][step - 1]}
-          </h3>
-        </div>
+        {/* Scrollable Content Area */}
+        <div className="flex-1 overflow-y-auto px-8 pt-4">
+          {/* Header */}
+          <div className="flex flex-col items-start mb-6 space-y-1">
+            <h2 className="text-2xl font-extrabold text-[#3b2b1c]">Add Employee</h2>
+            <h3 className="text-lg font-[300] text-[#3b2b1c]">
+              {["Basic Information", "Job Information", "Contact Information", "Authentication"][step - 1]}
+            </h3>
+          </div>
 
-        {/* Step Content */}
-        <AnimatePresence mode="wait">
+          {/* Step Content */}
+          <AnimatePresence mode="wait">
           {step === 1 && (
             <motion.div
               key="step1"
@@ -465,6 +531,14 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                   error={errors.lastName}
                 />
                 <FormInput
+                  label="Suffix:"
+                  type="text"
+                  value={suffix}
+                  onChange={(e) => setSuffix(e.target.value)}
+                  placeholder="Jr., Sr., III, etc. (optional)"
+                  error={errors.suffix}
+                />
+                <FormInput
                   label="Birth Date:"
                   type="date"
                   value={birthDate}
@@ -486,7 +560,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                   error={errors.civilStatus}
                 />
 
-                {/* 🏠 Home Address Section */}
+                {/* Home Address Section */}
                 <div className="col-span-3 flex items-center gap-3 mt-6 mb-2">
                   <div className="flex-grow border-t border-[#d6bfa3]"></div>
                   <span className="text-[#3b2b1c] font-semibold text-sm uppercase tracking-wide">
@@ -524,7 +598,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                   />
                 </div>
 
-                {/* 🌍 Province Section */}
+                {/* Province Section */}
                 <div className="col-span-3 flex items-center gap-3 mt-6 mb-2">
                   <div className="flex-grow border-t border-[#d6bfa3]"></div>
                   <span className="text-[#3b2b1c] font-semibold text-sm uppercase tracking-wide">
@@ -658,9 +732,201 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
               exit={{ opacity: 0, x: -40 }}
               transition={{ duration: 0.3 }}
             >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-                <FormInput label="Email:" type="email" value={email} onChange={(e) => setEmail(e.target.value)} error={errors.email} placeholder="(use gmail)" />
-                <FormInput label="Contact Number:" type="text" value={contactNumber} onChange={handleContactNumberChange} error={errors.contactNumber} />
+              <div className="space-y-6">
+                {/* Contact Information Section */}
+                <div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                    <FormInput label="Email:" type="email" value={email} onChange={(e) => setEmail(e.target.value)} error={errors.email} placeholder="(use gmail)" />
+                    <FormInput label="Contact Number:" type="text" value={contactNumber} onChange={handleContactNumberChange} error={errors.contactNumber} />
+                  </div>
+                </div>
+
+                {/* Dependent Information Section */}
+                <div className="border-t-2 border-[#e6d2b5] pt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-[#3b2b1c] font-semibold">Employee Dependent Information <span className="text-red-500">*</span></h3>
+                    <span className="text-xs text-[#6b5344]">({dependents.length} added)</span>
+                  </div>
+                  {errors.dependents && <p className="text-red-500 text-xs mb-4">{errors.dependents}</p>}
+
+                  {/* Add Dependent Form */}
+                  <div className="bg-[#FFF2E0] p-4 rounded-lg mb-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
+                      <FormInput
+                        label="First Name:"
+                        type="text"
+                        value={dependentFirstName}
+                        onChange={(e) => {
+                          setDependentFirstName(e.target.value);
+                          if (dependentErrors.firstName) {
+                            setDependentErrors((prev) => ({ ...prev, firstName: "" }));
+                          }
+                        }}
+                        placeholder="Enter first name"
+                        error={dependentErrors.firstName}
+                      />
+                      <FormInput
+                        label="Last Name:"
+                        type="text"
+                        value={dependentLastName}
+                        onChange={(e) => {
+                          setDependentLastName(e.target.value);
+                          if (dependentErrors.lastName) {
+                            setDependentErrors((prev) => ({ ...prev, lastName: "" }));
+                          }
+                        }}
+                        placeholder="Enter last name"
+                        error={dependentErrors.lastName}
+                      />
+                      <FormInput
+                        label="Email:"
+                        type="email"
+                        value={dependentEmail}
+                        onChange={(e) => {
+                          setDependentEmail(e.target.value);
+                          if (dependentErrors.email) {
+                            setDependentErrors((prev) => ({ ...prev, email: "" }));
+                          }
+                        }}
+                        placeholder="(use gmail)"
+                        error={dependentErrors.email}
+                      />
+                      <FormInput
+                        label="Contact Info:"
+                        type="text"
+                        value={dependentContactInfo}
+                        onChange={(e) => {
+                          handleDependentContactInfoChange(e);
+                          if (dependentErrors.contactInfo) {
+                            setDependentErrors((prev) => ({ ...prev, contactInfo: "" }));
+                          }
+                        }}
+                        placeholder="Phone number (optional)"
+                        error={dependentErrors.contactInfo}
+                      />
+                      <FormSelect
+                        label="Relationship:"
+                        value={dependentRelationship}
+                        onChange={(e) => {
+                          setDependentRelationship(e.target.value);
+                          if (e.target.value !== "Other") {
+                            setDependentRelationshipSpecify("");
+                          }
+                          if (dependentErrors.relationship) {
+                            setDependentErrors((prev) => ({ ...prev, relationship: "" }));
+                          }
+                        }}
+                        options={["Spouse", "Child", "Parent", "Sibling", "Other"]}
+                        error={dependentErrors.relationship}
+                      />
+                      {dependentRelationship === "Other" && (
+                        <FormInput
+                          label="Specify Relationship:"
+                          type="text"
+                          value={dependentRelationshipSpecify}
+                          onChange={(e) => {
+                            setDependentRelationshipSpecify(e.target.value);
+                            if (dependentErrors.relationshipSpecify) {
+                              setDependentErrors((prev) => ({ ...prev, relationshipSpecify: "" }));
+                            }
+                          }}
+                          placeholder="Please specify the relationship"
+                          error={dependentErrors.relationshipSpecify}
+                        />
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newErrors: { [key: string]: string } = {};
+
+                        // Validate required fields
+                        if (!dependentFirstName.trim()) {
+                          newErrors.firstName = "First name is required";
+                        }
+                        if (!dependentLastName.trim()) {
+                          newErrors.lastName = "Last name is required";
+                        }
+                        if (!dependentRelationship) {
+                          newErrors.relationship = "Relationship is required";
+                        }
+
+                        // Validate email if provided
+                        if (dependentEmail && !/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(dependentEmail.trim())) {
+                          newErrors.email = "Must be a valid Gmail address";
+                        }
+
+                        // Validate contact info if provided
+                        if (dependentContactInfo && !/^(\+639|09)\d{9}$/.test(dependentContactInfo.replace(/\s/g, ""))) {
+                          newErrors.contactInfo = "Invalid format (must be 09XX XXX XXXX or +639XX XXX XXXX)";
+                        }
+
+                        // If relationship is "Other", require the specify field
+                        if (dependentRelationship === "Other" && !dependentRelationshipSpecify.trim()) {
+                          newErrors.relationshipSpecify = "Please specify the relationship";
+                        }
+
+                        // If there are errors, set them and return
+                        if (Object.keys(newErrors).length > 0) {
+                          setDependentErrors(newErrors);
+                          return;
+                        }
+
+                        // Clear errors if validation passes
+                        setDependentErrors({});
+
+                        const newDependent = {
+                          id: Date.now().toString(),
+                          firstName: dependentFirstName,
+                          lastName: dependentLastName,
+                          email: dependentEmail,
+                          contactInfo: dependentContactInfo,
+                          relationship: dependentRelationship,
+                          relationshipSpecify: dependentRelationshipSpecify || undefined,
+                        };
+                        setDependents([...dependents, newDependent]);
+                        setDependentFirstName("");
+                        setDependentLastName("");
+                        setDependentEmail("");
+                        setDependentContactInfo("");
+                        setDependentRelationship("");
+                        setDependentRelationshipSpecify("");
+                      }}
+                      className="w-full px-4 py-2 bg-[#4b0b14] text-white rounded-lg hover:bg-[#6b0b1f] transition-colors font-semibold"
+                    >
+                      Add Dependent
+                    </button>
+                  </div>
+
+                  {/* Dependents List */}
+                  {dependents.length > 0 && (
+                    <div className="space-y-3">
+                      <h4 className="text-[#3b2b1c] font-semibold">Added Dependents:</h4>
+                      {dependents.map((dependent) => (
+                        <div key={dependent.id} className="bg-[#f5e6d3] p-4 rounded-lg border border-[#e6d2b5]">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <p className="font-semibold text-[#3b2b1c]">{dependent.firstName} {dependent.lastName}</p>
+                              <p className="text-xs text-[#6b5344]">
+                                Relationship: {dependent.relationship}
+                                {dependent.relationshipSpecify && ` (${dependent.relationshipSpecify})`}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setDependents(dependents.filter(d => d.id !== dependent.id))}
+                              className="text-red-500 hover:text-red-700 font-semibold text-sm"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          {dependent.email && <p className="text-xs text-[#6b5344]">Email: {dependent.email}</p>}
+                          {dependent.contactInfo && <p className="text-xs text-[#6b5344]">Contact: {dependent.contactInfo}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </motion.div>
           )}
@@ -717,7 +983,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                   </label>
                 </div>
 
-                {/* Sub-role dropdown - only show if admin privilege is granted */}
+                
                 {grantAdminPrivilege && (
                   <div className="col-span-2">
                     <FormSelect
@@ -733,9 +999,12 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
             </motion.div>
           )}
         </AnimatePresence>
+        </div>
 
-        {/* Progress Bar (Clickable) */}
-        <div className="flex justify-between items-center w-3/4 mx-auto mt-10">
+        {/* Footer Section - Progress Bar and Buttons */}
+        <div className="border-t border-[#e6d2b5] p-8 bg-[#f9ecd7] rounded-b-2xl">
+          {/* Progress Bar (Clickable) */}
+          <div className="flex justify-between items-center w-3/4 mx-auto mb-6">
           {[
             { id: 1, label: "Basic Information" },
             { id: 2, label: "Job Information" },
@@ -763,25 +1032,26 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
           ))}
         </div>
 
-        {/* Buttons */}
-        <div className="flex justify-between mt-10">
-          <button onClick={handleBack} className="bg-gray-300 text-gray-700 px-6 py-2 cursor-pointer rounded-lg shadow-md hover:opacity-80">
-            {step === 1 ? "Close" : "Back"}
-          </button>
+          {/* Buttons */}
+          <div className="flex justify-between">
+            <button onClick={handleBack} className="bg-gray-300 text-gray-700 px-6 py-2 cursor-pointer rounded-lg shadow-md hover:opacity-80">
+              {step === 1 ? "Close" : "Back"}
+            </button>
 
-          {step < 4 ? (
-            <button onClick={handleNext} className="bg-[#3b2b1c] text-white px-6 py-2 rounded-lg shadow-md hover:opacity-80">
-              Next
-            </button>
-          ) : (
-            <button
-              onClick={handleSubmit}
-              disabled={isSubmitting}
-              className="bg-[#4b0b14] text-white px-6 py-2 rounded-lg shadow-md hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? "Saving..." : "Save"}
-            </button>
-          )}
+            {step < 4 ? (
+              <button onClick={handleNext} className="bg-[#3b2b1c] text-white px-6 py-2 cursor-pointer rounded-lg shadow-md hover:opacity-80">
+                Next
+              </button>
+            ) : (
+              <button
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="bg-[#4b0b14] text-white px-6 py-2 rounded-lg shadow-md hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? "Saving..." : "Save"}
+              </button>
+            )}
+          </div>
         </div>
       </motion.div>
     </div>
