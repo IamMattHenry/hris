@@ -154,14 +154,7 @@
     "provinces": [
       {
         "province": "Batanes",
-        "cities": [
-          "Basco ",
-          "Itbayat",
-          "Ivana",
-          "Mahatao",
-          "Sabtang",
-          "Uyugan"
-        ]
+        "cities": ["Basco ", "Itbayat", "Ivana", "Mahatao", "Sabtang", "Uyugan"]
       },
       {
         "province": "Cagayan",
@@ -1493,13 +1486,7 @@
       },
       {
         "province": "Camiguin",
-        "cities": [
-          "Catarman",
-          "Guinsiliban",
-          "Mahinog",
-          "Mambajao ",
-          "Sagay"
-        ]
+        "cities": ["Catarman", "Guinsiliban", "Mahinog", "Mambajao ", "Sagay"]
       },
       {
         "province": "Lanao del Norte",
@@ -1770,7 +1757,30 @@
   },
   {
     "region": "National Capital Region (NCR)",
-    "provinces": []
+    "provinces": [
+      {
+        "province": "NCR",
+        "cities": [
+          "Caloocan City",
+          "Las Piñas City",
+          "Makati City",
+          "Malabon City",
+          "Mandaluyong City",
+          "Manila",
+          "Marikina City",
+          "Muntinlupa City",
+          "Navotas City",
+          "Parañaque City",
+          "Pasay City",
+          "Pasig City",
+          "Quezon City",
+          "San Juan City",
+          "Taguig City",
+          "Valenzuela City",
+          "Pateros"
+        ]
+      }
+    ]
   },
   {
     "region": "Cordillera Administrative Region (CAR)",

@@ -90,18 +90,27 @@ export const createEmployee = async (req, res, next) => {
       sub_role,
       first_name,
       last_name,
+      middle_name,
+      extension_name,
       email,
       birthdate,
       gender,
       civil_status,
       home_address,
-      city,
-      region,
+      city_name,
+      region_name,
+      province_name,
       position_id,
+      department_id,
+      salary,
+      leave_credit,
+      supervisor_id,
       shift,
       hire_date,
       contact_number,
       status,
+      created_by,
+      created_at
     } = req.body;
 
     // Validate required fields
@@ -170,6 +179,8 @@ export const createEmployee = async (req, res, next) => {
       username,
       password: hashedPassword,
       role: userRole,
+      created_by,
+      created_at
     });
 
     logger.info(
@@ -181,16 +192,21 @@ export const createEmployee = async (req, res, next) => {
       user_id: userId,
       first_name,
       last_name,
+      middle_name,
+      extension_name,
       birthdate,
       gender,
       civil_status,
-      home_address,
-      city,
-      region,
       position_id,
       shift,
       hire_date,
       status: status || "active",
+      department_id,
+      leave_credit,
+      supervisor_id,
+      salary,
+      created_by,
+      created_at
     });
 
     // Generate employee code based on the ID
@@ -221,6 +237,15 @@ export const createEmployee = async (req, res, next) => {
         email,
       });
     }
+
+    // Add address
+    await db.transactionInsert("employee_address", {
+      employee_id: employeeId,
+      home_address,
+      city_name,
+      region_name,
+      province_name,
+    })
 
     // If role is 'admin', create admin record
     let adminCode = null;

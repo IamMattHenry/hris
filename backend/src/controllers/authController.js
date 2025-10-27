@@ -74,7 +74,7 @@ export const login = async (req, res, next) => {
     },
   },
 });
-
+ 
   } catch (error) {
     logger.error('Login error:', error);
     next(error);
@@ -97,12 +97,11 @@ export const getCurrentUser = async (req, res, next) => {
         e.birthdate,
         e.hire_date,
         e.status,
-        a.admin_id,
-        a.admin_code,
-        a.sub_role
+        ur.user_role_id,
+        ur.sub_role
       FROM users u
       LEFT JOIN employees e ON u.user_id = e.user_id
-      LEFT JOIN admins a ON u.user_id = a.user_id
+      LEFT JOIN user_roles ur ON u.user_id = ur.user_id
       WHERE u.user_id = ?
     `, [req.user.user_id]);
 
