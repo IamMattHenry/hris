@@ -50,6 +50,10 @@ interface Dependent {
   contactInfo: string;
   relationship: string;
   relationshipSpecify?: string;
+  homeAddress: string;
+  region: string;
+  province: string;
+  city: string;
 }
 
 export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeModalProps) {
@@ -76,12 +80,20 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
   const [dependentContactInfo, setDependentContactInfo] = useState("");
   const [dependentRelationship, setDependentRelationship] = useState("");
   const [dependentRelationshipSpecify, setDependentRelationshipSpecify] = useState("");
+  const [dependentHomeAddress, setDependentHomeAddress] = useState("");
+  const [dependentRegion, setDependentRegion] = useState("");
+  const [dependentProvince, setDependentProvince] = useState("");
+  const [dependentCity, setDependentCity] = useState("");
   const [dependentErrors, setDependentErrors] = useState<{ [key: string]: string }>({});
 
   const [departments, setDepartments] = useState<any[]>([]);
   const [positions, setPositions] = useState<any[]>([]);
   const [cities, setCities] = useState<string[]>([]);
   const [regions, setRegions] = useState<any[]>([]);
+  const [provinces, setProvinces] = useState<string[]>([]);
+  const [dependentProvinces, setDependentProvinces] = useState<string[]>([]);
+  const [dependentCities, setDependentCities] = useState<string[]>([]);
+  const [phLocationsData, setPhLocationsData] = useState<any[]>([]);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -149,25 +161,79 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
     } catch (err) { console.error(err); }
   };
 
-  // Fetch cities & regions
+  // Load PH locations data from JSON file
   useEffect(() => {
-    async function loadCities() {
+    async function loadPhLocationsData() {
       try {
-        const res = await fetch("https://psgc.gitlab.io/api/cities/");
+        const res = await fetch("/data/json/ph_locations.json");
+        if (!res.ok) {
+          throw new Error(`Failed to fetch PH locations data: ${res.status} ${res.statusText}`);
+        }
         const data = await res.json();
-        setCities(data.map((city: any) => city.name));
-      } catch (err) { console.error(err); }
+        setPhLocationsData(data);
+        // Extract regions
+        const regionNames = data.map((r: any) => r.region);
+        setRegions(regionNames);
+      } catch (error) {
+        console.error("Error loading PH locations data:", error);
+        setRegions([]);
+      }
     }
-    async function loadRegions() {
-      try {
-        const res = await fetch("https://psgc.gitlab.io/api/regions/");
-        const data = await res.json();
-        setRegions(data);
-      } catch (err) { console.error(err); }
-    }
-    loadCities();
-    loadRegions();
+    loadPhLocationsData();
   }, []);
+
+  // Update provinces when region changes (for employee home address)
+  useEffect(() => {
+    if (region) {
+      const selectedRegion = phLocationsData.find((r: any) => r.region === region);
+      if (selectedRegion) {
+        const provinceNames = selectedRegion.provinces.map((p: any) => p.province);
+        setProvinces(provinceNames);
+        setCities([]);
+      } else {
+        setProvinces([]);
+        setCities([]);
+      }
+    } else {
+      setProvinces([]);
+      setCities([]);
+    }
+  }, [region, phLocationsData]);
+
+  // Update dependent provinces when dependent region changes
+  useEffect(() => {
+    if (dependentRegion) {
+      const selectedRegion = phLocationsData.find((r: any) => r.region === dependentRegion);
+      if (selectedRegion) {
+        const provinceNames = selectedRegion.provinces.map((p: any) => p.province);
+        setDependentProvinces(provinceNames);
+        setDependentCities([]);
+      } else {
+        setDependentProvinces([]);
+        setDependentCities([]);
+      }
+    } else {
+      setDependentProvinces([]);
+      setDependentCities([]);
+    }
+  }, [dependentRegion, phLocationsData]);
+
+  // Update dependent cities when dependent province changes
+  useEffect(() => {
+    if (dependentRegion && dependentProvince) {
+      const selectedRegion = phLocationsData.find((r: any) => r.region === dependentRegion);
+      if (selectedRegion) {
+        const selectedProvince = selectedRegion.provinces.find((p: any) => p.province === dependentProvince);
+        if (selectedProvince) {
+          setDependentCities(selectedProvince.cities);
+        } else {
+          setDependentCities([]);
+        }
+      }
+    } else {
+      setDependentCities([]);
+    }
+  }, [dependentRegion, dependentProvince, phLocationsData]);
 
   // Handle dependent contact info change with formatting
   const handleDependentContactInfoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -546,6 +612,64 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
                     />
                   )}
                 </div>
+
+                {/* Home Address Section with Y-axis padding */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm py-4">
+                  <div className="md:col-span-2">
+                    <FormInput
+                      label="Home Address:"
+                      type="text"
+                      value={dependentHomeAddress}
+                      onChange={(e) => {
+                        setDependentHomeAddress(e.target.value);
+                        if (dependentErrors.homeAddress) {
+                          setDependentErrors((prev) => ({ ...prev, homeAddress: "" }));
+                        }
+                      }}
+                      placeholder="Enter home address"
+                      error={dependentErrors.homeAddress}
+                    />
+                  </div>
+                  <FormSelect
+                    label="Region:"
+                    value={dependentRegion}
+                    onChange={(e) => {
+                      setDependentRegion(e.target.value);
+                      setDependentProvince("");
+                      setDependentCity("");
+                      if (dependentErrors.region) {
+                        setDependentErrors((prev) => ({ ...prev, region: "" }));
+                      }
+                    }}
+                    options={regions}
+                    error={dependentErrors.region}
+                  />
+                  <FormSelect
+                    label="Province:"
+                    value={dependentProvince}
+                    onChange={(e) => {
+                      setDependentProvince(e.target.value);
+                      setDependentCity("");
+                      if (dependentErrors.province) {
+                        setDependentErrors((prev) => ({ ...prev, province: "" }));
+                      }
+                    }}
+                    options={dependentRegion ? dependentProvinces : []}
+                    error={dependentErrors.province}
+                  />
+                  <FormSelect
+                    label="City:"
+                    value={dependentCity}
+                    onChange={(e) => {
+                      setDependentCity(e.target.value);
+                      if (dependentErrors.city) {
+                        setDependentErrors((prev) => ({ ...prev, city: "" }));
+                      }
+                    }}
+                    options={dependentProvince ? dependentCities : []}
+                    error={dependentErrors.city}
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={() => {
@@ -573,6 +697,10 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
                       contactInfo: dependentContactInfo,
                       relationship: dependentRelationship,
                       relationshipSpecify: dependentRelationshipSpecify || undefined,
+                      homeAddress: dependentHomeAddress,
+                      region: dependentRegion,
+                      province: dependentProvince,
+                      city: dependentCity,
                     };
                     setDependents([...dependents, newDependent]);
                     setDependentFirstName("");
@@ -581,6 +709,10 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
                     setDependentContactInfo("");
                     setDependentRelationship("");
                     setDependentRelationshipSpecify("");
+                    setDependentHomeAddress("");
+                    setDependentRegion("");
+                    setDependentProvince("");
+                    setDependentCity("");
                   }}
                   className="w-full px-4 py-2 bg-[#4b0b14] text-white rounded-lg hover:bg-[#6b0b1f] transition-colors font-semibold"
                 >
@@ -612,6 +744,12 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
                       </div>
                       {dependent.email && <p className="text-xs text-[#6b5344]">Email: {dependent.email}</p>}
                       {dependent.contactInfo && <p className="text-xs text-[#6b5344]">Contact: {dependent.contactInfo}</p>}
+                      {dependent.homeAddress && <p className="text-xs text-[#6b5344]">Address: {dependent.homeAddress}</p>}
+                      {(dependent.city || dependent.province || dependent.region) && (
+                        <p className="text-xs text-[#6b5344]">
+                          Location: {[dependent.city, dependent.province, dependent.region].filter(Boolean).join(", ")}
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>
