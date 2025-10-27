@@ -3,39 +3,9 @@
 import React, { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { motion } from "framer-motion";
+import FormInput from "@/components/forms/FormInput";
+import FormSelect from "@/components/forms/FormSelect";
 import { departmentApi, positionApi, employeeApi } from "@/lib/api";
-
-// FormInput component
-const FormInput = ({ label, type, value, onChange, error }: any) => (
-  <div>
-    <label className="block text-sm font-medium text-gray-600 mb-1">{label}</label>
-    <input
-      type={type}
-      value={value}
-      onChange={onChange}
-      className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c]"
-    />
-    {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
-  </div>
-);
-
-// FormSelect component
-const FormSelect = ({ label, value, onChange, options, error }: any) => (
-  <div>
-    <label className="block text-sm font-medium text-gray-600 mb-1">{label}</label>
-    <select
-      value={value}
-      onChange={onChange}
-      className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c]"
-    >
-      <option value="">Select {label}</option>
-      {options.map((opt: string) => (
-        <option key={opt} value={opt}>{opt}</option>
-      ))}
-    </select>
-    {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
-  </div>
-);
 
 interface EditEmployeeModalProps {
   isOpen: boolean;
@@ -45,22 +15,19 @@ interface EditEmployeeModalProps {
 
 interface EmployeeData {
   employee_id: number;
-  employee_code: string;
   first_name: string;
   last_name: string;
   home_address: string;
   city: string;
   region: string;
   department_id: number;
-  department_name: string;
   position_id: number;
-  position_name: string;
   shift: string;
-  status: string;
+  email: string;
   civil_status?: string;
   emails?: Array<{ email_id: number; email: string }>;
   contact_numbers?: Array<{ contact_number_id: number; contact_number: string }>;
-  image_url?: string;
+  dependents?: Array<Dependent>;
 }
 
 interface ContactEmail {
@@ -75,11 +42,18 @@ interface ContactNumber {
   isNew?: boolean;
 }
 
-type TabType = "profile" | "job" | "beneficiaries" | "authentication";
+interface Dependent {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  contactInfo: string;
+  relationship: string;
+  relationshipSpecify?: string;
+}
 
 export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeModalProps) {
   const [employee, setEmployee] = useState<EmployeeData | null>(null);
-  const [activeTab, setActiveTab] = useState<TabType>("profile");
 
   // Editable fields
   const [firstName, setFirstName] = useState("");
@@ -93,6 +67,16 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
   const [civilStatus, setCivilStatus] = useState("");
   const [emails, setEmails] = useState<ContactEmail[]>([]);
   const [contactNumbers, setContactNumbers] = useState<ContactNumber[]>([]);
+
+  // Dependents state
+  const [dependents, setDependents] = useState<Dependent[]>([]);
+  const [dependentFirstName, setDependentFirstName] = useState("");
+  const [dependentLastName, setDependentLastName] = useState("");
+  const [dependentEmail, setDependentEmail] = useState("");
+  const [dependentContactInfo, setDependentContactInfo] = useState("");
+  const [dependentRelationship, setDependentRelationship] = useState("");
+  const [dependentRelationshipSpecify, setDependentRelationshipSpecify] = useState("");
+  const [dependentErrors, setDependentErrors] = useState<{ [key: string]: string }>({});
 
   const [departments, setDepartments] = useState<any[]>([]);
   const [positions, setPositions] = useState<any[]>([]);
@@ -121,16 +105,25 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
         setRegion(res.data.region || "");
         setCivilStatus(res.data.civil_status || "");
 
+        // Set emails from the fetched data
         if (res.data.emails && Array.isArray(res.data.emails)) {
           setEmails(res.data.emails.map((e: any) => ({ email_id: e.employee_id, email: e.email })));
         } else {
           setEmails([]);
         }
 
+        // Set contact numbers from the fetched data
         if (res.data.contact_numbers && Array.isArray(res.data.contact_numbers)) {
           setContactNumbers(res.data.contact_numbers.map((c: any) => ({ contact_number_id: c.employee_id, contact_number: c.contact_number })));
         } else {
           setContactNumbers([]);
+        }
+
+        // Set dependents from the fetched data
+        if (res.data.dependents && Array.isArray(res.data.dependents)) {
+          setDependents(res.data.dependents);
+        } else {
+          setDependents([]);
         }
       }
     } catch (error) {
@@ -138,6 +131,7 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
     }
   };
 
+  // Fetch departments & positions
   useEffect(() => { if (isOpen) fetchDepartments(); }, [isOpen]);
   useEffect(() => { if (departmentId) fetchPositions(departmentId); else setPositions([]); }, [departmentId]);
 
@@ -155,6 +149,7 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
     } catch (err) { console.error(err); }
   };
 
+  // Fetch cities & regions
   useEffect(() => {
     async function loadCities() {
       try {
@@ -174,6 +169,51 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
     loadRegions();
   }, []);
 
+  // Handle dependent contact info change with formatting
+  const handleDependentContactInfoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, "");
+    let formatted = value;
+    if (value.startsWith("63")) {
+      formatted = `+${value.slice(0, 2)} ${value.slice(2, 5)} ${value.slice(5, 8)} ${value.slice(8, 12)}`.trim();
+    } else if (value.startsWith("09")) {
+      formatted = `${value.slice(0, 4)} ${value.slice(4, 7)} ${value.slice(7, 11)}`.trim();
+    }
+    setDependentContactInfo(formatted);
+  };
+
+  // Validate dependent
+  const validateDependent = (
+    firstName: string,
+    lastName: string,
+    relationship: string,
+    email: string,
+    contactInfo: string,
+    relationshipSpecify: string
+  ) => {
+    const newErrors: { [key: string]: string } = {};
+
+    if (!firstName.trim()) newErrors.firstName = "First name is required";
+    if (!lastName.trim()) newErrors.lastName = "Last name is required";
+    if (!relationship) newErrors.relationship = "Relationship is required";
+    if (relationship === "Other" && !relationshipSpecify.trim()) {
+      newErrors.relationshipSpecify = "Please specify the relationship";
+    }
+    if (!email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(email.trim())) {
+      newErrors.email = "Must be a valid Gmail address";
+    }
+    if (contactInfo.trim()) {
+      const cleanNumber = contactInfo.replace(/\s/g, "");
+      if (!/^(\+639|09)\d{9}$/.test(cleanNumber)) {
+        newErrors.contactInfo = "Invalid contact number format";
+      }
+    }
+
+    return newErrors;
+  };
+
+  // Validation
   const validate = () => {
     const newErrors: { [key: string]: string } = {};
     if (!firstName.trim()) newErrors.firstName = "First name is required";
@@ -186,6 +226,7 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
     if (!region) newErrors.region = "Region is required";
     if (!civilStatus) newErrors.civilStatus = "Civil status is required";
 
+    // Validate at least one email exists
     const validEmails = emails.filter(e => e.email && e.email.trim());
     if (validEmails.length === 0) newErrors.emails = "At least one email is required";
     else {
@@ -197,6 +238,7 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
       }
     }
 
+    // Validate at least one contact number exists
     const validContacts = contactNumbers.filter(c => c.contact_number && c.contact_number.trim());
     if (validContacts.length === 0) newErrors.contactNumbers = "At least one contact number is required";
     else {
@@ -210,12 +252,25 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
     }
     if (validContacts.length > 5) newErrors.contactNumbers = "Maximum of 5 contact numbers allowed";
 
+    // Validate dependents
+    if (dependents.length === 0) {
+      newErrors.dependents = "At least one dependent is required";
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async () => {
-    if (!validate() || !employee) return;
+    console.log("Save Changes clicked");
+    const isValid = validate();
+    console.log("Validation result:", isValid);
+    console.log("Current errors:", errors);
+
+    if (!isValid || !employee) {
+      console.log("Validation failed or no employee");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -230,9 +285,12 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
         civil_status: civilStatus ? civilStatus.toLowerCase() : null,
         emails: emails.map(e => e.email).filter(e => e && e.trim()),
         contact_numbers: contactNumbers.map(c => c.contact_number.replace(/\s/g, "")).filter(c => c && c.trim()),
+        dependents: dependents,
       };
 
+      console.log("Submitting update:", updatedData);
       const result = await employeeApi.update(employee.employee_id, updatedData);
+      console.log("Update result:", result);
 
       if (result.success) {
         alert("Employee updated successfully!");
@@ -250,231 +308,328 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
 
   if (!isOpen) return null;
 
-  const tabs = [
-    { id: "profile" as TabType, label: "Profile & Contacts" },
-    { id: "job" as TabType, label: "Job Information" },
-    { id: "beneficiaries" as TabType, label: "Beneficiaries" },
-    { id: "authentication" as TabType, label: "Authentication" },
-  ];
-
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.2 }}
-        className="bg-[#fdf3e2] w-full max-w-6xl rounded-2xl shadow-2xl relative text-[#3b2b1c] overflow-hidden flex max-h-[90vh]"
+        className="bg-[#fdf3e2] w-full max-w-5xl p-10 rounded-2xl shadow-lg relative text-[#3b2b1c] overflow-y-auto max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Sidebar */}
-        <div className="w-48 bg-[#f4e6cf] p-6 space-y-2 flex-shrink-0 overflow-y-auto">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                activeTab === tab.id
-                  ? "bg-[#e8d4b8] text-[#3b2b1c] shadow-sm"
-                  : "text-[#6b5844] hover:bg-[#ede0ca]"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        <button onClick={onClose} className="absolute top-4 right-4 text-[#3b2b1c] hover:opacity-70">
+          <X size={26} />
+        </button>
 
-        {/* Main Content */}
-        <div className="flex-1 overflow-y-auto">
-          <button onClick={onClose} className="absolute top-4 right-4 text-[#3b2b1c] hover:opacity-70 z-10">
-            <X size={26} />
-          </button>
+        <h2 className="text-2xl font-semibold mb-1">Edit Employee</h2>
+        <p className="text-sm text-gray-600 mb-6">{firstName} {lastName}</p>
 
-          <div className="p-10">
-            {employee ? (
-              <>
-                {/* Page Title */}
-                <h1 className="text-3xl font-bold text-[#3b2b1c] mb-6">Edit Employee</h1>
+        {employee ? (
+          <div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <FormInput label="First Name" type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} error={errors.firstName} />
+              <FormInput label="Last Name" type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} error={errors.lastName} />
+              <div>
+                <label className="block text-[#3b2b1c] mb-1">Department</label>
+                <select
+                  value={departmentId || ""}
+                  onChange={(e) => {
+                    const value = e.target.value ? Number(e.target.value) : null;
+                    setDepartmentId(value);
+                    setPositionId(null);
+                    setErrors((prev) => ({ ...prev, department: "" }));
+                  }}
+                  className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c]"
+                >
+                  <option value="">Select Department</option>
+                  {departments.map((dept) => (
+                    <option key={dept.department_id} value={dept.department_id}>
+                      {dept.department_name}
+                    </option>
+                  ))}
+                </select>
+                {errors.department && <p className="text-red-500 text-xs mt-1">{errors.department}</p>}
+              </div>
 
-                {/* Header Section */}
-                <div className="flex items-start gap-6 mb-8">
-                  {employee.image_url ? (
-                    <img src={employee.image_url} alt="Employee" className="w-24 h-24 rounded-full object-cover shadow-md flex-shrink-0" />
-                  ) : (
-                    <div className="w-24 h-24 bg-[#5a2e2e] rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-md flex-shrink-0">
-                      {firstName && lastName ? `${firstName[0]}${lastName[0]}`.toUpperCase() : "?"}
+              <div>
+                <label className="block text-[#3b2b1c] mb-1">Position</label>
+                <select
+                  value={positionId || ""}
+                  onChange={(e) => setPositionId(Number(e.target.value))}
+                  disabled={!departmentId}
+                  className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] disabled:opacity-50"
+                >
+                  <option value="">{departmentId ? "Select Position" : "Select Department First"}</option>
+                  {positions.map((pos) => (
+                    <option key={pos.position_id} value={pos.position_id}>{pos.position_name}</option>
+                  ))}
+                </select>
+                {errors.position && <p className="text-red-500 text-xs mt-1">{errors.position}</p>}
+              </div>
+
+              <FormSelect label="Shift" value={shift} onChange={(e) => setShift(e.target.value)} options={["Morning", "Night"]} error={errors.shift} />
+              <FormSelect label="Civil Status" value={civilStatus} onChange={(e) => setCivilStatus(e.target.value)} options={["Single", "Married", "Widowed", "Divorced"]} error={errors.civilStatus} />
+              <FormInput label="Home Address" type="text" value={homeAddress} onChange={(e) => setHomeAddress(e.target.value)} error={errors.homeAddress} />
+              <FormSelect label="City" value={city} onChange={(e) => setCity(e.target.value)} options={cities} error={errors.city} />
+              <FormSelect label="Region" value={region} onChange={(e) => setRegion(e.target.value)} options={regions.map((reg) => reg.name)} error={errors.region} />
+            </div>
+
+            {/* Email Addresses Section */}
+            <div className="mt-8 pt-6 border-t border-[#e6d2b5]">
+              <h3 className="text-lg font-semibold mb-4 text-[#3b2b1c]">Email Addresses</h3>
+              {errors.emails && <p className="text-red-500 text-sm mb-3">{errors.emails}</p>}
+              <div className="space-y-3">
+                {emails.map((emailItem, index) => (
+                  <div key={index} className="flex gap-2 items-end">
+                    <div className="flex-1">
+                      <input
+                        type="email"
+                        value={emailItem.email}
+                        onChange={(e) => {
+                          const newEmails = [...emails];
+                          newEmails[index].email = e.target.value;
+                          setEmails(newEmails);
+                        }}
+                        placeholder="Enter email address"
+                        className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c]"
+                      />
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => setEmails(emails.filter((_, i) => i !== index))}
+                      className="px-3 py-2 bg-red-500 text-white rounded-lg hover:opacity-80"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setEmails([...emails, { email: "", isNew: true }])}
+                className="mt-3 px-4 py-2 bg-[#3b2b1c] text-white rounded-lg hover:opacity-80"
+              >
+                + Add Another Email
+              </button>
+            </div>
+
+            {/* Contact Numbers Section */}
+            <div className="mt-8 pt-6 border-t border-[#e6d2b5]">
+              <h3 className="text-lg font-semibold mb-4 text-[#3b2b1c]">Contact Numbers</h3>
+              {errors.contactNumbers && <p className="text-red-500 text-sm mb-3">{errors.contactNumbers}</p>}
+              <div className="space-y-3">
+                {contactNumbers.map((contactItem, index) => (
+                  <div key={index} className="flex gap-2 items-end">
+                    <div className="flex-1">
+                      <input
+                        type="text"
+                        value={contactItem.contact_number}
+                        onChange={(e) => {
+                          const newContacts = [...contactNumbers];
+                          newContacts[index].contact_number = e.target.value;
+                          setContactNumbers(newContacts);
+                        }}
+                        placeholder="Enter contact number"
+                        className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c]"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setContactNumbers(contactNumbers.filter((_, i) => i !== index))}
+                      className="px-3 py-2 bg-red-500 text-white rounded-lg hover:opacity-80"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setContactNumbers([...contactNumbers, { contact_number: "", isNew: true }])}
+                className="mt-3 px-4 py-2 bg-[#3b2b1c] text-white rounded-lg hover:opacity-80"
+              >
+                + Add Another Contact Number
+              </button>
+            </div>
+
+            {/* Dependents Section */}
+            <div className="border-t-2 border-[#e6d2b5] pt-6 mt-8">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-[#3b2b1c] font-semibold">Employee Dependent Information <span className="text-red-500">*</span></h3>
+                <span className="text-xs text-[#6b5344]">({dependents.length} added)</span>
+              </div>
+              {errors.dependents && <p className="text-red-500 text-xs mb-4">{errors.dependents}</p>}
+
+              {/* Add Dependent Form */}
+              <div className="bg-[#FFF2E0] p-4 rounded-lg mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
+                  <FormInput
+                    label="First Name:"
+                    type="text"
+                    value={dependentFirstName}
+                    onChange={(e) => {
+                      setDependentFirstName(e.target.value);
+                      if (dependentErrors.firstName) {
+                        setDependentErrors((prev) => ({ ...prev, firstName: "" }));
+                      }
+                    }}
+                    placeholder="Enter first name"
+                    error={dependentErrors.firstName}
+                  />
+                  <FormInput
+                    label="Last Name:"
+                    type="text"
+                    value={dependentLastName}
+                    onChange={(e) => {
+                      setDependentLastName(e.target.value);
+                      if (dependentErrors.lastName) {
+                        setDependentErrors((prev) => ({ ...prev, lastName: "" }));
+                      }
+                    }}
+                    placeholder="Enter last name"
+                    error={dependentErrors.lastName}
+                  />
+                  <FormInput
+                    label="Email:"
+                    type="email"
+                    value={dependentEmail}
+                    onChange={(e) => {
+                      setDependentEmail(e.target.value);
+                      if (dependentErrors.email) {
+                        setDependentErrors((prev) => ({ ...prev, email: "" }));
+                      }
+                    }}
+                    placeholder="(use gmail)"
+                    error={dependentErrors.email}
+                  />
+                  <FormInput
+                    label="Contact Info:"
+                    type="text"
+                    value={dependentContactInfo}
+                    onChange={(e) => {
+                      handleDependentContactInfoChange(e);
+                      if (dependentErrors.contactInfo) {
+                        setDependentErrors((prev) => ({ ...prev, contactInfo: "" }));
+                      }
+                    }}
+                    placeholder="Phone number (optional)"
+                    error={dependentErrors.contactInfo}
+                  />
+                  <FormSelect
+                    label="Relationship:"
+                    value={dependentRelationship}
+                    onChange={(e) => {
+                      setDependentRelationship(e.target.value);
+                      if (e.target.value !== "Other") {
+                        setDependentRelationshipSpecify("");
+                      }
+                      if (dependentErrors.relationship) {
+                        setDependentErrors((prev) => ({ ...prev, relationship: "" }));
+                      }
+                    }}
+                    options={["Spouse", "Child", "Parent", "Sibling", "Other"]}
+                    error={dependentErrors.relationship}
+                  />
+                  {dependentRelationship === "Other" && (
+                    <FormInput
+                      label="Specify Relationship:"
+                      type="text"
+                      value={dependentRelationshipSpecify}
+                      onChange={(e) => {
+                        setDependentRelationshipSpecify(e.target.value);
+                        if (dependentErrors.relationshipSpecify) {
+                          setDependentErrors((prev) => ({ ...prev, relationshipSpecify: "" }));
+                        }
+                      }}
+                      placeholder="Please specify the relationship"
+                      error={dependentErrors.relationshipSpecify}
+                    />
                   )}
-
-                  <div className="flex-1">
-                    <h2 className="text-2xl font-semibold text-[#3b2b1c] mb-1">
-                      {firstName} {lastName}
-                    </h2>
-                    <p className="text-sm text-[#8b7355] mb-2">{employee.employee_code}</p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-[#8b7355]">Status:</span>
-                      <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold">
-                        {employee.status?.charAt(0).toUpperCase() + employee.status?.slice(1)}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="text-right space-y-1">
-                    <p className="text-sm text-[#8b7355]">Job Title: <span className="text-[#3b2b1c] font-medium">{employee.position_name}</span></p>
-                    <p className="text-sm text-[#8b7355]">Department: <span className="text-[#3b2b1c] font-medium">{employee.department_name}</span></p>
-                    <p className="text-sm text-[#8b7355]">Shift: <span className="text-[#3b2b1c] font-medium">{employee.shift}</span></p>
-                  </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newErrors = validateDependent(
+                      dependentFirstName,
+                      dependentLastName,
+                      dependentRelationship,
+                      dependentEmail,
+                      dependentContactInfo,
+                      dependentRelationshipSpecify
+                    );
 
-                {/* Tab Content */}
-                {activeTab === "profile" && (
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-3 gap-4">
-                      <FormInput label="First Name" type="text" value={firstName} onChange={(e: any) => setFirstName(e.target.value)} error={errors.firstName} />
-                      <FormInput label="Last Name" type="text" value={lastName} onChange={(e: any) => setLastName(e.target.value)} error={errors.lastName} />
-                      <FormSelect label="Civil Status" value={civilStatus} onChange={(e: any) => setCivilStatus(e.target.value)} options={["Single", "Married", "Widowed", "Divorced"]} error={errors.civilStatus} />
-                    </div>
+                    if (Object.keys(newErrors).length > 0) {
+                      setDependentErrors(newErrors);
+                      return;
+                    }
 
-                    {/* Email Section */}
-                    <div className="pt-4 border-t border-[#e6d2b5]">
-                      <h3 className="text-sm font-semibold mb-3 text-[#3b2b1c]">Email Addresses</h3>
-                      {errors.emails && <p className="text-red-500 text-xs mb-2">{errors.emails}</p>}
-                      <div className="space-y-2">
-                        {emails.map((emailItem, index) => (
-                          <div key={index} className="flex gap-2">
-                            <input
-                              type="email"
-                              value={emailItem.email}
-                              onChange={(e) => {
-                                const newEmails = [...emails];
-                                newEmails[index].email = e.target.value;
-                                setEmails(newEmails);
-                              }}
-                              placeholder="Enter email address"
-                              className="flex-1 px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] text-sm"
-                            />
-                            <button type="button" onClick={() => setEmails(emails.filter((_, i) => i !== index))} className="px-3 py-2 bg-red-500 text-white rounded-lg hover:opacity-80 text-sm">
-                              Remove
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                      <button type="button" onClick={() => setEmails([...emails, { email: "", isNew: true }])} className="mt-2 px-3 py-1.5 bg-[#3b2b1c] text-white rounded-lg hover:opacity-80 text-sm">
-                        + Add Email
-                      </button>
-                    </div>
+                    setDependentErrors({});
 
-                    {/* Contact Numbers Section */}
-                    <div className="pt-4 border-t border-[#e6d2b5]">
-                      <h3 className="text-sm font-semibold mb-3 text-[#3b2b1c]">Contact Numbers</h3>
-                      {errors.contactNumbers && <p className="text-red-500 text-xs mb-2">{errors.contactNumbers}</p>}
-                      <div className="space-y-2">
-                        {contactNumbers.map((contactItem, index) => (
-                          <div key={index} className="flex gap-2">
-                            <input
-                              type="text"
-                              value={contactItem.contact_number}
-                              onChange={(e) => {
-                                const newContacts = [...contactNumbers];
-                                newContacts[index].contact_number = e.target.value;
-                                setContactNumbers(newContacts);
-                              }}
-                              placeholder="Enter contact number"
-                              className="flex-1 px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] text-sm"
-                            />
-                            <button type="button" onClick={() => setContactNumbers(contactNumbers.filter((_, i) => i !== index))} className="px-3 py-2 bg-red-500 text-white rounded-lg hover:opacity-80 text-sm">
-                              Remove
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                      <button type="button" onClick={() => setContactNumbers([...contactNumbers, { contact_number: "", isNew: true }])} className="mt-2 px-3 py-1.5 bg-[#3b2b1c] text-white rounded-lg hover:opacity-80 text-sm">
-                        + Add Contact
-                      </button>
-                    </div>
+                    const newDependent = {
+                      id: Date.now().toString(),
+                      firstName: dependentFirstName,
+                      lastName: dependentLastName,
+                      email: dependentEmail,
+                      contactInfo: dependentContactInfo,
+                      relationship: dependentRelationship,
+                      relationshipSpecify: dependentRelationshipSpecify || undefined,
+                    };
+                    setDependents([...dependents, newDependent]);
+                    setDependentFirstName("");
+                    setDependentLastName("");
+                    setDependentEmail("");
+                    setDependentContactInfo("");
+                    setDependentRelationship("");
+                    setDependentRelationshipSpecify("");
+                  }}
+                  className="w-full px-4 py-2 bg-[#4b0b14] text-white rounded-lg hover:bg-[#6b0b1f] transition-colors font-semibold"
+                >
+                  Add Dependent
+                </button>
+              </div>
 
-                    {/* Address Section */}
-                    <div className="pt-4 border-t border-[#e6d2b5]">
-                      <h3 className="text-sm font-semibold mb-3 text-[#3b2b1c]">Address Information</h3>
-                      <div className="grid grid-cols-3 gap-4">
-                        <FormInput label="Home Address" type="text" value={homeAddress} onChange={(e: any) => setHomeAddress(e.target.value)} error={errors.homeAddress} />
-                        <FormSelect label="City" value={city} onChange={(e: any) => setCity(e.target.value)} options={cities} error={errors.city} />
-                        <FormSelect label="Region" value={region} onChange={(e: any) => setRegion(e.target.value)} options={regions.map((reg) => reg.name)} error={errors.region} />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === "job" && (
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-600 mb-1">Department</label>
-                        <select
-                          value={departmentId || ""}
-                          onChange={(e) => {
-                            const value = e.target.value ? Number(e.target.value) : null;
-                            setDepartmentId(value);
-                            setPositionId(null);
-                            setErrors((prev) => ({ ...prev, department: "" }));
-                          }}
-                          className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c]"
+              {/* Dependents List */}
+              {dependents.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-[#3b2b1c] font-semibold">Added Dependents:</h4>
+                  {dependents.map((dependent) => (
+                    <div key={dependent.id} className="bg-[#f5e6d3] p-4 rounded-lg border border-[#e6d2b5]">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <p className="font-semibold text-[#3b2b1c]">{dependent.firstName} {dependent.lastName}</p>
+                          <p className="text-xs text-[#6b5344]">
+                            Relationship: {dependent.relationship}
+                            {dependent.relationshipSpecify && ` (${dependent.relationshipSpecify})`}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setDependents(dependents.filter(d => d.id !== dependent.id))}
+                          className="text-red-500 hover:text-red-700 font-semibold text-sm"
                         >
-                          <option value="">Select Department</option>
-                          {departments.map((dept) => (
-                            <option key={dept.department_id} value={dept.department_id}>{dept.department_name}</option>
-                          ))}
-                        </select>
-                        {errors.department && <p className="text-red-500 text-xs mt-1">{errors.department}</p>}
+                          Remove
+                        </button>
                       </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-600 mb-1">Position</label>
-                        <select
-                          value={positionId || ""}
-                          onChange={(e) => setPositionId(Number(e.target.value))}
-                          disabled={!departmentId}
-                          className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] disabled:opacity-50"
-                        >
-                          <option value="">{departmentId ? "Select Position" : "Select Department First"}</option>
-                          {positions.map((pos) => (
-                            <option key={pos.position_id} value={pos.position_id}>{pos.position_name}</option>
-                          ))}
-                        </select>
-                        {errors.position && <p className="text-red-500 text-xs mt-1">{errors.position}</p>}
-                      </div>
-
-                      <FormSelect label="Shift" value={shift} onChange={(e: any) => setShift(e.target.value)} options={["Morning", "Night"]} error={errors.shift} />
+                      {dependent.email && <p className="text-xs text-[#6b5344]">Email: {dependent.email}</p>}
+                      {dependent.contactInfo && <p className="text-xs text-[#6b5344]">Contact: {dependent.contactInfo}</p>}
                     </div>
-                  </div>
-                )}
-
-                {activeTab === "beneficiaries" && (
-                  <div className="space-y-6">
-                    <p className="text-sm text-gray-500">Beneficiaries information will be added here.</p>
-                  </div>
-                )}
-
-                {activeTab === "authentication" && (
-                  <div className="space-y-6">
-                    <p className="text-sm text-gray-500">Authentication settings will be added here.</p>
-                  </div>
-                )}
-
-                {/* Save Button */}
-                <div className="flex justify-end mt-8 pt-6 border-t border-[#e6d2b5]">
-                  <button
-                    onClick={handleSubmit}
-                    disabled={isSubmitting}
-                    className="bg-[#4b0b14] text-white px-6 py-2 rounded-lg shadow-md hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isSubmitting ? "Saving..." : "Save Changes"}
-                  </button>
+                  ))}
                 </div>
-              </>
-            ) : (
-              <p className="text-center text-gray-600">Loading employee details...</p>
-            )}
+              )}
+            </div>
           </div>
+        ) : (
+          <p className="text-center text-gray-600">Loading employee details...</p>
+        )}
+
+        <div className="flex justify-end mt-10">
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="bg-[#4b0b14] text-white px-6 py-2 rounded-lg shadow-md hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSubmitting ? "Saving..." : "Save Changes"}
+          </button>
         </div>
       </motion.div>
     </div>
