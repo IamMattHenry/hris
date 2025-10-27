@@ -27,6 +27,7 @@ interface EmployeeData {
   civil_status?: string;
   emails?: Array<{ email_id: number; email: string }>;
   contact_numbers?: Array<{ contact_number_id: number; contact_number: string }>;
+  dependents?: Array<Dependent>;
 }
 
 interface ContactEmail {
@@ -39,6 +40,16 @@ interface ContactNumber {
   contact_number_id?: number;
   contact_number: string;
   isNew?: boolean;
+}
+
+interface Dependent {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  contactInfo: string;
+  relationship: string;
+  relationshipSpecify?: string;
 }
 
 export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeModalProps) {
@@ -56,6 +67,16 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
   const [civilStatus, setCivilStatus] = useState("");
   const [emails, setEmails] = useState<ContactEmail[]>([]);
   const [contactNumbers, setContactNumbers] = useState<ContactNumber[]>([]);
+
+  // Dependents state
+  const [dependents, setDependents] = useState<Dependent[]>([]);
+  const [dependentFirstName, setDependentFirstName] = useState("");
+  const [dependentLastName, setDependentLastName] = useState("");
+  const [dependentEmail, setDependentEmail] = useState("");
+  const [dependentContactInfo, setDependentContactInfo] = useState("");
+  const [dependentRelationship, setDependentRelationship] = useState("");
+  const [dependentRelationshipSpecify, setDependentRelationshipSpecify] = useState("");
+  const [dependentErrors, setDependentErrors] = useState<{ [key: string]: string }>({});
 
   const [departments, setDepartments] = useState<any[]>([]);
   const [positions, setPositions] = useState<any[]>([]);
@@ -96,6 +117,13 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
           setContactNumbers(res.data.contact_numbers.map((c: any) => ({ contact_number_id: c.employee_id, contact_number: c.contact_number })));
         } else {
           setContactNumbers([]);
+        }
+
+        // Set dependents from the fetched data
+        if (res.data.dependents && Array.isArray(res.data.dependents)) {
+          setDependents(res.data.dependents);
+        } else {
+          setDependents([]);
         }
       }
     } catch (error) {
@@ -141,6 +169,50 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
     loadRegions();
   }, []);
 
+  // Handle dependent contact info change with formatting
+  const handleDependentContactInfoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, "");
+    let formatted = value;
+    if (value.startsWith("63")) {
+      formatted = `+${value.slice(0, 2)} ${value.slice(2, 5)} ${value.slice(5, 8)} ${value.slice(8, 12)}`.trim();
+    } else if (value.startsWith("09")) {
+      formatted = `${value.slice(0, 4)} ${value.slice(4, 7)} ${value.slice(7, 11)}`.trim();
+    }
+    setDependentContactInfo(formatted);
+  };
+
+  // Validate dependent
+  const validateDependent = (
+    firstName: string,
+    lastName: string,
+    relationship: string,
+    email: string,
+    contactInfo: string,
+    relationshipSpecify: string
+  ) => {
+    const newErrors: { [key: string]: string } = {};
+
+    if (!firstName.trim()) newErrors.firstName = "First name is required";
+    if (!lastName.trim()) newErrors.lastName = "Last name is required";
+    if (!relationship) newErrors.relationship = "Relationship is required";
+    if (relationship === "Other" && !relationshipSpecify.trim()) {
+      newErrors.relationshipSpecify = "Please specify the relationship";
+    }
+    if (!email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(email.trim())) {
+      newErrors.email = "Must be a valid Gmail address";
+    }
+    if (contactInfo.trim()) {
+      const cleanNumber = contactInfo.replace(/\s/g, "");
+      if (!/^(\+639|09)\d{9}$/.test(cleanNumber)) {
+        newErrors.contactInfo = "Invalid contact number format";
+      }
+    }
+
+    return newErrors;
+  };
+
   // Validation
   const validate = () => {
     const newErrors: { [key: string]: string } = {};
@@ -158,7 +230,6 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
     const validEmails = emails.filter(e => e.email && e.email.trim());
     if (validEmails.length === 0) newErrors.emails = "At least one email is required";
     else {
-      // Validate each email format
       for (const emailItem of validEmails) {
         if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(emailItem.email.trim())) {
           newErrors.emails = "All emails must be valid Gmail addresses";
@@ -171,7 +242,6 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
     const validContacts = contactNumbers.filter(c => c.contact_number && c.contact_number.trim());
     if (validContacts.length === 0) newErrors.contactNumbers = "At least one contact number is required";
     else {
-      // Validate each contact number format
       for (const contactItem of validContacts) {
         const cleanNumber = contactItem.contact_number.replace(/\s/g, "");
         if (!/^(\+639|09)\d{9}$/.test(cleanNumber)) {
@@ -181,6 +251,11 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
       }
     }
     if (validContacts.length > 5) newErrors.contactNumbers = "Maximum of 5 contact numbers allowed";
+
+    // Validate dependents
+    if (dependents.length === 0) {
+      newErrors.dependents = "At least one dependent is required";
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -210,6 +285,7 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
         civil_status: civilStatus ? civilStatus.toLowerCase() : null,
         emails: emails.map(e => e.email).filter(e => e && e.trim()),
         contact_numbers: contactNumbers.map(c => c.contact_number.replace(/\s/g, "")).filter(c => c && c.trim()),
+        dependents: dependents,
       };
 
       console.log("Submitting update:", updatedData);
@@ -296,7 +372,7 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
               <FormInput label="Home Address" type="text" value={homeAddress} onChange={(e) => setHomeAddress(e.target.value)} error={errors.homeAddress} />
               <FormSelect label="City" value={city} onChange={(e) => setCity(e.target.value)} options={cities} error={errors.city} />
               <FormSelect label="Region" value={region} onChange={(e) => setRegion(e.target.value)} options={regions.map((reg) => reg.name)} error={errors.region} />
-              </div>
+            </div>
 
             {/* Email Addresses Section */}
             <div className="mt-8 pt-6 border-t border-[#e6d2b5]">
@@ -374,6 +450,172 @@ export default function EditEmployeeModal({ isOpen, onClose, id }: EditEmployeeM
               >
                 + Add Another Contact Number
               </button>
+            </div>
+
+            {/* Dependents Section */}
+            <div className="border-t-2 border-[#e6d2b5] pt-6 mt-8">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-[#3b2b1c] font-semibold">Employee Dependent Information <span className="text-red-500">*</span></h3>
+                <span className="text-xs text-[#6b5344]">({dependents.length} added)</span>
+              </div>
+              {errors.dependents && <p className="text-red-500 text-xs mb-4">{errors.dependents}</p>}
+
+              {/* Add Dependent Form */}
+              <div className="bg-[#FFF2E0] p-4 rounded-lg mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
+                  <FormInput
+                    label="First Name:"
+                    type="text"
+                    value={dependentFirstName}
+                    onChange={(e) => {
+                      setDependentFirstName(e.target.value);
+                      if (dependentErrors.firstName) {
+                        setDependentErrors((prev) => ({ ...prev, firstName: "" }));
+                      }
+                    }}
+                    placeholder="Enter first name"
+                    error={dependentErrors.firstName}
+                  />
+                  <FormInput
+                    label="Last Name:"
+                    type="text"
+                    value={dependentLastName}
+                    onChange={(e) => {
+                      setDependentLastName(e.target.value);
+                      if (dependentErrors.lastName) {
+                        setDependentErrors((prev) => ({ ...prev, lastName: "" }));
+                      }
+                    }}
+                    placeholder="Enter last name"
+                    error={dependentErrors.lastName}
+                  />
+                  <FormInput
+                    label="Email:"
+                    type="email"
+                    value={dependentEmail}
+                    onChange={(e) => {
+                      setDependentEmail(e.target.value);
+                      if (dependentErrors.email) {
+                        setDependentErrors((prev) => ({ ...prev, email: "" }));
+                      }
+                    }}
+                    placeholder="(use gmail)"
+                    error={dependentErrors.email}
+                  />
+                  <FormInput
+                    label="Contact Info:"
+                    type="text"
+                    value={dependentContactInfo}
+                    onChange={(e) => {
+                      handleDependentContactInfoChange(e);
+                      if (dependentErrors.contactInfo) {
+                        setDependentErrors((prev) => ({ ...prev, contactInfo: "" }));
+                      }
+                    }}
+                    placeholder="Phone number (optional)"
+                    error={dependentErrors.contactInfo}
+                  />
+                  <FormSelect
+                    label="Relationship:"
+                    value={dependentRelationship}
+                    onChange={(e) => {
+                      setDependentRelationship(e.target.value);
+                      if (e.target.value !== "Other") {
+                        setDependentRelationshipSpecify("");
+                      }
+                      if (dependentErrors.relationship) {
+                        setDependentErrors((prev) => ({ ...prev, relationship: "" }));
+                      }
+                    }}
+                    options={["Spouse", "Child", "Parent", "Sibling", "Other"]}
+                    error={dependentErrors.relationship}
+                  />
+                  {dependentRelationship === "Other" && (
+                    <FormInput
+                      label="Specify Relationship:"
+                      type="text"
+                      value={dependentRelationshipSpecify}
+                      onChange={(e) => {
+                        setDependentRelationshipSpecify(e.target.value);
+                        if (dependentErrors.relationshipSpecify) {
+                          setDependentErrors((prev) => ({ ...prev, relationshipSpecify: "" }));
+                        }
+                      }}
+                      placeholder="Please specify the relationship"
+                      error={dependentErrors.relationshipSpecify}
+                    />
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newErrors = validateDependent(
+                      dependentFirstName,
+                      dependentLastName,
+                      dependentRelationship,
+                      dependentEmail,
+                      dependentContactInfo,
+                      dependentRelationshipSpecify
+                    );
+
+                    if (Object.keys(newErrors).length > 0) {
+                      setDependentErrors(newErrors);
+                      return;
+                    }
+
+                    setDependentErrors({});
+
+                    const newDependent = {
+                      id: Date.now().toString(),
+                      firstName: dependentFirstName,
+                      lastName: dependentLastName,
+                      email: dependentEmail,
+                      contactInfo: dependentContactInfo,
+                      relationship: dependentRelationship,
+                      relationshipSpecify: dependentRelationshipSpecify || undefined,
+                    };
+                    setDependents([...dependents, newDependent]);
+                    setDependentFirstName("");
+                    setDependentLastName("");
+                    setDependentEmail("");
+                    setDependentContactInfo("");
+                    setDependentRelationship("");
+                    setDependentRelationshipSpecify("");
+                  }}
+                  className="w-full px-4 py-2 bg-[#4b0b14] text-white rounded-lg hover:bg-[#6b0b1f] transition-colors font-semibold"
+                >
+                  Add Dependent
+                </button>
+              </div>
+
+              {/* Dependents List */}
+              {dependents.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-[#3b2b1c] font-semibold">Added Dependents:</h4>
+                  {dependents.map((dependent) => (
+                    <div key={dependent.id} className="bg-[#f5e6d3] p-4 rounded-lg border border-[#e6d2b5]">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <p className="font-semibold text-[#3b2b1c]">{dependent.firstName} {dependent.lastName}</p>
+                          <p className="text-xs text-[#6b5344]">
+                            Relationship: {dependent.relationship}
+                            {dependent.relationshipSpecify && ` (${dependent.relationshipSpecify})`}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setDependents(dependents.filter(d => d.id !== dependent.id))}
+                          className="text-red-500 hover:text-red-700 font-semibold text-sm"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      {dependent.email && <p className="text-xs text-[#6b5344]">Email: {dependent.email}</p>}
+                      {dependent.contactInfo && <p className="text-xs text-[#6b5344]">Contact: {dependent.contactInfo}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         ) : (
