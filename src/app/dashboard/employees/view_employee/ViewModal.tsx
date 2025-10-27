@@ -153,6 +153,9 @@ export default function ViewEmployeeModal({
           <div className="p-10">
             {employee ? (
               <>
+                {/* Page Title */}
+                <h1 className="text-3xl font-bold text-[#3b2b1c] mb-6">View Employee</h1>
+
                 {/* Message Alert */}
                 {message && (
                   <div className={`mb-4 p-3 rounded-lg ${message.type === "success" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
