@@ -11,7 +11,6 @@ interface EditJobModalProps {
   job: {
     title: string;
     description: string;
-    salary: string;
     department: string;
     available: boolean;
   } | null;
@@ -21,7 +20,6 @@ interface EditJobModalProps {
 export default function EditJobModal({ isOpen, onClose, job, onSave }: EditJobModalProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [salary, setSalary] = useState("");
   const [department, setDepartment] = useState("");
   const [available, setAvailable] = useState(true);
 
@@ -32,7 +30,6 @@ export default function EditJobModal({ isOpen, onClose, job, onSave }: EditJobMo
     if (job) {
       setTitle(job.title);
       setDescription(job.description);
-      setSalary(job.salary);
       setDepartment(job.department);
       setAvailable(job.available);
     }
@@ -42,7 +39,6 @@ export default function EditJobModal({ isOpen, onClose, job, onSave }: EditJobMo
     const newErrors: { [key: string]: string } = {};
     if (!title.trim()) newErrors.title = "Job title is required";
     if (!description.trim()) newErrors.description = "Description is required";
-    if (!salary.trim()) newErrors.salary = "Salary is required";
     if (!department.trim()) newErrors.department = "Select a department";
 
     if (Object.keys(newErrors).length > 0) {
@@ -50,7 +46,7 @@ export default function EditJobModal({ isOpen, onClose, job, onSave }: EditJobMo
       return;
     }
 
-    onSave({ title, description, salary, department, available });
+    onSave({ title, description, department, available });
     onClose();
   };
 
@@ -101,23 +97,6 @@ export default function EditJobModal({ isOpen, onClose, job, onSave }: EditJobMo
                   rows={3}
                 />
                 {errors.description && <p className="text-red-500 text-xs">{errors.description}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium">Job Salary</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  value={salary}
-                  onChange={(e) =>
-                    setSalary(e.target.value.replace(/[^0-9]/g, ""))
-                  }
-                  className={`w-full p-2 border rounded-lg focus:outline-none ${
-                    errors.salary ? "border-red-400" : "border-[#d6c3aa]"
-                  }`}
-                />
-                {errors.salary && <p className="text-red-500 text-xs">{errors.salary}</p>}
               </div>
 
               <div>

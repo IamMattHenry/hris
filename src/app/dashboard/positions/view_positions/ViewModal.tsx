@@ -10,7 +10,6 @@ interface ViewJobModalProps {
   job: {
     title: string;
     description: string;
-    salary: string;
     department: string;
     available: boolean;
   } | null;
@@ -46,7 +45,6 @@ export default function ViewJobModal({ isOpen, onClose, job }: ViewJobModalProps
             <div className="space-y-4 text-[#3b2b1c]">
               <InfoBox label="Job Title" value={job.title} />
               <InfoBox label="Job Description" value={job.description} />
-              <InfoBox label="Salary" value={`₱ ${job.salary}`} />
               <InfoBox label="Department" value={job.department} />
               <InfoBox label="Availability" value={job.available ? "Available" : "Unavailable"} />
             </div>

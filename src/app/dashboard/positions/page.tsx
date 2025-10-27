@@ -38,7 +38,6 @@ export default function PositionTable() {
     setSelectedJob({
       title: job.position,
       description: job.description,
-      salary: job.salary,
       department: job.department,
       available: job.availability === "Yes",
     });
@@ -49,7 +48,6 @@ export default function PositionTable() {
     setSelectedJob({
       title: job.position,
       description: job.description,
-      salary: job.salary,
       department: job.department,
       available: job.availability === "Yes",
     });
@@ -66,7 +64,6 @@ export default function PositionTable() {
       department: "HR",
       position: "Manager",
       availability: "Yes",
-      salary: "20000",
       assigned: 20,
       description:
         "Responsible for managing HR operations and employee welfare.",
@@ -76,7 +73,6 @@ export default function PositionTable() {
       department: "Marketing",
       position: "Adviser",
       availability: "No",
-      salary: "18000",
       assigned: 15,
       description: "Advises on marketing strategies and promotional activities.",
     },
@@ -85,7 +81,6 @@ export default function PositionTable() {
       department: "Finance",
       position: "Accountant",
       availability: "Yes",
-      salary: "25000",
       assigned: 10,
       description: "Handles financial records, reports, and budget analysis.",
     },
@@ -115,7 +110,6 @@ export default function PositionTable() {
               <th className="py-4 px-4 text-left">Department</th>
               <th className="py-4 px-4 text-left">Job Position</th>
               <th className="py-4 px-4 text-left">Availability</th>
-              <th className="py-4 px-4 text-left">Salary</th>
               <th className="py-4 px-4 text-left">Total Assigned</th>
               <th className="py-4 px-4 text-center">Actions</th>
             </tr>
@@ -131,7 +125,6 @@ export default function PositionTable() {
                 <td className="py-4 px-4">{pos.department}</td>
                 <td className="py-4 px-4">{pos.position}</td>
                 <td className="py-4 px-4">{pos.availability}</td>
-                <td className="py-4 px-4">₱ {pos.salary}</td>
                 <td className="py-4 px-4">{pos.assigned}</td>
 
                 <td className="py-4 px-4 text-center relative">
