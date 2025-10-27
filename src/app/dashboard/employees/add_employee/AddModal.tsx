@@ -7,6 +7,14 @@ import FormInput from "@/components/forms/FormInput";
 import FormSelect from "@/components/forms/FormSelect";
 import { employeeApi, departmentApi, positionApi } from "@/lib/api";
 import { Department, Position } from "@/types/api";
+import {
+  validateStep1,
+  validateStep2,
+  validateStep3,
+  validateStep4,
+  validateDependent,
+  validateBirthDate,
+} from "./validations";
 
 interface EmployeeModalProps {
   isOpen: boolean;
@@ -55,16 +63,15 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [subRole, setSubRole] = useState("");
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [regions, setRegions] = useState<string[]>([]);
+  const [provinces, setProvinces] = useState<string[]>([]);
   const [cities, setCities] = useState<string[]>([]);
-  const [regions, setRegions] = useState<any[]>([]);
   const [province, setProvince] = useState("");
-  const [provinceCities, setProvinceCities] = useState<string[]>([]);
-  const [provinceCity, setProvinceCity] = useState("");
   const [departments, setDepartments] = useState<Department[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [regionCityData, setRegionCityData] = useState<any[]>([]);
+  const [phLocationsData, setPhLocationsData] = useState<any[]>([]);
 
   // Dependent information
   const [dependents, setDependents] = useState<Dependent[]>([]);
@@ -95,52 +102,69 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   }, [hireDate]);
 
 
-  // Load region-city data from JSON file
+  // Load PH locations data from JSON file
   useEffect(() => {
-    async function loadRegionCityData() {
+    async function loadPhLocationsData() {
       try {
-        const res = await fetch("/data/json/region-city.json");
-        if (!res.ok) throw new Error("Failed to fetch region-city data");
+        console.log("Fetching ph_locations.json...");
+        const res = await fetch("/data/json/ph_locations.json");
+        console.log("Fetch response status:", res.status);
+
+        if (!res.ok) {
+          throw new Error(`Failed to fetch PH locations data: ${res.status} ${res.statusText}`);
+        }
+
         const data = await res.json();
-        setRegionCityData(data);
-        setRegions(data);
+        console.log("PH locations data loaded successfully:", data.length, "regions");
+
+        setPhLocationsData(data);
+        // Extract regions
+        const regionNames = data.map((r: any) => r.region);
+        setRegions(regionNames);
       } catch (error) {
-        console.error("Error loading region-city data:", error);
+        console.error("Error loading PH locations data:", error);
+        // Fallback: set empty regions
+        setRegions([]);
       }
     }
 
-    loadRegionCityData();
+    loadPhLocationsData();
   }, []);
 
-  // Update cities when region changes (for home address)
+  // Update provinces when region changes (for home address)
   useEffect(() => {
     if (region) {
-      const selectedRegion = regionCityData.find((r: any) => r.regionName === region);
+      const selectedRegion = phLocationsData.find((r: any) => r.region === region);
       if (selectedRegion) {
-        const cityNames = selectedRegion.cities.map((city: any) => city.name);
-        setCities(cityNames);
-      } else {
+        const provinceNames = selectedRegion.provinces.map((p: any) => p.province);
+        setProvinces(provinceNames);
         setCities([]);
+      } else {
+        setProvinces([]);
+        setCities([]);
+      }
+    } else {
+      setProvinces([]);
+      setCities([]);
+    }
+  }, [region, phLocationsData]);
+
+  // Update cities when province changes (for home address)
+  useEffect(() => {
+    if (region && province) {
+      const selectedRegion = phLocationsData.find((r: any) => r.region === region);
+      if (selectedRegion) {
+        const selectedProvince = selectedRegion.provinces.find((p: any) => p.province === province);
+        if (selectedProvince) {
+          setCities(selectedProvince.cities);
+        } else {
+          setCities([]);
+        }
       }
     } else {
       setCities([]);
     }
-  }, [region, regionCityData]);
-
-  // Update cities when province changes (for province)
-  useEffect(() => {
-    if (province) {
-      const selectedProvince = regionCityData.find((r: any) => r.regionName === province);
-      if (selectedProvince) {
-        const cityNames = selectedProvince.cities.map((city: any) => city.name);
-        setProvinceCities(cityNames);
-      } else {
-        setProvinceCities([]);
-      }
-    } else {
-      setProvinceCities([]);
-    }
-  }, [province, regionCityData]);
+  }, [region, province, phLocationsData]);
 
   // Fetch departments when modal opens
   useEffect(() => {
@@ -186,14 +210,12 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
   // handle birth date change with age validation
   const handleBirthDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedDate = new Date(e.target.value);
-    const today = new Date();
-    const minAgeDate = new Date(today.getFullYear() - 20, today.getMonth(), today.getDate());
+    const error = validateBirthDate(e.target.value);
 
-    if (selectedDate > minAgeDate) {
+    if (error) {
       setErrors((prev) => ({
         ...prev,
-        birthDate: "You must be older than 20 years old."
+        birthDate: error
       }));
     } else {
       setErrors((prev) => ({ ...prev, birthDate: "" }));
@@ -249,103 +271,36 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
   // ─── Validation ───────────────────────────────
   const validateStep = () => {
-    const newErrors: { [key: string]: string } = {};
+    let newErrors: { [key: string]: string } = {};
 
     // Step 1 - Basic Info
     if (step === 1) {
-      if (!firstName.trim()) newErrors.firstName = "First name is required";
-      if (!lastName.trim()) newErrors.lastName = "Last name is required";
-      if (!birthDate) newErrors.birthDate = "Birth date is required";
-      if (!gender) newErrors.gender = "Gender is required";
-      if (!civilStatus) newErrors.civilStatus = "Civil status is required";
-      if (!homeAddress.trim()) newErrors.homeAddress = "Home address is required";
-      if (!city) newErrors.city = "City is required";
-      if (!region) newErrors.region = "Region is required";
-      if (!province) newErrors.province = "Province is required";
-      if (!provinceCity) newErrors.provinceCity = "Province city is required";
+      newErrors = validateStep1(
+        firstName,
+        lastName,
+        birthDate,
+        gender,
+        civilStatus,
+        homeAddress,
+        city,
+        region,
+        province
+      );
     }
 
     // Step 2 - Job Info
     if (step === 2) {
-      if (!departmentId) newErrors.department = "Department is required";
-      if (!positionId) newErrors.position = "Position is required";
-      if (!hireDate) {
-        newErrors.hireDate = "Hire date is required";
-      } else {
-        const selectedDate = new Date(hireDate);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); // reset time to 00:00
-
-        if (selectedDate > today) {
-          newErrors.hireDate = "Hire date cannot be in the future";
-        }
-      }
-      if (!shift) newErrors.shift = "Shift is required";
+      newErrors = validateStep2(departmentId, positionId, hireDate, shift);
     }
-
 
     // Step 3 - Contact Info & Dependents
     if (step === 3) {
-      if (!email.trim()) {
-        newErrors.email = "Email is required";
-      } else if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(email.trim())) {
-        newErrors.email = "Email must be a valid Gmail address";
-      }
-
-      if (!contactNumber.trim()) {
-        newErrors.contactNumber = "Contact number is required";
-      } else if (!/^(\+639|09)\d{9}$/.test(contactNumber.replace(/\s/g, ""))) {
-        newErrors.contactNumber = "Invalid contact number format";
-      }
-
-      // Validate dependents - at least 1 required
-      if (dependents.length === 0) {
-        newErrors.dependents = "must have at least 1 dependent information is required";
-      } else {
-        dependents.forEach((dependent, index) => {
-          // Validate dependent email if provided
-          if (dependent.email && !/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(dependent.email.trim())) {
-            newErrors[`dependent_${index}_email`] = "Dependent email must be a valid Gmail address";
-          }
-
-          // Validate dependent contact info if provided
-          if (dependent.contactInfo && !/^(\+639|09)\d{9}$/.test(dependent.contactInfo.replace(/\s/g, ""))) {
-            // Allow other formats for contact info (not just phone)
-            if (!/^[0-9\s\-\+\(\)]+$/.test(dependent.contactInfo)) {
-              newErrors[`dependent_${index}_contact`] = "Dependent contact info format is invalid";
-            }
-          }
-        });
-      }
+      newErrors = validateStep3(email, contactNumber, dependents);
     }
 
     // Step 4 - Authentication
     if (step === 4) {
-      if (!username.trim()) newErrors.username = "Username is required";
-
-      if (!password.trim()) {
-        newErrors.password = "Password is required";
-      } else {
-        const passwordErrors = [];
-        if (password.length < 6) passwordErrors.push("At least 6 characters long");
-        if (!/[A-Z]/.test(password)) passwordErrors.push("At least one uppercase letter");
-        if (!/[a-z]/.test(password)) passwordErrors.push("At least one lowercase letter");
-        if (!/\d/.test(password)) passwordErrors.push("At least one number");
-        if (!/[@$!%*?&]/.test(password))
-          passwordErrors.push("At least one special character (@, $, !, %, *, ?, &)");
-        if (passwordErrors.length > 0)
-          newErrors.password = passwordErrors.join(", ");
-      }
-
-      if (!confirmPassword.trim()) {
-        newErrors.confirmPassword = "Please confirm your password";
-      } else if (password !== confirmPassword) {
-        newErrors.confirmPassword = "Passwords do not match";
-      }
-
-      if (grantAdminPrivilege && !subRole) {
-        newErrors.subRole = "Sub-role is required for admin privilege";
-      }
+      newErrors = validateStep4(username, password, confirmPassword, grantAdminPrivilege, subRole);
     }
 
     setErrors(newErrors);
@@ -395,7 +350,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         city: city,
         region: region,
         province: province,
-        province_city: provinceCity,
         position_id: positionId, // ✅ Include position_id
         shift: shift ? shift.toLowerCase() : null,
         hire_date: hireDate,
@@ -426,7 +380,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
           setCity("");
           setRegion("");
           setProvince("");
-          setProvinceCity("");
           setDepartmentId(null);
           setPositionId(null);
           setHireDate("");
@@ -560,16 +513,16 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                   error={errors.civilStatus}
                 />
 
-                {/* Home Address Section */}
+                {/* Address Section - Grouped Region, Province, City */}
                 <div className="col-span-3 flex items-center gap-3 mt-6 mb-2">
                   <div className="flex-grow border-t border-[#d6bfa3]"></div>
                   <span className="text-[#3b2b1c] font-semibold text-sm uppercase tracking-wide">
-                    Home Address
+                    Address Location
                   </span>
                   <div className="flex-grow border-t border-[#d6bfa3]"></div>
                 </div>
 
-                <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-4 gap-6">
                   <FormInput
                     label="Address:"
                     type="text"
@@ -583,48 +536,30 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                     value={region}
                     onChange={(e) => {
                       setRegion(e.target.value);
+                      setProvince("");
                       setCity("");
                     }}
-                    options={regions.map((reg) => reg.regionName)}
+                    options={regions}
                     error={errors.region}
+                  />
+
+                  <FormSelect
+                    label="Province:"
+                    value={province}
+                    onChange={(e) => {
+                      setProvince(e.target.value);
+                      setCity("");
+                    }}
+                    options={region ? provinces : []}
+                    error={errors.province}
                   />
 
                   <FormSelect
                     label="City:"
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
-                    options={region ? cities : []}
+                    options={province ? cities : []}
                     error={errors.city}
-                  />
-                </div>
-
-                {/* Province Section */}
-                <div className="col-span-3 flex items-center gap-3 mt-6 mb-2">
-                  <div className="flex-grow border-t border-[#d6bfa3]"></div>
-                  <span className="text-[#3b2b1c] font-semibold text-sm uppercase tracking-wide">
-                    Province
-                  </span>
-                  <div className="flex-grow border-t border-[#d6bfa3]"></div>
-                </div>
-
-                <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <FormSelect
-                    label="Province Region:"
-                    value={province}
-                    onChange={(e) => {
-                      setProvince(e.target.value);
-                      setProvinceCity("");
-                    }}
-                    options={regions.map((reg) => reg.regionName)}
-                    error={errors.province}
-                  />
-
-                  <FormSelect
-                    label="Province City:"
-                    value={provinceCity}
-                    onChange={(e) => setProvinceCity(e.target.value)}
-                    options={province ? provinceCities : []}
-                    error={errors.provinceCity}
                   />
                 </div>
 
@@ -838,33 +773,15 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                     <button
                       type="button"
                       onClick={() => {
-                        const newErrors: { [key: string]: string } = {};
-
-                        // Validate required fields
-                        if (!dependentFirstName.trim()) {
-                          newErrors.firstName = "First name is required";
-                        }
-                        if (!dependentLastName.trim()) {
-                          newErrors.lastName = "Last name is required";
-                        }
-                        if (!dependentRelationship) {
-                          newErrors.relationship = "Relationship is required";
-                        }
-
-                        // Validate email if provided
-                        if (dependentEmail && !/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(dependentEmail.trim())) {
-                          newErrors.email = "Must be a valid Gmail address";
-                        }
-
-                        // Validate contact info if provided
-                        if (dependentContactInfo && !/^(\+639|09)\d{9}$/.test(dependentContactInfo.replace(/\s/g, ""))) {
-                          newErrors.contactInfo = "Invalid format (must be 09XX XXX XXXX or +639XX XXX XXXX)";
-                        }
-
-                        // If relationship is "Other", require the specify field
-                        if (dependentRelationship === "Other" && !dependentRelationshipSpecify.trim()) {
-                          newErrors.relationshipSpecify = "Please specify the relationship";
-                        }
+                        // Validate dependent using the validation function
+                        const newErrors = validateDependent(
+                          dependentFirstName,
+                          dependentLastName,
+                          dependentRelationship,
+                          dependentEmail,
+                          dependentContactInfo,
+                          dependentRelationshipSpecify
+                        );
 
                         // If there are errors, set them and return
                         if (Object.keys(newErrors).length > 0) {
@@ -1002,7 +919,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         </div>
 
         {/* Footer Section - Progress Bar and Buttons */}
-        <div className="border-t border-[#e6d2b5] p-8 bg-[#f9ecd7] rounded-b-2xl">
+        <div className="border-t border-[#e6d2b5] p-8 mt-4r bg-[#f9ecd7] rounded-b-2xl">
           {/* Progress Bar (Clickable) */}
           <div className="flex justify-between items-center w-3/4 mx-auto mb-6">
           {[
