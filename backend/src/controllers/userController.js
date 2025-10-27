@@ -9,7 +9,7 @@ import bcryptjs from 'bcryptjs';
 export const getAllUsers = async (req, res, next) => {
   try {
     const users = await db.getAll(`
-      SELECT 
+      SELECT
         u.user_id,
         u.username,
         u.role,
@@ -18,12 +18,11 @@ export const getAllUsers = async (req, res, next) => {
         e.employee_code,
         e.first_name,
         e.last_name,
-        a.admin_id,
-        a.admin_code,
-        a.sub_role
+        ur.user_role_id,
+        ur.sub_role
       FROM users u
       LEFT JOIN employees e ON u.user_id = e.user_id
-      LEFT JOIN admins a ON u.user_id = a.user_id
+      LEFT JOIN user_roles ur ON u.user_id = ur.user_id
       ORDER BY u.user_id DESC
     `);
 
@@ -47,7 +46,7 @@ export const getUserById = async (req, res, next) => {
     const { id } = req.params;
 
     const user = await db.getOne(`
-      SELECT 
+      SELECT
         u.user_id,
         u.username,
         u.role,
@@ -59,12 +58,11 @@ export const getUserById = async (req, res, next) => {
         e.birthdate,
         e.hire_date,
         e.status,
-        a.admin_id,
-        a.admin_code,
-        a.sub_role
+        ur.user_role_id,
+        ur.sub_role
       FROM users u
       LEFT JOIN employees e ON u.user_id = e.user_id
-      LEFT JOIN admins a ON u.user_id = a.user_id
+      LEFT JOIN user_roles ur ON u.user_id = ur.user_id
       WHERE u.user_id = ?
     `, [id]);
 
@@ -168,10 +166,29 @@ export const updateUser = async (req, res, next) => {
       updates.role = role;
     }
 
+    // Add updated_by for audit trail
+    const updatedBy = req.user?.user_id;
+    if (updatedBy) {
+      updates.updated_by = updatedBy;
+    }
+
     // Perform update
     const affectedRows = await db.update('users', updates, 'user_id = ?', [id]);
 
     logger.info(`User updated: ${id} (username: ${user.username})`);
+
+    // Create activity log entry
+    try {
+      await db.insert("activity_logs", {
+        user_id: updatedBy || 1,
+        action: "UPDATE",
+        module: "users",
+        description: `Updated user ${user.username} (ID: ${id})`,
+        created_by: updatedBy || 1,
+      });
+    } catch (logError) {
+      logger.error("Failed to create activity log:", logError);
+    }
 
     res.json({
       success: true,
@@ -212,11 +229,14 @@ export const deleteUser = async (req, res, next) => {
 
     // Check if user has associated employee record
     const employee = await db.getOne('SELECT employee_id, employee_code FROM employees WHERE user_id = ?', [id]);
-    
-    // Check if user has associated admin record
-    const admin = await db.getOne('SELECT admin_id, admin_code FROM admins WHERE user_id = ?', [id]);
 
-    // Delete user (will cascade to employees and admins due to foreign key constraints)
+    // Check if user has associated user_role record
+    const userRole = await db.getOne('SELECT user_role_id, sub_role FROM user_roles WHERE user_id = ?', [id]);
+
+    // Get user ID from JWT token for audit trail
+    const deletedBy = req.user?.user_id;
+
+    // Delete user (will cascade to employees and user_roles due to foreign key constraints)
     const affectedRows = await db.deleteRecord('users', 'user_id = ?', [id]);
 
     logger.warn(`User deleted: ${id} (username: ${user.username}, role: ${user.role})`);
@@ -225,6 +245,19 @@ export const deleteUser = async (req, res, next) => {
     }
     if (admin) {
       logger.warn(`  - Associated admin deleted: ${admin.admin_code} (ID: ${admin.admin_id})`);
+    }
+
+    // Create activity log entry
+    try {
+      await db.insert("activity_logs", {
+        user_id: deletedBy || 1,
+        action: "DELETE",
+        module: "users",
+        description: `Deleted user ${user.username} (ID: ${id})`,
+        created_by: deletedBy || 1,
+      });
+    } catch (logError) {
+      logger.error("Failed to create activity log:", logError);
     }
 
     res.json({

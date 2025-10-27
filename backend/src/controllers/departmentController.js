@@ -52,10 +52,14 @@ export const createDepartment = async (req, res, next) => {
       });
     }
 
+    // Get user ID from JWT token for audit trail
+    const createdBy = req.user?.user_id;
+
     // Insert department without code first
     const departmentId = await db.insert('departments', {
       department_name,
       description,
+      created_by: createdBy,
     });
 
     // Generate department code based on the ID
@@ -65,6 +69,19 @@ export const createDepartment = async (req, res, next) => {
     await db.update('departments', { department_code: departmentCode }, 'department_id = ?', [departmentId]);
 
     logger.info(`Department created: ${departmentId}`);
+
+    // Create activity log entry
+    try {
+      await db.insert("activity_logs", {
+        user_id: createdBy || 1,
+        action: "CREATE",
+        module: "departments",
+        description: `Created department ${department_name} (${departmentCode})`,
+        created_by: createdBy || 1,
+      });
+    } catch (logError) {
+      logger.error("Failed to create activity log:", logError);
+    }
 
     res.status(201).json({
       success: true,
@@ -101,9 +118,28 @@ export const updateDepartment = async (req, res, next) => {
       delete updates.department_code;
     }
 
+    // Get user ID from JWT token for audit trail
+    const updatedBy = req.user?.user_id;
+    if (updatedBy) {
+      updates.updated_by = updatedBy;
+    }
+
     const affectedRows = await db.update('departments', updates, 'department_id = ?', [id]);
 
     logger.info(`Department updated: ${id}`);
+
+    // Create activity log entry
+    try {
+      await db.insert("activity_logs", {
+        user_id: updatedBy || 1,
+        action: "UPDATE",
+        module: "departments",
+        description: `Updated department ${department.department_name} (${department.department_code})`,
+        created_by: updatedBy || 1,
+      });
+    } catch (logError) {
+      logger.error("Failed to create activity log:", logError);
+    }
 
     res.json({
       success: true,
@@ -129,9 +165,25 @@ export const deleteDepartment = async (req, res, next) => {
       });
     }
 
+    // Get user ID from JWT token for audit trail
+    const deletedBy = req.user?.user_id;
+
     const affectedRows = await db.deleteRecord('departments', 'department_id = ?', [id]);
 
     logger.info(`Department deleted: ${id}`);
+
+    // Create activity log entry
+    try {
+      await db.insert("activity_logs", {
+        user_id: deletedBy || 1,
+        action: "DELETE",
+        module: "departments",
+        description: `Deleted department ${department.department_name} (${department.department_code})`,
+        created_by: deletedBy || 1,
+      });
+    } catch (logError) {
+      logger.error("Failed to create activity log:", logError);
+    }
 
     res.json({
       success: true,

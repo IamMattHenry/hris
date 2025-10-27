@@ -93,6 +93,9 @@ export const applyLeave = async (req, res, next) => {
       });
     }
 
+    // Get user ID from JWT token for audit trail
+    const createdBy = req.user?.user_id;
+
     const leaveId = await db.insert('leaves', {
       employee_id,
       leave_type,
@@ -100,6 +103,7 @@ export const applyLeave = async (req, res, next) => {
       end_date,
       status: 'pending',
       remarks,
+      created_by: createdBy,
     });
 
     // Generate leave code
@@ -107,6 +111,19 @@ export const applyLeave = async (req, res, next) => {
     await db.update('leaves', { leave_code: leaveCode }, 'leave_id = ?', [leaveId]);
 
     logger.info(`Leave request submitted by employee ${employee_id}`);
+
+    // Create activity log entry
+    try {
+      await db.insert("activity_logs", {
+        user_id: createdBy || employee_id,
+        action: "CREATE",
+        module: "leaves",
+        description: `Leave request submitted by employee ID ${employee_id} (${leaveCode})`,
+        created_by: createdBy || employee_id,
+      });
+    } catch (logError) {
+      logger.error("Failed to create activity log:", logError);
+    }
 
     res.status(201).json({
       success: true,
@@ -136,8 +153,15 @@ export const approveLeave = async (req, res, next) => {
     await db.beginTransaction();
 
     try {
+      // Get user ID from JWT token for audit trail
+      const approvedBy = req.user?.user_id;
+
       // Update leave status to approved
-      await db.transactionUpdate('leaves', { status: 'approved' }, 'leave_id = ?', [id]);
+      await db.transactionUpdate('leaves', {
+        status: 'approved',
+        approved_by: approvedBy,
+        updated_by: approvedBy,
+      }, 'leave_id = ?', [id]);
 
       // Update employee status to on-leave
       await db.transactionUpdate(
@@ -151,6 +175,19 @@ export const approveLeave = async (req, res, next) => {
       await db.commit();
 
       logger.info(`Leave request approved: ${id}, Employee ${leave.employee_id} status updated to on-leave`);
+
+      // Create activity log entry (outside transaction)
+      try {
+        await db.insert("activity_logs", {
+          user_id: approvedBy || 1,
+          action: "UPDATE",
+          module: "leaves",
+          description: `Approved leave request ${leave.leave_code} for employee ID ${leave.employee_id}`,
+          created_by: approvedBy || 1,
+        });
+      } catch (logError) {
+        logger.error("Failed to create activity log:", logError);
+      }
 
       res.json({
         success: true,
@@ -181,9 +218,29 @@ export const rejectLeave = async (req, res, next) => {
       });
     }
 
-    await db.update('leaves', { status: 'rejected', remarks: remarks || null }, 'leave_id = ?', [id]);
+    // Get user ID from JWT token for audit trail
+    const rejectedBy = req.user?.user_id;
+
+    await db.update('leaves', {
+      status: 'rejected',
+      remarks: remarks || null,
+      updated_by: rejectedBy,
+    }, 'leave_id = ?', [id]);
 
     logger.info(`Leave request rejected: ${id}`);
+
+    // Create activity log entry
+    try {
+      await db.insert("activity_logs", {
+        user_id: rejectedBy || 1,
+        action: "UPDATE",
+        module: "leaves",
+        description: `Rejected leave request ${leave.leave_code} for employee ID ${leave.employee_id}`,
+        created_by: rejectedBy || 1,
+      });
+    } catch (logError) {
+      logger.error("Failed to create activity log:", logError);
+    }
 
     res.json({
       success: true,
@@ -208,9 +265,25 @@ export const deleteLeave = async (req, res, next) => {
       });
     }
 
+    // Get user ID from JWT token for audit trail
+    const deletedBy = req.user?.user_id;
+
     const affectedRows = await db.deleteRecord('leaves', 'leave_id = ?', [id]);
 
     logger.info(`Leave request deleted: ${id}`);
+
+    // Create activity log entry
+    try {
+      await db.insert("activity_logs", {
+        user_id: deletedBy || 1,
+        action: "DELETE",
+        module: "leaves",
+        description: `Deleted leave request ${leave.leave_code} for employee ID ${leave.employee_id}`,
+        created_by: deletedBy || 1,
+      });
+    } catch (logError) {
+      logger.error("Failed to create activity log:", logError);
+    }
 
     res.json({
       success: true,

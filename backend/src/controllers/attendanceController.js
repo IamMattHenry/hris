@@ -132,11 +132,15 @@ export const clockIn = async (req, res, next) => {
     const validStatuses = ['present', 'absent', 'late', 'half_day', 'on_leave', 'work_from_home', 'others'];
     const finalStatus = validStatuses.includes(status) ? status : 'present';
 
+    // Get user ID from JWT token for audit trail
+    const createdBy = req.user?.user_id;
+
     const attendanceId = await db.insert('attendance', {
       employee_id,
       date: today,
       time_in: timeIn,
       status: finalStatus,
+      created_by: createdBy,
     });
 
     // Generate attendance code
@@ -144,6 +148,19 @@ export const clockIn = async (req, res, next) => {
     await db.update('attendance', { attendance_code: attendanceCode }, 'attendance_id = ?', [attendanceId]);
 
     logger.info(`Clock in recorded for employee ${employee_id} with status ${finalStatus}`);
+
+    // Create activity log entry
+    try {
+      await db.insert("activity_logs", {
+        user_id: createdBy || employee_id,
+        action: "CREATE",
+        module: "attendance",
+        description: `Clock in recorded for employee ID ${employee_id} (${attendanceCode})`,
+        created_by: createdBy || employee_id,
+      });
+    } catch (logError) {
+      logger.error("Failed to create activity log:", logError);
+    }
 
     res.status(201).json({
       success: true,
@@ -207,8 +224,14 @@ export const clockOut = async (req, res, next) => {
     }
     // Between 6.5 and 8 hours = just update time_out, keep status
 
+    // Get user ID from JWT token for audit trail
+    const updatedBy = req.user?.user_id;
+
     // Update attendance record
-    const updateData = { time_out: timeOut };
+    const updateData = {
+      time_out: timeOut,
+      updated_by: updatedBy,
+    };
     if (newStatus !== attendance.status) {
       updateData.status = newStatus;
     }
@@ -219,6 +242,19 @@ export const clockOut = async (req, res, next) => {
     await db.update('attendance', updateData, 'attendance_id = ?', [attendance.attendance_id]);
 
     logger.info(`Clock out recorded for employee ${employee_id} with duration ${durationHours.toFixed(2)} hours`);
+
+    // Create activity log entry
+    try {
+      await db.insert("activity_logs", {
+        user_id: updatedBy || employee_id,
+        action: "UPDATE",
+        module: "attendance",
+        description: `Clock out recorded for employee ID ${employee_id} (${attendance.attendance_code})`,
+        created_by: updatedBy || employee_id,
+      });
+    } catch (logError) {
+      logger.error("Failed to create activity log:", logError);
+    }
 
     res.json({
       success: true,
@@ -282,9 +318,28 @@ export const updateOvertimeHours = async (req, res, next) => {
       });
     }
 
-    await db.update('attendance', { overtime_hours }, 'attendance_id = ?', [id]);
+    // Get user ID from JWT token for audit trail
+    const updatedBy = req.user?.user_id;
+
+    await db.update('attendance', {
+      overtime_hours,
+      updated_by: updatedBy,
+    }, 'attendance_id = ?', [id]);
 
     logger.info(`Overtime hours updated for attendance ${id}`);
+
+    // Create activity log entry
+    try {
+      await db.insert("activity_logs", {
+        user_id: updatedBy || 1,
+        action: "UPDATE",
+        module: "attendance",
+        description: `Updated overtime hours to ${overtime_hours} for attendance ${attendance.attendance_code}`,
+        created_by: updatedBy || 1,
+      });
+    } catch (logError) {
+      logger.error("Failed to create activity log:", logError);
+    }
 
     res.json({
       success: true,
@@ -337,9 +392,28 @@ export const updateAttendanceStatus = async (req, res, next) => {
       });
     }
 
-    await db.update('attendance', { status }, 'attendance_id = ?', [id]);
+    // Get user ID from JWT token for audit trail
+    const updatedBy = req.user?.user_id;
+
+    await db.update('attendance', {
+      status,
+      updated_by: updatedBy,
+    }, 'attendance_id = ?', [id]);
 
     logger.info(`Attendance status updated for attendance ${id} to ${status}`);
+
+    // Create activity log entry
+    try {
+      await db.insert("activity_logs", {
+        user_id: updatedBy || 1,
+        action: "UPDATE",
+        module: "attendance",
+        description: `Updated attendance status to ${status} for attendance ${attendance.attendance_code}`,
+        created_by: updatedBy || 1,
+      });
+    } catch (logError) {
+      logger.error("Failed to create activity log:", logError);
+    }
 
     res.json({
       success: true,

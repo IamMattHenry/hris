@@ -55,10 +55,16 @@ export const getAll = async (sql, values = []) => {
 
 // Insert a record
 export const insert = async (table, data) => {
-  const columns = Object.keys(data);
-  const values = Object.values(data);
+  // Filter out undefined values and convert them to null
+  const cleanedData = Object.entries(data).reduce((acc, [key, value]) => {
+    acc[key] = value === undefined ? null : value;
+    return acc;
+  }, {});
+
+  const columns = Object.keys(cleanedData);
+  const values = Object.values(cleanedData);
   const placeholders = columns.map(() => '?').join(', ');
-  
+
   const sql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`;
   const result = await query(sql, values);
   return result.insertId;
@@ -66,10 +72,16 @@ export const insert = async (table, data) => {
 
 // Update a record
 export const update = async (table, data, whereClause, whereValues) => {
-  const columns = Object.keys(data);
-  const values = Object.values(data);
+  // Filter out undefined values and convert them to null
+  const cleanedData = Object.entries(data).reduce((acc, [key, value]) => {
+    acc[key] = value === undefined ? null : value;
+    return acc;
+  }, {});
+
+  const columns = Object.keys(cleanedData);
+  const values = Object.values(cleanedData);
   const setClause = columns.map(col => `${col} = ?`).join(', ');
-  
+
   const sql = `UPDATE ${table} SET ${setClause} WHERE ${whereClause}`;
   const result = await query(sql, [...values, ...whereValues]);
   return result.affectedRows;
@@ -184,10 +196,17 @@ export const transactionQuery = async (sql, values = []) => {
 /**
  * Insert a record (transaction-aware)
  * Uses transaction connection if available, otherwise uses pool
+ * Converts undefined values to null to prevent mysql2 errors
  */
 export const transactionInsert = async (table, data) => {
-  const columns = Object.keys(data);
-  const values = Object.values(data);
+  // Filter out undefined values and convert them to null
+  const cleanedData = Object.entries(data).reduce((acc, [key, value]) => {
+    acc[key] = value === undefined ? null : value;
+    return acc;
+  }, {});
+
+  const columns = Object.keys(cleanedData);
+  const values = Object.values(cleanedData);
   const placeholders = columns.map(() => '?').join(', ');
 
   const sql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`;
@@ -198,10 +217,17 @@ export const transactionInsert = async (table, data) => {
 /**
  * Update a record (transaction-aware)
  * Uses transaction connection if available, otherwise uses pool
+ * Converts undefined values to null to prevent mysql2 errors
  */
 export const transactionUpdate = async (table, data, whereClause, whereValues) => {
-  const columns = Object.keys(data);
-  const values = Object.values(data);
+  // Filter out undefined values and convert them to null
+  const cleanedData = Object.entries(data).reduce((acc, [key, value]) => {
+    acc[key] = value === undefined ? null : value;
+    return acc;
+  }, {});
+
+  const columns = Object.keys(cleanedData);
+  const values = Object.values(cleanedData);
   const setClause = columns.map(col => `${col} = ?`).join(', ');
 
   const sql = `UPDATE ${table} SET ${setClause} WHERE ${whereClause}`;

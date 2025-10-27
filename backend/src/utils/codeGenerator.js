@@ -79,6 +79,15 @@ export const generatePayrollCode = (payrollId) => {
   return generateCode('PAY', payrollId);
 };
 
+/**
+ * Generate dependent code
+ * @param {number} dependentId - The dependent ID
+ * @returns {string} - The generated code (e.g., 'DEP-0001')
+ */
+export const generateDependentCode = (dependentId) => {
+  return generateCode('DEP', dependentId);
+};
+
 export default {
   generateCode,
   generateDepartmentCode,
@@ -88,5 +97,6 @@ export default {
   generateAttendanceCode,
   generateLeaveCode,
   generatePayrollCode,
+  generateDependentCode,
 };
 

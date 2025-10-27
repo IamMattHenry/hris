@@ -65,6 +65,11 @@ export interface Employee {
   birthdate?: string;
   gender?: 'male' | 'female' | 'others';
   civil_status?: 'single' | 'married' | 'divorced' | 'widowed';
+  home_address?: string;
+  city?: string;
+  region?: string;
+  province?: string;
+  province_city?: string;
   position_id?: number;
   department_id?: number;
   shift?: 'morning' | 'night';
