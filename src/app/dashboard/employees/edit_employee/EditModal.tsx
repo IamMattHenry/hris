@@ -7,6 +7,7 @@ import FormInput from "@/components/forms/FormInput";
 import FormSelect from "@/components/forms/FormSelect";
 import { departmentApi, positionApi, employeeApi } from "@/lib/api";
 
+/* ---------- Interfaces ---------- */
 interface EditEmployeeModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -34,13 +35,15 @@ interface EmployeeData {
 }
 
 interface ContactEmail {
-  email_id?: number;
+  email_id?: number; // server id if persisted
+  id?: string; // client temporary unique id
   email: string;
   isNew?: boolean;
 }
 
 interface ContactNumber {
-  contact_id?: number;
+  contact_id?: number; // server id if persisted
+  id?: string; // client temporary unique id
   contact_number: string;
   isNew?: boolean;
 }
@@ -59,6 +62,13 @@ interface Dependent {
   city: string;
 }
 
+/* ---------- Helper ---------- */
+const generateClientId = () =>
+  `c-${Date.now().toString(36)}-${Math.floor(Math.random() * 100000)
+    .toString(36)
+    .padStart(2, "0")}`;
+
+/* ---------- Component ---------- */
 export default function EditEmployeeModal({
   isOpen,
   onClose,
@@ -116,7 +126,7 @@ export default function EditEmployeeModal({
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Fetch employee details
+  /* ---------- Fetch employee details ---------- */
   useEffect(() => {
     if (isOpen && id) fetchEmployee(id);
   }, [isOpen, id]);
@@ -138,11 +148,12 @@ export default function EditEmployeeModal({
         setProvince(res.data.province || "");
         setCivilStatus(res.data.civil_status || "");
 
-        // Set emails from the fetched data
+        // Set emails from the fetched data - normalize to include client id if missing
         if (res.data.emails && Array.isArray(res.data.emails)) {
           setEmails(
             res.data.emails.map((e: any) => ({
-              email_id: e.employee_id,
+              email_id: e.email_id ?? e.employee_id,
+              id: generateClientId(),
               email: e.email,
             }))
           );
@@ -150,14 +161,15 @@ export default function EditEmployeeModal({
           setEmails([]);
         }
 
-        // Set contact numbers from the fetched data
+        // Set contact numbers from the fetched data - normalize
         if (
           res.data.contact_numbers &&
           Array.isArray(res.data.contact_numbers)
         ) {
           setContactNumbers(
             res.data.contact_numbers.map((c: any) => ({
-              contact_id: c.employee_id,
+              contact_id: c.contact_id ?? c.employee_id,
+              id: generateClientId(),
               contact_number: c.contact_number,
             }))
           );
@@ -167,7 +179,21 @@ export default function EditEmployeeModal({
 
         // Set dependents from the fetched data
         if (res.data.dependents && Array.isArray(res.data.dependents)) {
-          setDependents(res.data.dependents);
+          // Map dependents from backend to our Dependent shape (if needed)
+          const dMapped = res.data.dependents.map((d: any) => ({
+            id: d.dependant_id ? `d-${d.dependant_id}` : generateClientId(),
+            firstName: d.firstname || "",
+            lastName: d.lastname || "",
+            email: d.email || "",
+            contactInfo: d.contact_no || "",
+            relationship: d.relationship || "",
+            relationshipSpecify: undefined,
+            homeAddress: d.home_address || "",
+            region: d.region_name || "",
+            province: d.province_name || "",
+            city: d.city_name || "",
+          }));
+          setDependents(dMapped);
         } else {
           setDependents([]);
         }
@@ -190,7 +216,7 @@ export default function EditEmployeeModal({
     }
   };
 
-  // Fetch departments & positions
+  /* ---------- Departments & positions ---------- */
   useEffect(() => {
     if (isOpen) fetchDepartments();
   }, [isOpen]);
@@ -240,15 +266,13 @@ export default function EditEmployeeModal({
     }
   };
 
-  // Get valid sub_roles based on department
+  /* ---------- Valid sub roles ---------- */
   const getValidSubRoles = (deptId: number | null) => {
     if (!deptId) return [];
 
-    // Get department name to determine valid sub_roles
     const dept = departments.find((d) => d.department_id === deptId);
     if (!dept) return [];
 
-    // Map department to valid sub_role
     if (dept.department_name === "IT") {
       return ["IT"];
     } else if (dept.department_name === "Human Resources") {
@@ -260,14 +284,12 @@ export default function EditEmployeeModal({
     return [];
   };
 
-  // Check if department already has a supervisor
   const checkDepartmentSupervisor = async (
     deptId: number
   ): Promise<boolean> => {
     try {
       const res = await employeeApi.getAll();
       if (res.success && res.data) {
-        // Filter employees by department and supervisor role, excluding current employee
         const supervisors = res.data.filter(
           (emp: any) =>
             emp.department_id === deptId &&
@@ -283,7 +305,7 @@ export default function EditEmployeeModal({
     }
   };
 
-  // Load PH locations data from JSON file
+  /* ---------- PH locations JSON ---------- */
   useEffect(() => {
     async function loadPhLocationsData() {
       try {
@@ -295,7 +317,6 @@ export default function EditEmployeeModal({
         }
         const data = await res.json();
         setPhLocationsData(data);
-        // Extract regions
         const regionNames = data.map((r: any) => r.region);
         setRegions(regionNames);
       } catch (error) {
@@ -306,16 +327,11 @@ export default function EditEmployeeModal({
     loadPhLocationsData();
   }, []);
 
-  // Update provinces when region changes (for employee home address)
   useEffect(() => {
     if (region) {
-      const selectedRegion = phLocationsData.find(
-        (r: any) => r.region === region
-      );
+      const selectedRegion = phLocationsData.find((r: any) => r.region === region);
       if (selectedRegion) {
-        const provinceNames = selectedRegion.provinces.map(
-          (p: any) => p.province
-        );
+        const provinceNames = selectedRegion.provinces.map((p: any) => p.province);
         setProvinces(provinceNames);
         setCities([]);
       } else {
@@ -328,23 +344,22 @@ export default function EditEmployeeModal({
     }
   }, [region, phLocationsData]);
 
-   useEffect(() => {
-      if (region && province) {
-        const selectedRegion = phLocationsData.find((r: any) => r.region === region);
-        if (selectedRegion) {
-          const selectedProvince = selectedRegion.provinces.find((p: any) => p.province === province);
-          if (selectedProvince) {
-            setCities(selectedProvince.cities);
-          } else {
-            setCities([]);
-          }
+  useEffect(() => {
+    if (region && province) {
+      const selectedRegion = phLocationsData.find((r: any) => r.region === region);
+      if (selectedRegion) {
+        const selectedProvince = selectedRegion.provinces.find((p: any) => p.province === province);
+        if (selectedProvince) {
+          setCities(selectedProvince.cities);
+        } else {
+          setCities([]);
         }
-      } else {
-        setCities([]);
       }
-    }, [region, province, phLocationsData]);
+    } else {
+      setCities([]);
+    }
+  }, [region, province, phLocationsData]);
 
-  // Update dependent provinces when dependent region changes
   useEffect(() => {
     if (dependentRegion) {
       const selectedRegion = phLocationsData.find(
@@ -366,7 +381,6 @@ export default function EditEmployeeModal({
     }
   }, [dependentRegion, phLocationsData]);
 
-  // Update dependent cities when dependent province changes
   useEffect(() => {
     if (dependentRegion && dependentProvince) {
       const selectedRegion = phLocationsData.find(
@@ -387,7 +401,7 @@ export default function EditEmployeeModal({
     }
   }, [dependentRegion, dependentProvince, phLocationsData]);
 
-  // Handle dependent contact info change with formatting
+  /* ---------- Dependent formatting & validation ---------- */
   const handleDependentContactInfoChange = (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -407,7 +421,6 @@ export default function EditEmployeeModal({
     setDependentContactInfo(formatted);
   };
 
-  // Validate dependent
   const validateDependent = (
     firstName: string,
     lastName: string,
@@ -439,7 +452,7 @@ export default function EditEmployeeModal({
     return newErrors;
   };
 
-  // Validation
+  /* ---------- Validation ---------- */
   const validate = () => {
     const newErrors: { [key: string]: string } = {};
     if (!firstName.trim()) newErrors.firstName = "First name is required";
@@ -492,19 +505,17 @@ export default function EditEmployeeModal({
     return Object.keys(newErrors).length === 0;
   };
 
+  /* ---------- Submit ---------- */
   const handleSubmit = async () => {
     console.log("Save Changes clicked");
 
-    // Additional validation for role management
     const roleErrors: { [key: string]: string } = {};
 
-    // Validate sub_role if admin or supervisor privilege is granted
     if ((grantAdminPrivilege || grantSupervisorPrivilege) && !subRole) {
       roleErrors.subRole =
         "Sub-role is required when granting admin or supervisor privilege";
     }
 
-    // Validate sub_role matches department
     if (
       (grantAdminPrivilege || grantSupervisorPrivilege) &&
       departmentId &&
@@ -524,7 +535,6 @@ export default function EditEmployeeModal({
       }
     }
 
-    // Check one-supervisor-per-department rule
     if (grantSupervisorPrivilege && departmentId) {
       const hasSupervisor = await checkDepartmentSupervisor(departmentId);
       if (hasSupervisor) {
@@ -575,17 +585,13 @@ export default function EditEmployeeModal({
           ? "supervisor"
           : "employee";
 
-        // Add sub_role if admin or supervisor privilege is granted
         if ((grantAdminPrivilege || grantSupervisorPrivilege) && subRole) {
           updatedData.sub_role = subRole.toLowerCase();
         }
       }
 
       console.log("Submitting update:", updatedData);
-      const result = await employeeApi.update(
-        employee.employee_id,
-        updatedData
-      );
+      const result = await employeeApi.update(employee.employee_id, updatedData);
       console.log("Update result:", result);
 
       if (result.success) {
@@ -604,6 +610,7 @@ export default function EditEmployeeModal({
 
   if (!isOpen) return null;
 
+  /* ---------- JSX ---------- */
   return (
     <div
       className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
@@ -650,9 +657,7 @@ export default function EditEmployeeModal({
                 <select
                   value={departmentId || ""}
                   onChange={(e) => {
-                    const value = e.target.value
-                      ? Number(e.target.value)
-                      : null;
+                    const value = e.target.value ? Number(e.target.value) : null;
                     setDepartmentId(value);
                     setPositionId(null);
                     setErrors((prev) => ({ ...prev, department: "" }));
@@ -682,9 +687,7 @@ export default function EditEmployeeModal({
                   className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] disabled:opacity-50"
                 >
                   <option value="">
-                    {departmentId
-                      ? "Select Position"
-                      : "Select Department First"}
+                    {departmentId ? "Select Position" : "Select Department First"}
                   </option>
                   {positions.map((pos) => (
                     <option key={pos.position_id} value={pos.position_id}>
@@ -713,9 +716,7 @@ export default function EditEmployeeModal({
                   className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <option value="">
-                    {departmentId
-                      ? "No Supervisor (Optional)"
-                      : "Select Department First"}
+                    {departmentId ? "No Supervisor (Optional)" : "Select Department First"}
                   </option>
                   {supervisors.map((sup) => (
                     <option key={sup.employee_id} value={sup.employee_id}>
@@ -753,35 +754,35 @@ export default function EditEmployeeModal({
                 error={errors.homeAddress}
               />
               <FormSelect
-                                  label="Region:"
-                                  value={region}
-                                  onChange={(e) => {
-                                    setRegion(e.target.value);
-                                    setProvince("");
-                                    setCity("");
-                                  }}
-                                  options={regions}
-                                  error={errors.region}
-                                />
-              
-                                <FormSelect
-                                  label="Province:"
-                                  value={province}
-                                  onChange={(e) => {
-                                    setProvince(e.target.value);
-                                    setCity("");
-                                  }}
-                                  options={region ? provinces : []}
-                                  error={errors.province}
-                                />
-              
-                                <FormSelect
-                                  label="City:"
-                                  value={city}
-                                  onChange={(e) => setCity(e.target.value)}
-                                  options={province ? cities : []}
-                                  error={errors.city}
-                                />
+                label="Region:"
+                value={region}
+                onChange={(e) => {
+                  setRegion(e.target.value);
+                  setProvince("");
+                  setCity("");
+                }}
+                options={regions}
+                error={errors.region}
+              />
+
+              <FormSelect
+                label="Province:"
+                value={province}
+                onChange={(e) => {
+                  setProvince(e.target.value);
+                  setCity("");
+                }}
+                options={region ? provinces : []}
+                error={errors.province}
+              />
+
+              <FormSelect
+                label="City:"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                options={province ? cities : []}
+                error={errors.city}
+              />
             </div>
 
             {/* Email Addresses Section */}
@@ -794,7 +795,10 @@ export default function EditEmployeeModal({
               )}
               <div className="space-y-3">
                 {emails.map((emailItem, index) => (
-                  <div key={index} className="flex gap-2 items-end">
+                  <div
+                    key={emailItem.email_id ?? emailItem.id ?? `email-${index}`}
+                    className="flex gap-2 items-end"
+                  >
                     <div className="flex-1">
                       <input
                         type="email"
@@ -810,9 +814,7 @@ export default function EditEmployeeModal({
                     </div>
                     <button
                       type="button"
-                      onClick={() =>
-                        setEmails(emails.filter((_, i) => i !== index))
-                      }
+                      onClick={() => setEmails((prev) => prev.filter((_, i) => i !== index))}
                       className="px-3 py-2 bg-red-500 text-white rounded-lg hover:opacity-80"
                     >
                       Remove
@@ -823,7 +825,7 @@ export default function EditEmployeeModal({
               <button
                 type="button"
                 onClick={() =>
-                  setEmails([...emails, { email: "", isNew: true }])
+                  setEmails((prev) => [...prev, { id: generateClientId(), email: "", isNew: true }])
                 }
                 className="mt-3 px-4 py-2 bg-[#3b2b1c] text-white rounded-lg hover:opacity-80"
               >
@@ -843,7 +845,10 @@ export default function EditEmployeeModal({
               )}
               <div className="space-y-3">
                 {contactNumbers.map((contactItem, index) => (
-                  <div key={index} className="flex gap-2 items-end">
+                  <div
+                    key={contactItem.contact_id ?? contactItem.id ?? `contact-${index}`}
+                    className="flex gap-2 items-end"
+                  >
                     <div className="flex-1">
                       <input
                         type="text"
@@ -859,11 +864,7 @@ export default function EditEmployeeModal({
                     </div>
                     <button
                       type="button"
-                      onClick={() =>
-                        setContactNumbers(
-                          contactNumbers.filter((_, i) => i !== index)
-                        )
-                      }
+                      onClick={() => setContactNumbers((prev) => prev.filter((_, i) => i !== index))}
                       className="px-3 py-2 bg-red-500 text-white rounded-lg hover:opacity-80"
                     >
                       Remove
@@ -874,10 +875,7 @@ export default function EditEmployeeModal({
               <button
                 type="button"
                 onClick={() =>
-                  setContactNumbers([
-                    ...contactNumbers,
-                    { contact_number: "", isNew: true },
-                  ])
+                  setContactNumbers((prev) => [...prev, { id: generateClientId(), contact_number: "", isNew: true }])
                 }
                 className="mt-3 px-4 py-2 bg-[#3b2b1c] text-white rounded-lg hover:opacity-80"
               >
@@ -892,9 +890,7 @@ export default function EditEmployeeModal({
                   Employee Dependent Information{" "}
                   <span className="text-red-500">*</span>
                 </h3>
-                <span className="text-xs text-[#6b5344]">
-                  ({dependents.length} added)
-                </span>
+                <span className="text-xs text-[#6b5344]">({dependents.length} added)</span>
               </div>
               {errors.dependents && (
                 <p className="text-red-500 text-xs mb-4">{errors.dependents}</p>
@@ -910,10 +906,7 @@ export default function EditEmployeeModal({
                     onChange={(e) => {
                       setDependentFirstName(e.target.value);
                       if (dependentErrors.firstName) {
-                        setDependentErrors((prev) => ({
-                          ...prev,
-                          firstName: "",
-                        }));
+                        setDependentErrors((prev) => ({ ...prev, firstName: "" }));
                       }
                     }}
                     placeholder="Enter first name"
@@ -926,10 +919,7 @@ export default function EditEmployeeModal({
                     onChange={(e) => {
                       setDependentLastName(e.target.value);
                       if (dependentErrors.lastName) {
-                        setDependentErrors((prev) => ({
-                          ...prev,
-                          lastName: "",
-                        }));
+                        setDependentErrors((prev) => ({ ...prev, lastName: "" }));
                       }
                     }}
                     placeholder="Enter last name"
@@ -955,10 +945,7 @@ export default function EditEmployeeModal({
                     onChange={(e) => {
                       handleDependentContactInfoChange(e);
                       if (dependentErrors.contactInfo) {
-                        setDependentErrors((prev) => ({
-                          ...prev,
-                          contactInfo: "",
-                        }));
+                        setDependentErrors((prev) => ({ ...prev, contactInfo: "" }));
                       }
                     }}
                     placeholder="Phone number (optional)"
@@ -973,10 +960,7 @@ export default function EditEmployeeModal({
                         setDependentRelationshipSpecify("");
                       }
                       if (dependentErrors.relationship) {
-                        setDependentErrors((prev) => ({
-                          ...prev,
-                          relationship: "",
-                        }));
+                        setDependentErrors((prev) => ({ ...prev, relationship: "" }));
                       }
                     }}
                     options={["Spouse", "Child", "Parent", "Sibling", "Other"]}
@@ -990,10 +974,7 @@ export default function EditEmployeeModal({
                       onChange={(e) => {
                         setDependentRelationshipSpecify(e.target.value);
                         if (dependentErrors.relationshipSpecify) {
-                          setDependentErrors((prev) => ({
-                            ...prev,
-                            relationshipSpecify: "",
-                          }));
+                          setDependentErrors((prev) => ({ ...prev, relationshipSpecify: "" }));
                         }
                       }}
                       placeholder="Please specify the relationship"
@@ -1012,10 +993,7 @@ export default function EditEmployeeModal({
                       onChange={(e) => {
                         setDependentHomeAddress(e.target.value);
                         if (dependentErrors.homeAddress) {
-                          setDependentErrors((prev) => ({
-                            ...prev,
-                            homeAddress: "",
-                          }));
+                          setDependentErrors((prev) => ({ ...prev, homeAddress: "" }));
                         }
                       }}
                       placeholder="Enter home address"
@@ -1043,10 +1021,7 @@ export default function EditEmployeeModal({
                       setDependentProvince(e.target.value);
                       setDependentCity("");
                       if (dependentErrors.province) {
-                        setDependentErrors((prev) => ({
-                          ...prev,
-                          province: "",
-                        }));
+                        setDependentErrors((prev) => ({ ...prev, province: "" }));
                       }
                     }}
                     options={dependentRegion ? dependentProvinces : []}
@@ -1085,7 +1060,7 @@ export default function EditEmployeeModal({
                     setDependentErrors({});
 
                     const newDependent = {
-                      id: Date.now().toString(),
+                      id: generateClientId(),
                       firstName: dependentFirstName,
                       lastName: dependentLastName,
                       email: dependentEmail,
@@ -1119,9 +1094,7 @@ export default function EditEmployeeModal({
               {/* Dependents List */}
               {dependents.length > 0 && (
                 <div className="space-y-3">
-                  <h4 className="text-[#3b2b1c] font-semibold">
-                    Added Dependents:
-                  </h4>
+                  <h4 className="text-[#3b2b1c] font-semibold">Added Dependents:</h4>
                   {dependents.map((dependent) => (
                     <div
                       key={dependent.id}
@@ -1141,9 +1114,7 @@ export default function EditEmployeeModal({
                         <button
                           type="button"
                           onClick={() =>
-                            setDependents(
-                              dependents.filter((d) => d.id !== dependent.id)
-                            )
+                            setDependents(dependents.filter((d) => d.id !== dependent.id))
                           }
                           className="text-red-500 hover:text-red-700 font-semibold text-sm"
                         >
@@ -1151,30 +1122,18 @@ export default function EditEmployeeModal({
                         </button>
                       </div>
                       {dependent.email && (
-                        <p className="text-xs text-[#6b5344]">
-                          Email: {dependent.email}
-                        </p>
+                        <p className="text-xs text-[#6b5344]">Email: {dependent.email}</p>
                       )}
                       {dependent.contactInfo && (
-                        <p className="text-xs text-[#6b5344]">
-                          Contact: {dependent.contactInfo}
-                        </p>
+                        <p className="text-xs text-[#6b5344]">Contact: {dependent.contactInfo}</p>
                       )}
                       {dependent.homeAddress && (
-                        <p className="text-xs text-[#6b5344]">
-                          Address: {dependent.homeAddress}
-                        </p>
+                        <p className="text-xs text-[#6b5344]">Address: {dependent.homeAddress}</p>
                       )}
-                      {(dependent.city ||
-                        dependent.province ||
-                        dependent.region) && (
+                      {(dependent.city || dependent.province || dependent.region) && (
                         <p className="text-xs text-[#6b5344]">
                           Location:{" "}
-                          {[
-                            dependent.city,
-                            dependent.province,
-                            dependent.region,
-                          ]
+                          {[dependent.city, dependent.province, dependent.region]
                             .filter(Boolean)
                             .join(", ")}
                         </p>
@@ -1187,9 +1146,7 @@ export default function EditEmployeeModal({
 
             {/* Role Management Section */}
             <div className="border-t-2 border-[#e6d2b5] pt-6 mt-8">
-              <h3 className="text-[#3b2b1c] font-semibold mb-4">
-                Role Management
-              </h3>
+              <h3 className="text-[#3b2b1c] font-semibold mb-4">Role Management</h3>
 
               {/* Admin Privilege Checkbox */}
               <div className="col-span-2 flex items-center gap-3 mt-4 p-4 bg-[#FFF2E0] rounded-lg border border-[#e6d2b5]">
@@ -1251,7 +1208,6 @@ export default function EditEmployeeModal({
                 </label>
               </div>
 
-              {/* Sub-Role Dropdown */}
               {(grantAdminPrivilege || grantSupervisorPrivilege) && (
                 <div className="mt-4">
                   {!departmentId ? (
@@ -1263,9 +1219,7 @@ export default function EditEmployeeModal({
                   ) : (
                     <>
                       <label className="block text-[#3b2b1c] mb-1">
-                        {grantAdminPrivilege
-                          ? "Admin Sub-Role:"
-                          : "Supervisor Sub-Role:"}{" "}
+                        {grantAdminPrivilege ? "Admin Sub-Role:" : "Supervisor Sub-Role:"}{" "}
                         <span className="text-red-500">*</span>
                       </label>
                       <select
@@ -1284,9 +1238,7 @@ export default function EditEmployeeModal({
                         ))}
                       </select>
                       {errors.subRole && (
-                        <p className="text-red-500 text-xs mt-1">
-                          {errors.subRole}
-                        </p>
+                        <p className="text-red-500 text-xs mt-1">{errors.subRole}</p>
                       )}
                     </>
                   )}
@@ -1299,9 +1251,7 @@ export default function EditEmployeeModal({
             </div>
           </div>
         ) : (
-          <p className="text-center text-gray-600">
-            Loading employee details...
-          </p>
+          <p className="text-center text-gray-600">Loading employee details...</p>
         )}
 
         <div className="flex justify-end mt-10">
