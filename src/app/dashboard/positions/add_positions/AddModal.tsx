@@ -175,7 +175,7 @@ export default function AddJobModal({ isOpen, onClose }: AddJobModalProps) {
                                 )}
                             </div>
 
-                            {/* Job Salary */}
+                          
                             {/* Job Salary */}
                             <div>
                                 <label className="block text-sm font-medium text-[#3b2b1c] mb-1">
