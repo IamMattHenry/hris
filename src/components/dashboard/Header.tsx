@@ -48,6 +48,7 @@ export default function Header({
 
   const handleProfile = () => {
     console.log("Profile clicked");
+    window.location.href = "/dashboard/profile";
     setDropdownOpen(false);
   };
 

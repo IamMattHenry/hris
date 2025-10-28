@@ -1,3 +1,5 @@
+/*
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -95,7 +97,7 @@ export default function UsersPage() {
 
   return (
     <div className="min-h-screen bg-[#fff7ec] p-8 space-y-6 text-gray-800 font-poppins">
-      {/* Header */}
+      {/* Header *
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <h1 className="text-xl font-bold">{users.length} Users</h1>
 
@@ -111,7 +113,7 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {/* Table */}
+      {/* Table 
       <div className="w-full">
         <table className="w-full text-sm table-fixed border-separate border-spacing-y-2">
           <thead className="bg-[#3b2b1c] text-white text-left sticky top-0 z-20">
@@ -203,3 +205,4 @@ export default function UsersPage() {
   );
 }
 
+*/
