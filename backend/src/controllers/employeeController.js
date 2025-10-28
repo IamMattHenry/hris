@@ -150,13 +150,13 @@ export const createEmployee = async (req, res, next) => {
     }
 
     // Validate role
-    const validRoles = ["admin", "employee", "supervisor"];
+    const validRoles = ["admin", "employee", "supervisor", "superadmin"];
     const userRole = role || "employee"; // Default to 'employee' if not provided
 
     if (!validRoles.includes(userRole)) {
       return res.status(400).json({
         success: false,
-        message: `Invalid role. Role must be one of: 'admin', 'employee', 'supervisor'.`,
+        message: `Invalid role. Role must be one of: 'admin', 'employee', 'supervisor', 'superadmin'.`,
       });
     }
 
@@ -165,7 +165,7 @@ export const createEmployee = async (req, res, next) => {
 
     try {
       // Validate sub_role if role is 'admin' or 'supervisor'
-      const validSubRoles = ["hr", "it"];
+      const validSubRoles = ["hr", "it", "front_desk"];
       if (userRole === "admin" || userRole === "supervisor") {
         if (!sub_role) {
           await db.rollback();
@@ -196,7 +196,11 @@ export const createEmployee = async (req, res, next) => {
 
           if (deptResult && deptResult.length > 0) {
             const deptName = deptResult[0].department_name;
-            const validDeptSubRole = deptName === "IT" ? "it" : deptName === "Human Resources" ? "hr" : null;
+            let validDeptSubRole = null;
+
+            if (deptName === "IT") validDeptSubRole = "it";
+            else if (deptName === "Human Resources") validDeptSubRole = "hr";
+            else if (deptName === "Front Desk") validDeptSubRole = "front_desk";
 
             if (validDeptSubRole && sub_role !== validDeptSubRole) {
               await db.rollback();
@@ -207,6 +211,12 @@ export const createEmployee = async (req, res, next) => {
             }
           }
         }
+      }
+
+      // Superadmin doesn't need sub_role or department validation
+      if (userRole === "superadmin") {
+        // Superadmin can be created without sub_role or department restrictions
+        logger.info("Creating superadmin user - no department restrictions");
       }
 
       // Check if department already has a supervisor (only for supervisor role)
@@ -471,15 +481,15 @@ export const updateEmployee = async (req, res, next) => {
 
     // Validate role and sub_role if provided
     if (role) {
-      const validRoles = ['admin', 'employee', 'supervisor'];
+      const validRoles = ['admin', 'employee', 'supervisor', 'superadmin'];
       if (!validRoles.includes(role)) {
         return res.status(400).json({
           success: false,
-          message: `Invalid role. Role must be 'admin', 'employee', or 'supervisor'`,
+          message: `Invalid role. Role must be 'admin', 'employee', 'supervisor', or 'superadmin'`,
         });
       }
 
-      // Validate sub_role is provided for admin/supervisor
+      // Validate sub_role is provided for admin/supervisor (but not superadmin)
       if ((role === 'admin' || role === 'supervisor') && !sub_role) {
         return res.status(400).json({
           success: false,
@@ -509,6 +519,13 @@ export const updateEmployee = async (req, res, next) => {
             return res.status(400).json({
               success: false,
               message: "Human Resources department employees can only have 'hr' as sub_role.",
+            });
+          }
+
+          if (deptName === "Front Desk" && normalizedSubRole !== "front_desk") {
+            return res.status(400).json({
+              success: false,
+              message: "Front Desk department employees can only have 'front_desk' as sub_role.",
             });
           }
         }

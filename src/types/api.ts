@@ -17,7 +17,7 @@ export interface ApiResponse<T> {
 export interface User {
   user_id: number;
   username: string;
-  role: 'admin' | 'employee' | 'supervisor';
+  role: 'admin' | 'employee' | 'supervisor' | 'superadmin';
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -33,9 +33,11 @@ export interface User {
   birthdate?: string;
   hire_date?: string;
   status?: 'active' | 'resigned' | 'terminated' | 'on_leave';
+  department_id?: number;
+  department_name?: string;
   // Associated user role info (if exists)
   user_role_id?: number;
-  sub_role?: 'hr' | 'it' | 'manager' | 'supervisor';
+  sub_role?: 'hr' | 'it' | 'front_desk';
 }
 
 /**

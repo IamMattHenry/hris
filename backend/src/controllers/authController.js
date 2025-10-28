@@ -41,10 +41,10 @@ export const login = async (req, res, next) => {
     }
 
     // Check the user's role
-    if (user.role !== 'admin') {
+    if (user.role !== 'admin' && user.role !== 'supervisor' && user.role !== 'superadmin') {
       return res.status(401).json({
         success: false,
-        message: 'Only admins are allowed to access this portal',
+        message: 'Only admins, supervisors, and superadmins are allowed to access this portal',
         role: user.role,
       })
     }
@@ -83,7 +83,7 @@ export const login = async (req, res, next) => {
 
 export const getCurrentUser = async (req, res, next) => {
   try {
-    // Get user with employee and admin details
+    // Get user with employee and admin details including department_id
     const user = await db.getOne(`
       SELECT
         u.user_id,
@@ -97,10 +97,13 @@ export const getCurrentUser = async (req, res, next) => {
         e.birthdate,
         e.hire_date,
         e.status,
+        e.department_id,
+        d.department_name,
         ur.user_role_id,
         ur.sub_role
       FROM users u
       LEFT JOIN employees e ON u.user_id = e.user_id
+      LEFT JOIN departments d ON e.department_id = d.department_id
       LEFT JOIN user_roles ur ON u.user_id = ur.user_id
       WHERE u.user_id = ?
     `, [req.user.user_id]);

@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { Plus, MoreVertical, Filter, ChevronDown, ChevronUp, X, RotateCw } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
-import { leaveApi } from "@/lib/api";
+import { leaveApi, employeeApi } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 type TabKey = "Leave Request" | "History";
 type LeaveType = "vacation" | "sick" | "personal" | "parental" | "bereavement" | "emergency" | "others";
@@ -36,6 +37,7 @@ const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
 };
 
 export default function RequestsPage() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<TabKey>("Leave Request");
   const [searchRequest, setSearchRequest] = useState<string>("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -48,6 +50,9 @@ export default function RequestsPage() {
   const [filterLeaveType, setFilterLeaveType] = useState<LeaveType | "">("");
   const [filterStatus, setFilterStatus] = useState<LeaveStatus | "">("");
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Check if user is supervisor (view-only access for CRUD, but can approve/reject)
+  const isSupervisor = user?.role === "supervisor";
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -190,7 +195,10 @@ export default function RequestsPage() {
             <RotateCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
           </button>
 
-          <ActionButton label="Add Request" onClick={() => setIsAddModalOpen(true)} icon={Plus} />
+          {/* Add Request button - Disabled for supervisors */}
+          {!isSupervisor && (
+            <ActionButton label="Add Request" onClick={() => setIsAddModalOpen(true)} icon={Plus} />
+          )}
         </div>
       </div>
 
@@ -322,15 +330,17 @@ export default function RequestsPage() {
                           >
                             View
                           </button>
-                          <button
-                            onClick={() => {
-                              handleDelete(leave.leave_id);
-                              setSelectedMenu(null);
-                            }}
-                            className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm text-red-600"
-                          >
-                            Delete
-                          </button>
+                          {!isSupervisor && (
+                            <button
+                              onClick={() => {
+                                handleDelete(leave.leave_id);
+                                setSelectedMenu(null);
+                              }}
+                              className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm text-red-600"
+                            >
+                              Delete
+                            </button>
+                          )}
                         </div>
                       )}
                     </td>
@@ -377,8 +387,11 @@ export default function RequestsPage() {
 
 // Add Leave Modal Component
 function AddLeaveModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClose: () => void; onSuccess: () => void }) {
+  const { user } = useAuth();
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(true);
   const [formData, setFormData] = useState({
-    employee_id: 1, // Default to current user's employee ID
+    employee_id: 0, // Will be set after employees load
     leave_type: "vacation" as LeaveType,
     start_date: "",
     end_date: "",
@@ -387,8 +400,40 @@ function AddLeaveModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClos
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Fetch employees filtered by department for admins
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      setLoadingEmployees(true);
+      const result = await employeeApi.getAll();
+      if (result.success && result.data) {
+        let filteredEmployees = result.data as any[];
+
+        // If admin, filter by department
+        if (user?.role === 'admin' && user?.department_id) {
+          filteredEmployees = filteredEmployees.filter(
+            (emp: any) => emp.department_id === user.department_id
+          );
+        }
+
+        setEmployees(filteredEmployees);
+
+        // Set default employee_id to first employee or current user's employee_id
+        if (filteredEmployees.length > 0) {
+          const defaultEmployeeId = user?.employee_id || filteredEmployees[0].employee_id;
+          setFormData(prev => ({ ...prev, employee_id: defaultEmployeeId }));
+        }
+      }
+      setLoadingEmployees(false);
+    };
+
+    if (isOpen) {
+      fetchEmployees();
+    }
+  }, [isOpen, user]);
+
   const validate = () => {
     const newErrors: Record<string, string> = {};
+    if (!formData.employee_id) newErrors.employee_id = "Employee is required";
     if (!formData.start_date) newErrors.start_date = "Start date is required";
     if (!formData.end_date) newErrors.end_date = "End date is required";
     if (new Date(formData.end_date) <= new Date(formData.start_date)) {
@@ -426,6 +471,30 @@ function AddLeaveModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClos
         <h2 className="text-2xl font-semibold mb-6">Leave Request</h2>
 
         <div className="space-y-4">
+          {/* Employee Selector */}
+          <div>
+            <label className="block text-sm font-semibold mb-2">Employee <span className="text-red-600">*</span></label>
+            {loadingEmployees ? (
+              <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500">
+                Loading employees...
+              </div>
+            ) : (
+              <select
+                value={formData.employee_id}
+                onChange={(e) => setFormData({ ...formData, employee_id: Number(e.target.value) })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+              >
+                <option value={0}>Select Employee</option>
+                {employees.map((emp) => (
+                  <option key={emp.employee_id} value={emp.employee_id}>
+                    {emp.employee_code} - {emp.first_name} {emp.last_name} ({emp.department_name || 'No Dept'})
+                  </option>
+                ))}
+              </select>
+            )}
+            {errors.employee_id && <p className="text-red-600 text-xs mt-1">{errors.employee_id}</p>}
+          </div>
+
           <div>
             <label className="block text-sm font-semibold mb-2">Leave Type</label>
             <select
@@ -506,6 +575,10 @@ function ViewLeaveModal({
   onApprove: () => void;
   onReject: () => void;
 }) {
+  const { user } = useAuth();
+  const isSupervisor = user?.role === "supervisor";
+  const isAdmin = user?.role === "admin";
+
   if (!isOpen) return null;
 
   return (
@@ -553,7 +626,8 @@ function ViewLeaveModal({
           )}
         </div>
 
-        {leave.status === "pending" && (
+        {/* Only supervisors can approve/reject */}
+        {leave.status === "pending" && isSupervisor && (
           <div className="flex justify-end gap-3">
             <button
               onClick={onReject}
@@ -570,7 +644,17 @@ function ViewLeaveModal({
           </div>
         )}
 
-        {leave.status !== "pending" && (
+        {/* Admins can only view, show message */}
+        {leave.status === "pending" && isAdmin && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+            <p className="text-sm text-yellow-800">
+              ℹ️ Only supervisors can approve or reject leave requests.
+            </p>
+          </div>
+        )}
+
+        {/* Close button for non-pending or when user can't approve/reject */}
+        {(leave.status !== "pending" || isAdmin) && (
           <div className="flex justify-end">
             <button
               onClick={onClose}

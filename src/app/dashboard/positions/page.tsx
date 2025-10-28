@@ -6,8 +6,10 @@ import ActionButton from "@/components/buttons/ActionButton";
 import AddJobModal from "./add_positions/AddModal";
 import ViewJobModal from "./view_positions/ViewModal";
 import EditJobModal from "./edit_positions/EditModal";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function PositionTable() {
+  const { user } = useAuth();
   const [isInsertOpen, setInsertIsOpen] = useState(false);
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -15,6 +17,9 @@ export default function PositionTable() {
   const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null);
 
   const menuRef = useRef<HTMLDivElement | null>(null);
+
+  // Check if user is supervisor (view-only access)
+  const isSupervisor = user?.role === "supervisor";
 
   
   useEffect(() => {
@@ -98,12 +103,14 @@ export default function PositionTable() {
         <h2 className="text-2xl font-semibold text-[#3b2b1c]">
           Total Positions:
         </h2>
-        <ActionButton
-          label="Add Position"
-          onClick={() => setInsertIsOpen(true)}
-          icon={Plus}
-          className="py-4"
-        />
+        {!isSupervisor && (
+          <ActionButton
+            label="Add Position"
+            onClick={() => setInsertIsOpen(true)}
+            icon={Plus}
+            className="py-4"
+          />
+        )}
       </div>
 
       {/* Table */}
@@ -159,25 +166,29 @@ export default function PositionTable() {
                         <Eye size={16} /> View
                       </button>
 
-                      <button
-                        onClick={() => {
-                          handleEdit(pos);
-                          setOpenMenuIndex(null);
-                        }}
-                        className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#fdf4e7] text-[#3b2b1c]"
-                      >
-                        <Pencil size={16} /> Edit
-                      </button>
+                      {!isSupervisor && (
+                        <>
+                          <button
+                            onClick={() => {
+                              handleEdit(pos);
+                              setOpenMenuIndex(null);
+                            }}
+                            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#fdf4e7] text-[#3b2b1c]"
+                          >
+                            <Pencil size={16} /> Edit
+                          </button>
 
-                      <button
-                        onClick={() => {
-                          handleDelete(pos);
-                          setOpenMenuIndex(null);
-                        }}
-                        className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#ffe5e5] text-[#b91c1c]"
-                      >
-                        <Trash2 size={16} /> Delete
-                      </button>
+                          <button
+                            onClick={() => {
+                              handleDelete(pos);
+                              setOpenMenuIndex(null);
+                            }}
+                            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#ffe5e5] text-[#b91c1c]"
+                          >
+                            <Trash2 size={16} /> Delete
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                 </td>

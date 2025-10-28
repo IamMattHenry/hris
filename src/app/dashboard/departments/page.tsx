@@ -7,14 +7,19 @@ import AddDepartmentModal from "./add_dept/AddModal";
 import ViewDepartmentModal from "./view_dept/ViewModal";
 import EditDepartmentModal from "./edit_dept/EditModal";
 import DepartmentTable from "./dept_table/table";
+import { useAuth } from "@/contexts/AuthContext";
 
 
 export default function DepartmentsPage() {
+  const { user } = useAuth();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const [selectedDepartment, setSelectedDepartment] = useState<any>(null);
+
+  // Check if user is supervisor (view-only access)
+  const isSupervisor = user?.role === "supervisor";
 
 
   const [departments, setDepartments] = useState([
@@ -86,19 +91,21 @@ export default function DepartmentsPage() {
         <h2 className="text-2xl font-semibold text-[#3b2b1c]">
           Total Departments: {departments.length}
         </h2>
-        <ActionButton
-          label="Add Department"
-          onClick={() => setIsAddModalOpen(true)}
-          icon={Plus}
-          className="py-4"
-        />
+        {!isSupervisor && (
+          <ActionButton
+            label="Add Department"
+            onClick={() => setIsAddModalOpen(true)}
+            icon={Plus}
+            className="py-4"
+          />
+        )}
       </div>
 
       <DepartmentTable
         departments={departments}
         onView={handleView}
-        onEdit={handleEdit}    
-        onDelete={handleDelete}
+        onEdit={!isSupervisor ? handleEdit : undefined}
+        onDelete={!isSupervisor ? handleDelete : undefined}
       />
 
       <AddDepartmentModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} />

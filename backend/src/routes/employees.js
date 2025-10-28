@@ -18,17 +18,17 @@ router.get('/', verifyToken, getAllEmployees);
 // Get employee by ID (protected)
 router.get('/:id', verifyToken, getEmployeeById);
 
-// Create employee (admin only)
+// Create employee (admin and superadmin only)
 // Automatically creates user account, employee record, and admin record (if role is 'admin')
 router.post(
   '/',
   verifyToken,
-  verifyRole(['admin']),
+  verifyRole(['admin', 'superadmin']),
   [
     body('username').trim().notEmpty().withMessage('Username is required'),
     body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-    body('role').optional().isIn(['admin', 'employee', 'supervisor']).withMessage('Role must be one of: admin, employee, supervisor'),
-    body('sub_role').optional().isIn(['hr', 'it']).withMessage('Sub-role must be one of: hr, it'),
+    body('role').optional().isIn(['admin', 'employee', 'supervisor', 'superadmin']).withMessage('Role must be one of: admin, employee, supervisor, superadmin'),
+    body('sub_role').optional().isIn(['hr', 'it', 'front_desk']).withMessage('Sub-role must be one of: hr, it, front_desk'),
     body('first_name').trim().notEmpty().withMessage('First name is required'),
     body('last_name').trim().notEmpty().withMessage('Last name is required'),
     body('birthdate').isISO8601().withMessage('Invalid birthdate format'),
@@ -47,19 +47,19 @@ router.post(
   createEmployee
 );
 
-// Update employee (admin only)
+// Update employee (admin and superadmin only)
 router.put(
   '/:id',
   verifyToken,
-  verifyRole(['admin']),
+  verifyRole(['admin', 'superadmin']),
   updateEmployee
 );
 
-// Delete employee (admin only)
+// Delete employee (admin and superadmin only)
 router.delete(
   '/:id',
   verifyToken,
-  verifyRole(['admin']),
+  verifyRole(['admin', 'superadmin']),
   deleteEmployee
 );
 

@@ -303,6 +303,8 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       return ["IT"];
     } else if (dept.department_name === "Human Resources") {
       return ["HR"];
+    } else if (dept.department_name === "Front Desk") {
+      return ["Front Desk"];
     }
 
     return [];
@@ -840,6 +842,40 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                   </div>
                   {errors.salary && <p className="text-red-500 text-xs mt-1">{errors.salary}</p>}
                 </div>
+
+                {/* Supervisor Dropdown - Filtered by Department */}
+                <div>
+                  <label className="block text-[#3b2b1c] mb-1 font-medium">
+                    Reports To (Supervisor):
+                  </label>
+                  <select
+                    value={supervisorId || ""}
+                    onChange={(e) => {
+                      const value = e.target.value
+                        ? Number(e.target.value)
+                        : null;
+                      setSupervisorId(value);
+                      setErrors((prev) => ({ ...prev, supervisor: "" }));
+                    }}
+                    disabled={!departmentId}
+                    className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <option value="">
+                      {departmentId
+                        ? "No Supervisor (Optional)"
+                        : "Select Department First"}
+                    </option>
+                    {supervisors.map((sup) => (
+                      <option key={sup.employee_id} value={sup.employee_id}>
+                        {sup.employee_code} - {sup.first_name} {sup.last_name}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.supervisor && <p className="text-red-500 text-xs mt-1">{errors.supervisor}</p>}
+                  <p className="text-xs text-[#6b5344] mt-1">
+                    Select who this employee will report to
+                  </p>
+                </div>
               </div>
             </motion.div>
           )}
@@ -1227,13 +1263,21 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
                 {(grantAdminPrivilege || grantSupervisorPrivilege) && (
                   <div className="col-span-2">
-                    <FormSelect
-                      label={grantAdminPrivilege ? "Admin Sub-Role:" : "Supervisor Sub-Role:"}
-                      value={subRole}
-                      onChange={(e) => setSubRole(e.target.value)}
-                      options={getValidSubRoles(departmentId)}
-                      error={errors.subRole}
-                    />
+                    {!departmentId ? (
+                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <p className="text-sm text-yellow-800">
+                          ⚠️ Please select a department first to choose the sub-role
+                        </p>
+                      </div>
+                    ) : (
+                      <FormSelect
+                        label={grantAdminPrivilege ? "Admin Sub-Role:" : "Supervisor Sub-Role:"}
+                        value={subRole}
+                        onChange={(e) => setSubRole(e.target.value)}
+                        options={getValidSubRoles(departmentId)}
+                        error={errors.subRole}
+                      />
+                    )}
                   </div>
                 )}
               </div>

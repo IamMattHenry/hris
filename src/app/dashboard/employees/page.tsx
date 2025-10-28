@@ -16,10 +16,12 @@ import ViewEmployeeModal from "./view_employee/ViewModal";
 import EditEmployeeModal from "./edit_employee/EditModal";
 import { employeeApi } from "@/lib/api";
 import { Employee } from "@/types/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 
 
 export default function EmployeeTable() {
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -31,6 +33,13 @@ export default function EmployeeTable() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [sortBy, setSortBy] = useState<string>("");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+
+  // Check if user is supervisor (view-only access)
+  const isSupervisor = user?.role === "supervisor";
+
+  // Check if user is admin (department-restricted access)
+  const isAdmin = user?.role === "admin";
+  const userDepartmentId = user?.department_id;
 
   // 🔹 Close menus when clicking outside
   useEffect(() => {
@@ -111,8 +120,13 @@ export default function EmployeeTable() {
   };
 
 
-  // 🔹 Filter employees by search
+  // 🔹 Filter employees by search and department (for admins)
   const filtered = employees.filter((e) => {
+    // If admin, only show employees from same department
+    if (isAdmin && userDepartmentId && e.department_id !== userDepartmentId) {
+      return false;
+    }
+
     const fullName = `${e.first_name} ${e.last_name}`.toLowerCase();
     const employeeCode = e.employee_code?.toLowerCase() || "";
     const position = e.position_name?.toLowerCase() || "";
@@ -249,8 +263,15 @@ export default function EmployeeTable() {
             )}
           </div>
 
-          {/* Add Button */}
-        <ActionButton label="Add Employee" onClick={() => setIsModalOpen(true)} icon={Plus} className="py-4"/>
+          {/* Add Button - Disabled for supervisors */}
+          {!isSupervisor && (
+            <ActionButton
+              label="Add Employee"
+              onClick={() => setIsModalOpen(true)}
+              icon={Plus}
+              className="py-4"
+            />
+          )}
 
         </div>
       </div>
@@ -333,18 +354,22 @@ export default function EmployeeTable() {
                           >
                             View
                           </button>
-                          <button
-                            onClick={() => handleEdit(emp.employee_id)}
-                            className="w-full text-left px-4 py-2 hover:bg-gray-50"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDelete(emp.employee_id)}
-                            className="w-full text-left px-4 py-2 hover:bg-red-100 text-red-600"
-                          >
-                            Delete
-                          </button>
+                          {!isSupervisor && (
+                            <>
+                              <button
+                                onClick={() => handleEdit(emp.employee_id)}
+                                className="w-full text-left px-4 py-2 hover:bg-gray-50"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDelete(emp.employee_id)}
+                                className="w-full text-left px-4 py-2 hover:bg-red-100 text-red-600"
+                              >
+                                Delete
+                              </button>
+                            </>
+                          )}
                         </div>
                       )}
                     </td>

@@ -18,9 +18,27 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     ? `${user.first_name} ${user.last_name}`
     : user?.username || "User";
 
-  const adminType = user?.sub_role
-    ? user.sub_role.toUpperCase()
-    : user?.role?.toUpperCase() || "USER";
+  // Format role display: Show role (and sub_role if exists)
+  const formatRole = (role?: string) => {
+    if (!role) return "USER";
+    if (role === "superadmin") return "SUPERADMIN";
+    if (role === "admin") return "ADMIN";
+    if (role === "supervisor") return "SUPERVISOR";
+    if (role === "employee") return "EMPLOYEE";
+    return role.toUpperCase();
+  };
+
+  const formatSubRole = (subRole?: string) => {
+    if (!subRole) return "";
+    if (subRole === "hr") return "HR";
+    if (subRole === "it") return "IT";
+    if (subRole === "front_desk") return "Front Desk";
+    return subRole.toUpperCase();
+  };
+
+  const adminType = user?.role
+    ? `${formatRole(user.role)}${user.sub_role ? ` - ${formatSubRole(user.sub_role)}` : ""}`
+    : "USER";
 
   if (isLoading) {
     return (

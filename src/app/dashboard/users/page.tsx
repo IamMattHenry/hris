@@ -4,12 +4,17 @@ import { useState, useEffect } from "react";
 import { Search, Trash2, Eye } from "lucide-react";
 import { userApi } from "@/lib/api";
 import { User } from "@/types/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function UsersPage() {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Check if user is supervisor (view-only access)
+  const isSupervisor = currentUser?.role === "supervisor";
 
   useEffect(() => {
     fetchUsers();
@@ -170,13 +175,15 @@ export default function UsersPage() {
                         >
                           <Eye size={16} className="text-blue-600" />
                         </button>
-                        <button
-                          onClick={() => handleDelete(user.user_id)}
-                          className="p-2 rounded hover:bg-red-100 transition"
-                          title="Delete user"
-                        >
-                          <Trash2 size={16} className="text-red-600" />
-                        </button>
+                        {!isSupervisor && (
+                          <button
+                            onClick={() => handleDelete(user.user_id)}
+                            className="p-2 rounded hover:bg-red-100 transition"
+                            title="Delete user"
+                          >
+                            <Trash2 size={16} className="text-red-600" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

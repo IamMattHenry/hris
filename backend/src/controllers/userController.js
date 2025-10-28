@@ -155,11 +155,11 @@ export const updateUser = async (req, res, next) => {
 
     // Validate and add role if provided
     if (role) {
-      const validRoles = ['admin', 'employee'];
+      const validRoles = ['admin', 'employee', 'supervisor', 'superadmin'];
       if (!validRoles.includes(role)) {
         return res.status(400).json({
           success: false,
-          message: `Invalid role. Role must be either 'admin' or 'employee'`,
+          message: `Invalid role. Role must be one of: 'admin', 'employee', 'supervisor', 'superadmin'`,
         });
       }
 

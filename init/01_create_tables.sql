@@ -2,12 +2,17 @@
 -- USERS, ROLES, AND PERMISSIONS
 -- =====================================================
 -- USERS TABLE
+-- Role System:
+--   - superadmin: Full system access, no department restriction
+--   - admin: Manage CRUD on employees, positions, departments (one per department)
+--   - supervisor: View-only access, handle leave requests (one per department)
+--   - employee: Regular employee with limited access
 CREATE TABLE
     IF NOT EXISTS users (
         user_id INT AUTO_INCREMENT PRIMARY KEY,
         username VARCHAR(50) NOT NULL UNIQUE,
         password VARCHAR(255) NOT NULL,
-        role ENUM ('employee', 'admin', 'supervisor') DEFAULT 'employee',
+        role ENUM ('employee', 'admin', 'supervisor', 'superadmin') DEFAULT 'employee',
         is_active BOOLEAN DEFAULT TRUE,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -15,12 +20,14 @@ CREATE TABLE
         updated_by INT
     );
 
--- USER ROLES TABLE (replaces admins table)
+-- USER ROLES TABLE
+-- Sub-roles are only for admins and supervisors to indicate their department specialization
+-- Note: 'supervisor' removed from sub_role enum as it's now a primary role in users table
 CREATE TABLE
     IF NOT EXISTS user_roles (
         user_role_id INT AUTO_INCREMENT PRIMARY KEY,
         user_id INT NOT NULL,
-        sub_role ENUM ('hr', 'it', 'manager', 'supervisor'),
+        sub_role ENUM ('hr', 'it', 'front_desk'),
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         created_by INT,
