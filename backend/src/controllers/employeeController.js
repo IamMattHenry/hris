@@ -138,7 +138,6 @@ export const createEmployee = async (req, res, next) => {
       contact_number,
       status,
       created_by,
-      created_at,
       dependents
     } = req.body;
 
@@ -251,7 +250,6 @@ export const createEmployee = async (req, res, next) => {
         password: hashedPassword,
         role: userRole,
         created_by,
-        created_at
       });
 
       logger.info(
@@ -281,7 +279,7 @@ export const createEmployee = async (req, res, next) => {
         supervisor_id,
         salary,
         created_by,
-        created_at
+        
       });
 
       // Generate employee code based on the ID
@@ -323,7 +321,7 @@ export const createEmployee = async (req, res, next) => {
           user_id: userId,
           sub_role: sub_role,
           created_by,
-          created_at
+          
         });
 
         logger.info(
@@ -342,7 +340,7 @@ export const createEmployee = async (req, res, next) => {
             relationship: dependent.relationshipSpecify || dependent.relationship,
             birth_date: null, // Frontend doesn't collect birth_date yet
             created_by,
-            created_at
+            
           });
 
           // Generate dependent code based on the ID
@@ -362,7 +360,7 @@ export const createEmployee = async (req, res, next) => {
               dependant_id: tempDependentId,
               email: dependent.email.trim(),
               created_by,
-              created_at
+              
             });
           }
 
@@ -372,7 +370,7 @@ export const createEmployee = async (req, res, next) => {
               dependant_id: tempDependentId,
               contact_no: dependent.contactInfo.replace(/\s/g, ""),
               created_by,
-              created_at
+              
             });
           }
 
@@ -385,7 +383,7 @@ export const createEmployee = async (req, res, next) => {
               province_name: dependent.province || null,
               city_name: dependent.city || null,
               created_by,
-              created_at
+              
             });
           }
 
@@ -409,7 +407,6 @@ export const createEmployee = async (req, res, next) => {
           module: "employees",
           description: `Created employee ${first_name} ${last_name} (${employeeCode}) with role: ${userRole}`,
           created_by: activityUserId,
-          created_at: created_at || new Date()
         });
       } catch (logError) {
         // Log the error but don't fail the request

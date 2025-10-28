@@ -476,8 +476,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     setIsSubmitting(true);
 
     try {
-      // Get current timestamp for created_at
-      const now = new Date().toISOString();
 
       // Prepare data for API with new schema fields
       const employeeData: any = {
@@ -507,7 +505,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         status: "active" as const,
         // Audit fields
         created_by: user?.user_id || null,
-        created_at: now,
         // Dependents
         dependents: dependents,
       };
