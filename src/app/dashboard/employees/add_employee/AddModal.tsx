@@ -279,11 +279,14 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     try {
       const result = await employeeApi.getAll();
       if (result.success && result.data) {
-        // Filter employees by department and active status
-        const deptEmployees = result.data.filter(
-          (emp: any) => emp.department_id === deptId && emp.status === "active"
+        // Filter employees by department, active status, and supervisor role
+        const deptSupervisors = result.data.filter(
+          (emp: any) =>
+            emp.department_id === deptId &&
+            emp.status === "active" &&
+            emp.role === "supervisor"
         );
-        setSupervisors(deptEmployees);
+        setSupervisors(deptSupervisors);
       }
     } catch (error) {
       console.error("Error fetching supervisors:", error);
@@ -298,13 +301,13 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     const dept = departments.find(d => d.department_id === deptId);
     if (!dept) return [];
 
-    // Map department to valid sub_role
+    // Map department to valid sub_role (must match database enum: 'hr', 'it', 'front_desk')
     if (dept.department_name === "IT") {
-      return ["IT"];
+      return ["it"];
     } else if (dept.department_name === "Human Resources") {
-      return ["HR"];
+      return ["hr"];
     } else if (dept.department_name === "Front Desk") {
-      return ["Front Desk"];
+      return ["front_desk"];
     }
 
     return [];

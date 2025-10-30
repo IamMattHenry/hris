@@ -3,12 +3,19 @@
 import { useState, useEffect, useRef } from "react";
 import { MoreVertical, Eye, Trash2, Pencil } from "lucide-react";
 
-// Define the Department interface
+// Define the Department interface (matches API response)
 interface Department {
-  id: string;
-  name: string;
-  supervisor: string;
-  employeeCount: number;
+  department_id: number;
+  department_code?: string;
+  department_name: string;
+  description?: string;
+  supervisor_id?: number;
+  supervisor_first_name?: string;
+  supervisor_last_name?: string;
+  supervisor_code?: string;
+  employee_count: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 // Define component props
@@ -56,15 +63,20 @@ export default function DepartmentTable({
         </thead>
 
         <tbody className="text-[#3b2b1c] text-base">
-          {departments.map((dept, index) => (
-            <tr
-              key={dept.id}
-              className="border-b border-[#e2d5c3] hover:bg-[#fdf4e7] transition"
-            >
-              <td className="py-4 px-4">{dept.id}</td>
-              <td className="py-4 px-4">{dept.name}</td>
-              <td className="py-4 px-4">{dept.supervisor}</td>
-              <td className="py-4 px-4">{dept.employeeCount}</td>
+          {departments.map((dept, index) => {
+            const supervisorName = dept.supervisor_first_name && dept.supervisor_last_name
+              ? `${dept.supervisor_code} - ${dept.supervisor_first_name} ${dept.supervisor_last_name}`
+              : "No Supervisor";
+
+            return (
+              <tr
+                key={dept.department_id}
+                className="border-b border-[#e2d5c3] hover:bg-[#fdf4e7] transition"
+              >
+                <td className="py-4 px-4">{dept.department_code || `DEPT-${dept.department_id}`}</td>
+                <td className="py-4 px-4">{dept.department_name}</td>
+                <td className="py-4 px-4">{supervisorName}</td>
+                <td className="py-4 px-4">{dept.employee_count}</td>
 
               <td className="py-4 px-4 text-center relative">
                 <button
@@ -122,7 +134,8 @@ export default function DepartmentTable({
                 )}
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>

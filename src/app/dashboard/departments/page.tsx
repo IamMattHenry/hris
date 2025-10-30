@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
 import AddDepartmentModal from "./add_dept/AddModal";
@@ -8,6 +8,7 @@ import ViewDepartmentModal from "./view_dept/ViewModal";
 import EditDepartmentModal from "./edit_dept/EditModal";
 import DepartmentTable from "./dept_table/table";
 import { useAuth } from "@/contexts/AuthContext";
+import { departmentApi } from "@/lib/api";
 
 
 export default function DepartmentsPage() {
@@ -17,45 +18,25 @@ export default function DepartmentsPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const [selectedDepartment, setSelectedDepartment] = useState<any>(null);
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Check if user is supervisor (view-only access)
   const isSupervisor = user?.role === "supervisor";
 
+  // Fetch departments on mount
+  useEffect(() => {
+    fetchDepartments();
+  }, []);
 
-  const [departments, setDepartments] = useState([
-    {
-      id: "DEPT-001",
-      name: "Human Resources",
-      description: "Handles employee records, recruitment, and payroll",
-      employeeCount: 10,
-      supervisor: "John Smith",
-      supervisorCode: "EMP-0001",
-    },
-    {
-      id: "DEPT-002",
-      name: "Marketing",
-      description: "Handles marketing strategies and promotional activities",
-      employeeCount: 15,
-      supervisor: "Jane Doe",
-      supervisorCode: "EMP-0002",
-    },
-    {
-      id: "DEPT-003",
-      name: "Finance",
-      description: "Handles financial operations and reporting",
-      employeeCount: 5,
-      supervisor: "Robert Johnson",
-      supervisorCode: "EMP-0003",
-    },
-    {
-      id: "DEPT-004",
-      name: "IT Department",
-      description: "Maintains company systems and databases",
-      employeeCount: 8,
-      supervisor: "Sarah Williams",
-      supervisorCode: "EMP-0004",
-    },
-  ]);
+  const fetchDepartments = async () => {
+    setLoading(true);
+    const result = await departmentApi.getAll();
+    if (result.success && result.data) {
+      setDepartments(result.data);
+    }
+    setLoading(false);
+  };
 
 
   const handleView = (department: any) => {
@@ -101,14 +82,26 @@ export default function DepartmentsPage() {
         )}
       </div>
 
-      <DepartmentTable
-        departments={departments}
-        onView={handleView}
-        onEdit={!isSupervisor ? handleEdit : undefined}
-        onDelete={!isSupervisor ? handleDelete : undefined}
-      />
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <p className="text-[#3b2b1c] text-lg">Loading departments...</p>
+        </div>
+      ) : (
+        <DepartmentTable
+          departments={departments}
+          onView={handleView}
+          onEdit={!isSupervisor ? handleEdit : undefined}
+          onDelete={!isSupervisor ? handleDelete : undefined}
+        />
+      )}
 
-      <AddDepartmentModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} />
+      <AddDepartmentModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSave={() => {
+          fetchDepartments(); // Refresh list after adding
+        }}
+      />
       <ViewDepartmentModal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} department={selectedDepartment} />
       <EditDepartmentModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} department={selectedDepartment} onSave={handleSave} />
     </div>

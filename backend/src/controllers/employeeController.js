@@ -8,14 +8,36 @@ import {
 
 export const getAllEmployees = async (req, res, next) => {
   try {
-    const employees = await db.getAll(`
-      SELECT e.*, jp.position_name, d.department_name, u.username
+    // Get user info from JWT token
+    const currentUser = req.user;
+
+    let sql = `
+      SELECT e.*, jp.position_name, d.department_name, u.username, u.role
       FROM employees e
       LEFT JOIN job_positions jp ON e.position_id = jp.position_id
       LEFT JOIN departments d ON jp.department_id = d.department_id
       LEFT JOIN users u ON e.user_id = u.user_id
-      ORDER BY e.employee_id DESC
-    `);
+    `;
+
+    const params = [];
+
+    // If user is admin (not superadmin), filter by their department
+    if (currentUser && currentUser.role === 'admin') {
+      // Get admin's department_id from their employee record
+      const adminEmployee = await db.getOne(
+        'SELECT department_id FROM employees WHERE user_id = ?',
+        [currentUser.user_id]
+      );
+
+      if (adminEmployee && adminEmployee.department_id) {
+        sql += ' WHERE e.department_id = ?';
+        params.push(adminEmployee.department_id);
+      }
+    }
+
+    sql += ' ORDER BY e.employee_id DESC';
+
+    const employees = await db.getAll(sql, params);
 
     res.json({
       success: true,
@@ -452,9 +474,8 @@ export const createEmployee = async (req, res, next) => {
       throw error;
     }
   } catch (error) {
-    // Rollback transaction on error
-    await db.rollback();
-    logger.error("Create employee error:", error);
+    // Error already logged and transaction already rolled back in inner catch
+    // Just pass the error to the error handler
     next(error);
   }
 };

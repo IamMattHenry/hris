@@ -150,6 +150,7 @@ export default function RequestsPage() {
     if (result.success) {
       alert("Leave request approved");
       setIsViewModalOpen(false);
+      fetchLeaves(); // Refresh the list
     } else {
       alert(result.message || "Failed to approve leave request");
     }
@@ -160,6 +161,7 @@ export default function RequestsPage() {
     if (result.success) {
       alert("Leave request rejected");
       setIsViewModalOpen(false);
+      fetchLeaves(); // Refresh the list
     } else {
       alert(result.message || "Failed to reject leave request");
     }

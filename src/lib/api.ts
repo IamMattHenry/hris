@@ -231,6 +231,39 @@ export const departmentApi = {
       method: 'GET',
     });
   },
+
+  /**
+   * Create a new department
+   */
+  create: async (data: {
+    department_name: string;
+    description?: string;
+    supervisor_id?: number;
+  }) => {
+    return apiCall<any>('/departments', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Update a department
+   */
+  update: async (id: number, data: any) => {
+    return apiCall<any>(`/departments/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Delete a department
+   */
+  delete: async (id: number) => {
+    return apiCall<any>(`/departments/${id}`, {
+      method: 'DELETE',
+    });
+  },
 };
 
 // ============ POSITION API FUNCTIONS ============
@@ -258,10 +291,47 @@ export const positionApi = {
     });
   },
 
-  // Get Total Availability
+  /**
+   * Get total availability
+   */
   getTotalAvailability: async () => {
     return apiCall<any>('/positions/total-availability', {
       method: 'GET',
+    });
+  },
+
+  /**
+   * Create a new position
+   */
+  create: async (data: {
+    position_name: string;
+    position_desc?: string;
+    department_id: number;
+    salary?: number;
+    availability?: number;
+  }) => {
+    return apiCall<any>('/positions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Update position by ID
+   */
+  update: async (id: number, data: any) => {
+    return apiCall<any>(`/positions/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Delete position by ID
+   */
+  delete: async (id: number) => {
+    return apiCall<any>(`/positions/${id}`, {
+      method: 'DELETE',
     });
   },
 };

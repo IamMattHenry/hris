@@ -133,6 +133,18 @@ export const commit = async () => {
   try {
     const connection = transactionStorage.getStore();
 
+    // Check if there's an active transaction
+    if (!connection) {
+      console.warn('⚠️ No active transaction to commit');
+      return;
+    }
+
+    // Check if connection has commit method
+    if (typeof connection.commit !== 'function') {
+      console.error('❌ Connection object does not have commit method:', connection);
+      throw new Error('Invalid connection object - missing commit method');
+    }
+
     await connection.commit();
     connection.release();
 
@@ -167,7 +179,8 @@ export const rollback = async () => {
     console.log('✅ Transaction rolled back');
   } catch (error) {
     console.error('❌ Failed to rollback transaction:', error);
-    throw error;
+    // Don't throw error on rollback failure - just log it
+    // This prevents masking the original error that caused the rollback
   }
 };
 

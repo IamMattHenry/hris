@@ -5,23 +5,31 @@ import { X, Save } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import FormInput from "@/components/forms/FormInput";
 import ActionButton from "@/components/buttons/ActionButton";
+import { departmentApi, employeeApi } from "@/lib/api";
 
 interface AddDepartmentModalProps {
     isOpen: boolean;
     onClose: () => void;
+    onSave?: () => void;
 }
 
-export default function AddDepartmentModal({ isOpen, onClose }: AddDepartmentModalProps) {
+export default function AddDepartmentModal({ isOpen, onClose, onSave }: AddDepartmentModalProps) {
     const [departmentName, setDepartmentName] = useState("");
     const [departmentDescription, setDepartmentDescription] = useState("");
     const [supervisorId, setSupervisorId] = useState("");
+    const [supervisors, setSupervisors] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState({
         departmentName: "",
         departmentDescription: "",
-        supervisorId: "",
     });
 
- 
+    useEffect(() => {
+        if (isOpen) {
+            fetchSupervisors();
+        }
+    }, [isOpen]);
+
     useEffect(() => {
         if (!isOpen) {
             setDepartmentName("");
@@ -30,18 +38,25 @@ export default function AddDepartmentModal({ isOpen, onClose }: AddDepartmentMod
             setErrors({
                 departmentName: "",
                 departmentDescription: "",
-                supervisorId: "",
             });
         }
     }, [isOpen]);
 
-    
+    const fetchSupervisors = async () => {
+        const result = await employeeApi.getAll();
+        if (result.success && result.data) {
+            // Filter only supervisors
+            const supervisorList = result.data.filter((emp: any) => emp.role === 'supervisor');
+            setSupervisors(supervisorList);
+        }
+    };
+
+
     const validate = () => {
         let valid = true;
         const newErrors = {
             departmentName: "",
             departmentDescription: "",
-            supervisorId: "",
         };
 
         // Department Name
@@ -56,38 +71,30 @@ export default function AddDepartmentModal({ isOpen, onClose }: AddDepartmentMod
             valid = false;
         }
 
-      
-        if (!departmentDescription.trim()) {
-            newErrors.departmentDescription = "Department description is required.";
-            valid = false;
-        } else if (departmentDescription.trim().split(" ").length > 100) {
-            newErrors.departmentDescription = "Department description must not exceed 100 words.";
-            valid = false;
-        }
-
-        
-        if (!supervisorId.trim()) {
-            newErrors.supervisorId = "Supervisor Employee ID is required.";
-            valid = false;
-        } else if (!/^[A-Za-z0-9-]+$/.test(supervisorId.trim())) {
-            newErrors.supervisorId = "Employee ID must contain only letters, numbers, and hyphens.";
-            valid = false;
-        }
-
         setErrors(newErrors);
         return valid;
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!validate()) return;
 
-        console.log({
-            departmentName,
-            departmentDescription,
-            supervisorId,
+        setLoading(true);
+
+        const result = await departmentApi.create({
+            department_name: departmentName,
+            description: departmentDescription || undefined,
+            supervisor_id: supervisorId ? parseInt(supervisorId) : undefined,
         });
 
-        onClose();
+        setLoading(false);
+
+        if (result.success) {
+            alert("Department created successfully");
+            if (onSave) onSave();
+            onClose();
+        } else {
+            alert(result.message || "Failed to create department");
+        }
     };
 
     return (
@@ -128,7 +135,7 @@ export default function AddDepartmentModal({ isOpen, onClose }: AddDepartmentMod
                             {/* Department Description */}
                             <div>
                                 <label className="block text-sm font-medium text-[#3b2b1c] mb-1">
-                                    Department Description
+                                    Department Description (Optional)
                                 </label>
                                 <textarea
                                     value={departmentDescription}
@@ -148,23 +155,33 @@ export default function AddDepartmentModal({ isOpen, onClose }: AddDepartmentMod
                                 )}
                             </div>
 
-                            {/* Supervisor Employee ID */}
-                            <FormInput
-                                type="text"
-                                label="Supervisor (Employee ID)"
-                                placeholder="Enter employee ID (e.g., EMP-001)"
-                                value={supervisorId}
-                                onChange={(e) => setSupervisorId(e.target.value)}
-                                error={errors.supervisorId}
-                            />
+                            {/* Supervisor Selector */}
+                            <div>
+                                <label className="block text-sm font-medium text-[#3b2b1c] mb-1">
+                                    Supervisor (Optional)
+                                </label>
+                                <select
+                                    value={supervisorId}
+                                    onChange={(e) => setSupervisorId(e.target.value)}
+                                    className="w-full p-2 border border-[#d6c3aa] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b2b1c]"
+                                >
+                                    <option value="">No Supervisor</option>
+                                    {supervisors.map((sup) => (
+                                        <option key={sup.employee_id} value={sup.employee_id}>
+                                            {sup.employee_code} - {sup.first_name} {sup.last_name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
 
                             {/* Save Button */}
                             <div className="flex justify-end mt-6">
                                 <ActionButton
                                     onClick={handleSave}
-                                    label="Save"
+                                    label={loading ? "Saving..." : "Save"}
                                     icon={Save}
                                     className="hover:opacity-90 transition"
+                                    disabled={loading}
                                 />
                             </div>
                         </div>

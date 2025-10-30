@@ -7,6 +7,7 @@ import AddJobModal from "./add_positions/AddModal";
 import ViewJobModal from "./view_positions/ViewModal";
 import EditJobModal from "./edit_positions/EditModal";
 import { useAuth } from "@/contexts/AuthContext";
+import { positionApi } from "@/lib/api";
 
 export default function PositionTable() {
   const { user } = useAuth();
@@ -15,13 +16,20 @@ export default function PositionTable() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<any>(null);
   const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null);
+  const [positions, setPositions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   // Check if user is supervisor (view-only access)
   const isSupervisor = user?.role === "supervisor";
 
-  
+  // Fetch positions from API
+  useEffect(() => {
+    fetchPositions();
+  }, []);
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (
@@ -35,66 +43,69 @@ export default function PositionTable() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const fetchPositions = async () => {
+    setLoading(true);
+    setError(null);
+    const result = await positionApi.getAll();
+    if (result.success && result.data) {
+      setPositions(result.data);
+    } else {
+      setError(result.message || "Failed to fetch positions");
+    }
+    setLoading(false);
+  };
+
   const toggleMenu = (index: number) => {
     setOpenMenuIndex(openMenuIndex === index ? null : index);
   };
 
   const handleView = (job: any) => {
-    setSelectedJob({
-      title: job.position,
-      description: job.description,
-      salary: job.salary,
-      department: job.department,
-      available: job.availability === "Yes",
-    });
+    setSelectedJob(job);
     setIsViewOpen(true);
   };
 
   const handleEdit = (job: any) => {
-    setSelectedJob({
-      title: job.position,
-      description: job.description,
-      salary: job.salary,
-      department: job.department,
-      available: job.availability === "Yes",
-    });
+    setSelectedJob(job);
     setIsEditOpen(true);
   };
 
-  const handleDelete = (id: any) => {
-    console.log("Delete:", id);
+  const handleDelete = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this position?")) return;
+    const result = await positionApi.delete(id);
+    if (result.success) {
+      alert("Position deleted successfully");
+      fetchPositions();
+    } else {
+      alert(result.message || "Failed to delete position");
+    }
   };
 
-  const [positions] = useState([
-    {
-      id: "POS-001",
-      department: "HR",
-      position: "Manager",
-      availability: "Yes",
-      salary: "20000",
-      assigned: 20,
-      description:
-        "Responsible for managing HR operations and employee welfare.",
-    },
-    {
-      id: "POS-002",
-      department: "Marketing",
-      position: "Adviser",
-      availability: "No",
-      salary: "18000",
-      assigned: 15,
-      description: "Advises on marketing strategies and promotional activities.",
-    },
-    {
-      id: "POS-003",
-      department: "Finance",
-      position: "Accountant",
-      availability: "Yes",
-      salary: "25000",
-      assigned: 10,
-      description: "Handles financial records, reports, and budget analysis.",
-    },
-  ]);
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#fff7ec] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#3b2b1c] mx-auto mb-4"></div>
+          <p className="text-lg text-gray-600">Loading positions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#fff7ec] flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg text-red-600 mb-4">{error}</p>
+          <button
+            onClick={fetchPositions}
+            className="bg-[#3b2b1c] text-white px-6 py-2 rounded-lg hover:opacity-90 transition"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 min-h-screen font-poppins bg-[#fff7ec]">
@@ -131,15 +142,15 @@ export default function PositionTable() {
           <tbody className="text-[#3b2b1c] text-base">
             {positions.map((pos, index) => (
               <tr
-                key={index}
+                key={pos.position_id}
                 className="border-b border-[#e2d5c3] hover:bg-[#fdf4e7] transition"
               >
-                <td className="py-4 px-4">{pos.id}</td>
-                <td className="py-4 px-4">{pos.department}</td>
-                <td className="py-4 px-4">{pos.position}</td>
-                <td className="py-4 px-4">{pos.availability}</td>
-                <td className="py-4 px-4">₱ {pos.salary}</td>
-                <td className="py-4 px-4">{pos.assigned}</td>
+                <td className="py-4 px-4">{pos.position_code || `POS-${String(pos.position_id).padStart(4, '0')}`}</td>
+                <td className="py-4 px-4">{pos.department_name || 'N/A'}</td>
+                <td className="py-4 px-4">{pos.position_name}</td>
+                <td className="py-4 px-4">{pos.availability > 0 ? 'Yes' : 'No'}</td>
+                <td className="py-4 px-4">₱ {pos.salary ? parseFloat(pos.salary).toLocaleString() : 'N/A'}</td>
+                <td className="py-4 px-4">{pos.availability || 0}</td>
 
                 <td className="py-4 px-4 text-center relative">
                   {/* 3 Dots Button */}
@@ -180,7 +191,7 @@ export default function PositionTable() {
 
                           <button
                             onClick={() => {
-                              handleDelete(pos);
+                              handleDelete(pos.position_id);
                               setOpenMenuIndex(null);
                             }}
                             className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#ffe5e5] text-[#b91c1c]"
@@ -201,7 +212,10 @@ export default function PositionTable() {
       {/* Modals */}
       <AddJobModal
         isOpen={isInsertOpen}
-        onClose={() => setInsertIsOpen(false)}
+        onClose={() => {
+          setInsertIsOpen(false);
+          fetchPositions(); // Refresh list after adding
+        }}
       />
 
       <ViewJobModal
@@ -210,16 +224,14 @@ export default function PositionTable() {
         job={selectedJob}
       />
 
-      <EditJobModal 
+      <EditJobModal
         isOpen={isEditOpen}
         onClose={() => setIsEditOpen(false)}
-        job={selectedJob}
-        onSave={(updatedJob) => {
-          console.log("Updated job:", updatedJob);
-          setIsEditOpen(false);
-        // You can also update your state here if you have a real list of jobs
-       }}
-       />
+        position={selectedJob}
+        onSave={() => {
+          fetchPositions(); // Refresh list after editing
+        }}
+      />
     </div>
   );
 }

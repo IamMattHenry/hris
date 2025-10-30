@@ -36,9 +36,31 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     return subRole.toUpperCase();
   };
 
-  const adminType = user?.role
-    ? `${formatRole(user.role)}${user.sub_role ? ` - ${formatSubRole(user.sub_role)}` : ""}`
-    : "USER";
+  // Display department name for admin/supervisor, sub_role for others
+  const getRoleDisplay = () => {
+    if (!user?.role) return "USER";
+
+    const roleLabel = formatRole(user.role);
+
+    // For admin and supervisor, show department name
+    if ((user.role === "admin" || user.role === "supervisor") && user.department_name) {
+      return `${roleLabel} - ${user.department_name}`;
+    }
+
+    // For superadmin, just show role
+    if (user.role === "superadmin") {
+      return roleLabel;
+    }
+
+    // For others with sub_role, show formatted sub_role
+    if (user.sub_role) {
+      return `${roleLabel} - ${formatSubRole(user.sub_role)}`;
+    }
+
+    return roleLabel;
+  };
+
+  const adminType = getRoleDisplay();
 
   if (isLoading) {
     return (

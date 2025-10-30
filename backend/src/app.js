@@ -14,7 +14,6 @@ import employeeRoutes from './routes/employees.js';
 import departmentRoutes from './routes/departments.js';
 import positionRoutes from './routes/positions.js';
 import attendanceRoutes from './routes/attendance.js';
-import payrollRoutes from './routes/payroll.js';
 import leaveRoutes from './routes/leave.js';
 
 dotenv.config();
@@ -64,7 +63,6 @@ app.use('/api/employees', employeeRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/positions', positionRoutes);
 app.use('/api/attendance', attendanceRoutes);
-app.use('/api/payroll', payrollRoutes);
 app.use('/api/leave', leaveRoutes);
 
 // ============ ERROR HANDLING ============

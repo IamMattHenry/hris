@@ -252,14 +252,15 @@ export default function EditEmployeeModal({
     try {
       const result = await employeeApi.getAll();
       if (result.success && result.data) {
-        // Filter employees by department and active status, excluding current employee
-        const deptEmployees = result.data.filter(
+        // Filter employees by department, active status, supervisor role, excluding current employee
+        const deptSupervisors = result.data.filter(
           (emp: any) =>
             emp.department_id === deptId &&
             emp.status === "active" &&
+            emp.role === "supervisor" &&
             emp.employee_id !== id
         );
-        setSupervisors(deptEmployees);
+        setSupervisors(deptSupervisors);
       }
     } catch (error) {
       console.error("Error fetching supervisors:", error);
@@ -273,12 +274,13 @@ export default function EditEmployeeModal({
     const dept = departments.find((d) => d.department_id === deptId);
     if (!dept) return [];
 
+    // Map department to valid sub_role (must match database enum: 'hr', 'it', 'front_desk')
     if (dept.department_name === "IT") {
-      return ["IT"];
+      return ["it"];
     } else if (dept.department_name === "Human Resources") {
-      return ["HR"];
+      return ["hr"];
     } else if (dept.department_name === "Front Desk") {
-      return ["Front Desk"];
+      return ["front_desk"];
     }
 
     return [];
