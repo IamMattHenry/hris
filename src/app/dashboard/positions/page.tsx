@@ -110,7 +110,7 @@ export default function PositionTable() {
   return (
     <div className="p-6 min-h-screen font-poppins bg-[#fff7ec]">
       {/* Header */}
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center my-8">
         <h2 className="text-2xl font-semibold text-[#3b2b1c]">
           Total Positions:
         </h2>
