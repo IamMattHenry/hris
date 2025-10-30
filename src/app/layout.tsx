@@ -4,6 +4,10 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Welcome to Celestia Hotel HRIS",
+  description: "Human Resource Information System for Celestia Hotel",
+  icons: {
+    icon: "/logo/celestia_tab_icon.ico"
+  },
 };
 
 const abrilFatface = Abril_Fatface({
