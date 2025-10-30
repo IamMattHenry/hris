@@ -42,10 +42,15 @@ export const validateDependent = (
   relationship: string,
   email: string,
   contactInfo: string,
-  relationshipSpecify: string
+  relationshipSpecify: string,
+  homeAddress: string,
+  region: string,
+  province: string,
+  city: string
 ): ValidationErrors => {
   const errors: ValidationErrors = {};
 
+  // --- Basic Info ---
   if (!firstName.trim()) {
     errors.firstName = "First name is required";
   }
@@ -62,17 +67,36 @@ export const validateDependent = (
     errors.relationshipSpecify = "Please specify the relationship";
   }
 
+  // --- Email ---
   if (!email.trim()) {
     errors.email = "Email is required";
   } else if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(email.trim())) {
     errors.email = "Must be a valid Gmail address";
   }
 
+  // --- Contact Info (optional but must be valid if filled) ---
   if (contactInfo.trim()) {
     const cleanNumber = contactInfo.replace(/\s/g, "");
     if (!/^(\+639|09)\d{9}$/.test(cleanNumber)) {
       errors.contactInfo = "Invalid contact number format";
     }
+  }
+
+  // --- Address Section (required) ---
+  if (!homeAddress.trim()) {
+    errors.homeAddress = "Home address is required";
+  }
+
+  if (!region.trim()) {
+    errors.region = "Region is required";
+  }
+
+  if (!province.trim()) {
+    errors.province = "Province is required";
+  }
+
+  if (!city.trim()) {
+    errors.city = "City is required";
   }
 
   return errors;
@@ -137,6 +161,7 @@ export const validateEmployeeForm = (
   homeAddress: string,
   city: string,
   region: string,
+  province: string,
   civilStatus: string,
   emails: ContactEmail[],
   contactNumbers: ContactNumber[],
@@ -169,12 +194,16 @@ export const validateEmployeeForm = (
     errors.homeAddress = "Home address is required";
   }
 
-  if (!city) {
-    errors.city = "City is required";
-  }
-
   if (!region) {
     errors.region = "Region is required";
+  }
+
+  if (!province) {
+    errors.province = "Province is required";
+  }
+
+  if (!city) {
+    errors.city = "City is required";
   }
 
   if (!civilStatus) {

@@ -447,7 +447,7 @@ export default function EditEmployeeModal({
     }
 
 
-    // Validate employee form
+    // Validate employee form - NOW INCLUDING PROVINCE
     const formErrors = validateEmployeeForm(
       firstName,
       lastName,
@@ -457,6 +457,7 @@ export default function EditEmployeeModal({
       homeAddress,
       city,
       region,
+      province,
       civilStatus,
       emails,
       contactNumbers,
@@ -968,7 +969,11 @@ export default function EditEmployeeModal({
                       dependentRelationship,
                       dependentEmail,
                       dependentContactInfo,
-                      dependentRelationshipSpecify
+                      dependentRelationshipSpecify,
+                      dependentHomeAddress,
+                      dependentRegion,
+                      dependentProvince,
+                      dependentCity
                     );
 
                     if (Object.keys(newErrors).length > 0) {
