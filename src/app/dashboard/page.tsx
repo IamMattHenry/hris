@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { employeeApi, leaveApi } from "@/lib/api";
 import { Employee } from "@/types/api";
-import { X } from "lucide-react";
+import { X, ChevronRight } from "lucide-react";
 
 interface PendingLeave {
   leave_id: number;
@@ -84,9 +84,9 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-[#f5e6d3]">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4B0B14] mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8b4513] mx-auto mb-4"></div>
           <p className="text-lg text-gray-600">Loading dashboard...</p>
         </div>
       </div>
@@ -95,12 +95,12 @@ export default function Dashboard() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-[#f5e6d3]">
         <div className="text-center">
           <p className="text-lg text-red-600 mb-4">{error}</p>
           <button
             onClick={() => window.location.reload()}
-            className="bg-[#4B0B14] text-white px-6 py-2 rounded-lg hover:bg-[#60101C] transition"
+            className="bg-[#8b4513] text-white px-6 py-2 rounded-lg hover:bg-[#a0522d] transition"
           >
             Retry
           </button>
@@ -109,32 +109,52 @@ export default function Dashboard() {
     );
   }
 
-  // Calculate statistics from real employee data
-  const employeeCount = employees.length;
-  const activeEmployees = employees.filter(emp => emp.status === 'active').length;
-
   // Gender statistics
   const maleCount = employees.filter(emp => emp.gender?.toLowerCase() === 'male').length;
   const femaleCount = employees.filter(emp => emp.gender?.toLowerCase() === 'female').length;
   const otherCount = employees.filter(emp => emp.gender && !['male', 'female'].includes(emp.gender.toLowerCase())).length;
 
   const genderData = [
-    { name: 'Male', value: maleCount, color: '#3b82f6' },
-    { name: 'Female', value: femaleCount, color: '#ec4899' },
-    ...(otherCount > 0 ? [{ name: 'Other', value: otherCount, color: '#8b5cf6' }] : []),
+    { name: 'Male', value: maleCount, percentage: ((maleCount / employees.length) * 100).toFixed(1), color: '#4a90e2' },
+    { name: 'Female', value: femaleCount, percentage: ((femaleCount / employees.length) * 100).toFixed(1), color: '#f06292' },
+    ...(otherCount > 0 ? [{ name: 'Others', value: otherCount, percentage: ((otherCount / employees.length) * 100).toFixed(1), color: '#ffd54f' }] : []),
   ];
 
-  // Position statistics
-  const positionCounts = employees.reduce((acc: { [key: string]: number }, emp) => {
-    const position = emp.position_name || 'Unassigned';
-    acc[position] = (acc[position] || 0) + 1;
+  // Department statistics with gradient colors
+  const departmentCounts = employees.reduce((acc: { [key: string]: number }, emp) => {
+    const dept = emp.department_name || 'Vacant';
+    acc[dept] = (acc[dept] || 0) + 1;
     return acc;
   }, {});
 
-  const positionData = Object.entries(positionCounts).map(([name, value]) => ({
-    name,
-    value,
-  }));
+  const totalEmployees = employees.length;
+  
+  // Color palette - maroon to light pink gradient
+  const colorPalette = [
+    '#8b1a1a', '#a52a2a', '#b8423f', '#c94d4d', 
+    '#d35c5c', '#dd6b6b', '#e67373', '#ef8b8b',
+    '#f49999', '#f9a7a7', '#ffb3b3', '#ffc2c2', '#e0d5d5'
+  ];
+  
+  const departmentData = Object.entries(departmentCounts)
+    .sort((a, b) => b[1] - a[1]) // Sort by value first
+    .map(([name, value], index) => ({
+      name,
+      value,
+      percentage: ((value / totalEmployees) * 100).toFixed(0),
+      color: colorPalette[index % colorPalette.length]
+    }));
+
+  // Weekly attendance data (mock data for visualization)
+  const weeklyData = [
+    { day: 'Sun', present: 32, pastWeek: 30 },
+    { day: 'Mon', present: 28, pastWeek: 32 },
+    { day: 'Tue', present: 30, pastWeek: 31 },
+    { day: 'Wed', present: 25, pastWeek: 29 },
+    { day: 'Thu', present: 33, pastWeek: 28 },
+    { day: 'Fri', present: 26, pastWeek: 30 },
+    { day: 'Sat', present: 29, pastWeek: 27 },
+  ];
 
   const handleViewPendingLeaves = async () => {
     const result = await leaveApi.getPendingLeaves();
@@ -151,109 +171,246 @@ export default function Dashboard() {
       setShowAbsenceRecords(true);
     }
   };
-  return (
-    <div className="min-h-screen p-8 space-y-8 font-poppins text-[#3C1E1E]">
-      {/* Top Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats && [
-          { title: "Total Employees", value: stats.total_employees, clickable: false },
-          {
-            title: "On Duty",
-            value: stats.on_duty,
-            subtitle: `Out of ${stats.total_employees} scheduled`,
-            clickable: false
-          },
-          {
-            title: "Available Positions",
-            value: stats.total_positions,
-            subtitle: `in ${stats.total_departments} departments`,
-            clickable: false
-          },
-          { title: "On Leave", value: stats.on_leave, clickable: false },
-          { title: "Absents", value: stats.absent, clickable: true, onClick: handleViewAbsenceRecords },
-          { title: "Late", value: stats.late, clickable: false },
-          { title: "Pending Requests", value: stats.pending_requests, clickable: true, onClick: handleViewPendingLeaves },
-        ].map((item, i) => (
-          <div
-            key={i}
-            onClick={item.clickable ? item.onClick : undefined}
-            className={`bg-[#fff4e6] border-t-2 border-l-2 border-b-2 border-r-2 border-t-[#f8e9d2] border-l-[#f8e9d2] border-b-[#6d2b24] border-r-[#6d2b24] rounded-lg shadow-lg p-5 py-6 text-center hover:shadow-xl transition ${item.clickable ? 'cursor-pointer hover:bg-[#fef0e0]' : ''}`}
-          >
-            <h2 className="text-3xl font-bold text-orange-800">{item.value}</h2>
-            <p className="text-sm text-gray-700 mt-2">{item.title}</p>
-            {item.subtitle && <p className="text-xs text-gray-600 mt-1">{item.subtitle}</p>}
-            {item.clickable && <p className="text-xs text-gray-500 mt-1">Click to view details</p>}
-          </div>
-        ))}
-      </div>
 
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Gender Chart */}
-        <div className="bg-[#fff4e6] border border-orange-200 rounded-xl shadow-md p-5">
-          <h3 className="font-semibold mb-4">Gender Distribution</h3>
-          {genderData.length > 0 ? (
-            <>
-              <div className="flex justify-center">
-                <ResponsiveContainer width="80%" height={250}>
+  const getCurrentPHDate = () => {
+    return new Date().toLocaleDateString("en-PH", {
+      timeZone: "Asia/Manila",
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
+
+  return (
+    <div className="min-h-screen p-6 font-poppins">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Top Summary Bar */}
+        <div className="bg-[#faf5ed] rounded-xl shadow-sm p-6 flex justify-around items-center border border-[#e8dcc8]">
+          <div className="text-center">
+            <p className="text-3xl font-bold text-gray-800">{stats?.on_duty || 0}</p>
+            <p className="text-sm text-gray-600 mt-1">Present</p>
+          </div>
+          <div className="text-center">
+            <p className="text-3xl font-bold text-gray-800">{stats?.absent || 0}</p>
+            <p className="text-sm text-gray-600 mt-1">Absents</p>
+          </div>
+          <div className="text-center">
+            <p className="text-3xl font-bold text-gray-800">{stats?.on_leave || 0}</p>
+            <p className="text-sm text-gray-600 mt-1">On Leave</p>
+          </div>
+        </div>
+
+        {/* Main Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Total Employees & On Duty */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Total Employees Card */}
+              <div className="bg-[#faf5ed] rounded-xl shadow-sm p-6 border border-[#e8dcc8] relative">
+                <h3 className="text-sm font-medium text-gray-600 mb-2">Total Employees</h3>
+                <p className="text-4xl font-bold text-gray-800">{stats?.total_employees || 0}</p>
+                <p className="text-xs text-gray-500 mt-2">
+                  {stats?.total_positions || 0} Available Positions In {stats?.total_departments || 0} Departments
+                </p>
+                <div className="absolute top-6 right-6">
+                  <svg className="w-16 h-16" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="#e8dcc8" strokeWidth="8" />
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="40"
+                      fill="none"
+                      stroke="#f4a460"
+                      strokeWidth="8"
+                      strokeDasharray={`${(stats?.total_employees || 0) * 2.51} 251.2`}
+                      strokeLinecap="round"
+                      transform="rotate(-90 50 50)"
+                    />
+                  </svg>
+                </div>
+              </div>
+
+              {/* On Duty Card */}
+              <div className="bg-[#faf5ed] rounded-xl shadow-sm p-6 border border-[#e8dcc8] relative">
+                <h3 className="text-sm font-medium text-gray-600 mb-2">On Duty</h3>
+                <p className="text-4xl font-bold text-gray-800">{stats?.on_duty || 0}</p>
+                <p className="text-xs text-gray-500 mt-2">
+                  Out Of {stats?.on_duty || 0} Scheduled Staff
+                </p>
+                <div className="absolute top-6 right-6">
+                  <svg className="w-16 h-16" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="#e8dcc8" strokeWidth="8" />
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="40"
+                      fill="none"
+                      stroke="#ffa500"
+                      strokeWidth="8"
+                      strokeDasharray={`${((stats?.on_duty || 0) / (stats?.total_employees || 1)) * 251.2} 251.2`}
+                      strokeLinecap="round"
+                      transform="rotate(-90 50 50)"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            {/* Requests Card */}
+            <div className="bg-[#faf5ed] rounded-xl shadow-sm p-6 border border-[#e8dcc8] relative">
+              <h3 className="text-sm font-medium text-gray-600 mb-2">Requests</h3>
+              <p className="text-4xl font-bold text-gray-800">{stats?.pending_requests || 0}</p>
+              <button
+                onClick={handleViewPendingLeaves}
+                className="text-sm text-gray-600 mt-2 cursor-pointer flex items-center hover:text-gray-800 transition"
+              >
+                View Pending Requests <ChevronRight size={16} className="ml-1" />
+              </button>
+              <div className="absolute top-6 right-6">
+                <svg className="w-16 h-16" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="#e8dcc8" strokeWidth="8" />
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="40"
+                    fill="none"
+                    stroke="#f4a460"
+                    strokeWidth="8"
+                    strokeDasharray={`${(stats?.pending_requests || 0) * 10} 251.2`}
+                    strokeLinecap="round"
+                    transform="rotate(-90 50 50)"
+                  />
+                </svg>
+              </div>
+            </div>
+
+            {/* Gender Card */}
+            <div className="bg-[#faf5ed] rounded-xl shadow-sm p-6 border border-[#e8dcc8]">
+              <h3 className="text-sm font-medium text-gray-600 mb-4">Gender</h3>
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  {genderData.map((item, index) => (
+                    <div key={index} className="flex items-center mb-3">
+                      <div
+                        className="w-3 h-3 rounded-full mr-3"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <span className="text-sm text-gray-700 flex-1">{item.name}: {item.value}</span>
+                      <span className="text-sm font-semibold text-gray-800">{item.percentage}%</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="ml-8">
+                  <div className="relative w-32 h-2 bg-gray-200 rounded-full overflow-hidden flex">
+                    {genderData.map((item, index) => (
+                      <div
+                        key={index}
+                        style={{
+                          width: `${item.percentage}%`,
+                          backgroundColor: item.color,
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Weekly Attendance */}
+            <div className="bg-[#faf5ed] rounded-xl shadow-sm p-6 border border-[#e8dcc8]">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h3 className="text-md font-medium text-gray-600 ">Weekly Attendance</h3>
+                  <p className="text-xs text-gray-500">{getCurrentPHDate()}</p>
+                </div>
+                <div className="flex items-center space-x-4 text-xs text-gray-600">
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 rounded-full bg-[#2d6a4f] mr-2" />
+                    <span>Present</span>
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 rounded-full bg-[#95d5b2] mr-2" />
+                    <span>Past Week</span>
+                  </div>
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={weeklyData} barGap={4}>
+                  <XAxis dataKey="day" axisLine={false} tickLine={false} />
+                  <YAxis hide />
+                  <Bar dataKey="present" fill="#2d6a4f" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="pastWeek" fill="#95d5b2" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Right Column - Departments */}
+          <div className="bg-[#faf5ed] rounded-xl shadow-sm p-6 border border-[#e8dcc8]">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800">Departments</h3>
+                <p className="text-xs text-gray-500">Total: {stats?.total_departments || 0}</p>
+              </div>
+              <button className="text-gray-600 hover:text-gray-800">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                  <circle cx="10" cy="4" r="1.5" />
+                  <circle cx="10" cy="10" r="1.5" />
+                  <circle cx="10" cy="16" r="1.5" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Donut Chart */}
+            <div className="flex justify-center mb-6">
+              <div className="relative w-48 h-48">
+                <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={genderData}
+                      data={departmentData}
                       dataKey="value"
                       nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
                       outerRadius={80}
-                      innerRadius={50}
-                      label
+                      paddingAngle={2}
                     >
-                      {genderData.map((entry, index) => (
+                      {departmentData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
                   </PieChart>
                 </ResponsiveContainer>
-              </div>
-              <div className="mt-2 space-y-1 text-sm">
-                {genderData.map((g, i) => {
-                  const total = genderData.reduce((sum, item) => sum + item.value, 0);
-                  const percentage = total > 0 ? ((g.value / total) * 100).toFixed(1) : '0.0';
-                  return (
-                    <div key={i} className="flex items-center space-x-2">
-                      <span
-                        className="inline-block w-3 h-3 rounded-full"
-                        style={{ backgroundColor: g.color }}
-                      ></span>
-                      <span>
-                        {g.name}: {g.value} ({percentage}%)
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          ) : (
-            <p className="text-center text-gray-500 py-8">No gender data available</p>
-          )}
-        </div>
-
-        {/* Position Chart */}
-        <div className="bg-[#fff4e6] border border-orange-200 rounded-xl shadow-md p-5">
-          <h3 className="font-semibold mb-4">Positions</h3>
-          {positionData.length > 0 ? (
-            <div className="overflow-x-auto">
-              <div className="min-w-[800px]">
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={positionData}>
-                    <XAxis dataKey="name" interval={0} angle={-20} textAnchor="end" height={60} />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="value" fill="#2563eb" barSize={60} radius={[10, 10, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-3xl font-bold text-gray-800">
+                    {departmentData.length > 0 ? departmentData[0].percentage : 0}%
+                  </span>
+                </div>
               </div>
             </div>
-          ) : (
-            <p className="text-center text-gray-500 py-8">No position data available</p>
-          )}
+
+            {/* Department List */}
+            <div className="space-y-3">
+              {departmentData.map((dept, index) => (
+                <div key={index} className="flex items-center justify-between text-sm">
+                  <div className="flex items-center flex-1">
+                    <div
+                      className="w-3 h-3 rounded-full mr-3"
+                      style={{ backgroundColor: dept.color }}
+                    />
+                    <span className="text-gray-700">{dept.name}</span>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <span className="text-gray-800 font-medium">{dept.value}</span>
+                    <span className="text-gray-600 w-10 text-right">{dept.percentage}%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -261,25 +418,25 @@ export default function Dashboard() {
       {showPendingLeaves && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setShowPendingLeaves(false)}>
           <div
-            className="bg-[#fdf3e2] w-full max-w-2xl p-8 rounded-2xl shadow-lg relative text-[#3b2b1c] max-h-[80vh] overflow-y-auto"
+            className="bg-[#faf5ed] w-full max-w-2xl p-8 rounded-2xl shadow-lg relative max-h-[80vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={() => setShowPendingLeaves(false)}
-              className="absolute top-4 right-4 text-[#3b2b1c] hover:opacity-70"
+              className="absolute top-4 right-4 text-gray-600 hover:text-gray-800"
             >
               <X size={24} />
             </button>
 
-            <h2 className="text-2xl font-semibold mb-6">Pending Leave Requests ({pendingLeaves.length})</h2>
+            <h2 className="text-2xl font-semibold mb-6 text-gray-800">Pending Leave Requests ({pendingLeaves.length})</h2>
 
             {pendingLeaves.length > 0 ? (
               <div className="space-y-4">
                 {pendingLeaves.map((leave) => (
-                  <div key={leave.leave_id} className="border border-[#d8c3a5] rounded-lg p-4 bg-white">
+                  <div key={leave.leave_id} className="border border-[#e8dcc8] rounded-lg p-4 bg-white">
                     <div className="flex justify-between items-start mb-2">
                       <div>
-                        <p className="font-semibold text-lg">{leave.first_name} {leave.last_name}</p>
+                        <p className="font-semibold text-lg text-gray-800">{leave.first_name} {leave.last_name}</p>
                         <p className="text-sm text-gray-600">{leave.employee_code}</p>
                       </div>
                       <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold">
@@ -289,11 +446,11 @@ export default function Dashboard() {
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <p className="text-gray-600">Start Date</p>
-                        <p className="font-semibold">{new Date(leave.start_date).toLocaleDateString()}</p>
+                        <p className="font-semibold text-gray-800">{new Date(leave.start_date).toLocaleDateString()}</p>
                       </div>
                       <div>
                         <p className="text-gray-600">End Date</p>
-                        <p className="font-semibold">{new Date(leave.end_date).toLocaleDateString()}</p>
+                        <p className="font-semibold text-gray-800">{new Date(leave.end_date).toLocaleDateString()}</p>
                       </div>
                     </div>
                   </div>
@@ -310,25 +467,25 @@ export default function Dashboard() {
       {showAbsenceRecords && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setShowAbsenceRecords(false)}>
           <div
-            className="bg-[#fdf3e2] w-full max-w-2xl p-8 rounded-2xl shadow-lg relative text-[#3b2b1c] max-h-[80vh] overflow-y-auto"
+            className="bg-[#faf5ed] w-full max-w-2xl p-8 rounded-2xl shadow-lg relative max-h-[80vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={() => setShowAbsenceRecords(false)}
-              className="absolute top-4 right-4 text-[#3b2b1c] hover:opacity-70"
+              className="absolute top-4 right-4 text-gray-600 hover:text-gray-800"
             >
               <X size={24} />
             </button>
 
-            <h2 className="text-2xl font-semibold mb-6">Absence Records ({absenceRecords.length})</h2>
+            <h2 className="text-2xl font-semibold mb-6 text-gray-800">Absence Records ({absenceRecords.length})</h2>
 
             {absenceRecords.length > 0 ? (
               <div className="space-y-4">
                 {absenceRecords.map((record) => (
-                  <div key={record.attendance_id} className="border border-[#d8c3a5] rounded-lg p-4 bg-white">
+                  <div key={record.attendance_id} className="border border-[#e8dcc8] rounded-lg p-4 bg-white">
                     <div className="flex justify-between items-start mb-2">
                       <div>
-                        <p className="font-semibold text-lg">{record.first_name} {record.last_name}</p>
+                        <p className="font-semibold text-lg text-gray-800">{record.first_name} {record.last_name}</p>
                         <p className="text-sm text-gray-600">{record.employee_code}</p>
                       </div>
                       <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-semibold">
@@ -338,11 +495,11 @@ export default function Dashboard() {
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <p className="text-gray-600">Date</p>
-                        <p className="font-semibold">{new Date(record.date).toLocaleDateString()}</p>
+                        <p className="font-semibold text-gray-800">{new Date(record.date).toLocaleDateString()}</p>
                       </div>
                       <div>
                         <p className="text-gray-600">Record Code</p>
-                        <p className="font-semibold">{record.attendance_code}</p>
+                        <p className="font-semibold text-gray-800">{record.attendance_code}</p>
                       </div>
                     </div>
                   </div>
