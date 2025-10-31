@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Calendar, RotateCw } from "lucide-react";
+import { Search, Calendar, RotateCw, UserX } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
 import ViewAttendanceModal from "./view_attendance/ViewModal";
@@ -48,6 +48,7 @@ export default function AttendanceTable() {
   const [attendanceList, setAttendanceList] = useState<Attendance[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isMarking, setIsMarking] = useState(false);
 
   const currentDate = new Date();
   const formattedDate = currentDate.toLocaleDateString("en-US", {
@@ -75,6 +76,32 @@ export default function AttendanceTable() {
     setIsRefreshing(true);
     await fetchAttendance();
     setIsRefreshing(false);
+  };
+
+  const handleMarkAbsences = async () => {
+    const todayPH = getCurrentPHDate();
+    if (!selectedDate || selectedDate >= todayPH) {
+      alert("You can only mark absences for past dates.");
+      return;
+    }
+    const confirmed = window.confirm(`Mark absences (no-shows) for ${selectedDate}?`);
+    if (!confirmed) return;
+
+    setIsMarking(true);
+    try {
+      const result = await attendanceApi.markAbsences(selectedDate);
+      if (result.success) {
+        alert(result.message || `Marked absences for ${selectedDate}`);
+        await fetchAttendance();
+      } else {
+        alert(result.message || "Failed to mark absences");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("An error occurred while marking absences.");
+    } finally {
+      setIsMarking(false);
+    }
   };
 
   const filteredAttendance = attendanceList.filter(
@@ -125,6 +152,17 @@ export default function AttendanceTable() {
             title="Refresh attendance records"
           >
             <RotateCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </button>
+
+          {/* Mark Absences (No-Shows) */}
+          <button
+            onClick={handleMarkAbsences}
+            disabled={isMarking || selectedDate >= getCurrentPHDate()}
+            className="p-2 rounded-lg bg-red-700 hover:bg-red-800 disabled:bg-gray-400 text-white transition flex items-center gap-2"
+            title="Mark no-shows as Absent for the selected past date"
+          >
+            <UserX className="w-5 h-5" />
+            <span className="hidden sm:inline">Mark Absences</span>
           </button>
 
           {/* Date Selector */}

@@ -84,7 +84,7 @@ export const getTotalPosAvailability = async (req, res, next) => {
 
 export const createPosition = async (req, res, next) => {
   try {
-    const { position_name, position_desc, department_id, salary, availability } = req.body;
+    const { position_name, position_desc, department_id, availability } = req.body;
 
     // Validate required fields
     if (!position_name || !department_id) {
@@ -102,7 +102,6 @@ export const createPosition = async (req, res, next) => {
       position_name,
       position_desc,
       department_id,
-      salary: salary || null,
       availability: availability || 0,
       created_by: createdBy,
     });
@@ -142,7 +141,6 @@ export const createPosition = async (req, res, next) => {
         position_name,
         position_desc,
         department_id,
-        salary,
         availability,
       },
     });

@@ -65,19 +65,19 @@ router.get('/employee/:employee_id', verifyToken, getLeaveByEmployee);
 
 // ============ GENERIC ROUTES (must come after specific routes) ============
 
-// Approve leave (supervisor only)
+// Approve leave (supervisor, admin, superadmin)
 router.put(
   '/:id/approve',
   verifyToken,
-  verifyRole(['supervisor']),
+  verifyRole(['supervisor', 'admin', 'superadmin']),
   approveLeave
 );
 
-// Reject leave (supervisor only)
+// Reject leave (supervisor, admin, superadmin)
 router.put(
   '/:id/reject',
   verifyToken,
-  verifyRole(['supervisor']),
+  verifyRole(['supervisor', 'admin', 'superadmin']),
   rejectLeave
 );
 

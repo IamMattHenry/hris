@@ -47,12 +47,23 @@ const STATUS_LABELS: Record<AttendanceStatus, string> = {
   others: "Others",
 };
 
-// Utility function to convert time to 12-hour format with AM/PM (Philippine Time)
+// Utility function to convert time or datetime to 12-hour format with AM/PM (Philippine Time)
 const formatTime12Hour = (timeString: string | null): string => {
   if (!timeString) return "-";
 
   try {
-    const [hours, minutes] = timeString.split(":").map(Number);
+    // Support both HH:MM:SS and YYYY-MM-DD HH:MM:SS (or ISO) formats
+    let timePart = timeString;
+    if (timePart.includes(" ")) timePart = timePart.split(" ")[1];
+    else if (timePart.includes("T")) timePart = timePart.split("T")[1];
+    timePart = timePart.slice(0, 8);
+
+    const [hoursStr, minutesStr] = timePart.split(":");
+    const hours = parseInt(hoursStr, 10);
+    const minutes = parseInt(minutesStr, 10);
+
+    if (Number.isNaN(hours) || Number.isNaN(minutes)) return timeString;
+
     const period = hours >= 12 ? "PM" : "AM";
     const displayHours = hours % 12 || 12;
     return `${displayHours}:${String(minutes).padStart(2, "0")} ${period}`;

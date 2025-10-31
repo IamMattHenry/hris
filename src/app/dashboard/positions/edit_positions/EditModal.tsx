@@ -13,7 +13,6 @@ interface EditJobModalProps {
     position_id: number;
     position_name: string;
     position_desc?: string;
-    salary?: number;
     department_id: number;
     department_name?: string;
     availability?: number;
@@ -24,7 +23,6 @@ interface EditJobModalProps {
 export default function EditJobModal({ isOpen, onClose, position, onSave }: EditJobModalProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [salary, setSalary] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [availability, setAvailability] = useState("0");
 
@@ -42,7 +40,6 @@ export default function EditJobModal({ isOpen, onClose, position, onSave }: Edit
     if (position) {
       setTitle(position.position_name);
       setDescription(position.position_desc || "");
-      setSalary(position.salary ? position.salary.toString() : "");
       setDepartmentId(position.department_id.toString());
       setAvailability(position.availability?.toString() || "0");
     }
@@ -69,13 +66,10 @@ export default function EditJobModal({ isOpen, onClose, position, onSave }: Edit
 
     setLoading(true);
 
-    const cleanSalary = salary.replace(/[₱,\s]/g, "");
-
     const result = await positionApi.update(position.position_id, {
       position_name: title,
       position_desc: description || undefined,
       department_id: parseInt(departmentId),
-      salary: cleanSalary ? parseFloat(cleanSalary) : undefined,
       availability: parseInt(availability),
     });
 
@@ -137,23 +131,6 @@ export default function EditJobModal({ isOpen, onClose, position, onSave }: Edit
                   rows={3}
                 />
                 {errors.description && <p className="text-red-500 text-xs">{errors.description}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium">Job Salary</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  value={salary}
-                  onChange={(e) =>
-                    setSalary(e.target.value.replace(/[^0-9]/g, ""))
-                  }
-                  className={`w-full p-2 border rounded-lg focus:outline-none ${
-                    errors.salary ? "border-red-400" : "border-[#d6c3aa]"
-                  }`}
-                />
-                {errors.salary && <p className="text-red-500 text-xs">{errors.salary}</p>}
               </div>
 
               <div>

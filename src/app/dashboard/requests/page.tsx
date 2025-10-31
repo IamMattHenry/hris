@@ -17,11 +17,16 @@ interface Leave {
   employee_id: number;
   first_name: string;
   last_name: string;
+  position_name?: string;
+  department_id?: number;
+  department_name?: string;
   leave_type: LeaveType;
   start_date: string;
   end_date: string;
   status: LeaveStatus;
   remarks?: string;
+  leave_credit?: number;
+  requester_role?: string;
 }
 
 const tabs: TabKey[] = ["Leave Request", "History"];
@@ -494,6 +499,11 @@ function AddLeaveModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClos
                 ))}
               </select>
             )}
+            {formData.employee_id !== 0 && (
+              <p className="text-sm text-gray-700 mt-1">
+                Remaining Leave Credits: <span className="font-semibold">{employees.find((emp) => emp.employee_id === formData.employee_id)?.leave_credit ?? 'N/A'}</span>
+              </p>
+            )}
             {errors.employee_id && <p className="text-red-600 text-xs mt-1">{errors.employee_id}</p>}
           </div>
 
@@ -578,8 +588,15 @@ function ViewLeaveModal({
   onReject: () => void;
 }) {
   const { user } = useAuth();
-  const isSupervisor = user?.role === "supervisor";
-  const isAdmin = user?.role === "admin";
+  const role = user?.role;
+  const sameDepartment = user?.department_id !== undefined && leave?.department_id !== undefined && user?.department_id === leave?.department_id;
+  const notSelf = user?.employee_id !== undefined && leave?.employee_id !== undefined && user?.employee_id !== leave?.employee_id;
+
+  const canApproveReject = leave.status === "pending" && (
+    (leave.requester_role === 'employee' && role === 'supervisor' && sameDepartment && notSelf) ||
+    (leave.requester_role === 'supervisor' && (role === 'admin' || role === 'superadmin')) ||
+    (leave.requester_role === 'admin' && role === 'superadmin')
+  );
 
   if (!isOpen) return null;
 
@@ -620,6 +637,12 @@ function ViewLeaveModal({
             <p className="text-sm text-gray-600">Status</p>
             <p className="font-semibold">{leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}</p>
           </div>
+          {typeof leave.leave_credit === "number" && (
+            <div>
+              <p className="text-sm text-gray-600">Remaining Leave Credits</p>
+              <p className="font-semibold">{leave.leave_credit}</p>
+            </div>
+          )}
           {leave.remarks && (
             <div>
               <p className="text-sm text-gray-600">Remarks</p>
@@ -628,8 +651,8 @@ function ViewLeaveModal({
           )}
         </div>
 
-        {/* Only supervisors can approve/reject */}
-        {leave.status === "pending" && isSupervisor && (
+        {/* Only same-department supervisors (not self) can approve/reject pending requests */}
+        {canApproveReject && (
           <div className="flex justify-end gap-3">
             <button
               onClick={onReject}
@@ -646,17 +669,17 @@ function ViewLeaveModal({
           </div>
         )}
 
-        {/* Admins can only view, show message */}
-        {leave.status === "pending" && isAdmin && (
+        {/* No permission message for pending requests */}
+        {leave.status === "pending" && !canApproveReject && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
             <p className="text-sm text-yellow-800">
-              ℹ️ Only supervisors can approve or reject leave requests.
+              You don't have permission to approve or reject this request.
             </p>
           </div>
         )}
 
         {/* Close button for non-pending or when user can't approve/reject */}
-        {(leave.status !== "pending" || isAdmin) && (
+        {(leave.status !== "pending" || !canApproveReject) && (
           <div className="flex justify-end">
             <button
               onClick={onClose}

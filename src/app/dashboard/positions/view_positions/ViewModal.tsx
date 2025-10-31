@@ -12,7 +12,6 @@ interface ViewJobModalProps {
     position_code?: string;
     position_name: string;
     position_desc?: string;
-    salary?: number;
     department_name?: string;
     availability?: number;
   } | null;
@@ -49,7 +48,6 @@ export default function ViewJobModal({ isOpen, onClose, job }: ViewJobModalProps
               {job.position_code && <InfoBox label="Position Code" value={job.position_code} />}
               <InfoBox label="Position Name" value={job.position_name} />
               <InfoBox label="Description" value={job.position_desc || "N/A"} />
-              <InfoBox label="Salary" value={job.salary ? `₱ ${parseFloat(job.salary.toString()).toLocaleString()}` : "N/A"} />
               <InfoBox label="Department" value={job.department_name || "N/A"} />
               <InfoBox label="Available Slots" value={job.availability?.toString() || "0"} />
             </div>
