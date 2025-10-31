@@ -53,6 +53,7 @@ export default function Header({
 
   const handleSettings = () => {
     console.log("Settings clicked");
+    window.location.href = "/dashboard/settings";
     setDropdownOpen(false);
   };
 

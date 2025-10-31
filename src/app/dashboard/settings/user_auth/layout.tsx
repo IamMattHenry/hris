@@ -1,36 +1,115 @@
 "use client";
 
+import React, { useState } from "react";
+import { Save, KeyRound, UserCog } from "lucide-react";
+import FormInput from "@/components/forms/FormInput";
+import PasswordBox from "@/components/auth/passwordbox";
+import ActionButton from "@/components/buttons/ActionButton";
+
 const AuthenticationTab = () => {
+  const [username, setUsername] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [errors, setErrors] = useState<{ username?: string; password?: string }>({});
+
+  // ✅ Username Validation
+  const handleSaveUsername = () => {
+    if (!username.trim()) {
+      setErrors({ username: "Username cannot be empty." });
+      return;
+    }
+
+    setErrors({});
+    console.log("✅ Username changed to:", username);
+    alert("Username saved successfully!");
+  };
+
+  // ✅ Password Validation
+  const handleSavePassword = () => {
+    const newErrors: { password?: string } = {};
+    if (!newPassword.trim() || !confirmPassword.trim()) {
+      newErrors.password = "Both password fields are required.";
+    } else if (newPassword !== confirmPassword) {
+      newErrors.password = "Passwords do not match.";
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    setErrors({});
+    console.log("✅ Password changed successfully!");
+    alert("Password saved successfully!");
+  };
+
   return (
-    <div className="max-w-4xl">
-      <div className="bg-white border border-gray-200 rounded-xl p-8 space-y-8">
-        <h2 className="text-2xl font-semibold text-gray-900">Change Authentication</h2>
-        
+    <div className="max-w-4xl mx-auto text-[#4B0B14]">
+      <div className="border border-[#EAD7C4] rounded-2xl p-10 bg-[#FFF2E0]/50 shadow-sm space-y-12">
+        {/* Header */}
+        <div className="text-left mb-4">
+          <h4 className="text-3xl font-bold text-[#4B0B14]">Authentication Settings</h4>
+          <p className="text-sm text-[#6b5344] mt-1">
+            Manage your login credentials securely.
+          </p>
+        </div>
+
         {/* Username Section */}
-        <div className="space-y-4">
-          <label className="block text-gray-700 font-medium">UserName</label>
-          <input 
-            type="text" 
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" 
+        <div className="border-t border-[#EAD7C4] pt-8 space-y-5">
+          <div className="flex items-center gap-2 mb-4">
+            <UserCog className="text-[#4B0B14]" size={20} />
+            <h3 className="text-lg font-semibold">Change Username</h3>
+          </div>
+
+          <FormInput
+            type="text"
+            label="New Username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            error={errors.username}
           />
+
           <div className="flex justify-end">
-            <button className="px-6 py-2 bg-slate-300 text-gray-700 rounded-lg hover:bg-slate-400 transition-colors">
-              Change Username
-            </button>
+            <ActionButton
+              label="Save Username"
+              onClick={handleSaveUsername}
+              icon={Save}
+              className="bg-[#4B0B14] hover:opacity-90 transition"
+            />
           </div>
         </div>
 
         {/* Password Section */}
-        <div className="space-y-4">
-          <label className="block text-gray-700 font-medium">Password</label>
-          <input 
-            type="password" 
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" 
-          />
+        <div className="border-t border-[#EAD7C4] pt-8 space-y-6">
+          <div className="flex items-center gap-2 mb-2">
+            <KeyRound className="text-[#4B0B14]" size={20} />
+            <h3 className="text-lg font-semibold">Change Password</h3>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <PasswordBox
+              label="New Password"
+              labelColor="#4B0B14"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              error={errors.password}
+            />
+            <PasswordBox
+              label="Confirm Password"
+              labelColor="#4B0B14"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              error={errors.password}
+            />
+          </div>
+
           <div className="flex justify-end">
-            <button className="px-6 py-2 bg-slate-300 text-gray-700 rounded-lg hover:bg-slate-400 transition-colors">
-              Change Password
-            </button>
+            <ActionButton
+              label="Save Password"
+              onClick={handleSavePassword}
+              icon={Save}
+              className="bg-[#4B0B14] hover:opacity-90 transition"
+            />
           </div>
         </div>
       </div>

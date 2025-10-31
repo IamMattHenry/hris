@@ -1,63 +1,102 @@
 "use client";
-import { useState } from "react";
-import { X } from "lucide-react";
+import { useState, useEffect } from "react";
 import AboutUserTab from "./user_setting/layout";
 import ActivityLogTab from "./user_activity_log/layout";
 import TechnicalSupportTab from "./user_support/layout";
 import AuthenticationTab from "./user_auth/layout";
-
-
-
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState('about');
+  const [activeTab, setActiveTab] = useState("about");
+  const [isITadmin, setIsITAdmin] = useState(false);
+  const { user } = useAuth();
 
+  // Wait until user context is loaded
+  const [isLoading, setIsLoading] = useState(true);
+  useEffect(() => {
+    if (user !== undefined) setIsLoading(false);
+  }, [user]);
+
+  // Check role when user is available
+  useEffect(() => {
+    if (user?.role === "superadmin") {
+      setIsITAdmin(true);
+      console.log("✅ IT Admin detected");
+    } else {
+      setIsITAdmin(false);
+      console.log("Not IT admin");
+    }
+  }, [user]);
+
+  // Handle loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-[#4B0B14] font-semibold">
+        Loading settings...
+      </div>
+    );
+  }
+
+  // Handle logged-out state safely
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center flex-col gap-3 bg-orange-50 text-[#4B0B14] font-medium">
+        <p>You are not logged in.</p>
+        <a
+          href="/login"
+          className="px-5 py-2 bg-[#4B0B14] text-[#FFF2E0] rounded-lg hover:bg-[#6b0b1f] transition"
+        >
+          Go to Login
+        </a>
+      </div>
+    );
+  }
+
+  // Tabs
   const tabs = [
-    { id: 'about', label: 'About User' },
-    { id: 'activity', label: 'Activity Log' },
-    { id: 'support', label: 'Technical Support' },
-    { id: 'auth', label: 'Authentication' },
+    { id: "about", label: "About User" },
+    { id: "auth", label: "Authentication" },
   ];
 
-  return (
-    <div className="min-h-screen bg-orange-50 p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-semibold text-gray-900">Settings</h1>
-          <button className="p-2 hover:bg-gray-200 rounded-lg transition-colors">
-            <X className="w-6 h-6 text-gray-700" />
-          </button>
-        </div>
+  if (isITadmin) {
+    tabs.splice(1, 0, { id: "activity", label: "Activity Log" });
+    tabs.splice(2, 0, { id: "support", label: "Technical Support" });
+  }
 
+  return (
+    <div className="min-h-screen bg-orange-50 p-8 font-poppins">
+      <div className="max-w-7xl mx-auto">
         {/* Tabs */}
-        <div className="bg-white rounded-lg shadow-sm mb-8">
-          <div className="flex border-b border-gray-200">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 px-6 py-4 text-center font-medium transition-colors relative ${
-                  activeTab === tab.id
-                    ? 'text-gray-900'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                {tab.label}
-                {activeTab === tab.id && (
-                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-800"></div>
-                )}
-              </button>
-            ))}
+        <div className="mb-8 shadow-lg bg-[#4B0B14]">
+          <div className="flex border-b border-[#7a2a2f]/30">
+            {tabs.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex-1 px-6 py-4 text-center font-medium transition-all duration-200 relative cursor-pointer
+                    ${isActive
+                      ? "text-[#FFF2E0] font-semibold"
+                      : "text-[#fff7ec]/70 hover:text-[#FFF2E0]"}
+                  `}
+                >
+                  {tab.label}
+                  {isActive && (
+                    <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#FFF2E0] rounded-t-md transition-all"></div>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 
         {/* Tab Content */}
-        <div className="bg-white rounded-lg shadow-sm p-8">
-          {activeTab === 'about' && <AboutUserTab />}
-          {activeTab === 'activity' && <ActivityLogTab />}
-          {activeTab === 'support' && <TechnicalSupportTab />}
-          {activeTab === 'auth' && <AuthenticationTab />}
+        <div className="bg-[#fff7ec] rounded-lg shadow-lg border border-gray-200 p-8  max-h-[100vh]">
+          {activeTab === "about" && <AboutUserTab />}
+          {isITadmin && activeTab === "activity" && <ActivityLogTab />}
+          {isITadmin && activeTab === "support" && <TechnicalSupportTab />}
+          {activeTab === "auth" && <AuthenticationTab />}
         </div>
       </div>
     </div>
