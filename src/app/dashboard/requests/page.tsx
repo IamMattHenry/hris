@@ -56,6 +56,9 @@ export default function RequestsPage() {
   const [filterStatus, setFilterStatus] = useState<LeaveStatus | "">("");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10; // change page size here
+
   // Check if user is supervisor (view-only access for CRUD, but can approve/reject)
   const isSupervisor = user?.role === "supervisor";
 
@@ -132,6 +135,18 @@ export default function RequestsPage() {
   };
 
   const filteredLeaves = getFilteredLeaves();
+
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentLeaves = filteredLeaves.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredLeaves.length / itemsPerPage);
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) setCurrentPage(page);
+  };
+  const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchRequest, filterLeaveType, filterStatus]);
 
   const handleView = (leave: Leave) => {
     setSelectedLeave(leave);
@@ -292,7 +307,7 @@ export default function RequestsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredLeaves.map((leave) => (
+                {currentLeaves.map((leave) => (
                   <tr
                     key={leave.leave_id}
                     className="border-b border-[#eadfcd] hover:bg-[#fdf4e7] transition"
@@ -305,10 +320,10 @@ export default function RequestsPage() {
                     <td className="py-3 px-4">
                       <span
                         className={`px-3 py-1 rounded-full text-xs font-semibold ${leave.status === "approved"
-                            ? "bg-green-100 text-green-800"
-                            : leave.status === "rejected"
-                              ? "bg-red-100 text-red-800"
-                              : "bg-yellow-100 text-yellow-800"
+                          ? "bg-green-100 text-green-800"
+                          : leave.status === "rejected"
+                            ? "bg-red-100 text-red-800"
+                            : "bg-yellow-100 text-yellow-800"
                           }`}
                       >
                         {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
@@ -365,7 +380,34 @@ export default function RequestsPage() {
           )}
         </div>
       </div>
+      {/* pagination */}
+      <div className="flex justify-center items-center gap-4 mt-4 select-none">
+        <button
+          onClick={() => goToPage(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="px-4 py-3 rounded bg-[#3b2b1c] cursor-pointer text-white text-sm disabled:opacity-40"
+        >
+          Prev
+        </button>
 
+        {pageNumbers.map((num) => (
+          <button
+            key={num}
+            onClick={() => goToPage(num)}
+            className={`px-3 py-2 rounded text-sm transition cursor-pointer ${currentPage === num ?
+              "bg-[#3b2b1c] text-white" : "text-[#3b2b1c] hover:underline"}`}
+          >
+            {num}
+          </button>
+        ))}
+        <button
+          onClick={() => goToPage(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="px-4 py-3 rounded bg-[#3b2b1c] cursor-pointer text-white text-sm disabled:opacity-40"
+        >
+          Next
+        </button>
+      </div>
       {/* Add Leave Modal */}
       {isAddModalOpen && (
         <AddLeaveModal
