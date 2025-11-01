@@ -34,6 +34,10 @@ export default function EmployeeTable() {
   const [sortBy, setSortBy] = useState<string>("");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10; // change page size here
+
+
   // Check if user is supervisor (view-only access)
   const isSupervisor = user?.role === "supervisor";
 
@@ -143,6 +147,24 @@ export default function EmployeeTable() {
 
   const sortedEmployees = sortEmployees(filtered);
 
+  // Pagination
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentEmployees = sortedEmployees.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(sortedEmployees.length / itemsPerPage);
+
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) setCurrentPage(page);
+  };
+
+  const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+
+
   // 🔹 Handlers
   const handleView = (id: number) => setEmployeeToView(id);
   const handleEdit = (id: number) => setEmployeeToEdit(id);
@@ -200,10 +222,7 @@ export default function EmployeeTable() {
     <div className="min-h-screen bg-[#fff7ec] p-8 space-y-6 text-gray-800 font-poppins">
       {/* Header */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-       
         <h1 className="text-xl font-bold">{employees.length} {employees.length > 1 ? "employees" : "employee"} </h1>
-      
-       
         <div className="flex flex-wrap items-center gap-3 relative">
           {/* Search */}
           <SearchBar placeholder="Search Employee" value={searchTerm} onChange={setSearchTerm} />
@@ -214,8 +233,7 @@ export default function EmployeeTable() {
               onClick={() => setIsFilterOpen(!isFilterOpen)}
               className="flex items-center bg-[#3b2b1c] text-white px-6 py-4 rounded-full mr-16 shadow-md hover:opacity-90 transition filter-button"
             >
-
-            
+              
               <Filter size={16} className="mr-2" /> Sort
               {isFilterOpen ? (
                 <ChevronUp className="ml-1" size={16} />
@@ -278,7 +296,8 @@ export default function EmployeeTable() {
 
       {/* Table */}
       <div className="w-full">
-       <h2 className="text-lg font-semibold mb-2">Employee Records</h2>
+        <h2 className="text-lg font-semibold mb-2">Employee Records</h2>
+
         <table className="w-full text-sm table-fixed border-separate border-spacing-y-2">
           <thead className="bg-[#3b2b1c] text-white text-left sticky top-0 z-20">
             <tr>
@@ -290,107 +309,110 @@ export default function EmployeeTable() {
               <th className="py-4 px-4">Actions</th>
             </tr>
           </thead>
-        </table>
 
-        <div className="overflow-y-auto max-h-136 h-136">
-          <table className="w-full text-sm table-fixed border-separate border-spacing-y-2">
-            <tbody>
-              {sortedEmployees.length > 0 ? (
-                sortedEmployees.map((emp) => (
-                  <tr
-                    key={emp.employee_id}
-                    className="bg-[#fff4e6] border border-orange-100 rounded-lg hover:shadow-sm transition relative"
-                  >
-                    <td className="py-3 px-4">{emp.employee_code}</td>
-                    <td className="py-3 px-4 flex items-center space-x-3">
-                      <div className="w-8 h-8 rounded-full bg-[#800000] flex items-center justify-center text-white text-sm font-semibold">
-                        {emp.first_name && emp.last_name
-                          ? `${emp.first_name[0]}${emp.last_name[0]}`.toUpperCase()
-                          : "?"}
+          <tbody>
+            {currentEmployees.length > 0 ? (
+              currentEmployees.map((emp) => (
+                <tr
+                  key={emp.employee_id}
+                  className="bg-[#fff4e6] border border-orange-100 rounded-lg hover:shadow-sm transition relative"
+                >
+                  <td className="py-3 px-4">{emp.employee_code}</td>
+                  <td className="py-3 px-4 flex items-center space-x-3">
+                    <div className="w-8 h-8 rounded-full bg-[#800000] flex items-center justify-center text-white text-sm font-semibold">
+                      {emp.first_name && emp.last_name
+                        ? `${emp.first_name[0]}${emp.last_name[0]}`.toUpperCase()
+                        : "?"}
+                    </div>
+                    <span>{emp.first_name} {emp.last_name}</span>
+                  </td>
+                  <td className="py-3 px-4">{emp.position_name || "N/A"}</td>
+                  <td className="py-3 px-4">{emp.department_name || "N/A"}</td>
+                  <td className="py-3 px-4">
+                    <span
+                      className={`px-3 py-2 rounded-full text-xs font-medium ${emp.status === "active"
+                        ? "bg-green-100 text-green-700"
+                        : emp.status === "resigned"
+                          ? "bg-yellow-100 text-yellow-700"
+                          : "bg-red-100 text-red-700"
+                        }`}
+                    >
+                      {emp.status.charAt(0).toUpperCase() + emp.status.slice(1)}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-left relative">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedMenu(selectedMenu === emp.employee_id ? null : emp.employee_id);
+                      }}
+                      className="p-1 rounded hover:bg-gray-200 menu-button"
+                    >
+                      <MoreVertical size={18} className="text-gray-600" />
+                    </button>
+
+                    {selectedMenu === emp.employee_id && (
+                      <div className="absolute right-4 top-10 bg-[#FFF2E0] rounded-lg shadow-lg w-36 z-50 employee-dropdown">
+                        <button onClick={() => handleView(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-gray-50">View</button>
+                        {!isSupervisor && (
+                          <>
+                            <button onClick={() => handleEdit(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-gray-50">Edit</button>
+                            <button onClick={() => handleDelete(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-red-100 text-red-600">Delete</button>
+                          </>
+                        )}
                       </div>
-                      <span>
-                        {emp.first_name} {emp.last_name}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      {emp.position_name || "N/A"}
-                    </td>
-                    <td className="py-3 px-4">
-                      {emp.department_name || "N/A"}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={`px-3 py-2 rounded-full text-xs font-medium ${emp.status === "active"
-                          ? "bg-green-100 text-green-700"
-                          : emp.status === "resigned"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : "bg-red-100 text-red-700"
-                          }`}
-                      >
-                        {emp.status.charAt(0).toUpperCase() +
-                          emp.status.slice(1)}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-left relative">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedMenu(
-                            selectedMenu === emp.employee_id
-                              ? null
-                              : emp.employee_id
-                          );
-                        }}
-                        className="p-1 rounded hover:bg-gray-200 menu-button"
-                      >
-                        <MoreVertical size={18} className="text-gray-600" />
-                      </button>
-
-                      {selectedMenu === emp.employee_id && (
-                        <div className="absolute right-4 top-10 bg-[#FFF2E0] rounded-lg shadow-lg w-36 z-50 employee-dropdown">
-                          <button
-                            onClick={() => handleView(emp.employee_id)}
-                            className="w-full text-left px-4 py-2 hover:bg-gray-50"
-                          >
-                            View
-                          </button>
-                          {!isSupervisor && (
-                            <>
-                              <button
-                                onClick={() => handleEdit(emp.employee_id)}
-                                className="w-full text-left px-4 py-2 hover:bg-gray-50"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => handleDelete(emp.employee_id)}
-                                className="w-full text-left px-4 py-2 hover:bg-red-100 text-red-600"
-                              >
-                                Delete
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={6} className="py-8 text-center text-gray-500">
-                    No employees found
+                    )}
                   </td>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={6} className="py-8 text-center text-gray-500">
+                  No employees found
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+
+        {/* Pagination */}
+        <div className="flex justify-center items-center gap-4 mt-4 select-none">
+          <button
+            onClick={() => goToPage(currentPage - 1)}
+            disabled={currentPage === 1}
+            className="px-4 py-3 rounded bg-[#3b2b1c] cursor-pointer text-white text-sm disabled:opacity-40"
+          >
+            Prev
+          </button>
+
+          {pageNumbers.map((num) => (
+            <button
+              key={num}
+              onClick={() => goToPage(num)}
+              className={`px-3 py-2 rounded text-sm transition cursor-pointer ${currentPage === num
+                ? "bg-[#3b2b1c] text-white"
+                : "text-[#3b2b1c] hover:underline"
+                }`}
+            >
+              {num}
+            </button>
+          ))}
+
+          <button
+            onClick={() => goToPage(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className="px-4 py-3 rounded bg-[#3b2b1c] cursor-pointer text-white text-sm disabled:opacity-40"
+          >
+            Next
+          </button>
         </div>
       </div>
 
+
       {/* Modals */}
       <AddModal isOpen={isModalOpen} onClose={handleModalClose} />
-      <ViewEmployeeModal isOpen={employeeToView !== null} onClose={() => setEmployeeToView(null)} id={employeeToView!}/>
-      <EditEmployeeModal isOpen={employeeToEdit !== null} onClose={() => setEmployeeToEdit(null)} id={employeeToEdit!}/>
+      <ViewEmployeeModal isOpen={employeeToView !== null} onClose={() => setEmployeeToView(null)} id={employeeToView!} />
+      <EditEmployeeModal isOpen={employeeToEdit !== null} onClose={() => setEmployeeToEdit(null)} id={employeeToEdit!} />
     </div>
   );
 }
