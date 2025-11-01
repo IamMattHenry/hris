@@ -674,7 +674,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                   label="Gender:"
                   value={gender}
                   onChange={(e) => setGender(e.target.value)}
-                  options={["Male", "Female", "Other"]}
+                  options={["Male", "Female", "Others"]}
                   error={errors.gender}
                 />
                 <FormSelect
