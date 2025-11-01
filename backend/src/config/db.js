@@ -248,5 +248,12 @@ export const transactionUpdate = async (table, data, whereClause, whereValues) =
   return result.affectedRows;
 };
 
+// Get a single row within a transaction (or outside if no transaction)
+export const transactionGetOne = async (sql, values = []) => {
+  const results = await transactionQuery(sql, values);
+  return results && results.length > 0 ? results[0] : null;
+};
+
+
 export default pool;
 

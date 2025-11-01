@@ -125,7 +125,7 @@ export default function AttendanceSystemPage() {
         remarks: "On time",
         color: "bg-green-100 text-green-800",
       };
-    } else if (timeDiffMinutes <= 30) {
+    } else {
       const hours = Math.floor(timeDiffMinutes / 60);
       const minutes = Math.round(timeDiffMinutes % 60);
       const timeStr = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
@@ -133,15 +133,6 @@ export default function AttendanceSystemPage() {
         status: "late",
         remarks: `Late by ${timeStr}`,
         color: "bg-yellow-100 text-yellow-800",
-      };
-    } else {
-      const hours = Math.floor(timeDiffMinutes / 60);
-      const minutes = Math.round(timeDiffMinutes % 60);
-      const timeStr = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-      return {
-        status: "absent",
-        remarks: `Absent - Scanned ${timeStr} after schedule`,
-        color: "bg-red-100 text-red-800",
       };
     }
   };

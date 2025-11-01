@@ -417,6 +417,17 @@ export const attendanceApi = {
       method: 'GET',
     });
   },
+
+  /**
+   * Mark absences for a date (admin/superadmin)
+   */
+  markAbsences: async (date?: string) => {
+    return apiCall<any>('/attendance/mark-absences', {
+      method: 'POST',
+      body: JSON.stringify(date ? { date } : {}),
+    });
+  },
+
 };
 
 // ============ LEAVE API FUNCTIONS ============

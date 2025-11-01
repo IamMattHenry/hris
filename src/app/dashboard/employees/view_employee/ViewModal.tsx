@@ -51,6 +51,7 @@ interface EmployeeData {
   region: string;
   department_name: string;
   position_name: string;
+  leave_credit?: number;
   hire_date: string;
   emails?: ContactEmail[];
   contact_numbers?: ContactNumber[];
@@ -245,6 +246,7 @@ export default function ViewEmployeeModal({
                       <InfoBox label="Shift" value={employee.shift || "N/A"} />
                       <InfoBox label="Department" value={employee.department_name || "N/A"} />
                       <InfoBox label="Position" value={employee.position_name || "N/A"} />
+                      <InfoBox label="Leave Credits (Remaining)" value={(employee.leave_credit ?? 0).toString()} />
                     </div>
                   </div>
                 )}

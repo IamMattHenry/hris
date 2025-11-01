@@ -7,9 +7,20 @@ export const getLeaveRequests = async (req, res, next) => {
     const { employee_id, status } = req.query;
 
     let sql = `
-      SELECT l.*, e.first_name, e.last_name
+      SELECT
+        l.*,
+        e.first_name,
+        e.last_name,
+        e.department_id,
+        e.leave_credit,
+        jp.position_name,
+        d.department_name,
+        u.role AS requester_role
       FROM leaves l
       LEFT JOIN employees e ON l.employee_id = e.employee_id
+      LEFT JOIN users u ON e.user_id = u.user_id
+      LEFT JOIN job_positions jp ON e.position_id = jp.position_id
+      LEFT JOIN departments d ON e.department_id = d.department_id
       WHERE 1=1
     `;
     const params = [];
@@ -140,8 +151,18 @@ export const approveLeave = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    // Check if leave request exists
-    const leave = await db.getOne('SELECT * FROM leaves WHERE leave_id = ?', [id]);
+    // Load leave with employee details
+    const leave = await db.getOne(
+      `
+      SELECT l.*, e.employee_id AS emp_id, e.department_id AS emp_department_id, e.leave_credit AS emp_leave_credit, u.role AS requester_role
+      FROM leaves l
+      JOIN employees e ON l.employee_id = e.employee_id
+      JOIN users u ON e.user_id = u.user_id
+      WHERE l.leave_id = ?
+    `,
+      [id]
+    );
+
     if (!leave) {
       return res.status(404).json({
         success: false,
@@ -149,50 +170,134 @@ export const approveLeave = async (req, res, next) => {
       });
     }
 
+    if (leave.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: 'Only pending leave requests can be approved',
+      });
+    }
+
+    const approverRole = req.user?.role;
+    const approverUserId = req.user?.user_id;
+
+    // Load approver employee info when available (for department and self checks)
+    const approver = await db.getOne(
+      `SELECT employee_id, department_id FROM employees WHERE user_id = ?`,
+      [approverUserId]
+    );
+
+    const requesterRole = leave.requester_role;
+
+    // Enforce approval hierarchy 
+    if (requesterRole === 'employee') {
+      // Only same-department supervisors (not self)
+      if (approverRole !== 'supervisor') {
+        return res.status(403).json({ success: false, message: 'Only same-department supervisors can approve employee leave requests' });
+      }
+      if (!approver) {
+        return res.status(403).json({ success: false, message: 'Approver is not linked to an employee record' });
+      }
+      if (approver.department_id !== leave.emp_department_id) {
+        return res.status(403).json({ success: false, message: 'Supervisors can only approve leave requests within their department' });
+      }
+      if (approver.employee_id === leave.emp_id) {
+        return res.status(403).json({ success: false, message: 'You cannot approve your own leave request' });
+      }
+    } else if (requesterRole === 'supervisor') {
+      // Only admin or superadmin can approve
+      if (!(approverRole === 'admin' || approverRole === 'superadmin')) {
+        return res.status(403).json({ success: false, message: 'Only admin or superadmin can approve supervisor leave requests' });
+      }
+      if (approver && approver.employee_id === leave.emp_id) {
+        return res.status(403).json({ success: false, message: 'You cannot approve your own leave request' });
+      }
+    } else if (requesterRole === 'admin') {
+      // Only superadmin can approve
+      if (approverRole !== 'superadmin') {
+        return res.status(403).json({ success: false, message: 'Only superadmin can approve admin leave requests' });
+      }
+      if (approver && approver.employee_id === leave.emp_id) {
+        return res.status(403).json({ success: false, message: 'You cannot approve your own leave request' });
+      }
+    } else {
+      return res.status(403).json({ success: false, message: 'No approval policy configured for this requester role' });
+    }
+
+    // Determine deduction rule: 1 credit per leave (except sick leave = 0)
+    const isSickLeave = leave.leave_type === 'sick';
+
+    // Validate dates (still required)
+    const start = new Date(leave.start_date);
+    const end = new Date(leave.end_date);
+    const diffMs = end.getTime() - start.getTime();
+    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
+
+    if (!Number.isFinite(days) || days <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid leave date range',
+      });
+    }
+
+    // Check available leave credits (only for non-sick leaves)
+    const availableCredits = Number(leave.emp_leave_credit ?? 0);
+    if (!isSickLeave && availableCredits < 1) {
+      return res.status(400).json({
+        success: false,
+        message: `Insufficient leave credits. Required: 1, Available: ${availableCredits}`,
+      });
+    }
+
     // Start transaction for atomic operations
     await db.beginTransaction();
 
     try {
-      // Get user ID from JWT token for audit trail
-      const approvedBy = req.user?.user_id;
-
       // Update leave status to approved
-      await db.transactionUpdate('leaves', {
-        status: 'approved',
-        approved_by: approvedBy,
-        updated_by: approvedBy,
-      }, 'leave_id = ?', [id]);
-
-      // Update employee status to on-leave
       await db.transactionUpdate(
-        'employees',
-        { status: 'on-leave' },
-        'employee_id = ?',
-        [leave.employee_id]
+        'leaves',
+        {
+          status: 'approved',
+          approved_by: approverUserId,
+          updated_by: approverUserId,
+        },
+        'leave_id = ?',
+        [id]
       );
 
-      // Commit transaction
+      // Deduct leave credits per policy and set employee status to on-leave
+      const employeeUpdate = isSickLeave
+        ? { status: 'on-leave' }
+        : { status: 'on-leave', leave_credit: availableCredits - 1 };
+      await db.transactionUpdate(
+        'employees',
+        employeeUpdate,
+        'employee_id = ?',
+        [leave.emp_id]
+      );
+
       await db.commit();
 
-      logger.info(`Leave request approved: ${id}, Employee ${leave.employee_id} status updated to on-leave`);
+      logger.info(
+        `Leave request approved: ${id}, Employee ${leave.emp_id} set to on-leave, ${isSickLeave ? 'no credit deducted (sick leave)' : 'deducted 1 credit'}`
+      );
 
       // Create activity log entry (outside transaction)
       try {
-        await db.insert("activity_logs", {
-          user_id: approvedBy || 1,
-          action: "UPDATE",
-          module: "leaves",
-          description: `Approved leave request ${leave.leave_code} for employee ID ${leave.employee_id}`,
-          created_by: approvedBy || 1,
+        await db.insert('activity_logs', {
+          user_id: approverUserId || 1,
+          action: 'UPDATE',
+          module: 'leaves',
+          description: `Approved leave request ${leave.leave_code} for employee ID ${leave.emp_id}; ${isSickLeave ? 'no credit deducted (sick leave)' : 'deducted 1 credit'}`,
+          created_by: approverUserId || 1,
         });
       } catch (logError) {
-        logger.error("Failed to create activity log:", logError);
+        logger.error('Failed to create activity log:', logError);
       }
 
       res.json({
         success: true,
-        message: 'Leave request approved and employee status updated to on-leave',
-        data: { leave_id: id, employee_id: leave.employee_id },
+        message: `Leave request approved; ${isSickLeave ? 'no credit deducted (sick leave)' : 'deducted 1 credit'}`,
+        data: { leave_id: id, employee_id: leave.emp_id, deducted_credits: isSickLeave ? 0 : 1 },
       });
     } catch (error) {
       await db.rollback();
@@ -209,8 +314,18 @@ export const rejectLeave = async (req, res, next) => {
     const { id } = req.params;
     const { remarks } = req.body;
 
-    // Check if leave request exists
-    const leave = await db.getOne('SELECT * FROM leaves WHERE leave_id = ?', [id]);
+    // Load leave with employee details
+    const leave = await db.getOne(
+      `
+      SELECT l.*, e.employee_id AS emp_id, e.department_id AS emp_department_id, u.role AS requester_role
+      FROM leaves l
+      JOIN employees e ON l.employee_id = e.employee_id
+      JOIN users u ON e.user_id = u.user_id
+      WHERE l.leave_id = ?
+    `,
+      [id]
+    );
+
     if (!leave) {
       return res.status(404).json({
         success: false,
@@ -218,28 +333,83 @@ export const rejectLeave = async (req, res, next) => {
       });
     }
 
-    // Get user ID from JWT token for audit trail
-    const rejectedBy = req.user?.user_id;
+    if (leave.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: 'Only pending leave requests can be rejected',
+      });
+    }
 
-    await db.update('leaves', {
-      status: 'rejected',
-      remarks: remarks || null,
-      updated_by: rejectedBy,
-    }, 'leave_id = ?', [id]);
+    const approverRole = req.user?.role;
+    const approverUserId = req.user?.user_id;
+
+    // Load approver employee info when available (for department and self checks)
+    const approver = await db.getOne(
+      `SELECT employee_id, department_id FROM employees WHERE user_id = ?`,
+      [approverUserId]
+    );
+
+    const requesterRole = leave.requester_role;
+
+    // Enforce rejection hierarchy (Option A)
+    if (requesterRole === 'employee') {
+      // Only same-department supervisors (not self)
+      if (approverRole !== 'supervisor') {
+        return res.status(403).json({ success: false, message: 'Only same-department supervisors can reject employee leave requests' });
+      }
+      if (!approver) {
+        return res.status(403).json({ success: false, message: 'Approver is not linked to an employee record' });
+      }
+      if (approver.department_id !== leave.emp_department_id) {
+        return res.status(403).json({ success: false, message: 'Supervisors can only reject leave requests within their department' });
+      }
+      if (approver.employee_id === leave.emp_id) {
+        return res.status(403).json({ success: false, message: 'You cannot reject your own leave request' });
+      }
+    } else if (requesterRole === 'supervisor') {
+      // Only admin or superadmin can reject
+      if (!(approverRole === 'admin' || approverRole === 'superadmin')) {
+        return res.status(403).json({ success: false, message: 'Only admin or superadmin can reject supervisor leave requests' });
+      }
+      if (approver && approver.employee_id === leave.emp_id) {
+        return res.status(403).json({ success: false, message: 'You cannot reject your own leave request' });
+      }
+    } else if (requesterRole === 'admin') {
+      // Only superadmin can reject
+      if (approverRole !== 'superadmin') {
+        return res.status(403).json({ success: false, message: 'Only superadmin can reject admin leave requests' });
+      }
+      if (approver && approver.employee_id === leave.emp_id) {
+        return res.status(403).json({ success: false, message: 'You cannot reject your own leave request' });
+      }
+    } else {
+      return res.status(403).json({ success: false, message: 'No rejection policy configured for this requester role' });
+    }
+
+    await db.update(
+      'leaves',
+      {
+        status: 'rejected',
+        remarks: remarks || null,
+        updated_by: approverUserId,
+      },
+      'leave_id = ?',
+      [id]
+    );
 
     logger.info(`Leave request rejected: ${id}`);
 
     // Create activity log entry
     try {
-      await db.insert("activity_logs", {
-        user_id: rejectedBy || 1,
-        action: "UPDATE",
-        module: "leaves",
-        description: `Rejected leave request ${leave.leave_code} for employee ID ${leave.employee_id}`,
-        created_by: rejectedBy || 1,
+      await db.insert('activity_logs', {
+        user_id: approverUserId || 1,
+        action: 'UPDATE',
+        module: 'leaves',
+        description: `Rejected leave request ${leave.leave_code} for employee ID ${leave.emp_id}`,
+        created_by: approverUserId || 1,
       });
     } catch (logError) {
-      logger.error("Failed to create activity log:", logError);
+      logger.error('Failed to create activity log:', logError);
     }
 
     res.json({

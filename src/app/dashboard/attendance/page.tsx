@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Calendar, RotateCw } from "lucide-react";
+import { Search, Calendar, RotateCw, UserX } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
 import ViewAttendanceModal from "./view_attendance/ViewModal";
@@ -48,6 +48,12 @@ export default function AttendanceTable() {
   const [attendanceList, setAttendanceList] = useState<Attendance[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isMarking, setIsMarking] = useState(false);
+
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10; // change page size here
+
 
   const currentDate = new Date();
   const formattedDate = currentDate.toLocaleDateString("en-US", {
@@ -77,11 +83,50 @@ export default function AttendanceTable() {
     setIsRefreshing(false);
   };
 
+  const handleMarkAbsences = async () => {
+    const todayPH = getCurrentPHDate();
+    if (!selectedDate || selectedDate >= todayPH) {
+      alert("You can only mark absences for past dates.");
+      return;
+    }
+    const confirmed = window.confirm(`Mark absences (no-shows) for ${selectedDate}?`);
+    if (!confirmed) return;
+
+    setIsMarking(true);
+    try {
+      const result = await attendanceApi.markAbsences(selectedDate);
+      if (result.success) {
+        alert(result.message || `Marked absences for ${selectedDate}`);
+        await fetchAttendance();
+      } else {
+        alert(result.message || "Failed to mark absences");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("An error occurred while marking absences.");
+    } finally {
+      setIsMarking(false);
+    }
+  };
+
   const filteredAttendance = attendanceList.filter(
     (record) =>
       `${record.first_name} ${record.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
       record.attendance_code.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Pagination
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentAttendance = filteredAttendance.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredAttendance.length / itemsPerPage);
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) setCurrentPage(page);
+  };
+  const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   const handleViewAttendance = (id: number) => {
     setAttendanceToView(id);
@@ -115,7 +160,7 @@ export default function AttendanceTable() {
 
         <div className="flex items-center gap-4">
           {/* Search */}
-          <SearchBar placeholder="Search employee..." value={searchTerm} onChange={setSearchTerm}/>
+          <SearchBar placeholder="Search employee..." value={searchTerm} onChange={setSearchTerm} />
 
           {/* Refresh Button */}
           <button
@@ -127,9 +172,20 @@ export default function AttendanceTable() {
             <RotateCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
           </button>
 
+          {/* Mark Absences (No-Shows) */}
+          <button
+            onClick={handleMarkAbsences}
+            disabled={isMarking || selectedDate >= getCurrentPHDate()}
+            className="p-2 rounded-lg bg-red-700 hover:bg-red-800 disabled:bg-gray-400 text-white transition flex items-center gap-2"
+            title="Mark no-shows as Absent for the selected past date"
+          >
+            <UserX className="w-5 h-5" />
+            <span className="hidden sm:inline">Mark Absences</span>
+          </button>
+
           {/* Date Selector */}
           <div className="relative">
-            <ActionButton label={shortDate} onClick={() => setIsDateModalOpen(true)} icon={Calendar} iconPosition="left" className="shadow-md"/>
+            <ActionButton label={shortDate} onClick={() => setIsDateModalOpen(true)} icon={Calendar} iconPosition="left" className="shadow-md" />
             {isDateModalOpen && (
               <div
                 className="fixed inset-0 bg-black/40 flex justify-center items-center z-50"
@@ -168,7 +224,7 @@ export default function AttendanceTable() {
       </div>
 
       {/* Attendance Table */}
-      <div className="w-full overflow-x-auto">
+      <div className="w-full">
         <h2 className="text-lg font-semibold mb-2">Attendance Records</h2>
         <table className="w-full text-sm">
           <thead className="bg-[#3b2b1c] text-white text-left sticky top-0 z-20">
@@ -183,8 +239,8 @@ export default function AttendanceTable() {
             </tr>
           </thead>
           <tbody>
-            {filteredAttendance.length > 0 ? (
-              filteredAttendance.map((record) => (
+            {currentAttendance.length > 0 ? (
+              currentAttendance.map((record) => (
                 <tr
                   key={record.attendance_id}
                   className="border-b border-[#eadfcd] hover:bg-[#fdf4e7] transition"
@@ -204,15 +260,14 @@ export default function AttendanceTable() {
                   <td className="py-3 px-4">{record.time_in || "-"}</td>
                   <td className="py-3 px-4">{record.time_out || "-"}</td>
                   <td className="py-3 px-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      record.status === "present" ? "bg-green-100 text-green-800" :
-                      record.status === "absent" ? "bg-red-100 text-red-800" :
-                      record.status === "late" ? "bg-yellow-100 text-yellow-800" :
-                      record.status === "half_day" ? "bg-orange-100 text-orange-800" :
-                      record.status === "on_leave" ? "bg-blue-100 text-blue-800" :
-                      record.status === "work_from_home" ? "bg-purple-100 text-purple-800" :
-                      "bg-gray-100 text-gray-800"
-                    }`}>
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${record.status === "present" ? "bg-green-100 text-green-800" :
+                        record.status === "absent" ? "bg-red-100 text-red-800" :
+                          record.status === "late" ? "bg-yellow-100 text-yellow-800" :
+                            record.status === "half_day" ? "bg-orange-100 text-orange-800" :
+                              record.status === "on_leave" ? "bg-blue-100 text-blue-800" :
+                                record.status === "work_from_home" ? "bg-purple-100 text-purple-800" :
+                                  "bg-gray-100 text-gray-800"
+                      }`}>
                       {STATUS_LABELS[record.status]}
                     </span>
                   </td>
@@ -236,7 +291,34 @@ export default function AttendanceTable() {
           </tbody>
         </table>
       </div>
+      {/* pagination */}
+      <div className="flex justify-center items-center gap-4 mt-4 select-none">
+        <button
+          onClick={() => goToPage(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="px-4 py-3 rounded bg-[#3b2b1c] cursor-pointer text-white text-sm disabled:opacity-40"
+        >
+          Prev
+        </button>
 
+        {pageNumbers.map((num) => (
+          <button
+            key={num}
+            onClick={() => goToPage(num)}
+            className={`px-3 py-2 rounded text-sm transition cursor-pointer ${currentPage === num ?
+              "bg-[#3b2b1c] text-white" : "text-[#3b2b1c] hover:underline"}`}
+          >
+            {num}
+          </button>
+        ))}
+        <button
+          onClick={() => goToPage(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="px-4 py-3 rounded bg-[#3b2b1c] cursor-pointer text-white text-sm disabled:opacity-40"
+        >
+          Next
+        </button>
+      </div>
       {/* Modal */}
       <ViewAttendanceModal
         isOpen={attendanceToView !== null}

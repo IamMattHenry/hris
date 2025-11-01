@@ -138,7 +138,7 @@ export const clockIn = async (req, res, next) => {
     const attendanceId = await db.insert('attendance', {
       employee_id,
       date: today,
-      time_in: timeIn,
+      time_in: `${today} ${timeIn}`,
       status: finalStatus,
       created_by: createdBy,
     });
@@ -179,6 +179,7 @@ export const clockOut = async (req, res, next) => {
 
     // Get today's date and time in Philippine timezone
     const { date: today, time: timeOut, timeWithAMPM: timeOutWithAMPM } = getPhilippineDateTime();
+    const timeOutFull = `${today} ${timeOut}`;
 
     if (!employee_id) {
       return res.status(400).json({
@@ -200,36 +201,59 @@ export const clockOut = async (req, res, next) => {
       });
     }
 
-    // Calculate duration between time_in and time_out
-    const timeInParts = attendance.time_in.split(':');
-    const timeOutParts = timeOut.split(':');
+    // Calculate duration between time_in and time_out (target = 8 hours)
+    const extractTimePart = (val) => {
+      if (!val) return null;
+      if (typeof val === 'string') {
+        if (val.includes(' ')) return val.split(' ')[1].slice(0, 8);
+        if (val.includes('T')) return val.split('T')[1].slice(0, 8);
+        return val.slice(0, 8);
+      }
+      // Handle Date object
+      try {
+        const ph = new Date(new Date(val).toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+        const hh = String(ph.getHours()).padStart(2, '0');
+        const mm = String(ph.getMinutes()).padStart(2, '0');
+        const ss = String(ph.getSeconds()).padStart(2, '0');
+        return `${hh}:${mm}:${ss}`;
+      } catch {
+        return null;
+      }
+    };
+
+    const timeInStr = extractTimePart(attendance.time_in);
+    const timeOutStr = extractTimePart(timeOut);
+
+    if (!timeInStr || !timeOutStr) {
+      return res.status(400).json({ success: false, message: 'Invalid time values for duration calculation' });
+    }
+
+    const timeInParts = timeInStr.split(':');
+    const timeOutParts = timeOutStr.split(':');
 
     const timeInMinutes = parseInt(timeInParts[0]) * 60 + parseInt(timeInParts[1]);
     const timeOutMinutes = parseInt(timeOutParts[0]) * 60 + parseInt(timeOutParts[1]);
 
     const durationMinutes = timeOutMinutes - timeInMinutes;
+    if (!Number.isFinite(durationMinutes) || durationMinutes < 0) {
+      return res.status(400).json({ success: false, message: 'Invalid time: clock-out earlier than clock-in' });
+    }
+
     const durationHours = durationMinutes / 60;
 
-    // Determine status based on duration
-    let newStatus = attendance.status;
+    // Determine status and overtime based on duration
+    let newStatus = durationMinutes < 480 ? 'late' : 'present';
     let overtimeHours = 0;
-
-    if (durationHours < 4) {
-      // Less than 4 hours = half day
-      newStatus = 'half_day';
-    } else if (durationHours > 8) {
-      // More than 8 hours = overtime
-      newStatus = 'overtime';
-      overtimeHours = durationHours - 8;
+    if (durationMinutes > 480) {
+      overtimeHours = (durationMinutes - 480) / 60;
     }
-    // Between 6.5 and 8 hours = just update time_out, keep status
 
     // Get user ID from JWT token for audit trail
     const updatedBy = req.user?.user_id;
 
     // Update attendance record
     const updateData = {
-      time_out: timeOut,
+      time_out: timeOutFull,
       updated_by: updatedBy,
     };
     if (newStatus !== attendance.status) {
@@ -462,6 +486,69 @@ export const getAttendanceSummary = async (req, res, next) => {
     next(error);
   }
 };
+export const markAbsences = async (req, res, next) => {
+  try {
+    // Determine target date (default: yesterday PH time)
+    let { date: targetDate } = req.body || {};
+    if (!targetDate) {
+      const now = new Date();
+      const ph = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+      ph.setDate(ph.getDate() - 1);
+      const y = ph.getFullYear();
+      const m = String(ph.getMonth() + 1).padStart(2, '0');
+      const d = String(ph.getDate()).padStart(2, '0');
+      targetDate = `${y}-${m}-${d}`;
+    }
+
+    // Exclude employees who have approved leave on target date
+    const employees = await db.getAll(
+      `SELECT e.employee_id
+       FROM employees e
+       WHERE e.status = 'active'`
+    );
+
+    let inserted = 0;
+    for (const emp of employees) {
+      // Skip if attendance exists for target date
+      const existing = await db.getOne(
+        'SELECT attendance_id FROM attendance WHERE employee_id = ? AND date = ?',
+        [emp.employee_id, targetDate]
+      );
+      if (existing) continue;
+
+      // Skip if employee is on approved leave for target date
+      const onLeave = await db.getOne(
+        `SELECT leave_id FROM leaves
+         WHERE employee_id = ?
+           AND status = 'approved'
+           AND ? BETWEEN start_date AND end_date
+         LIMIT 1`,
+        [emp.employee_id, targetDate]
+      );
+      if (onLeave) continue;
+
+      const createdBy = req.user?.user_id;
+      const attendanceId = await db.insert('attendance', {
+        employee_id: emp.employee_id,
+        date: targetDate,
+        status: 'absent',
+        created_by: createdBy,
+      });
+      const code = generateAttendanceCode(attendanceId);
+      await db.update('attendance', { attendance_code: code }, 'attendance_id = ?', [attendanceId]);
+      inserted += 1;
+    }
+
+    res.json({
+      success: true,
+      message: `Auto-marked ${inserted} employees as absent for ${targetDate}`,
+      data: { date: targetDate, count: inserted },
+    });
+  } catch (error) {
+    logger.error('Mark absences error:', error);
+    next(error);
+  }
+};
 
 export default {
   getAttendanceRecords,
@@ -471,5 +558,6 @@ export default {
   updateOvertimeHours,
   updateAttendanceStatus,
   getAttendanceSummary,
+  markAbsences,
 };
 

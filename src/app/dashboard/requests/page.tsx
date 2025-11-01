@@ -19,11 +19,16 @@ interface Leave {
   employee_id: number;
   first_name: string;
   last_name: string;
+  position_name?: string;
+  department_id?: number;
+  department_name?: string;
   leave_type: LeaveType;
   start_date: string;
   end_date: string;
   status: LeaveStatus;
   remarks?: string;
+  leave_credit?: number;
+  requester_role?: string;
 }
 
 const tabs: TabKey[] = ["Leave Request", "History"];
@@ -52,6 +57,9 @@ export default function RequestsPage() {
   const [filterLeaveType, setFilterLeaveType] = useState<LeaveType | "">("");
   const [filterStatus, setFilterStatus] = useState<LeaveStatus | "">("");
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10; // change page size here
 
   // Check if user is supervisor (view-only access for CRUD, but can approve/reject)
   const isSupervisor = user?.role === "supervisor";
@@ -129,6 +137,18 @@ export default function RequestsPage() {
   };
 
   const filteredLeaves = getFilteredLeaves();
+
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentLeaves = filteredLeaves.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredLeaves.length / itemsPerPage);
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) setCurrentPage(page);
+  };
+  const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchRequest, filterLeaveType, filterStatus]);
 
   const handleView = (leave: Leave) => {
     setSelectedLeave(leave);
@@ -289,7 +309,7 @@ export default function RequestsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredLeaves.map((leave) => (
+                {currentLeaves.map((leave) => (
                   <tr
                     key={leave.leave_id}
                     className="border-b border-[#eadfcd] hover:bg-[#fdf4e7] transition"
@@ -302,10 +322,10 @@ export default function RequestsPage() {
                     <td className="py-3 px-4">
                       <span
                         className={`px-3 py-1 rounded-full text-xs font-semibold ${leave.status === "approved"
-                            ? "bg-green-100 text-green-800"
-                            : leave.status === "rejected"
-                              ? "bg-red-100 text-red-800"
-                              : "bg-yellow-100 text-yellow-800"
+                          ? "bg-green-100 text-green-800"
+                          : leave.status === "rejected"
+                            ? "bg-red-100 text-red-800"
+                            : "bg-yellow-100 text-yellow-800"
                           }`}
                       >
                         {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
@@ -362,7 +382,34 @@ export default function RequestsPage() {
           )}
         </div>
       </div>
+      {/* pagination */}
+      <div className="flex justify-center items-center gap-4 mt-4 select-none">
+        <button
+          onClick={() => goToPage(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="px-4 py-3 rounded bg-[#3b2b1c] cursor-pointer text-white text-sm disabled:opacity-40"
+        >
+          Prev
+        </button>
 
+        {pageNumbers.map((num) => (
+          <button
+            key={num}
+            onClick={() => goToPage(num)}
+            className={`px-3 py-2 rounded text-sm transition cursor-pointer ${currentPage === num ?
+              "bg-[#3b2b1c] text-white" : "text-[#3b2b1c] hover:underline"}`}
+          >
+            {num}
+          </button>
+        ))}
+        <button
+          onClick={() => goToPage(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="px-4 py-3 rounded bg-[#3b2b1c] cursor-pointer text-white text-sm disabled:opacity-40"
+        >
+          Next
+        </button>
+      </div>
       {/* Add Leave Modal */}
       {isAddModalOpen && (
         <AddLeaveModal
@@ -389,5 +436,304 @@ export default function RequestsPage() {
   );
 }
 
+// Add Leave Modal Component
+function AddLeaveModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClose: () => void; onSuccess: () => void }) {
+  const { user } = useAuth();
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(true);
+  const [formData, setFormData] = useState({
+    employee_id: 0, // Will be set after employees load
+    leave_type: "vacation" as LeaveType,
+    start_date: "",
+    end_date: "",
+    remarks: "",
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Fetch employees filtered by department for admins
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      setLoadingEmployees(true);
+      const result = await employeeApi.getAll();
+      if (result.success && result.data) {
+        let filteredEmployees = result.data as any[];
 
+        // If admin, filter by department
+        if (user?.role === 'admin' && user?.department_id) {
+          filteredEmployees = filteredEmployees.filter(
+            (emp: any) => emp.department_id === user.department_id
+          );
+        }
+
+        setEmployees(filteredEmployees);
+
+        // Set default employee_id to first employee or current user's employee_id
+        if (filteredEmployees.length > 0) {
+          const defaultEmployeeId = user?.employee_id || filteredEmployees[0].employee_id;
+          setFormData(prev => ({ ...prev, employee_id: defaultEmployeeId }));
+        }
+      }
+      setLoadingEmployees(false);
+    };
+
+    if (isOpen) {
+      fetchEmployees();
+    }
+  }, [isOpen, user]);
+
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    if (!formData.employee_id) newErrors.employee_id = "Employee is required";
+    if (!formData.start_date) newErrors.start_date = "Start date is required";
+    if (!formData.end_date) newErrors.end_date = "End date is required";
+    if (new Date(formData.end_date) <= new Date(formData.start_date)) {
+      newErrors.end_date = "End date must be after start date";
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validate()) return;
+    setIsSubmitting(true);
+    const result = await leaveApi.create(formData);
+    if (result.success) {
+      alert("Leave request submitted successfully");
+      onSuccess();
+    } else {
+      alert(result.message || "Failed to submit leave request");
+    }
+    setIsSubmitting(false);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
+      <div
+        className="bg-[#fdf3e2] w-full max-w-md p-8 rounded-2xl shadow-lg relative text-[#3b2b1c]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button onClick={onClose} className="absolute top-4 right-4 text-[#3b2b1c] hover:opacity-70">
+          <X size={24} />
+        </button>
+
+        <h2 className="text-2xl font-semibold mb-6">Leave Request</h2>
+
+        <div className="space-y-4">
+          {/* Employee Selector */}
+          <div>
+            <label className="block text-sm font-semibold mb-2">Employee <span className="text-red-600">*</span></label>
+            {loadingEmployees ? (
+              <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500">
+                Loading employees...
+              </div>
+            ) : (
+              <select
+                value={formData.employee_id}
+                onChange={(e) => setFormData({ ...formData, employee_id: Number(e.target.value) })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+              >
+                <option value={0}>Select Employee</option>
+                {employees.map((emp) => (
+                  <option key={emp.employee_id} value={emp.employee_id}>
+                    {emp.employee_code} - {emp.first_name} {emp.last_name} ({emp.department_name || 'No Dept'})
+                  </option>
+                ))}
+              </select>
+            )}
+            {formData.employee_id !== 0 && (
+              <p className="text-sm text-gray-700 mt-1">
+                Remaining Leave Credits: <span className="font-semibold">{employees.find((emp) => emp.employee_id === formData.employee_id)?.leave_credit ?? 'N/A'}</span>
+              </p>
+            )}
+            {errors.employee_id && <p className="text-red-600 text-xs mt-1">{errors.employee_id}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold mb-2">Leave Type</label>
+            <select
+              value={formData.leave_type}
+              onChange={(e) => setFormData({ ...formData, leave_type: e.target.value as LeaveType })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+            >
+              {Object.entries(LEAVE_TYPE_LABELS).map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold mb-2">Start Date</label>
+            <input
+              type="date"
+              value={formData.start_date}
+              onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+            />
+            {errors.start_date && <p className="text-red-600 text-xs mt-1">{errors.start_date}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold mb-2">End Date</label>
+            <input
+              type="date"
+              value={formData.end_date}
+              onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+            />
+            {errors.end_date && <p className="text-red-600 text-xs mt-1">{errors.end_date}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold mb-2">Remarks</label>
+            <textarea
+              value={formData.remarks}
+              onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+              rows={3}
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 mt-6">
+          <button
+            onClick={onClose}
+            className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-100"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="px-6 py-2 bg-[#4b0b14] text-white rounded-lg hover:opacity-80 disabled:opacity-50"
+          >
+            {isSubmitting ? "Submitting..." : "Submit"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// View Leave Modal Component
+function ViewLeaveModal({
+  isOpen,
+  leave,
+  onClose,
+  onApprove,
+  onReject,
+}: {
+  isOpen: boolean;
+  leave: Leave;
+  onClose: () => void;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  const { user } = useAuth();
+  const role = user?.role;
+  const sameDepartment = user?.department_id !== undefined && leave?.department_id !== undefined && user?.department_id === leave?.department_id;
+  const notSelf = user?.employee_id !== undefined && leave?.employee_id !== undefined && user?.employee_id !== leave?.employee_id;
+
+  const canApproveReject = leave.status === "pending" && (
+    (leave.requester_role === 'employee' && role === 'supervisor' && sameDepartment && notSelf) ||
+    (leave.requester_role === 'supervisor' && (role === 'admin' || role === 'superadmin')) ||
+    (leave.requester_role === 'admin' && role === 'superadmin')
+  );
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
+      <div
+        className="bg-[#fdf3e2] w-full max-w-md p-8 rounded-2xl shadow-lg relative text-[#3b2b1c]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button onClick={onClose} className="absolute top-4 right-4 text-[#3b2b1c] hover:opacity-70">
+          <X size={24} />
+        </button>
+
+        <h2 className="text-2xl font-semibold mb-6">Leave Request Details</h2>
+
+        <div className="space-y-4 mb-6">
+          <div>
+            <p className="text-sm text-gray-600">Code</p>
+            <p className="font-semibold">{leave.leave_code}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">Employee</p>
+            <p className="font-semibold">{leave.first_name} {leave.last_name}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">Leave Type</p>
+            <p className="font-semibold">{LEAVE_TYPE_LABELS[leave.leave_type]}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">Start Date</p>
+            <p className="font-semibold">{new Date(leave.start_date).toLocaleDateString()}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">End Date</p>
+            <p className="font-semibold">{new Date(leave.end_date).toLocaleDateString()}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">Status</p>
+            <p className="font-semibold">{leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}</p>
+          </div>
+          {typeof leave.leave_credit === "number" && (
+            <div>
+              <p className="text-sm text-gray-600">Remaining Leave Credits</p>
+              <p className="font-semibold">{leave.leave_credit}</p>
+            </div>
+          )}
+          {leave.remarks && (
+            <div>
+              <p className="text-sm text-gray-600">Remarks</p>
+              <p className="font-semibold">{leave.remarks}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Only same-department supervisors (not self) can approve/reject pending requests */}
+        {canApproveReject && (
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={onReject}
+              className="px-6 py-2 border border-red-600 text-red-600 rounded-lg hover:bg-red-50"
+            >
+              Reject
+            </button>
+            <button
+              onClick={onApprove}
+              className="px-6 py-2 bg-green-600 text-white rounded-lg hover:opacity-80"
+            >
+              Approve
+            </button>
+          </div>
+        )}
+
+        {/* No permission message for pending requests */}
+        {leave.status === "pending" && !canApproveReject && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+            <p className="text-sm text-yellow-800">
+              You don't have permission to approve or reject this request.
+            </p>
+          </div>
+        )}
+
+        {/* Close button for non-pending or when user can't approve/reject */}
+        {(leave.status !== "pending" || !canApproveReject) && (
+          <div className="flex justify-end">
+            <button
+              onClick={onClose}
+              className="px-6 py-2 bg-[#4b0b14] text-white rounded-lg hover:opacity-80"
+            >
+              Close
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

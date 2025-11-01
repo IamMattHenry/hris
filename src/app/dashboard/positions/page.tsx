@@ -110,7 +110,7 @@ export default function PositionTable() {
   return (
     <div className="p-6 min-h-screen font-poppins bg-[#fff7ec]">
       {/* Header */}
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center my-8">
         <h2 className="text-2xl font-semibold text-[#3b2b1c]">
           Total Positions:
         </h2>
@@ -133,7 +133,7 @@ export default function PositionTable() {
               <th className="py-4 px-4 text-left">Department</th>
               <th className="py-4 px-4 text-left">Job Position</th>
               <th className="py-4 px-4 text-left">Availability</th>
-              <th className="py-4 px-4 text-left">Salary</th>
+              {/*<th className="py-4 px-4 text-left">Salary</th>*/}
               <th className="py-4 px-4 text-left">Total Assigned</th>
               <th className="py-4 px-4 text-center">Actions</th>
             </tr>
@@ -149,7 +149,7 @@ export default function PositionTable() {
                 <td className="py-4 px-4">{pos.department_name || 'N/A'}</td>
                 <td className="py-4 px-4">{pos.position_name}</td>
                 <td className="py-4 px-4">{pos.availability > 0 ? 'Yes' : 'No'}</td>
-                <td className="py-4 px-4">₱ {pos.salary ? parseFloat(pos.salary).toLocaleString() : 'N/A'}</td>
+                {/*<td className="py-4 px-4">₱ {pos.salary ? parseFloat(pos.salary).toLocaleString() : 'N/A'}</td> */}
                 <td className="py-4 px-4">{pos.availability || 0}</td>
 
                 <td className="py-4 px-4 text-center relative">
