@@ -15,6 +15,7 @@ import departmentRoutes from './routes/departments.js';
 import positionRoutes from './routes/positions.js';
 import attendanceRoutes from './routes/attendance.js';
 import leaveRoutes from './routes/leave.js';
+import activityRoutes from './routes/activity.js';
 
 dotenv.config();
 
@@ -64,6 +65,7 @@ app.use('/api/departments', departmentRoutes);
 app.use('/api/positions', positionRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/leave', leaveRoutes);
+app.use('/api/activity', activityRoutes);
 
 // ============ ERROR HANDLING ============
 
