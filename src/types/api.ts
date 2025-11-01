@@ -173,6 +173,7 @@ export interface LoginResponse {
  */
 export interface Department {
   department_id: number;
+  department_code: string;
   department_name: string;
   description?: string;
   supervisor_id?: number;

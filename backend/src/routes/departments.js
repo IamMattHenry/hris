@@ -1,5 +1,5 @@
 import express from 'express';
-import { verifyToken } from '../middleware/auth.js';
+import { verifyToken, verifyRole } from '../middleware/auth.js';
 import {
   getAllDepartments,
   getDepartmentById,
@@ -16,14 +16,14 @@ router.get('/', verifyToken, getAllDepartments);
 // Get department by ID (protected)
 router.get('/:id', verifyToken, getDepartmentById);
 
-// Create department (admin only) - if needed later
-// router.post('/', verifyToken, verifyRole(['admin']), createDepartment);
+// Create department (admin only)
+router.post('/', verifyToken, verifyRole(['admin', 'superadmin']), createDepartment);
 
-// Update department (admin only) - if needed later
-// router.put('/:id', verifyToken, verifyRole(['admin']), updateDepartment);
+// Update department (admin only)
+router.put('/:id', verifyToken, verifyRole(['admin', 'superadmin']), updateDepartment);
 
-// Delete department (admin only) - if needed later
-// router.delete('/:id', verifyToken, verifyRole(['admin']), deleteDepartment);
+// Delete department (admin only)
+router.delete('/:id', verifyToken, verifyRole(['admin', 'superadmin']), deleteDepartment);
 
 export default router;
 

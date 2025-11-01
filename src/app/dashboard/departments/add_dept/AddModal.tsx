@@ -10,7 +10,7 @@ import { departmentApi, employeeApi } from "@/lib/api";
 interface AddDepartmentModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave?: () => void;
+    onSave?: (newDept: any) => void;
 }
 
 export default function AddDepartmentModal({ isOpen, onClose, onSave }: AddDepartmentModalProps) {
@@ -90,7 +90,7 @@ export default function AddDepartmentModal({ isOpen, onClose, onSave }: AddDepar
 
         if (result.success) {
             alert("Department created successfully");
-            if (onSave) onSave();
+            if (onSave) onSave(result.data);
             onClose();
         } else {
             alert(result.message || "Failed to create department");

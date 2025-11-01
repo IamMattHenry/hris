@@ -71,15 +71,6 @@ export const generateLeaveCode = (leaveId) => {
 };
 
 /**
- * Generate payroll code
- * @param {number} payrollId - The payroll ID
- * @returns {string} - The generated code (e.g., 'PAY-0001')
- */
-export const generatePayrollCode = (payrollId) => {
-  return generateCode('PAY', payrollId);
-};
-
-/**
  * Generate dependent code
  * @param {number} dependentId - The dependent ID
  * @returns {string} - The generated code (e.g., 'DEP-0001')
@@ -96,7 +87,6 @@ export default {
   generateAdminCode,
   generateAttendanceCode,
   generateLeaveCode,
-  generatePayrollCode,
   generateDependentCode,
 };
 

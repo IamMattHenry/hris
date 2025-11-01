@@ -10,7 +10,6 @@ import DepartmentTable from "./dept_table/table";
 import { useAuth } from "@/contexts/AuthContext";
 import { departmentApi } from "@/lib/api";
 
-
 export default function DepartmentsPage() {
   const { user } = useAuth();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -38,7 +37,6 @@ export default function DepartmentsPage() {
     setLoading(false);
   };
 
-
   const handleView = (department: any) => {
     console.log("View department:", department);
     setIsViewModalOpen(true);
@@ -51,19 +49,20 @@ export default function DepartmentsPage() {
     setSelectedDepartment(department);
   };
 
-  const handleSave = (updatedDept: any) => {
-  setDepartments((prev) =>
-    prev.map((dept) =>
-      dept.id === updatedDept.id ? updatedDept : dept
-    )
-  );
+  const handleSave = () => {
+    // Refresh the departments list after saving changes
+    fetchDepartments();
+  };
 
-  console.log("Department updated:", updatedDept);
-};
-
-  const handleDelete = (department: any) => {
-    console.log("Delete department:", department);
-   
+  const handleDelete = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this department?")) return;
+    const result = await departmentApi.delete(id);
+    if (result.success) {
+      alert("Department deleted successfully");
+      fetchDepartments();
+    } else {
+      alert(result.message || "Failed to delete department");
+    } 
   };
 
   return (
@@ -98,8 +97,9 @@ export default function DepartmentsPage() {
       <AddDepartmentModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        onSave={() => {
-          fetchDepartments(); // Refresh list after adding
+        onSave={(newDept) => {
+          // Add new department to the departments list
+          setDepartments([...departments, newDept]);
         }}
       />
       <ViewDepartmentModal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} department={selectedDepartment} />

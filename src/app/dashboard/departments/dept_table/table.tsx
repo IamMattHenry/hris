@@ -23,7 +23,7 @@ interface DepartmentTableProps {
   departments: Department[];
   onView?: (department: Department) => void;
   onEdit?: (department: Department) => void;
-  onDelete?: (department: Department) => void;
+  onDelete?: (id: number) => void;
 }
 
 export default function DepartmentTable({
@@ -122,7 +122,7 @@ export default function DepartmentTable({
                     {onDelete && (
                       <button
                         onClick={() => {
-                          onDelete(dept);
+                          onDelete(dept.department_id);
                           setOpenMenuIndex(null);
                         }}
                         className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#ffe5e5] text-[#b91c1c] rounded-b-lg"

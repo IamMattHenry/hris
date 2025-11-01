@@ -9,11 +9,11 @@
 -- ===========================
 -- DEPARTMENTS (Insert first, before users/employees)
 -- ===========================
-INSERT INTO departments (department_name, description, supervisor_id, created_by, created_at)
+INSERT INTO departments (department_code, department_name, description, supervisor_id, created_by, created_at)
 VALUES
-('Human Resources', 'Handles employee records, recruitment, and payroll', NULL, 1, NOW()),
-('IT', 'Maintains company systems and databases', NULL, 1, NOW()),
-('Front Desk', 'Handles reception, visitor management, and front office operations', NULL, 1, NOW());
+('DEP-0001', 'Human Resources', 'Handles employee records, recruitment, and payroll', NULL, 1, NOW()),
+('DEP-0002', 'IT', 'Maintains company systems and databases', NULL, 1, NOW()),
+('DEP-0003', 'Front Desk', 'Handles reception, visitor management, and front office operations', NULL, 1, NOW());
 
 -- ===========================
 -- JOB POSITIONS

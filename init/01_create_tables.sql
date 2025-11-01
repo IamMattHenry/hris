@@ -42,13 +42,15 @@ CREATE TABLE
 CREATE TABLE
     IF NOT EXISTS departments (
         department_id INT AUTO_INCREMENT PRIMARY KEY,
+        department_code VARCHAR(10) UNIQUE,
         department_name VARCHAR(100) NOT NULL UNIQUE,
         description TEXT,
         supervisor_id INT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         created_by INT,
-        updated_by INT
+        updated_by INT,
+        CHECK (department_code REGEXP '^DEP-[0-9]{4}$')
     );
 
 -- JOB POSITIONS TABLE
