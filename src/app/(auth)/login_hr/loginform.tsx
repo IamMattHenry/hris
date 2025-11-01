@@ -75,6 +75,11 @@ export default function LoginForm() {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
+      <div className="flex items-center justify-between mb-4 text-[#FFF2E0] text-sm font-poppins">
+        <a href="#" className="text-[#D4A056] hover:underline">
+          Forgot Password?
+        </a>
+      </div>
 
       {/* Error message (auto disappears after 5s) */}
 

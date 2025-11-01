@@ -6,6 +6,7 @@ import { userApi } from "@/lib/api";
 import { User } from "@/types/api";
 import { useAuth } from "@/contexts/AuthContext";
 
+
 export default function UsersPage() {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
@@ -164,7 +165,7 @@ export default function UsersPage() {
                       )}
                     </td>
                     <td className="py-3 px-4">
-                      {user.employee_code || user.admin_code || 'N/A'}
+                      {user.employee_code /*|| user.admin_code */ || 'N/A'}
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">

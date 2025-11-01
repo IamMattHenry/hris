@@ -6,6 +6,8 @@ import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
 import { leaveApi, employeeApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import AddLeaveModal from "./add_request/AddModal";
+import ViewLeaveModal from "./view_request/ViewModal";
 
 type TabKey = "Leave Request" | "History";
 type LeaveType = "vacation" | "sick" | "personal" | "parental" | "bereavement" | "emergency" | "others";
