@@ -1,5 +1,5 @@
 import express from 'express';
-import { verifyToken, verifyRole, verifyAccess } from '../middleware/auth';
+import { verifyToken, verifyRole, verifyAccess } from '../middleware/auth.js';
 import { getActivityLogs } from '../controllers/activityController.js';
 
 const router = express.Router();
