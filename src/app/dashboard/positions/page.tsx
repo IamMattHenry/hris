@@ -8,6 +8,7 @@ import ViewJobModal from "./view_positions/ViewModal";
 import EditJobModal from "./edit_positions/EditModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { positionApi } from "@/lib/api";
+import SearchBar from "@/components/forms/FormSearch";
 
 export default function PositionTable() {
   const { user } = useAuth();
@@ -19,8 +20,12 @@ export default function PositionTable() {
   const [positions, setPositions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const menuRef = useRef<HTMLDivElement | null>(null);
+
+  const itemsPerPage = 10;
 
   // Check if user is supervisor (view-only access)
   const isSupervisor = user?.role === "supervisor";
@@ -32,10 +37,7 @@ export default function PositionTable() {
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(e.target as Node)
-      ) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setOpenMenuIndex(null);
       }
     };
@@ -80,6 +82,73 @@ export default function PositionTable() {
     }
   };
 
+  const handleSearch = (term: string) => {
+    setSearchTerm(term);
+    setCurrentPage(1); // Reset to first page when searching
+  };
+
+  const filteredPositions = positions.filter((pos) => {
+    if (!searchTerm.trim()) return true;
+
+    const search = searchTerm.toLowerCase();
+    const posCode = (pos.position_code || `POS-${pos.position_id}`).toLowerCase();
+    const posName = pos.position_name.toLowerCase();
+    const deptName = (pos.department_name || '').toLowerCase();
+
+    return (
+      posCode.includes(search) ||
+      posName.includes(search) ||
+      deptName.includes(search)
+    );
+  });
+
+  const totalPages = Math.ceil(filteredPositions.length / itemsPerPage);
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentPositions = filteredPositions.slice(indexOfFirstItem, indexOfLastItem);
+
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+
+  // Generate page numbers with ellipsis for large page counts
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+
+    if (totalPages <= maxVisible) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+
+    // Always show first page
+    pages.push(1);
+
+    if (currentPage > 3) {
+      pages.push('...');
+    }
+
+    // Show pages around current page
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+
+    if (currentPage < totalPages - 2) {
+      pages.push('...');
+    }
+
+    // Always show last page
+    if (totalPages > 1) {
+      pages.push(totalPages);
+    }
+
+    return pages;
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#fff7ec] flex items-center justify-center">
@@ -112,109 +181,156 @@ export default function PositionTable() {
       {/* Header */}
       <div className="flex justify-between items-center my-8">
         <h2 className="text-2xl font-semibold text-[#3b2b1c]">
-          Total Positions:
+          Total Positions: {positions.length}
+          {searchTerm && ` (Showing ${filteredPositions.length})`}
         </h2>
-        {!isSupervisor && (
-          <ActionButton
-            label="Add Position"
-            onClick={() => setInsertIsOpen(true)}
-            icon={Plus}
-            className="py-4"
-          />
-        )}
+
+        <div className="flex items-center gap-2">
+          <SearchBar placeholder="Search Position" value={searchTerm} onChange={handleSearch} />
+          {!isSupervisor && (
+            <ActionButton
+              label="Add Position"
+              onClick={() => setInsertIsOpen(true)}
+              icon={Plus}
+              className="py-4"
+            />
+          )}
+        </div>
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto shadow-sm bg-[#faeddc] rounded-lg max-h-136 h-136">
-        <table className="w-full text-sm border-collapse">
-          <thead className="text-md">
-            <tr className="bg-[#3b2b1c] text-white">
-              <th className="py-4 px-4 text-left">ID</th>
-              <th className="py-4 px-4 text-left">Department</th>
-              <th className="py-4 px-4 text-left">Job Position</th>
-              <th className="py-4 px-4 text-left">Availability</th>
-              {/*<th className="py-4 px-4 text-left">Salary</th>*/}
-              <th className="py-4 px-4 text-left">Total Assigned</th>
-              <th className="py-4 px-4 text-center">Actions</th>
-            </tr>
-          </thead>
+      {filteredPositions.length === 0 && searchTerm ? (
+        <div className="flex justify-center items-center h-64 bg-[#faeddc] rounded-lg shadow-sm">
+          <p className="text-[#3b2b1c] text-lg">No positions found matching "{searchTerm}"</p>
+        </div>
+      ) : (
+        <>
+          <div className="overflow-x-auto shadow-sm bg-[#faeddc] rounded-lg">
+            <table className="w-full text-sm border-collapse">
+              <thead className="text-md">
+                <tr className="bg-[#3b2b1c] text-white">
+                  <th className="py-4 px-4 text-left">ID</th>
+                  <th className="py-4 px-4 text-left">Department</th>
+                  <th className="py-4 px-4 text-left">Job Position</th>
+                  <th className="py-4 px-4 text-left">Availability</th>
+                  <th className="py-4 px-4 text-left">Total Assigned</th>
+                  <th className="py-4 px-4 text-center">Actions</th>
+                </tr>
+              </thead>
 
-          <tbody className="text-[#3b2b1c] text-base">
-            {positions.map((pos, index) => (
-              <tr
-                key={pos.position_id}
-                className="border-b border-[#e2d5c3] hover:bg-[#fdf4e7] transition"
-              >
-                <td className="py-4 px-4">{pos.position_code || `POS-${String(pos.position_id).padStart(4, '0')}`}</td>
-                <td className="py-4 px-4">{pos.department_name || 'N/A'}</td>
-                <td className="py-4 px-4">{pos.position_name}</td>
-                <td className="py-4 px-4">{pos.availability > 0 ? 'Yes' : 'No'}</td>
-                {/*<td className="py-4 px-4">₱ {pos.salary ? parseFloat(pos.salary).toLocaleString() : 'N/A'}</td> */}
-                <td className="py-4 px-4">{pos.availability || 0}</td>
-
-                <td className="py-4 px-4 text-center relative">
-                  {/* 3 Dots Button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleMenu(index);
-                    }}
-                    className="p-2 rounded-full hover:bg-[#e8d6bb] transition"
+              <tbody className="text-[#3b2b1c] text-base">
+                {currentPositions.map((pos, index) => (
+                  <tr
+                    key={pos.position_id}
+                    className="border-b border-[#e2d5c3] hover:bg-[#fdf4e7] transition"
                   >
-                    <MoreVertical size={18} className="text-[#3b2b1c]" />
-                  </button>
+                    <td className="py-4 px-4">{pos.position_code || `POS-${String(pos.position_id).padStart(4, '0')}`}</td>
+                    <td className="py-4 px-4">{pos.department_name || 'N/A'}</td>
+                    <td className="py-4 px-4">{pos.position_name}</td>
+                    <td className="py-4 px-4">{pos.availability > 0 ? 'Yes' : 'No'}</td>
+                    <td className="py-4 px-4">{pos.availability || 0}</td>
 
-                  {/* Dropdown Menu */}
-                  {openMenuIndex === index && (
-                    <div className="absolute right-4 mt-2 w-36 bg-white border border-[#e2d5c3] rounded-lg shadow-md z-50"  ref={menuRef}>
+                    <td className="py-4 px-4 text-center relative">
                       <button
-                        onClick={() => {
-                          handleView(pos);
-                          setOpenMenuIndex(null);
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleMenu(index);
                         }}
-                        className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#fdf4e7] text-[#3b2b1c]"
+                        className="p-2 rounded-full hover:bg-[#e8d6bb] transition"
                       >
-                        <Eye size={16} /> View
+                        <MoreVertical size={18} className="text-[#3b2b1c]" />
                       </button>
 
-                      {!isSupervisor && (
-                        <>
+                      {openMenuIndex === index && (
+                        <div className="absolute right-4 mt-2 w-36 bg-white border border-[#e2d5c3] rounded-lg shadow-md z-50" ref={menuRef}>
                           <button
                             onClick={() => {
-                              handleEdit(pos);
+                              handleView(pos);
                               setOpenMenuIndex(null);
                             }}
-                            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#fdf4e7] text-[#3b2b1c]"
+                            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#fdf4e7] text-[#3b2b1c] rounded-t-lg"
                           >
-                            <Pencil size={16} /> Edit
+                            <Eye size={16} /> View
                           </button>
 
-                          <button
-                            onClick={() => {
-                              handleDelete(pos.position_id);
-                              setOpenMenuIndex(null);
-                            }}
-                            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#ffe5e5] text-[#b91c1c]"
-                          >
-                            <Trash2 size={16} /> Delete
-                          </button>
-                        </>
+                          {!isSupervisor && (
+                            <>
+                              <button
+                                onClick={() => {
+                                  handleEdit(pos);
+                                  setOpenMenuIndex(null);
+                                }}
+                                className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#fdf4e7] text-[#3b2b1c]"
+                              >
+                                <Pencil size={16} /> Edit
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  handleDelete(pos.position_id);
+                                  setOpenMenuIndex(null);
+                                }}
+                                className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#ffe5e5] text-[#b91c1c] rounded-b-lg"
+                              >
+                                <Trash2 size={16} /> Delete
+                              </button>
+                            </>
+                          )}
+                        </div>
                       )}
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex justify-center items-center gap-2 mt-6 select-none">
+              <button
+                onClick={() => goToPage(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="px-4 py-3 rounded bg-[#3b2b1c] text-white cursor-pointer text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition"
+              >
+                Prev
+              </button>
+
+              {getPageNumbers().map((num, idx) => (
+                num === '...' ? (
+                  <span key={`ellipsis-${idx}`} className="px-2  text-[#3b2b1c]">...</span>
+                ) : (
+                  <button
+                    key={num}
+                    onClick={() => goToPage(num as number)}
+                    className={`px-3 py-2 rounded text-sm cursor-pointer transition ${currentPage === num
+                        ? "bg-[#3b2b1c] text-white"
+                        : "text-[#3b2b1c] hover:bg-[#e8d6bb]"
+                      }`}
+                  >
+                    {num}
+                  </button>
+                )
+              ))}
+
+              <button
+                onClick={() => goToPage(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="px-4 py-3 rounded bg-[#3b2b1c] cursor-pointer text-white text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition"
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </>
+      )}
 
       {/* Modals */}
       <AddJobModal
         isOpen={isInsertOpen}
         onClose={() => {
           setInsertIsOpen(false);
-          fetchPositions(); // Refresh list after adding
+          fetchPositions();
         }}
       />
 
@@ -229,7 +345,7 @@ export default function PositionTable() {
         onClose={() => setIsEditOpen(false)}
         position={selectedJob}
         onSave={() => {
-          fetchPositions(); // Refresh list after editing
+          fetchPositions();
         }}
       />
     </div>
