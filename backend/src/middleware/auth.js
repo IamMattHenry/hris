@@ -95,32 +95,36 @@ export const verifyAccess = ({ roles = [], subRoles = [], departments = [] }) =>
     }
 
     // Load sub-role from user_roles table
-    const [rows] = await db.query(
-      `SELECT sub_role FROM user_roles WHERE user_id = ? LIMIT 1`,
+    const userSubrole = await db.getOne(
+      `SELECT sub_role FROM user_roles WHERE user_id = ?`,
       [user.user_id]
     );
 
-    const userSubRole = rows?.[0]?.sub_role || null;
+    const it = userSubrole?.sub_role || null;
 
-    if (subRoles.length > 0 && !subRoles.includes(userSubRole)) {
+    if (subRoles.length > 0 && !subRoles.includes(it)) {
       return res.status(403).json({
         success: false,
         message: "Access denied: Sub-role not permitted.",
+        sub_role: it,
+        user: user,
       });
     }
 
     // Load department through employees table
-    const [emp] = await db.query(
-      `SELECT department_id FROM employees WHERE user_id = ? LIMIT 1`,
+    const userDept = await db.getOne(
+      `SELECT department_id FROM employees WHERE user_id = ?`,
       [user.user_id]
     );
 
-    const userDept = emp?.[0]?.department_id || null;
+    const userDepartment = userDept?.department_id || null;
 
-    if (departments.length > 0 && !departments.includes(userDept)) {
+    if (departments.length > 0 && !departments.includes(userDepartment)) {
       return res.status(403).json({
         success: false,
         message: "Access denied: Not allowed for this department.",
+        department: userDepartment,
+        user: user,
       });
     }
 

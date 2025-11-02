@@ -22,7 +22,6 @@ CREATE TABLE
 
 -- USER ROLES TABLE
 -- Sub-roles are only for admins and supervisors to indicate their department specialization
--- Note: 'supervisor' removed from sub_role enum as it's now a primary role in users table
 CREATE TABLE
     IF NOT EXISTS user_roles (
         user_role_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -75,43 +74,42 @@ CREATE TABLE
 -- EMPLOYEES
 -- =====================================================
 -- EMPLOYEES TABLE
-CREATE TABLE IF NOT EXISTS employees (
-    employee_id INT AUTO_INCREMENT PRIMARY KEY,
-    employee_code VARCHAR(10) UNIQUE,
-    user_id INT UNIQUE,
-    first_name VARCHAR(100) NOT NULL,
-    last_name VARCHAR(100) NOT NULL,
-    middle_name VARCHAR(100),
-    extension_name VARCHAR(10),
-    birthdate DATE,
-    gender ENUM('male', 'female', 'others')
-        CHARACTER SET utf8mb4
-        COLLATE utf8mb4_general_ci
-        NOT NULL
-        DEFAULT 'others',
-    civil_status ENUM('single', 'married', 'divorced', 'widowed') DEFAULT 'single',
-    home_address TEXT,
-    city VARCHAR(100),
-    region VARCHAR(100),
-    province VARCHAR(100),
-    position_id INT,
-    department_id INT,
-    shift ENUM('morning', 'night') DEFAULT 'morning',
-    salary DECIMAL(10, 2),
-    hire_date DATE,
-    leave_credit INT DEFAULT 15,
-    supervisor_id INT,
-    status ENUM('active', 'resigned', 'terminated', 'on-leave') DEFAULT 'active',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_by INT,
-    updated_by INT,
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    FOREIGN KEY (position_id) REFERENCES job_positions(position_id) ON DELETE SET NULL,
-    FOREIGN KEY (department_id) REFERENCES departments(department_id) ON DELETE SET NULL,
-    FOREIGN KEY (supervisor_id) REFERENCES employees(employee_id) ON DELETE SET NULL,
-    CHECK (employee_code REGEXP '^EMP-[0-9]{4}$')
-);
+CREATE TABLE
+    IF NOT EXISTS employees (
+        employee_id INT AUTO_INCREMENT PRIMARY KEY,
+        employee_code VARCHAR(10) UNIQUE,
+        user_id INT UNIQUE,
+        first_name VARCHAR(100) NOT NULL,
+        last_name VARCHAR(100) NOT NULL,
+        middle_name VARCHAR(100),
+        extension_name VARCHAR(10),
+        birthdate DATE,
+        gender ENUM ('male', 'female', 'others') CHARACTER
+        SET
+            utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'others',
+            civil_status ENUM ('single', 'married', 'divorced', 'widowed') DEFAULT 'single',
+            home_address TEXT,
+            city VARCHAR(100),
+            region VARCHAR(100),
+            province VARCHAR(100),
+            position_id INT,
+            department_id INT,
+            shift ENUM ('morning', 'night') DEFAULT 'morning',
+            salary DECIMAL(10, 2),
+            hire_date DATE,
+            leave_credit INT DEFAULT 15,
+            supervisor_id INT,
+            status ENUM ('active', 'resigned', 'terminated', 'on-leave') DEFAULT 'active',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            created_by INT,
+            updated_by INT,
+            FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE,
+            FOREIGN KEY (position_id) REFERENCES job_positions (position_id) ON DELETE SET NULL,
+            FOREIGN KEY (department_id) REFERENCES departments (department_id) ON DELETE SET NULL,
+            FOREIGN KEY (supervisor_id) REFERENCES employees (employee_id) ON DELETE SET NULL,
+            CHECK (employee_code REGEXP '^EMP-[0-9]{4}$')
+    );
 
 -- Add foreign key to departments after employees table is created
 ALTER TABLE departments ADD CONSTRAINT fk_dept_supervisor FOREIGN KEY (supervisor_id) REFERENCES employees (employee_id) ON DELETE SET NULL;
@@ -285,3 +283,9 @@ CREATE TABLE
         created_by INT,
         FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE
     );
+
+-- =====================================================
+-- TICKET SYSTEM
+-- =====================================================
+-- TICKET TABLE
+x

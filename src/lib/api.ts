@@ -566,3 +566,12 @@ export const leaveApi = {
   },
 };
 
+// ACTIVITY LOG FUNCTIONS
+export const activityApi = {
+  // Get activities
+  getAll: async () => {
+    return apiCall<any>('/activity', {
+      method: 'GET',
+    })
+  }
+}

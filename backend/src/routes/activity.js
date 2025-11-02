@@ -5,7 +5,7 @@ import { getActivityLogs } from '../controllers/activityController.js';
 const router = express.Router();
 
 router.get("/", verifyToken, verifyAccess({
-  roles: ["superadmin"],
+  roles: ["admin", "superadmin"],
   subRoles: ["it"],
 }), getActivityLogs);
 

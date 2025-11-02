@@ -3,7 +3,7 @@ import logger from '../utils/logger.js';
 
 export const getActivityLogs = async (req, res, next) => {
   try {
-    const logs = await db.getAll('SELECT * FROM activity_logs ORDER BY timestamp DESC LIMIT 100');
+    const logs = await db.getAll('SELECT * FROM activity_logs ORDER BY created_at DESC LIMIT 1000');
 
     res.json({
       success: true,
