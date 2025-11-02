@@ -18,8 +18,7 @@ export default function Sidebar() {
         { name: "Departments", icon: Building, path: "/dashboard/departments" }
     ];
 
-    // check if superadmin
-    if (user?.role === "superadmin") {
+    if ((user?.role === "superadmin" && user?.sub_role === "it") || user?.sub_role === "it") { // check if superadmin or it admin is logged in and display sidebar links accordingly.
         links.push({ name: "Activity Log", icon: LogsIcon, path: "/dashboard/activity_log" });
         links.push({ name: "Technical Support", icon: CogIcon, path: "/dashboard/tech_support" });
     }

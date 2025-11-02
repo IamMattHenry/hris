@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Eye, Search, Clock } from "lucide-react";
+import { activityApi } from "@/lib/api";
 
 const ActivityLogTab = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -10,9 +11,8 @@ const ActivityLogTab = () => {
   const [currentDate, setCurrentDate] = useState("");
   const [currentTime, setCurrentTime] = useState("");
 
-const [logs, setLogs] = useState<any[]>([]);
+  const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
 
   //  Live update of date and time
   useEffect(() => {
@@ -45,51 +45,36 @@ const [logs, setLogs] = useState<any[]>([]);
   const today = now.toISOString().split("T")[0];
   const currentTimeValue = now.toTimeString().slice(0, 5);
 
-  // 🧾 Mock Data
-  const activities = [
-    { id: "LOG-0009", name: "Juan Dela Cruz", position: "HR Assistant", activity: "Added Employee", date: "2025-10-30", time: "17:00" },
-    { id: "LOG-0010", name: "John Doe", position: "Manager", activity: "Logged In", date: "2025-10-30", time: "15:00" },
-    { id: "LOG-0011", name: "Maria Santos", position: "HR Manager", activity: "Updated Record", date: "2025-10-29", time: "10:30" },
-    { id: "LOG-0012", name: "Pedro Ramos", position: "HR Specialist", activity: "Removed Employee", date: "2025-10-28", time: "13:15" },
-    { id: "LOG-0013", name: "Lisa Tan", position: "HR Assistant", activity: "Logged Out", date: "2025-10-28", time: "17:00" },
-    { id: "LOG-0014", name: "Ana Cruz", position: "HR Assistant", activity: "Added Employee", date: "2025-10-27", time: "11:00" },
-    { id: "LOG-0015", name: "Mark Lee", position: "Manager", activity: "Updated Record", date: "2025-10-27", time: "09:00" },
-    { id: "LOG-0016", name: "Sophia Reyes", position: "HR Officer", activity: "Logged In", date: "2025-10-26", time: "10:00" },
-    { id: "LOG-0017", name: "Miguel Cruz", position: "Clerk", activity: "Logged Out", date: "2025-10-26", time: "18:00" },
-    { id: "LOG-0018", name: "Catherine Uy", position: "HR Director", activity: "Added Employee", date: "2025-10-25", time: "14:00" },
-    { id: "LOG-0019", name: "Robert Kim", position: "Supervisor", activity: "Logged In", date: "2025-10-25", time: "07:45" },
-  ];
-
   // 🔍 Filter logic
-  const filteredActivities = activities.filter((a) => {
+  const filteredActivities = logs.filter((a) => {
     const matchesSearch =
-      a.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      a.activity.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesDate = date ? a.date === date : true;
-    const matchesTime = time ? a.time.startsWith(time) : true;
-    return matchesSearch && matchesDate && matchesTime;
+      a.employee_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      a.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      a.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      a.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      a.module.toLowerCase().includes(searchTerm.toLowerCase());
+    const normalize = (d: string) => new Date(d).toISOString().split("T")[0];
+
+    const matchesDate = date
+      ? normalize(a.created_at) === normalize(date)
+      : true;
+
+    return matchesSearch && matchesDate;
   });
 
-
-    // useEffect(() => {
-    //   const fetchLogs = async () => {
-    //     try {
-    //       const result = await getActivityLogs();
-    //       if (result.success) {
-    //         setLogs(result.data);
-    //       }
-    //     } catch (err) {
-    //       console.error("Failed to fetch logs", err);
-    //     } finally {
-    //       setLoading(false);
-    //     }
-    //   };
-  
-    //   fetchLogs();
-    // }, []);
-  
-   // if (loading) return <div>Loading activity logs...</div>;
-  
+  useEffect(() => {
+    const fetchLogs = async () => {
+      try {
+        const result = await activityApi.getAll();
+        if (result.success) {
+          setLogs(result.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch logs", err);
+      }
+    };
+    fetchLogs();
+  }, []);
 
   return (
     <div className="p-6 bg-[#FAF1E4] rounded-lg space-y-6 overflow-hidden font-poppins">
@@ -118,7 +103,7 @@ const [logs, setLogs] = useState<any[]>([]);
           />
         </div>
 
-        {/* Date & Time Filters */}
+        {/* Date Filter */}
         <div className="flex items-center gap-3">
           <input
             type="date"
@@ -126,13 +111,6 @@ const [logs, setLogs] = useState<any[]>([]);
             value={date}
             onChange={(e) => setDate(e.target.value)}
             max={today}
-          />
-          <input
-            type="time"
-            className="px-4 py-2 rounded-lg border border-[#EAD7C4] bg-white text-gray-700 focus:ring-2 focus:ring-[#D4A056]"
-            value={time}
-            onChange={(e) => setTime(e.target.value)}
-            max={date === today ? currentTimeValue : undefined}
           />
         </div>
       </div>
@@ -142,10 +120,10 @@ const [logs, setLogs] = useState<any[]>([]);
         {/* Table Header */}
         <div className="grid grid-cols-[120px_1.5fr_1.5fr_150px_120px_100px] bg-[#4B0B14] text-[#FFF2E0] font-medium px-6 py-4">
           <div>Log ID</div>
+          <div>Employee Code</div>
           <div>Employee</div>
           <div>Activity</div>
           <div>Date</div>
-          <div>Time</div>
         </div>
 
         {/* Scrollable Table Body */}
@@ -164,39 +142,32 @@ const [logs, setLogs] = useState<any[]>([]);
                   index % 2 === 0 ? "bg-[#FFF9F1]" : "bg-[#FFF2E0]"
                 } hover:bg-[#F8EAD6] transition-colors`}
               >
-                <div className="font-medium text-[#4B0B14]">{activity.id}</div>
-
+                <div className="font-medium text-[#4B0B14]">
+                  {activity.log_id}
+                </div>
+                <div>{activity.employee_code}</div>
                 {/* Employee Info */}
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 flex items-center justify-center rounded-full bg-[#4B0B14] text-[#FFF2E0] font-semibold">
-                    {activity.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")
-                      .slice(0, 2)
-                      .toUpperCase()}
-                  </div>
-                  <div>
-                    <div className="font-medium text-[#4B0B14]">{activity.name}</div>
-                    <div className="text-sm text-gray-600">{activity.position}</div>
-                  </div>
+                  {activity.first_name + " " + activity.last_name}
                 </div>
-
-                <div className="text-gray-700">{activity.activity}</div>
-
+                <div>
+                  <div className="font-medium text-[#4B0B14]">
+                    {activity.action}
+                  </div>
+                  <div className="text-sm text-gray-600">{activity.module}</div>
+                  <div className="text-gray-700">{activity.description}</div>
+                </div>
                 <div>
                   <span className="px-3 py-1 bg-[#EAD7C4] text-[#4B0B14] rounded-full text-sm">
-                    {activity.date}
+                    {new Date(activity.created_at).toLocaleString("en-PH", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   </span>
                 </div>
-
-                <div>
-                  <span className="px-3 py-1 bg-[#EAD7C4] text-[#4B0B14] rounded-full text-sm">
-                    {activity.time}
-                  </span>
-                </div>
-
-              
               </div>
             ))
           ) : (
