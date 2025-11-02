@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import FormInput from "@/components/forms/FormInput";
 import ActionButton from "@/components/buttons/ActionButton";
 import { departmentApi, employeeApi } from "@/lib/api";
+import { toast } from "react-hot-toast";
 
 interface AddDepartmentModalProps {
     isOpen: boolean;
@@ -89,11 +90,11 @@ export default function AddDepartmentModal({ isOpen, onClose, onSave }: AddDepar
         setLoading(false);
 
         if (result.success) {
-            alert("Department created successfully");
+            toast.success("Department created successfully");
             if (onSave) onSave(result.data);
             onClose();
         } else {
-            alert(result.message || "Failed to create department");
+            toast.error(result.message || "Failed to create department");
         }
     };
 

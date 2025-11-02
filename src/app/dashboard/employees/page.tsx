@@ -17,6 +17,7 @@ import EditEmployeeModal from "./edit_employee/EditModal";
 import { employeeApi } from "@/lib/api";
 import { Employee } from "@/types/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "react-hot-toast";
 
 
 
@@ -169,13 +170,13 @@ export default function EmployeeTable() {
   const handleView = (id: number) => setEmployeeToView(id);
   const handleEdit = (id: number) => setEmployeeToEdit(id);
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this employee?")) return;
+    if (!window.confirm("Are you sure you want to delete this employee?")) return;
     const result = await employeeApi.delete(id);
     if (result.success) {
-      alert("Employee deleted successfully");
+      toast.success("Employee deleted successfully");
       fetchEmployees();
     } else {
-      alert(result.message || "Failed to delete employee");
+      toast.error(result.message || "Failed to delete employee");
     }
   };
 

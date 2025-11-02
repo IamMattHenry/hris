@@ -86,6 +86,10 @@ export const verifyAccess = ({ roles = [], subRoles = [], departments = [] }) =>
 
     const user = req.user; // user from JWT
 
+    if (user.role === "superadmin") {
+      return next();
+    }
+
     // Check role
     if (roles.length > 0 && !roles.includes(user.role)) {
       return res.status(403).json({

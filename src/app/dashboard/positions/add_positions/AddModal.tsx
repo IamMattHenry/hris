@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import FormInput from "@/components/forms/FormInput";
 import ActionButton from "@/components/buttons/ActionButton";
 import { positionApi, departmentApi } from "@/lib/api";
+import { toast } from "react-hot-toast";
 
 interface AddJobModalProps {
     isOpen: boolean;
@@ -103,10 +104,10 @@ export default function AddJobModal({ isOpen, onClose }: AddJobModalProps) {
         setLoading(false);
 
         if (result.success) {
-            alert("Position created successfully");
+            toast.success("Position created successfully");
             onClose();
         } else {
-            alert(result.message || "Failed to create position");
+            toast.error(result.message || "Failed to create position");
         }
     };
 

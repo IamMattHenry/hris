@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import FormInput from "@/components/forms/FormInput";
 import { departmentApi, employeeApi } from "@/lib/api";
+import { toast } from "react-hot-toast";
 
 interface Department {
   department_id: number;
@@ -82,11 +83,11 @@ export default function EditDepartmentModal({
     setLoading(false);
 
     if (result.success) {
-      alert("Department updated successfully");
+      toast.success("Department updated successfully");
       if (onSave) onSave();
       onClose();
     } else {
-      alert(result.message || "Failed to update department");
+      toast.error(result.message || "Failed to update department");
     }
   };
 

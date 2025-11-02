@@ -575,3 +575,116 @@ export const activityApi = {
     })
   }
 }
+
+// ============ TICKET API FUNCTIONS ============
+
+export const ticketApi = {
+  /**
+   * Get all tickets
+   * @param status - Optional filter by status (open, in_progress, resolved, closed)
+   * @param user_id - Optional filter by user ID
+   */
+  getAll: async (status?: string, user_id?: number) => {
+    let url = '/tickets';
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    if (user_id) params.append('user_id', user_id.toString());
+    if (params.toString()) url += `?${params.toString()}`;
+
+    return apiCall<any[]>(url, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get ticket by ID
+   */
+  getById: async (id: number) => {
+    return apiCall<any>(`/tickets/${id}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Create a new ticket
+   */
+  create: async (data: {
+    user_id: number;
+    title: string;
+    description?: string;
+  }) => {
+    return apiCall<any>('/tickets', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Create a new public ticket (for unauthenticated users)
+   */
+  createPublic: async (data: {
+    title: string;
+    description?: string;
+    email?: string;
+    name?: string;
+  }) => {
+    return apiCall<any>('/tickets/public', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Update ticket status
+   */
+  updateStatus: async (id: number, status: 'open' | 'in_progress' | 'resolved' | 'closed', fixed_by?: number) => {
+    return apiCall<any>(`/tickets/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status, fixed_by }),
+    });
+  },
+
+  /**
+   * Update ticket details
+   */
+  update: async (id: number, data: {
+    title?: string;
+    description?: string;
+    status?: 'open' | 'in_progress' | 'resolved' | 'closed';
+    fixed_by?: number;
+  }) => {
+    return apiCall<any>(`/tickets/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Delete a ticket
+   */
+  delete: async (id: number) => {
+    return apiCall<any>(`/tickets/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Generate ticket report
+   */
+  generateReport: async (params?: {
+    startDate?: string;
+    endDate?: string;
+    status?: string;
+  }) => {
+    const queryParams = new URLSearchParams();
+    if (params?.startDate) queryParams.append('start_date', params.startDate);
+    if (params?.endDate) queryParams.append('end_date', params.endDate);
+    if (params?.status) queryParams.append('status', params.status);
+
+    const url = `/tickets/report${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    
+    return apiCall<any>(url, {
+      method: 'GET',
+    });
+  },
+};

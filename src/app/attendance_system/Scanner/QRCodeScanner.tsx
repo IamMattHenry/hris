@@ -2,6 +2,7 @@
 
 import { Html5Qrcode } from "html5-qrcode";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "react-hot-toast";
 
 interface QRCodeScannerProps {
   onScan: (value: string) => void;
@@ -51,10 +52,11 @@ export default function QRCodeScanner({ onScan, isActive = true }: QRCodeScanner
         );
         setIsScanning(true);
       } else {
-        alert("No camera found!");
+        toast.error("No camera found!");
       }
     } catch (err) {
       console.error("Failed to start scanner:", err);
+      toast.error("Failed to start camera scanner");
     }
   };
 

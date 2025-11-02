@@ -6,6 +6,7 @@ import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
 import ViewAttendanceModal from "./view_attendance/ViewModal";
 import { attendanceApi } from "@/lib/api";
+import { toast } from "react-hot-toast";
 
 type AttendanceStatus = "present" | "absent" | "late" | "half_day" | "on_leave" | "work_from_home" | "others";
 
@@ -86,7 +87,7 @@ export default function AttendanceTable() {
   const handleMarkAbsences = async () => {
     const todayPH = getCurrentPHDate();
     if (!selectedDate || selectedDate >= todayPH) {
-      alert("You can only mark absences for past dates.");
+      toast.error("You can only mark absences for past dates.");
       return;
     }
     const confirmed = window.confirm(`Mark absences (no-shows) for ${selectedDate}?`);
@@ -96,14 +97,14 @@ export default function AttendanceTable() {
     try {
       const result = await attendanceApi.markAbsences(selectedDate);
       if (result.success) {
-        alert(result.message || `Marked absences for ${selectedDate}`);
+        toast.success(result.message || `Marked absences for ${selectedDate}`);
         await fetchAttendance();
       } else {
-        alert(result.message || "Failed to mark absences");
+        toast.error(result.message || "Failed to mark absences");
       }
     } catch (e) {
       console.error(e);
-      alert("An error occurred while marking absences.");
+      toast.error("An error occurred while marking absences.");
     } finally {
       setIsMarking(false);
     }

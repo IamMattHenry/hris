@@ -8,6 +8,7 @@ import { leaveApi, employeeApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import AddLeaveModal from "./add_request/AddModal";
 import ViewLeaveModal from "./view_request/ViewModal";
+import { toast } from "react-hot-toast";
 
 type TabKey = "Leave Request" | "History";
 type LeaveType = "vacation" | "sick" | "personal" | "parental" | "bereavement" | "emergency" | "others";
@@ -157,35 +158,35 @@ export default function RequestsPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this leave request?")) return;
+    if (!window.confirm("Are you sure you want to delete this leave request?")) return;
     const result = await leaveApi.delete(id);
     if (result.success) {
-      alert("Leave request deleted successfully");
+      toast.success("Leave request deleted successfully");
       fetchLeaves();
     } else {
-      alert(result.message || "Failed to delete leave request");
+      toast.error(result.message || "Failed to delete leave request");
     }
   };
 
   const handleApprove = async (id: number) => {
     const result = await leaveApi.approve(id);
     if (result.success) {
-      alert("Leave request approved");
+      toast.success("Leave request approved");
       setIsViewModalOpen(false);
       fetchLeaves(); // Refresh the list
     } else {
-      alert(result.message || "Failed to approve leave request");
+      toast.error(result.message || "Failed to approve leave request");
     }
   };
 
   const handleReject = async (id: number) => {
     const result = await leaveApi.reject(id);
     if (result.success) {
-      alert("Leave request rejected");
+      toast.success("Leave request rejected");
       setIsViewModalOpen(false);
       fetchLeaves(); // Refresh the list
     } else {
-      alert(result.message || "Failed to reject leave request");
+      toast.error(result.message || "Failed to reject leave request");
     }
   };
 

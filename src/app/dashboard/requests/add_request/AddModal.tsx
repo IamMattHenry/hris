@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { leaveApi, employeeApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import ActionButton from "@/components/buttons/ActionButton";
+import { toast } from "react-hot-toast";
 
 type LeaveType =
   | "vacation"
@@ -106,10 +107,10 @@ export default function AddLeaveModal({
     setIsSubmitting(true);
     const result = await leaveApi.create(formData);
     if (result.success) {
-      alert("Leave request submitted successfully");
+      toast.success("Leave request submitted successfully");
       onSuccess();
     } else {
-      alert(result.message || "Failed to submit leave request");
+      toast.error(result.message || "Failed to submit leave request");
     }
     setIsSubmitting(false);
   };

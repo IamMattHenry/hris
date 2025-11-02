@@ -288,4 +288,33 @@ CREATE TABLE
 -- TICKET SYSTEM
 -- =====================================================
 -- TICKET TABLE
-x
+CREATE TABLE
+    IF NOT EXISTS tickets (
+        ticket_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        ticket_code VARCHAR(10) UNIQUE,
+        user_id INT NOT NULL,
+        fixed_by INT,
+        title VARCHAR(100) NOT NULL,
+        description TEXT,
+        status ENUM ('open', 'in_progress', 'resolved', 'closed') DEFAULT 'open',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_by INT,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        updated_by INT,
+        FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE,
+        FOREIGN KEY (fixed_by) REFERENCES users (user_id) ON DELETE SET NULL,
+        FOREIGN KEY (created_by) REFERENCES users (user_id) ON DELETE SET NULL,
+        FOREIGN KEY (updated_by) REFERENCES users (user_id) ON DELETE SET NULL,
+        CHECK (ticket_code REGEXP '^TIC-[0-9]{4}$')
+    );
+
+-- PUBLIC TICKET EMAILS TABLE
+CREATE TABLE
+    IF NOT EXISTS public_ticket_emails (
+        id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        ticket_id INT NOT NULL,
+        email VARCHAR(100),
+        name VARCHAR(100),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (ticket_id) REFERENCES tickets (ticket_id) ON DELETE CASCADE
+    );

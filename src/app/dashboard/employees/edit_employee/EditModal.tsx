@@ -17,6 +17,7 @@ import {
   type Dependent,
   type ValidationErrors,
 } from "./validation";
+import { toast } from "react-hot-toast";
 
 /* ---------- Interfaces ---------- */
 interface EditEmployeeModalProps {
@@ -511,14 +512,14 @@ export default function EditEmployeeModal({
       console.log("Update result:", result);
 
       if (result.success) {
-        alert("Employee updated successfully!");
+        toast.success("Employee updated successfully!");
         onClose();
       } else {
-        alert(result.message || "Failed to update employee");
+        toast.error(result.message || "Failed to update employee");
       }
     } catch (err) {
       console.error("Update error:", err);
-      alert("An error occurred while updating employee");
+      toast.error("An error occurred while updating employee");
     } finally {
       setIsSubmitting(false);
     }

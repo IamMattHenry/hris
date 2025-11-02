@@ -7,6 +7,7 @@ import { Search, Trash2, Eye } from "lucide-react";
 import { userApi } from "@/lib/api";
 import { User } from "@/types/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "react-hot-toast";
 
 
 export default function UsersPage() {
@@ -39,22 +40,22 @@ export default function UsersPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this user? This will also delete associated employee/admin records.")) {
+    if (!window.confirm("Are you sure you want to delete this user? This will also delete associated employee/admin records.")) {
       return;
     }
 
     const result = await userApi.delete(id);
 
     if (result.success) {
-      alert("User deleted successfully");
+      toast.success("User deleted successfully");
       fetchUsers(); // Refresh the list
     } else {
-      alert(result.message || "Failed to delete user");
+      toast.error(result.message || "Failed to delete user");
     }
   };
 
   const handleView = (id: number) => {
-    alert(`View user details for ID: ${id}`);
+    toast.info(`View user details for ID: ${id}`);
   };
 
   // Filter users by search term

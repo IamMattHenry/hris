@@ -5,6 +5,7 @@ import { X, Save } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ActionButton from "@/components/buttons/ActionButton";
 import { positionApi, departmentApi } from "@/lib/api";
+import { toast } from "react-hot-toast";
 
 interface EditJobModalProps {
   isOpen: boolean;
@@ -76,11 +77,11 @@ export default function EditJobModal({ isOpen, onClose, position, onSave }: Edit
     setLoading(false);
 
     if (result.success) {
-      alert("Position updated successfully");
+      toast.success("Position updated successfully");
       if (onSave) onSave();
       onClose();
     } else {
-      alert(result.message || "Failed to update position");
+      toast.error(result.message || "Failed to update position");
     }
   };
 

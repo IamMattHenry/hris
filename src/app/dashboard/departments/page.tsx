@@ -10,17 +10,20 @@ import DepartmentTable from "./dept_table/table";
 import { useAuth } from "@/contexts/AuthContext";
 import { departmentApi } from "@/lib/api";
 import SearchBar from "@/components/forms/FormSearch";
+import { toast } from "react-hot-toast";
+import ConfirmModal from "@/components/modals/ConfirmModal";
 
 export default function DepartmentsPage() {
   const { user } = useAuth();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-
   const [selectedDepartment, setSelectedDepartment] = useState<any>(null);
   const [departments, setDepartments] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [departmentToDelete, setDepartmentToDelete] = useState<number | null>(null);
 
   const itemsPerPage = 10;
   const [currentPage, setCurrentPage] = useState(1);
@@ -60,14 +63,22 @@ export default function DepartmentsPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this department?")) return;
-    const result = await departmentApi.delete(id);
+    setDepartmentToDelete(id);
+    setIsConfirmModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!departmentToDelete) return;
+    
+    const result = await departmentApi.delete(departmentToDelete);
     if (result.success) {
-      alert("Department deleted successfully");
+      toast.success("Department deleted successfully");
       fetchDepartments();
     } else {
-      alert(result.message || "Failed to delete department");
-    } 
+      toast.error(result.message || "Failed to delete department");
+    }
+    
+    setDepartmentToDelete(null);
   };
 
   const handleSearch = (term: string) => {
@@ -179,6 +190,19 @@ export default function DepartmentsPage() {
           Next
         </button>
       </div>
+
+      {/* Confirm Delete Modal */}
+      <ConfirmModal
+        isOpen={isConfirmModalOpen}
+        onClose={() => {
+          setIsConfirmModalOpen(false);
+          setDepartmentToDelete(null);
+        }}
+        onConfirm={confirmDelete}
+        title="Delete Department"
+        message="Are you sure you want to delete this department? This action cannot be undone."
+        confirmText="Delete"
+      />
 
       <AddDepartmentModal
         isOpen={isAddModalOpen}

@@ -9,6 +9,7 @@ import EditJobModal from "./edit_positions/EditModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { positionApi } from "@/lib/api";
 import SearchBar from "@/components/forms/FormSearch";
+import { toast } from "react-hot-toast";
 
 export default function PositionTable() {
   const { user } = useAuth();
@@ -72,13 +73,13 @@ export default function PositionTable() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this position?")) return;
+    if (!window.confirm("Are you sure you want to delete this position?")) return;
     const result = await positionApi.delete(id);
     if (result.success) {
-      alert("Position deleted successfully");
+      toast.success("Position deleted successfully");
       fetchPositions();
     } else {
-      alert(result.message || "Failed to delete position");
+      toast.error(result.message || "Failed to delete position");
     }
   };
 

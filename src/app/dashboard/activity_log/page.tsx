@@ -156,7 +156,7 @@ const ActivityLogTab = () => {
                   </div>
                   <div className="text-sm text-gray-600">{activity.module}</div>
                   <div className="text-gray-700">{activity.description}</div>
-                </div>
+                </div>x44
                 <div>
                   <span className="px-3 py-1 bg-[#EAD7C4] text-[#4B0B14] rounded-full text-sm">
                     {new Date(activity.created_at).toLocaleString("en-PH", {

@@ -9,10 +9,17 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, isLoading } = useAuth();
 
-  const currentPage =
+  let currentPage =
     pathname.split("/").filter(Boolean).pop() || "dashboard";
 
-  const titleHeader = currentPage.charAt(0).toUpperCase() + currentPage.slice(1);
+  // Special case for tech_support -> Technical Support
+  if (currentPage === "tech_support") {
+    currentPage = "Technical Support";
+  } else {
+    currentPage = currentPage.charAt(0).toUpperCase() + currentPage.slice(1);
+  }
+
+  const titleHeader = currentPage;
 
   const adminName = user?.first_name && user?.last_name
     ? `${user.first_name} ${user.last_name}`

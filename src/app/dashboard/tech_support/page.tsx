@@ -1,160 +1,276 @@
 "use client";
 
-import React, { useState } from "react";
-import { Eye, CheckCircle, X } from "lucide-react";
+import React, { useState, useEffect, useCallback, memo } from "react";
+import { Eye, CheckCircle, X, RefreshCw, FileText } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ActionButton from "@/components/buttons/ActionButton";
+import { ticketApi } from "@/lib/api";
+import { toast } from "react-hot-toast";
+
+// Define proper types
+interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  message?: string;
+  error?: string;
+  count?: number;
+}
+
+interface ApiError {
+  message: string;
+  code?: string;
+}
+
+interface Ticket {
+  ticket_id: number;
+  ticket_code: string;
+  user_id: number;
+  fixed_by: number | null;
+  title: string;
+  description: string | null;
+  status: "open" | "in_progress" | "resolved" | "closed";
+  created_at: string;
+  updated_at: string;
+  first_name: string;
+  last_name: string;
+  employee_code: string;
+  email?: string; // Made email optional since it might not be available
+  position_name: string;
+  fixed_by_first_name: string | null;
+  fixed_by_last_name: string | null;
+  fixed_by_code: string | null;
+}
+
+const formatDate = (dateString: string) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+};
+
+const getStatusDisplay = (status: string) => {
+  const statusMap: Record<string, string> = {
+    open: "Open",
+    in_progress: "In Progress",
+    resolved: "Resolved",
+    closed: "Closed",
+  };
+  return statusMap[status] || status;
+};
+
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case "resolved":
+    case "closed":
+      return "bg-green-100 text-green-800 border border-green-300";
+    case "in_progress":
+      return "bg-blue-100 text-blue-800 border border-blue-300";
+    case "open":
+    default:
+      return "bg-amber-100 text-amber-800 border border-amber-300";
+  }
+};
 
 const TechnicalSupportTab = () => {
-  const [tickets, setTickets] = useState([
-    {
-      id: "TCK-0001",
-      name: "Juan Dela Cruz",
-      position: "HR Assistant",
-      email: "juan@gmail.com",
-      concern: "Forgot Password",
-      description:
-        "I can’t log in to my account because I forgot my password. I’ve already tried the recovery link but it didn’t send any email.",
-      date: "2025-10-20",
-      status: "Resolved",
-    },
-    {
-      id: "TCK-0002",
-      name: "Maria Santos",
-      position: "Manager",
-      email: "maria@gmail.com",
-      concern: "Exporting Report",
-      description:
-        "When I try to export the employee performance report, the system shows an error message. Please assist.",
-      date: "2025-10-21",
-      status: "Pending",
-    },
-    ...Array.from({ length: 12 }).map((_, i) => ({
-      id: `TCK-${100 + i}`,
-      name: `Employee ${i + 1}`,
-      position: "Staff",
-      email: `user${i + 1}@gmail.com`,
-      concern: "System Error",
-      description: "Encountered unexpected error while processing data.",
-      date: "2025-10-20",
-      status: i % 2 === 0 ? "Resolved" : "Pending",
-    })),
-  ]);
-
-  const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [resolving, setResolving] = useState(false);
 
-  const handleView = (ticket: any) => {
+  // Memoized fetch function to prevent unnecessary re-creations
+  const fetchTickets = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response: ApiResponse<Ticket[]> = await ticketApi.getAll();
+
+      if (response.success && response.data) {
+        setTickets(response.data);
+      } else {
+        throw new Error(response.message || "Failed to fetch tickets");
+      }
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      console.error("Error fetching tickets:", error);
+      toast.error(apiError.message || "Failed to fetch tickets");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTickets();
+  }, [fetchTickets]);
+
+  const handleView = useCallback((ticket: Ticket) => {
     setSelectedTicket(ticket);
     setShowModal(true);
-  };
+  }, []);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setShowModal(false);
-    setTimeout(() => setSelectedTicket(null), 200);
-  };
+    setSelectedTicket(null);
+  }, []);
 
-  const handleResolve = () => {
-    if (!selectedTicket) return;
+  const handleResolve = useCallback(async () => {
+    if (!selectedTicket || resolving) return;
 
-    setTickets((prev) =>
-      prev.map((t) =>
-        t.id === selectedTicket.id ? { ...t, status: "Resolved" } : t
-      )
+    try {
+      setResolving(true);
+      const response: ApiResponse<unknown> = await ticketApi.updateStatus(
+        selectedTicket.ticket_id,
+        "resolved",
+        undefined
+      );
+
+      if (response.success) {
+        toast.success("Ticket marked as resolved");
+
+        setTickets((prev) =>
+          prev.map((t) =>
+            t.ticket_id === selectedTicket.ticket_id
+              ? { ...t, status: "resolved" }
+              : t
+          )
+        );
+
+        setSelectedTicket({ ...selectedTicket, status: "resolved" });
+      } else {
+        throw new Error(response.message || "Failed to resolve ticket");
+      }
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      console.error("Error resolving ticket:", error);
+      toast.error(apiError.message || "Failed to resolve ticket");
+    } finally {
+      setResolving(false);
+    }
+  }, [selectedTicket, resolving]);
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="p-6 bg-[#FAF6F1] rounded-xl h-[90vh] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#3D1A0B] mx-auto"></div>
+          <p className="mt-4 text-[#3D1A0B]">Loading tickets...</p>
+        </div>
+      </div>
     );
-
-    setSelectedTicket({ ...selectedTicket, status: "Resolved" });
-  };
+  }
 
   return (
     <div className="p-6 bg-[#FAF6F1] rounded-xl space-y-6 overflow-hidden h-[90vh] shadow-inner relative font-poppins">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-[#3D1A0B] tracking-tight">
-          Technical Support Tickets
-        </h2>
-        <p className="text-sm text-[#3D1A0B]/70 mt-1">
-          Review and manage system-related employee concerns efficiently.
-        </p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold text-[#3D1A0B] tracking-tight">
+            Technical Support Tickets
+          </h2>
+          <p className="text-sm text-[#3D1A0B]/70 mt-1">
+            Review and manage system-related employee concerns efficiently.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={fetchTickets}
+            className="flex items-center gap-2 px-4 py-2 bg-[#3D1A0B] text-[#FFF8EE] rounded-lg hover:bg-[#5C2A15] transition-colors"
+            aria-label="Refresh tickets"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
 
-      {/* Table Container */}
       <div className="border border-[#E8D9C4] rounded-xl shadow-md overflow-hidden bg-white">
-        {/* Table Header */}
-        <div className="grid grid-cols-[120px_1.5fr_1.5fr_1.5fr_150px_120px_100px] bg-[#3D1A0B] text-[#FFF8EE] font-semibold px-6 py-3 sticky top-0 z-10">
-          <div>Ticket ID</div>
+        <div className="grid grid-cols-[80px_1fr_1fr_120px_100px] md:grid-cols-[100px_1.5fr_1.5fr_1.5fr_150px_120px_100px] bg-[#3D1A0B] text-[#FFF8EE] font-semibold px-4 md:px-6 py-3 sticky top-0 z-10">
+          <div>ID</div>
           <div>Employee</div>
           <div>Email</div>
-          <div>Concern</div>
-          <div>Date</div>
+          <div className="hidden md:block">Concern</div>
+          <div className="hidden md:block">Date</div>
           <div>Status</div>
           <div className="text-center">Action</div>
         </div>
 
-        {/* Scrollable Body */}
-        <div className={tickets.length > 10 ? "max-h-[500px] overflow-y-auto" : ""}>
-          {tickets.map((ticket, index) => (
-            <div
-              key={index}
-              className={`grid grid-cols-[120px_1.5fr_1.5fr_1.5fr_150px_120px_100px] items-center px-6 py-4 border-b border-[#F3E5CF] ${
-                index % 2 === 0 ? "bg-[#FFFBF5]" : "bg-[#FFF4E6]"
-              } hover:bg-[#FFF0DC] transition-colors duration-150`}
-            >
-              <div className="font-medium text-[#3D1A0B]">{ticket.id}</div>
-
-              {/* Employee Info */}
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 flex items-center justify-center rounded-full bg-[#3D1A0B] text-[#FFF8EE] font-semibold">
-                  {ticket.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")
-                    .slice(0, 2)
-                    .toUpperCase()}
-                </div>
-                <div>
-                  <div className="font-semibold text-[#3D1A0B]">
-                    {ticket.name}
-                  </div>
-                  <div className="text-sm text-gray-600">{ticket.position}</div>
-                </div>
-              </div>
-
-              <div className="text-gray-700 truncate">{ticket.email}</div>
-              <div className="text-gray-700 truncate">{ticket.concern}</div>
-              <div>
-                <span className="px-3 py-1 bg-[#F3E9DA] text-[#3D1A0B] rounded-full text-sm">
-                  {ticket.date}
-                </span>
-              </div>
-
-              <div>
-                <span
-                  className={`px-4 py-1 rounded-full text-sm font-medium ${
-                    ticket.status === "Resolved"
-                      ? "bg-green-100 text-green-800 border border-green-300"
-                      : "bg-amber-100 text-amber-800 border border-amber-300"
-                  }`}
-                >
-                  {ticket.status}
-                </span>
-              </div>
-
-              <div className="flex justify-center">
-                <button
-                  onClick={() => handleView(ticket)}
-                  className="p-2 hover:bg-[#F3E5CF] rounded-lg transition"
-                  title="View Ticket"
-                >
-                  <Eye className="w-5 h-5 text-[#3D1A0B]" />
-                </button>
-              </div>
+        <div
+          className={tickets.length > 10 ? "max-h-[500px] overflow-y-auto" : ""}
+        >
+          {tickets.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              No tickets found
             </div>
-          ))}
+          ) : (
+            tickets.map((ticket, index) => (
+              <div
+                key={ticket.ticket_id}
+                className={`grid grid-cols-[80px_1fr_1fr_120px_100px] md:grid-cols-[100px_1.5fr_1.5fr_1.5fr_150px_120px_100px] items-center px-4 md:px-6 py-4 border-b border-[#F3E5CF] ${
+                  index % 2 === 0 ? "bg-[#FFFBF5]" : "bg-[#FFF4E6]"
+                } hover:bg-[#FFF0DC] transition-colors duration-150`}
+              >
+                <div className="font-medium text-[#3D1A0B] truncate">
+                  {ticket.ticket_code}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 flex items-center justify-center rounded-full bg-[#3D1A0B] text-[#FFF8EE] font-semibold">
+                    {`${ticket.first_name} ${ticket.last_name}`
+                      .split(" ")
+                      .map((n: string) => n[0])
+                      .join("")
+                      .slice(0, 2)
+                      .toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="font-semibold text-[#3D1A0B]">
+                      {ticket.first_name} {ticket.last_name}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {ticket.position_name || "N/A"}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-gray-700 truncate">
+                  {ticket.email || "N/A"}
+                </div>
+                <div className="hidden md:block text-gray-700 truncate">
+                  {ticket.title}
+                </div>
+                <div className="hidden md:block">
+                  <span className="px-3 py-1 bg-[#F3E9DA] text-[#3D1A0B] rounded-full text-sm">
+                    {formatDate(ticket.created_at)}
+                  </span>
+                </div>
+
+                <div>
+                  <span
+                    className={`px-4 py-1 rounded-full text-sm font-medium ${getStatusColor(
+                      ticket.status
+                    )}`}
+                  >
+                    {getStatusDisplay(ticket.status)}
+                  </span>
+                </div>
+
+                <div className="flex justify-center">
+                  <button
+                    onClick={() => handleView(ticket)}
+                    className="p-2 hover:bg-[#F3E5CF] rounded-lg transition"
+                    title="View Ticket"
+                    aria-label="View ticket details"
+                  >
+                    <Eye className="w-5 h-5 text-[#3D1A0B]" />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
-      {/* View Modal */}
       <AnimatePresence>
         {showModal && selectedTicket && (
           <motion.div
@@ -162,75 +278,112 @@ const TechnicalSupportTab = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-title"
+            aria-describedby="modal-description"
           >
             <motion.div
               className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg mx-4 relative border border-[#EAD7C4]"
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
+              role="document"
             >
-              {/* Close Button */}
               <button
                 onClick={handleClose}
                 className="absolute top-4 right-4 text-[#3D1A0B]/80 hover:text-[#3D1A0B]"
+                aria-label="Close modal"
               >
                 <X className="w-6 h-6" />
               </button>
 
-              <h3 className="text-xl font-semibold text-[#3D1A0B] mb-4">
+              <h3
+                id="modal-title"
+                className="text-xl font-semibold text-[#3D1A0B] mb-4"
+              >
                 Ticket Details
               </h3>
 
-              <div className="space-y-3 text-sm text-[#3b2b1c]">
+              <div
+                id="modal-description"
+                className="space-y-3 text-sm text-[#3b2b1c]"
+              >
                 <p>
                   <span className="font-semibold">Ticket ID:</span>{" "}
-                  {selectedTicket.id}
+                  {selectedTicket.ticket_code}
                 </p>
                 <p>
                   <span className="font-semibold">Employee:</span>{" "}
-                  {selectedTicket.name} ({selectedTicket.position})
+                  {selectedTicket.first_name} {selectedTicket.last_name} (
+                  {selectedTicket.position_name || "N/A"})
                 </p>
                 <p>
                   <span className="font-semibold">Email:</span>{" "}
-                  {selectedTicket.email}
+                  {selectedTicket.email || "N/A"}
                 </p>
                 <p>
                   <span className="font-semibold">Concern:</span>{" "}
-                  {selectedTicket.concern}
+                  {selectedTicket.title}
+                </p>
+                <div>
+                  <span className="font-semibold">Description:</span>
+                  <div className="mt-1 p-3 bg-[#F3E9DA]/30 rounded-lg whitespace-pre-wrap">
+                    {selectedTicket.description || "No description provided"}
+                  </div>
+                </div>
+                <p>
+                  <span className="font-semibold">Status:</span>{" "}
+                  <span
+                    className={`px-2 py-1 rounded ${getStatusColor(
+                      selectedTicket.status
+                    )}`}
+                  >
+                    {getStatusDisplay(selectedTicket.status)}
+                  </span>
                 </p>
                 <p>
-                  <span className="font-semibold">Date:</span>{" "}
-                  {selectedTicket.date}
+                  <span className="font-semibold">Submitted:</span>{" "}
+                  {formatDate(selectedTicket.created_at)}
                 </p>
-
-                <div className="mt-4">
-                  <span className="font-semibold">Description:</span>
-                  <p className="bg-[#FFF7EC] p-3 rounded-lg mt-2 text-gray-700 leading-relaxed">
-                    {selectedTicket.description}
+                {selectedTicket.updated_at !== selectedTicket.created_at && (
+                  <p>
+                    <span className="font-semibold">Last Updated:</span>{" "}
+                    {formatDate(selectedTicket.updated_at)}
                   </p>
-                </div>
+                )}
+                {selectedTicket.fixed_by_first_name && (
+                  <p>
+                    <span className="font-semibold">Fixed By:</span>{" "}
+                    {selectedTicket.fixed_by_first_name}{" "}
+                    {selectedTicket.fixed_by_last_name} (
+                    {selectedTicket.fixed_by_code})
+                  </p>
+                )}
+              </div>
 
-                <div className="pt-6 flex justify-end gap-3">
-                  <ActionButton
-                    label="Close"
-                    onClick={handleClose}
-                    className="rounded-lg"
-                  />
-                  <button
-                    onClick={handleResolve}
-                    disabled={selectedTicket.status === "Resolved"}
-                    className={`flex items-center gap-2 px-5 py-2 rounded-lg font-medium transition-all duration-200 shadow-sm ${
-                      selectedTicket.status === "Resolved"
-                        ? "bg-green-500 text-white cursor-not-allowed"
-                        : "bg-[#3D1A0B] text-[#FFF8EE] hover:bg-[#5C2A15]"
-                    }`}
-                  >
-                    <CheckCircle className="w-5 h-5" />
-                    {selectedTicket.status === "Resolved"
-                      ? "Resolved"
-                      : "Mark as Resolved"}
-                  </button>
-                </div>
+              <div className="flex justify-end gap-3 mt-6">
+                {selectedTicket.status !== "resolved" &&
+                  selectedTicket.status !== "closed" && (
+                    <button
+                      onClick={handleResolve}
+                      disabled={resolving}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-md transition ${
+                        resolving
+                          ? "bg-gray-400 cursor-not-allowed"
+                          : "bg-green-600 hover:bg-green-700 text-white"
+                      }`}
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      {resolving ? "Resolving..." : "Mark as Resolved"}
+                    </button>
+                  )}
+                <button
+                  onClick={handleClose}
+                  className="px-4 py-2 bg-[#3D1A0B] text-[#FFF8EE] rounded-md hover:bg-[#5C2A15] transition"
+                >
+                  Close
+                </button>
               </div>
             </motion.div>
           </motion.div>

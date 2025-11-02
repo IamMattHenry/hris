@@ -5,7 +5,7 @@
 
 /**
  * Generate a code with prefix and padded ID
- * @param {string} prefix - The prefix (e.g., 'DEP', 'EMP', 'POS')
+ * @param {string} prefix - The prefix (e.g., 'DEP', 'EMP', 'POS', 'TIC')
  * @param {number} id - The ID to pad
  * @returns {string} - The generated code (e.g., 'DEP-0001')
  */
@@ -79,6 +79,15 @@ export const generateDependentCode = (dependentId) => {
   return generateCode('DEP', dependentId);
 };
 
+/**
+ * Generate ticket code
+ * @param {number} ticketId - The ticket ID
+ * @returns {string} - The generated code (e.g., 'TIC-0001')
+ */
+export const generateTicketCode = (ticketId) => {
+  return generateCode('TIC', ticketId);
+};
+
 export default {
   generateCode,
   generateDepartmentCode,
@@ -88,5 +97,5 @@ export default {
   generateAttendanceCode,
   generateLeaveCode,
   generateDependentCode,
+  generateTicketCode,
 };
-
