@@ -138,7 +138,7 @@ export default function Dashboard() {
   ];
   
   const departmentData = Object.entries(departmentCounts)
-    .sort((a, b) => b[1] - a[1]) // Sort by value first
+    .sort((a, b) => b[1] - a[1])
     .map(([name, value], index) => ({
       name,
       value,
@@ -158,18 +158,26 @@ export default function Dashboard() {
   ];
 
   const handleViewPendingLeaves = async () => {
-    const result = await leaveApi.getPendingLeaves();
-    if (result.success && result.data) {
-      setPendingLeaves(result.data as PendingLeave[]);
-      setShowPendingLeaves(true);
+    try {
+      const result = await leaveApi.getPendingLeaves();
+      if (result.success && result.data) {
+        setPendingLeaves(result.data as PendingLeave[]);
+        setShowPendingLeaves(true);
+      }
+    } catch (err) {
+      console.error("Error fetching pending leaves:", err);
     }
   };
 
   const handleViewAbsenceRecords = async () => {
-    const result = await leaveApi.getAbsenceRecords();
-    if (result.success && result.data) {
-      setAbsenceRecords(result.data as AbsenceRecord[]);
-      setShowAbsenceRecords(true);
+    try {
+      const result = await leaveApi.getAbsenceRecords();
+      if (result.success && result.data) {
+        setAbsenceRecords(result.data as AbsenceRecord[]);
+        setShowAbsenceRecords(true);
+      }
+    } catch (err) {
+      console.error("Error fetching absence records:", err);
     }
   };
 
@@ -210,121 +218,231 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Gender Distribution Chart */}
-          <div className="bg-white rounded-xl shadow-sm p-6 border border-[#e8dcc8]">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Gender Distribution</h2>
-            <div className="flex items-center justify-center">
-              <div className="w-1/2">
-                <ResponsiveContainer width="100%" height={200}>
+        {/* Main Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Total Employees & On Duty */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Total Employees Card */}
+              <div className="bg-[#faf5ed] rounded-xl shadow-sm p-6 border border-[#e8dcc8] relative">
+                <h3 className="text-sm font-medium text-gray-600 mb-2">Total Employees</h3>
+                <p className="text-4xl font-bold text-gray-800">{stats?.total_employees || 0}</p>
+                <p className="text-xs text-gray-500 mt-2">
+                  {stats?.total_positions || 0} Available Positions In {stats?.total_departments || 0} Departments
+                </p>
+                <div className="absolute top-6 right-6">
+                  <svg className="w-16 h-16" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="#e8dcc8" strokeWidth="8" />
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="40"
+                      fill="none"
+                      stroke="#f4a460"
+                      strokeWidth="8"
+                      strokeDasharray={`${(stats?.total_employees || 0) * 2.51} 251.2`}
+                      strokeLinecap="round"
+                      transform="rotate(-90 50 50)"
+                    />
+                  </svg>
+                </div>
+              </div>
+
+              {/* On Duty Card */}
+              <div className="bg-[#faf5ed] rounded-xl shadow-sm p-6 border border-[#e8dcc8] relative">
+                <h3 className="text-sm font-medium text-gray-600 mb-2">On Duty</h3>
+                <p className="text-4xl font-bold text-gray-800">{stats?.on_duty || 0}</p>
+                <p className="text-xs text-gray-500 mt-2">
+                  Out Of {stats?.on_duty || 0} Scheduled Staff
+                </p>
+                <div className="absolute top-6 right-6">
+                  <svg className="w-16 h-16" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="#e8dcc8" strokeWidth="8" />
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="40"
+                      fill="none"
+                      stroke="#ffa500"
+                      strokeWidth="8"
+                      strokeDasharray={`${((stats?.on_duty || 0) / (stats?.total_employees || 1)) * 251.2} 251.2`}
+                      strokeLinecap="round"
+                      transform="rotate(-90 50 50)"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            {/* Requests Card */}
+            <div className="bg-[#faf5ed] rounded-xl shadow-sm p-6 border border-[#e8dcc8] relative">
+              <h3 className="text-sm font-medium text-gray-600 mb-2">Requests</h3>
+              <p className="text-4xl font-bold text-gray-800">{stats?.pending_requests || 0}</p>
+              <button
+                onClick={handleViewPendingLeaves}
+                className="text-sm text-gray-600 mt-2 cursor-pointer flex items-center hover:text-gray-800 transition"
+              >
+                View Pending Requests <ChevronRight size={16} className="ml-1" />
+              </button>
+              <div className="absolute top-6 right-6">
+                <svg className="w-16 h-16" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="#e8dcc8" strokeWidth="8" />
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="40"
+                    fill="none"
+                    stroke="#f4a460"
+                    strokeWidth="8"
+                    strokeDasharray={`${(stats?.pending_requests || 0) * 10} 251.2`}
+                    strokeLinecap="round"
+                    transform="rotate(-90 50 50)"
+                  />
+                </svg>
+              </div>
+            </div>
+
+            {/* Gender Card */}
+            <div className="bg-[#faf5ed] rounded-xl shadow-sm p-6 border border-[#e8dcc8]">
+              <h3 className="text-sm font-medium text-gray-600 mb-4">Gender</h3>
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  {genderData.map((item, index) => (
+                    <div key={index} className="flex items-center mb-3">
+                      <div
+                        className="w-3 h-3 rounded-full mr-3"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <span className="text-sm text-gray-700 flex-1">{item.name}: {item.value}</span>
+                      <span className="text-sm font-semibold text-gray-800">{item.percentage}%</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="ml-8">
+                  <div className="relative w-32 h-2 bg-gray-200 rounded-full overflow-hidden flex">
+                    {genderData.map((item, index) => (
+                      <div
+                        key={index}
+                        style={{
+                          width: `${item.percentage}%`,
+                          backgroundColor: item.color,
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Weekly Attendance */}
+            <div className="bg-[#faf5ed] rounded-xl shadow-sm p-6 border border-[#e8dcc8]">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h3 className="text-md font-medium text-gray-600">Weekly Attendance</h3>
+                  <p className="text-xs text-gray-500">{getCurrentPHDate()}</p>
+                </div>
+                <div className="flex items-center space-x-4 text-xs text-gray-600">
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 rounded-full bg-[#8b4513] mr-2" />
+                    <span>This Week</span>
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 rounded-full bg-[#d3b89c] mr-2" />
+                    <span>Last Week</span>
+                  </div>
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={weeklyData} barGap={4}>
+                  <XAxis dataKey="day" axisLine={false} tickLine={false} />
+                  <YAxis hide />
+                  <Tooltip />
+                  <Bar dataKey="present" name="This Week" fill="#8b4513" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="pastWeek" name="Last Week" fill="#d3b89c" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Right Column - Departments */}
+          <div className="bg-[#faf5ed] rounded-xl shadow-sm p-6 border border-[#e8dcc8]">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800">Departments</h3>
+                <p className="text-xs text-gray-500">Total: {stats?.total_departments || 0}</p>
+              </div>
+            </div>
+
+            {/* Donut Chart */}
+            <div className="flex justify-center mb-6">
+              <div className="relative w-48 h-48">
+                <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={genderData}
+                      data={departmentData}
+                      dataKey="value"
+                      nameKey="name"
                       cx="50%"
                       cy="50%"
-                      labelLine={false}
+                      innerRadius={60}
                       outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label={({ name, percentage }) => `${name}: ${percentage}%`}
+                      paddingAngle={2}
                     >
-                      {genderData.map((entry, index) => (
+                      {departmentData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
                     <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
-              </div>
-              <div className="w-1/2 space-y-2">
-                {genderData.map((item, index) => (
-                  <div key={index} className="flex items-center">
-                    <div 
-                      className="w-4 h-4 mr-2 rounded" 
-                      style={{ backgroundColor: item.color }}
-                    ></div>
-                    <span className="text-sm text-gray-700">
-                      {item.name}: {item.value} ({item.percentage}%)
-                    </span>
-                  </div>
-                ))}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-3xl font-bold text-gray-800">
+                    {departmentData.length > 0 ? departmentData[0].percentage : 0}%
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Department Distribution Chart */}
-          <div className="bg-white rounded-xl shadow-sm p-6 border border-[#e8dcc8]">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Department Distribution</h2>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={departmentData}
-                  margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
-                >
-                  <XAxis 
-                    dataKey="name" 
-                    angle={-45} 
-                    textAnchor="end" 
-                    height={60}
-                    tick={{ fontSize: 12 }}
-                  />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="value" name="Employees">
-                    {departmentData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+            {/* Department List */}
+            <div className="space-y-3">
+              {departmentData.map((dept, index) => (
+                <div key={index} className="flex items-center justify-between text-sm">
+                  <div className="flex items-center flex-1">
+                    <div
+                      className="w-3 h-3 rounded-full mr-3"
+                      style={{ backgroundColor: dept.color }}
+                    />
+                    <span className="text-gray-700">{dept.name}</span>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <span className="text-gray-800 font-medium">{dept.value}</span>
+                    <span className="text-gray-600 w-10 text-right">{dept.percentage}%</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
 
-        {/* Bottom Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Weekly Attendance */}
-          <div className="bg-white rounded-xl shadow-sm p-6 border border-[#e8dcc8]">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-800">Weekly Attendance</h2>
-              <span className="text-sm text-gray-500">{getCurrentPHDate()}</span>
-            </div>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={weeklyData}
-                  margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                >
-                  <XAxis dataKey="day" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="present" name="This Week" fill="#8b4513" />
-                  <Bar dataKey="pastWeek" name="Last Week" fill="#d3b89c" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Quick Actions */}
-          <div className="bg-white rounded-xl shadow-sm p-6 border border-[#e8dcc8]">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h2>
-            <div className="space-y-3">
-              <button
-                onClick={handleViewPendingLeaves}
-                className="w-full flex items-center justify-between p-4 bg-[#f0e6d2] hover:bg-[#e8dcc8] rounded-lg transition"
-              >
-                <span className="font-medium text-gray-800">View Pending Leave Requests</span>
-                <ChevronRight className="h-5 w-5 text-gray-500" />
-              </button>
-              <button
-                onClick={handleViewAbsenceRecords}
-                className="w-full flex items-center justify-between p-4 bg-[#f0e6d2] hover:bg-[#e8dcc8] rounded-lg transition"
-              >
-                <span className="font-medium text-gray-800">View Absence Records</span>
-                <ChevronRight className="h-5 w-5 text-gray-500" />
-              </button>
-            </div>
+        {/* Quick Actions Section */}
+        <div className="bg-white rounded-xl shadow-sm p-6 border border-[#e8dcc8]">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <button
+              onClick={handleViewPendingLeaves}
+              className="flex items-center justify-between p-4 bg-[#f0e6d2] hover:bg-[#e8dcc8] rounded-lg transition"
+            >
+              <span className="font-medium text-gray-800">View Pending Leave Requests</span>
+              <ChevronRight className="h-5 w-5 text-gray-500" />
+            </button>
+            <button
+              onClick={handleViewAbsenceRecords}
+              className="flex items-center justify-between p-4 bg-[#f0e6d2] hover:bg-[#e8dcc8] rounded-lg transition"
+            >
+              <span className="font-medium text-gray-800">View Absence Records</span>
+              <ChevronRight className="h-5 w-5 text-gray-500" />
+            </button>
           </div>
         </div>
       </div>
