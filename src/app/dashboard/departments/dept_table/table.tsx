@@ -26,6 +26,7 @@ interface DepartmentTableProps {
   onDelete?: (id: number) => void;
 }
 
+
 export default function DepartmentTable({
   departments,
   onView,
@@ -49,8 +50,10 @@ export default function DepartmentTable({
     setOpenMenuIndex(openMenuIndex === index ? null : index);
   };
 
+  
+
   return (
-    <div className="overflow-x-auto shadow-sm bg-[#faeddc] rounded-lg max-h-136 h-136">
+    <div className="overflow-x-auto shadow-sm bg-[#faeddc] rounded-lg">
       <table className="w-full text-sm border-collapse">
         <thead className="text-md">
           <tr className="bg-[#3b2b1c] text-white">
