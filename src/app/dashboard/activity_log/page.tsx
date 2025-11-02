@@ -10,7 +10,11 @@ const ActivityLogTab = () => {
   const [currentDate, setCurrentDate] = useState("");
   const [currentTime, setCurrentTime] = useState("");
 
-  // 🕒 Live update of date and time
+const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+
+  //  Live update of date and time
   useEffect(() => {
     const updateDateTime = () => {
       const now = new Date();
@@ -66,8 +70,29 @@ const ActivityLogTab = () => {
     return matchesSearch && matchesDate && matchesTime;
   });
 
+
+    // useEffect(() => {
+    //   const fetchLogs = async () => {
+    //     try {
+    //       const result = await getActivityLogs();
+    //       if (result.success) {
+    //         setLogs(result.data);
+    //       }
+    //     } catch (err) {
+    //       console.error("Failed to fetch logs", err);
+    //     } finally {
+    //       setLoading(false);
+    //     }
+    //   };
+  
+    //   fetchLogs();
+    // }, []);
+  
+   // if (loading) return <div>Loading activity logs...</div>;
+  
+
   return (
-    <div className="p-6 bg-[#FAF1E4] rounded-lg space-y-6 overflow-hidden">
+    <div className="p-6 bg-[#FAF1E4] rounded-lg space-y-6 overflow-hidden font-poppins">
       {/* Header */}
       <div>
         <h2 className="text-2xl font-semibold text-[#4B0B14]">Activity Log</h2>

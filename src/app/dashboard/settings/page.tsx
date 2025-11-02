@@ -1,9 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
-import AboutUserTab from "./user_setting/layout";
-import ActivityLogTab from "./user_activity_log/layout";
-import TechnicalSupportTab from "./user_support/layout";
-import AuthenticationTab from "./user_auth/layout";
+import AboutUserTab from "./user_setting/page";
+import AuthenticationTab from "./user_auth/page";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function SettingsPage() {
@@ -58,11 +56,6 @@ export default function SettingsPage() {
     { id: "auth", label: "Authentication" },
   ];
 
-  if (isITadmin) {
-    tabs.splice(1, 0, { id: "activity", label: "Activity Log" });
-    tabs.splice(2, 0, { id: "support", label: "Technical Support" });
-  }
-
   return (
     <div className="min-h-screen bg-orange-50 p-8 font-poppins">
       <div className="max-w-7xl mx-auto">
@@ -94,8 +87,6 @@ export default function SettingsPage() {
         {/* Tab Content */}
         <div className="bg-[#fff7ec] rounded-lg shadow-lg border border-gray-200 p-8  max-h-[100vh]">
           {activeTab === "about" && <AboutUserTab />}
-          {isITadmin && activeTab === "activity" && <ActivityLogTab />}
-          {isITadmin && activeTab === "support" && <TechnicalSupportTab />}
           {activeTab === "auth" && <AuthenticationTab />}
         </div>
       </div>
