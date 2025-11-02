@@ -4,7 +4,20 @@ import { generateDepartmentCode } from '../utils/codeGenerator.js';
 
 export const getAllDepartments = async (req, res, next) => {
   try {
-    const departments = await db.getAll('SELECT * FROM departments ORDER BY department_id DESC');
+    // Get departments with employee count and supervisor info
+    const departments = await db.getAll(`
+      SELECT
+        d.*,
+        COUNT(DISTINCT e.employee_id) as employee_count,
+        s.first_name as supervisor_first_name,
+        s.last_name as supervisor_last_name,
+        s.employee_code as supervisor_code
+      FROM departments d
+      LEFT JOIN employees e ON d.department_id = e.department_id
+      LEFT JOIN employees s ON d.supervisor_id = s.employee_id
+      GROUP BY d.department_id
+      ORDER BY d.department_id DESC
+    `);
 
     res.json({
       success: true,
@@ -42,7 +55,7 @@ export const getDepartmentById = async (req, res, next) => {
 
 export const createDepartment = async (req, res, next) => {
   try {
-    const { department_name, description } = req.body;
+    const { department_name, description, supervisor_id } = req.body;
 
     // Validate required fields
     if (!department_name) {
@@ -59,6 +72,7 @@ export const createDepartment = async (req, res, next) => {
     const departmentId = await db.insert('departments', {
       department_name,
       description,
+      supervisor_id: supervisor_id || null,
       created_by: createdBy,
     });
 
@@ -91,6 +105,7 @@ export const createDepartment = async (req, res, next) => {
         department_code: departmentCode,
         department_name,
         description,
+        supervisor_id,
       },
     });
   } catch (error) {

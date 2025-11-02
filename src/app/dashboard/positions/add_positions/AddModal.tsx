@@ -5,6 +5,8 @@ import { X, Plus, Save } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import FormInput from "@/components/forms/FormInput";
 import ActionButton from "@/components/buttons/ActionButton";
+import { positionApi, departmentApi } from "@/lib/api";
+import { toast } from "react-hot-toast";
 
 interface AddJobModalProps {
     isOpen: boolean;
@@ -14,45 +16,44 @@ interface AddJobModalProps {
 export default function AddJobModal({ isOpen, onClose }: AddJobModalProps) {
     const [jobTitle, setJobTitle] = useState("");
     const [jobDescription, setJobDescription] = useState("");
-    const [jobSalary, setJobSalary] = useState("");
     const [department, setDepartment] = useState("");
-    const [departments, setDepartments] = useState(["HR", "Finance", "Marketing"]);
-    const [newDept, setNewDept] = useState("");
-    const [available, setAvailable] = useState(true);
-    const [showNewDept, setShowNewDept] = useState(false);
+    const [departments, setDepartments] = useState<any[]>([]);
+    const [availability, setAvailability] = useState("0");
+    const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState({
         jobTitle: "",
         jobDescription: "",
-        jobSalary: "",
         department: "",
     });
+
+    // Fetch departments on mount
+    useEffect(() => {
+        if (isOpen) {
+            fetchDepartments();
+        }
+    }, [isOpen]);
+
+    const fetchDepartments = async () => {
+        const result = await departmentApi.getAll();
+        if (result.success && result.data) {
+            setDepartments(result.data);
+        }
+    };
 
     // ✅ Reset fields when modal closes
     useEffect(() => {
         if (!isOpen) {
             setJobTitle("");
             setJobDescription("");
-            setJobSalary("");
             setDepartment("");
-            setNewDept("");
-            setAvailable(true);
+            setAvailability("0");
             setErrors({
                 jobTitle: "",
                 jobDescription: "",
-                jobSalary: "",
                 department: "",
             });
         }
     }, [isOpen]);
-
-    const handleAddDepartment = () => {
-        if (newDept.trim()) {
-            setDepartments([...departments, newDept]);
-            setDepartment(newDept);
-            setNewDept("");
-            setShowNewDept(false);
-        }
-    };
 
     // ✅ Validation function
     const validate = () => {
@@ -60,7 +61,6 @@ export default function AddJobModal({ isOpen, onClose }: AddJobModalProps) {
         const newErrors = {
             jobTitle: "",
             jobDescription: "",
-            jobSalary: "",
             department: "",
         };
 
@@ -73,25 +73,10 @@ export default function AddJobModal({ isOpen, onClose }: AddJobModalProps) {
             valid = false;
         }
 
-        // Job Description
-        if (!jobDescription.trim()) {
-            newErrors.jobDescription = "Job description is required.";
-            valid = false;
-        } else if (jobDescription.trim().split(" ").length > 100) {
+        // Job Description (optional)
+        if (jobDescription.trim() && jobDescription.trim().split(" ").length > 100) {
             newErrors.jobDescription = "Job description must not exceed 100 words.";
             valid = false;
-        }
-
-        // Job Salary (numeric validation)
-        if (!jobSalary.trim()) {
-            newErrors.jobSalary = "Job salary is required.";
-            valid = false;
-        } else {
-            const cleanSalary = jobSalary.replace(/[₱,\s]/g, ""); // Remove ₱ and commas
-            if (isNaN(Number(cleanSalary)) || Number(cleanSalary) <= 0) {
-                newErrors.jobSalary = "Job salary must be a valid number.";
-                valid = false;
-            }
         }
 
         // Department
@@ -104,18 +89,26 @@ export default function AddJobModal({ isOpen, onClose }: AddJobModalProps) {
         return valid;
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!validate()) return;
 
-        console.log({
-            jobTitle,
-            jobDescription,
-            jobSalary,
-            department,
-            available,
+        setLoading(true);
+
+        const result = await positionApi.create({
+            position_name: jobTitle,
+            position_desc: jobDescription || undefined,
+            department_id: parseInt(department),
+            availability: parseInt(availability),
         });
 
-        onClose();
+        setLoading(false);
+
+        if (result.success) {
+            toast.success("Position created successfully");
+            onClose();
+        } else {
+            toast.error(result.message || "Failed to create position");
+        }
     };
 
     return (
@@ -175,106 +168,56 @@ export default function AddJobModal({ isOpen, onClose }: AddJobModalProps) {
                                 )}
                             </div>
 
-                          
-                            {/* Job Salary */}
-                            <div>
-                                <label className="block text-sm font-medium text-[#3b2b1c] mb-1">
-                                    Job Salary
-                                </label>
-                                <input
-                                    type="text"
-                                    inputMode="numeric"
-                                    pattern="[0-9]*"
-                                    value={jobSalary}
-                                    onChange={(e) => {
-                                        // Only allow numbers
-                                        const numericValue = e.target.value.replace(/[^0-9]/g, "");
-                                        setJobSalary(numericValue);
-                                    }}
-                                    className={`w-full p-2 border rounded-lg focus:outline-none focus:ring-2 ${errors.jobSalary
-                                            ? "border-red-400 focus:ring-red-400"
-                                            : "border-[#d6c3aa] focus:ring-[#3b2b1c]"
-                                        }`}
-                                    placeholder="Enter salary amount"
-                                />
-                                {errors.jobSalary && (
-                                    <p className="text-red-500 text-xs mt-1">{errors.jobSalary}</p>
-                                )}
-                            </div>
-
-
                             {/* Department */}
                             <div>
                                 <label className="block text-sm font-medium text-[#3b2b1c] mb-1">
                                     Department
                                 </label>
-                                <div className="flex gap-2">
-                                    <select
-                                        value={department}
-                                        onChange={(e) => setDepartment(e.target.value)}
-                                        className={`w-full p-2 border rounded-lg focus:outline-none focus:ring-2 ${errors.department
-                                                ? "border-red-400 focus:ring-red-400"
-                                                : "border-[#d6c3aa] focus:ring-[#3b2b1c]"
-                                            }`}
-                                    >
-                                        <option value="">Select Department</option>
-                                        {departments.map((dept, idx) => (
-                                            <option key={idx} value={dept}>
-                                                {dept}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <button
-                                        onClick={() => setShowNewDept(true)}
-                                        className="p-2 bg-[#3b2b1c] text-white rounded-lg hover:opacity-80"
-                                    >
-                                        <Plus size={16} />
-                                    </button>
-                                </div>
+                                <select
+                                    value={department}
+                                    onChange={(e) => setDepartment(e.target.value)}
+                                    className={`w-full p-2 border rounded-lg focus:outline-none focus:ring-2 ${errors.department
+                                            ? "border-red-400 focus:ring-red-400"
+                                            : "border-[#d6c3aa] focus:ring-[#3b2b1c]"
+                                        }`}
+                                >
+                                    <option value="">Select Department</option>
+                                    {departments.map((dept) => (
+                                        <option key={dept.department_id} value={dept.department_id}>
+                                            {dept.department_name}
+                                        </option>
+                                    ))}
+                                </select>
                                 {errors.department && (
                                     <p className="text-red-500 text-xs mt-1">
                                         {errors.department}
                                     </p>
                                 )}
-
-                                {showNewDept && (
-                                    <div className="flex gap-2 mt-2">
-                                        <input
-                                            value={newDept}
-                                            onChange={(e) => setNewDept(e.target.value)}
-                                            className="w-full p-2 border border-[#d6c3aa] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b2b1c]"
-                                            placeholder="New department name"
-                                        />
-                                        <button
-                                            onClick={handleAddDepartment}
-                                            className="px-3 bg-green-700 text-white rounded-lg hover:bg-green-800"
-                                        >
-                                            Add
-                                        </button>
-                                    </div>
-                                )}
                             </div>
 
                             {/* Availability */}
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="checkbox"
-                                    checked={available}
-                                    onChange={(e) => setAvailable(e.target.checked)}
-                                    className="w-4 h-4 accent-[#3b2b1c]"
-                                />
-                                <label className="text-sm text-[#3b2b1c]">
-                                    Available for assignment
+                            <div>
+                                <label className="block text-sm font-medium text-[#3b2b1c] mb-1">
+                                    Available Slots
                                 </label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={availability}
+                                    onChange={(e) => setAvailability(e.target.value)}
+                                    className="w-full p-2 border border-[#d6c3aa] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b2b1c]"
+                                    placeholder="Enter number of available slots"
+                                />
                             </div>
 
                             {/* Save Button */}
                             <div className="flex justify-end mt-6">
                                 <ActionButton
                                     onClick={handleSave}
-                                    label="Save"
+                                    label={loading ? "Saving..." : "Save"}
                                     icon={Save}
                                     className="hover:opacity-90 transition"
+                                    disabled={loading}
                                 />
                             </div>
                         </div>

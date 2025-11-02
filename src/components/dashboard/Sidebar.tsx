@@ -1,11 +1,13 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, CheckCircle, Mail, Briefcase, Building } from "lucide-react";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
+import { LayoutDashboard, Users, CheckCircle, Mail, Briefcase, Building, LogsIcon, CogIcon } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Sidebar() {
     const pathname = usePathname();
+    const { user } = useAuth();
 
     const links = [
         { name: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
@@ -13,8 +15,13 @@ export default function Sidebar() {
         { name: "Attendance", icon: CheckCircle, path: "/dashboard/attendance" },
         { name: "Requests", icon: Mail, path: "/dashboard/requests" },
         { name: "Positions", icon: Briefcase, path: "/dashboard/positions" },
-        { name: "Departments", icon: Building, path: "/dashboard/departments" },
+        { name: "Departments", icon: Building, path: "/dashboard/departments" }
     ];
+
+    if (user?.role === "superadmin" || user?.sub_role === "it") {
+        links.push({ name: "Activity Log", icon: LogsIcon, path: "/dashboard/activity_log" });
+        links.push({ name: "Technical Support", icon: CogIcon, path: "/dashboard/tech_support" });
+    }
 
     return (
         <aside className="w-96 bg-[linear-gradient(180deg,#190006_23%,#480C1B_67%,#300611_100%)] text-[#FFF2E0] font-poppins p-4 min-h-screen shadow-xl relative">

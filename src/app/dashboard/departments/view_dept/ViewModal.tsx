@@ -5,11 +5,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import InfoBox from "@/components/forms/FormDisplay";
 
 interface Department {
-    id: string;
-    name: string;
-    description: string;
-    supervisor: string;
-    employeeCount: number;
+    department_id: number;
+    department_code?: string;
+    department_name: string;
+    description?: string;
+    supervisor_name?: string;
+    employee_count?: number;
 }
 
 interface ViewDepartmentModalProps {
@@ -46,36 +47,38 @@ export default function ViewDepartmentModal({ isOpen, onClose, department }: Vie
 
                         {/* Content */}
                         <div className="space-y-4 text-[#3b2b1c]">
-                            {/* Department ID */}
-                            <InfoBox 
-                                label="Department ID" 
-                                value={department.id} 
-                            />
+                            {/* Department Code */}
+                            {department.department_code && (
+                                <InfoBox
+                                    label="Department Code"
+                                    value={department.department_code}
+                                />
+                            )}
 
                             {/* Department Name */}
-                            <InfoBox 
-                                label="Department Name" 
-                                value={department.name} 
+                            <InfoBox
+                                label="Department Name"
+                                value={department.department_name}
                             />
 
                             {/* Department Description */}
-                            <InfoBox 
-                                label="Description" 
-                                value={department.description}
+                            <InfoBox
+                                label="Description"
+                                value={department.description || "N/A"}
                                 isTextarea={true}
                                 rows={4}
                             />
 
                             {/* Supervisor */}
-                            <InfoBox 
-                                label="Department Supervisor" 
-                                value={department.supervisor} 
+                            <InfoBox
+                                label="Department Supervisor"
+                                value={department.supervisor_name || "No Supervisor Assigned"}
                             />
 
                             {/* Number of Employees */}
-                            <InfoBox 
-                                label="Number of Employees" 
-                                value={`${department.employeeCount} ${department.employeeCount === 1 ? 'Employee' : 'Employees'}`}
+                            <InfoBox
+                                label="Number of Employees"
+                                value={`${department.employee_count || 0} ${department.employee_count === 1 ? 'Employee' : 'Employees'}`}
                             />
 
                             {/* Close Button */}

@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Abril_Fatface } from "next/font/google";
 import "./globals.css";
+import { Toaster } from "react-hot-toast";
 
 export const metadata: Metadata = {
   title: "Welcome to Celestia Hotel HRIS",
+  description: "Human Resource Information System for Celestia Hotel",
+  icons: {
+    icon: "/logo/celestia_tab_icon.ico"
+  },
 };
 
 const abrilFatface = Abril_Fatface({
@@ -18,7 +23,6 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-
     <html lang="en">
       <head>
         <link
@@ -28,6 +32,7 @@ export default function RootLayout({
       </head>
       <body className={` ${abrilFatface.variable} antialiased`}>
         {children}
+        <Toaster />
       </body>
     </html>
   );

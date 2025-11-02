@@ -9,11 +9,11 @@
 -- ===========================
 -- DEPARTMENTS (Insert first, before users/employees)
 -- ===========================
-INSERT INTO departments (department_name, description, supervisor_id, created_by, created_at)
+INSERT INTO departments (department_code, department_name, description, supervisor_id, created_by, created_at)
 VALUES
-('Human Resources', 'Handles employee records, recruitment, and payroll', NULL, 1, NOW()),
-('IT', 'Maintains company systems and databases', NULL, 1, NOW()),
-('Front Desk', 'Handles reception, visitor management, and front office operations', NULL, 1, NOW());
+('DEP-0001', 'Human Resources', 'Handles employee records, recruitment, and payroll', NULL, 1, NOW()),
+('DEP-0002', 'IT', 'Maintains company systems and databases', NULL, 1, NOW()),
+('DEP-0003', 'Front Desk', 'Handles reception, visitor management, and front office operations', NULL, 1, NOW());
 
 -- ===========================
 -- JOB POSITIONS
@@ -83,7 +83,7 @@ VALUES ('EMP-0004', 4, 'Ana', 'Garcia', 'Lopez', '1992-05-10', 'female', 'single
 INSERT INTO user_roles (user_id, sub_role, created_by, created_at)
 VALUES (4, 'front_desk', 1, NOW());
 
--- 5. HR SUPERVISOR (user_id: 5) - ONLY ONE SUPERVISOR FOR THE SYSTEM
+-- 5. HR SUPERVISOR (user_id: 5)
 -- Username: hrsupervisor | Password: password123
 INSERT INTO users (username, password, role, is_active, created_by, created_at)
 VALUES ('hrsupervisor', '$2a$10$P4d0WRBcLHPwPHwM2ys60.8VkOpwnzAeMXmbTg1.tOLoMJUIKbNfG', 'supervisor', TRUE, 1, NOW());
@@ -94,52 +94,76 @@ VALUES ('EMP-0005', 5, 'Pedro', 'Ramos', 'Silva', '1987-11-25', 'male', 'married
 INSERT INTO user_roles (user_id, sub_role, created_by, created_at)
 VALUES (5, 'hr', 1, NOW());
 
--- 6-7. HR EMPLOYEES
+-- 6. IT SUPERVISOR (user_id: 6)
+-- Username: itsupervisor | Password: password123
+INSERT INTO users (username, password, role, is_active, created_by, created_at)
+VALUES ('itsupervisor', '$2a$10$P4d0WRBcLHPwPHwM2ys60.8VkOpwnzAeMXmbTg1.tOLoMJUIKbNfG', 'supervisor', TRUE, 1, NOW());
+
+INSERT INTO employees (employee_code, user_id, first_name, last_name, middle_name, birthdate, gender, civil_status, home_address, city, region, province, position_id, shift, hire_date, status, department_id, leave_credit, supervisor_id, salary, created_by, created_at)
+VALUES ('EMP-0006', 6, 'Carlos', 'Mendoza', 'Torres', '1986-09-18', 'male', 'married', '789 IT Supervisor St', 'Makati City', 'NCR', 'Metro Manila', 5, 'morning', '2021-05-15', 'active', 2, 15, 3, 50000.00, 1, NOW());
+
+INSERT INTO user_roles (user_id, sub_role, created_by, created_at)
+VALUES (6, 'it', 1, NOW());
+
+-- 7. FRONT DESK SUPERVISOR (user_id: 7)
+-- Username: frontdesksupervisor | Password: password123
+INSERT INTO users (username, password, role, is_active, created_by, created_at)
+VALUES ('frontdesksupervisor', '$2a$10$P4d0WRBcLHPwPHwM2ys60.8VkOpwnzAeMXmbTg1.tOLoMJUIKbNfG', 'supervisor', TRUE, 1, NOW());
+
+INSERT INTO employees (employee_code, user_id, first_name, last_name, middle_name, birthdate, gender, civil_status, home_address, city, region, province, position_id, shift, hire_date, status, department_id, leave_credit, supervisor_id, salary, created_by, created_at)
+VALUES ('EMP-0007', 7, 'Rosa', 'Martinez', 'Fernandez', '1989-04-12', 'female', 'single', '321 Front Desk Supervisor Ave', 'Manila', 'NCR', 'Metro Manila', 9, 'morning', '2021-06-01', 'active', 3, 15, 4, 38000.00, 1, NOW());
+
+INSERT INTO user_roles (user_id, sub_role, created_by, created_at)
+VALUES (7, 'front_desk', 1, NOW());
+
+-- 8-9. HR EMPLOYEES
 -- Username: hremployee1 | Password: password123
 INSERT INTO users (username, password, role, is_active, created_by, created_at)
 VALUES ('hremployee1', '$2a$10$P4d0WRBcLHPwPHwM2ys60.8VkOpwnzAeMXmbTg1.tOLoMJUIKbNfG', 'employee', TRUE, 1, NOW());
 
 INSERT INTO employees (employee_code, user_id, first_name, last_name, middle_name, birthdate, gender, civil_status, home_address, city, region, province, position_id, shift, hire_date, status, department_id, leave_credit, supervisor_id, salary, created_by, created_at)
-VALUES ('EMP-0006', 6, 'Lisa', 'Tan', 'Wong', '1995-06-22', 'female', 'single', '258 HR Plaza', 'Mandaluyong', 'NCR', 'Metro Manila', 4, 'morning', '2022-01-15', 'active', 1, 15, 5, 28000.00, 1, NOW());
+VALUES ('EMP-0008', 8, 'Lisa', 'Tan', 'Wong', '1995-06-22', 'female', 'single', '258 HR Plaza', 'Mandaluyong', 'NCR', 'Metro Manila', 4, 'morning', '2022-01-15', 'active', 1, 15, 5, 28000.00, 1, NOW());
 
 -- Username: hremployee2 | Password: password123
 INSERT INTO users (username, password, role, is_active, created_by, created_at)
 VALUES ('hremployee2', '$2a$10$P4d0WRBcLHPwPHwM2ys60.8VkOpwnzAeMXmbTg1.tOLoMJUIKbNfG', 'employee', TRUE, 1, NOW());
 
 INSERT INTO employees (employee_code, user_id, first_name, last_name, middle_name, birthdate, gender, civil_status, home_address, city, region, province, position_id, shift, hire_date, status, department_id, leave_credit, supervisor_id, salary, created_by, created_at)
-VALUES ('EMP-0007', 7, 'Mark', 'Villanueva', 'Castro', '1994-08-30', 'male', 'single', '369 Recruitment St', 'Quezon City', 'NCR', 'Metro Manila', 3, 'morning', '2022-02-01', 'active', 1, 15, 5, 32000.00, 1, NOW());
+VALUES ('EMP-0009', 9, 'Mark', 'Villanueva', 'Castro', '1994-08-30', 'male', 'single', '369 Recruitment St', 'Quezon City', 'NCR', 'Metro Manila', 3, 'morning', '2022-02-01', 'active', 1, 15, 5, 32000.00, 1, NOW());
 
--- 8-9. IT EMPLOYEES
+-- 10-11. IT EMPLOYEES
 -- Username: itemployee1 | Password: password123
 INSERT INTO users (username, password, role, is_active, created_by, created_at)
 VALUES ('itemployee1', '$2a$10$P4d0WRBcLHPwPHwM2ys60.8VkOpwnzAeMXmbTg1.tOLoMJUIKbNfG', 'employee', TRUE, 1, NOW());
 
 INSERT INTO employees (employee_code, user_id, first_name, last_name, middle_name, birthdate, gender, civil_status, home_address, city, region, province, position_id, shift, hire_date, status, department_id, leave_credit, supervisor_id, salary, created_by, created_at)
-VALUES ('EMP-0008', 8, 'James', 'Lim', 'Chen', '1993-12-05', 'male', 'single', '741 Dev Center', 'Makati City', 'NCR', 'Metro Manila', 6, 'morning', '2022-03-01', 'active', 2, 15, NULL, 45000.00, 1, NOW());
+VALUES ('EMP-0010', 10, 'James', 'Lim', 'Chen', '1993-12-05', 'male', 'single', '741 Dev Center', 'Makati City', 'NCR', 'Metro Manila', 6, 'morning', '2022-03-01', 'active', 2, 15, 6, 45000.00, 1, NOW());
 
 -- Username: itemployee2 | Password: password123
 INSERT INTO users (username, password, role, is_active, created_by, created_at)
 VALUES ('itemployee2', '$2a$10$P4d0WRBcLHPwPHwM2ys60.8VkOpwnzAeMXmbTg1.tOLoMJUIKbNfG', 'employee', TRUE, 1, NOW());
 
 INSERT INTO employees (employee_code, user_id, first_name, last_name, middle_name, birthdate, gender, civil_status, home_address, city, region, province, position_id, shift, hire_date, status, department_id, leave_credit, supervisor_id, salary, created_by, created_at)
-VALUES ('EMP-0009', 9, 'Sarah', 'Gomez', 'Rivera', '1996-02-14', 'female', 'single', '852 Support Hub', 'Pasig City', 'NCR', 'Metro Manila', 7, 'night', '2022-04-01', 'active', 2, 15, NULL, 38000.00, 1, NOW());
+VALUES ('EMP-0011', 11, 'Sarah', 'Gomez', 'Rivera', '1996-02-14', 'female', 'single', '852 Support Hub', 'Pasig City', 'NCR', 'Metro Manila', 7, 'night', '2022-04-01', 'active', 2, 15, 6, 38000.00, 1, NOW());
 
--- 10-11. FRONT DESK EMPLOYEES
+-- 12-13. FRONT DESK EMPLOYEES
 -- Username: receptionist1 | Password: password123
 INSERT INTO users (username, password, role, is_active, created_by, created_at)
 VALUES ('receptionist1', '$2a$10$P4d0WRBcLHPwPHwM2ys60.8VkOpwnzAeMXmbTg1.tOLoMJUIKbNfG', 'employee', TRUE, 1, NOW());
 
 INSERT INTO employees (employee_code, user_id, first_name, last_name, middle_name, birthdate, gender, civil_status, home_address, city, region, province, position_id, shift, hire_date, status, department_id, leave_credit, supervisor_id, salary, created_by, created_at)
-VALUES ('EMP-0010', 10, 'Jenny', 'Cruz', 'Bautista', '1997-10-08', 'female', 'single', '963 Lobby Ave', 'Manila', 'NCR', 'Metro Manila', 10, 'morning', '2022-05-01', 'active', 3, 15, NULL, 25000.00, 1, NOW());
+VALUES ('EMP-0012', 12, 'Jenny', 'Cruz', 'Bautista', '1997-10-08', 'female', 'single', '963 Lobby Ave', 'Manila', 'NCR', 'Metro Manila', 10, 'morning', '2022-05-01', 'active', 3, 15, 7, 25000.00, 1, NOW());
 
 -- Username: receptionist2 | Password: password123
 INSERT INTO users (username, password, role, is_active, created_by, created_at)
 VALUES ('receptionist2', '$2a$10$P4d0WRBcLHPwPHwM2ys60.8VkOpwnzAeMXmbTg1.tOLoMJUIKbNfG', 'employee', TRUE, 1, NOW());
 
 INSERT INTO employees (employee_code, user_id, first_name, last_name, middle_name, birthdate, gender, civil_status, home_address, city, region, province, position_id, shift, hire_date, status, department_id, leave_credit, supervisor_id, salary, created_by, created_at)
-VALUES ('EMP-0011', 11, 'Michael', 'Reyes', 'Santos', '1998-03-27', 'male', 'single', '159 Front Office', 'Pasay City', 'NCR', 'Metro Manila', 11, 'night', '2022-06-01', 'active', 3, 15, NULL, 23000.00, 1, NOW());
+VALUES ('EMP-0013', 13, 'Michael', 'Reyes', 'Santos', '1998-03-27', 'male', 'single', '159 Front Office', 'Pasay City', 'NCR', 'Metro Manila', 11, 'night', '2022-06-01', 'active', 3, 15, 7, 23000.00, 1, NOW());
 
 -- ===========================
 -- UPDATE DEPARTMENT SUPERVISORS
 -- ===========================
-UPDATE departments SET supervisor_id = 5 WHERE department_id = 1; -- HR Supervisor (only one supervisor for the system)
+UPDATE departments SET supervisor_id = 5 WHERE department_id = 1; -- HR Supervisor (EMP-0005)
+UPDATE departments SET supervisor_id = 6 WHERE department_id = 2; -- IT Supervisor (EMP-0006)
+UPDATE departments SET supervisor_id = 7 WHERE department_id = 3; -- Front Desk Supervisor (EMP-0007)

@@ -4,54 +4,85 @@ import { useState, useEffect } from "react";
 import { X, Save } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ActionButton from "@/components/buttons/ActionButton";
+import { positionApi, departmentApi } from "@/lib/api";
+import { toast } from "react-hot-toast";
 
 interface EditJobModalProps {
   isOpen: boolean;
   onClose: () => void;
-  job: {
-    title: string;
-    description: string;
-    salary: string;
-    department: string;
-    available: boolean;
+  position: {
+    position_id: number;
+    position_name: string;
+    position_desc?: string;
+    department_id: number;
+    department_name?: string;
+    availability?: number;
   } | null;
-  onSave: (updatedJob: any) => void;
+  onSave?: () => void;
 }
 
-export default function EditJobModal({ isOpen, onClose, job, onSave }: EditJobModalProps) {
+export default function EditJobModal({ isOpen, onClose, position, onSave }: EditJobModalProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [salary, setSalary] = useState("");
-  const [department, setDepartment] = useState("");
-  const [available, setAvailable] = useState(true);
+  const [departmentId, setDepartmentId] = useState("");
+  const [availability, setAvailability] = useState("0");
 
-  const [departments, setDepartments] = useState(["HR", "Finance", "Marketing"]);
+  const [departments, setDepartments] = useState<any[]>([]);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (job) {
-      setTitle(job.title);
-      setDescription(job.description);
-      setSalary(job.salary);
-      setDepartment(job.department);
-      setAvailable(job.available);
+    if (isOpen) {
+      fetchDepartments();
     }
-  }, [job]);
+  }, [isOpen]);
 
-  const handleSave = () => {
+  useEffect(() => {
+    if (position) {
+      setTitle(position.position_name);
+      setDescription(position.position_desc || "");
+      setDepartmentId(position.department_id.toString());
+      setAvailability(position.availability?.toString() || "0");
+    }
+  }, [position]);
+
+  const fetchDepartments = async () => {
+    const result = await departmentApi.getAll();
+    if (result.success && result.data) {
+      setDepartments(result.data);
+    }
+  };
+
+  const handleSave = async () => {
     const newErrors: { [key: string]: string } = {};
     if (!title.trim()) newErrors.title = "Job title is required";
-    if (!description.trim()) newErrors.description = "Description is required";
-    if (!salary.trim()) newErrors.salary = "Salary is required";
-    if (!department.trim()) newErrors.department = "Select a department";
+    if (!departmentId) newErrors.department = "Select a department";
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
     }
 
-    onSave({ title, description, salary, department, available });
-    onClose();
+    if (!position) return;
+
+    setLoading(true);
+
+    const result = await positionApi.update(position.position_id, {
+      position_name: title,
+      position_desc: description || undefined,
+      department_id: parseInt(departmentId),
+      availability: parseInt(availability),
+    });
+
+    setLoading(false);
+
+    if (result.success) {
+      toast.success("Position updated successfully");
+      if (onSave) onSave();
+      onClose();
+    } else {
+      toast.error(result.message || "Failed to update position");
+    }
   };
 
   return (
@@ -104,56 +135,42 @@ export default function EditJobModal({ isOpen, onClose, job, onSave }: EditJobMo
               </div>
 
               <div>
-                <label className="block text-sm font-medium">Job Salary</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  value={salary}
-                  onChange={(e) =>
-                    setSalary(e.target.value.replace(/[^0-9]/g, ""))
-                  }
-                  className={`w-full p-2 border rounded-lg focus:outline-none ${
-                    errors.salary ? "border-red-400" : "border-[#d6c3aa]"
-                  }`}
-                />
-                {errors.salary && <p className="text-red-500 text-xs">{errors.salary}</p>}
-              </div>
-
-              <div>
                 <label className="block text-sm font-medium">Department</label>
                 <select
-                  value={department}
-                  onChange={(e) => setDepartment(e.target.value)}
+                  value={departmentId}
+                  onChange={(e) => setDepartmentId(e.target.value)}
                   className={`w-full p-2 border rounded-lg focus:outline-none ${
                     errors.department ? "border-red-400" : "border-[#d6c3aa]"
                   }`}
                 >
                   <option value="">Select Department</option>
-                  {departments.map((d, i) => (
-                    <option key={i} value={d}>
-                      {d}
+                  {departments.map((dept) => (
+                    <option key={dept.department_id} value={dept.department_id}>
+                      {dept.department_name}
                     </option>
                   ))}
                 </select>
                 {errors.department && <p className="text-red-500 text-xs">{errors.department}</p>}
               </div>
 
-              <div className="flex items-center gap-2">
+              <div>
+                <label className="block text-sm font-medium">Available Slots</label>
                 <input
-                  type="checkbox"
-                  checked={available}
-                  onChange={(e) => setAvailable(e.target.checked)}
-                  className="w-4 h-4 accent-[#3b2b1c]"
+                  type="number"
+                  min="0"
+                  value={availability}
+                  onChange={(e) => setAvailability(e.target.value)}
+                  placeholder="Enter number of available slots"
+                  className="w-full p-2 border border-[#d6c3aa] rounded-lg focus:outline-none"
                 />
-                <label className="text-sm">Available for assignment</label>
               </div>
 
               <div className="flex justify-end mt-6">
                 <ActionButton
                   onClick={handleSave}
-                  label="Save Changes"
+                  label={loading ? "Saving..." : "Save Changes"}
                   icon={Save}
+                  disabled={loading}
                 />
               </div>
             </div>

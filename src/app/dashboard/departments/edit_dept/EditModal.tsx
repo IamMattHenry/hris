@@ -4,21 +4,23 @@ import { X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import FormInput from "@/components/forms/FormInput";
+import { departmentApi, employeeApi } from "@/lib/api";
+import { toast } from "react-hot-toast";
 
 interface Department {
-  id: string;
-  name: string;
-  description: string;
-  supervisor: string;
-  supervisorCode?: string; // ✅ new optional field
-  employeeCount: number;
+  department_id: number;
+  department_name: string;
+  description?: string;
+  supervisor_id?: number;
+  supervisor_name?: string;
+  employee_count?: number;
 }
 
 interface EditDepartmentModalProps {
   isOpen: boolean;
   onClose: () => void;
   department: Department | null;
-  onSave: (updatedDepartment: Department) => void;
+  onSave?: () => void;
 }
 
 export default function EditDepartmentModal({
@@ -27,41 +29,66 @@ export default function EditDepartmentModal({
   department,
   onSave,
 }: EditDepartmentModalProps) {
-  const [formData, setFormData] = useState<Department>({
-    id: "",
-    name: "",
-    description: "",
-    supervisor: "",
-    supervisorCode: "",
-    employeeCount: 0,
-  });
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [supervisorId, setSupervisorId] = useState("");
+  const [supervisors, setSupervisors] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
-  // Populate form when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchSupervisors();
+    }
+  }, [isOpen]);
+
   useEffect(() => {
     if (department) {
-      setFormData({
-        ...department,
-        supervisorCode: department.supervisorCode || "", // fallback
-      });
+      setName(department.department_name);
+      setDescription(department.description || "");
+      setSupervisorId(department.supervisor_id?.toString() || "");
     }
   }, [department]);
 
+  const fetchSupervisors = async () => {
+    const result = await employeeApi.getAll();
+    if (result.success && result.data) {
+      // Filter only supervisors
+      const supervisorList = result.data.filter((emp: any) => emp.role === 'supervisor');
+      setSupervisors(supervisorList);
+    }
+  };
+
   if (!department) return null;
 
-  // ✅ Handle editable fields only
-const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-  const { name, value } = e.target;
-  setFormData((prev) => ({
-    ...prev,
-    [name]: value,  
-  }));
-};
-
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
-    onClose();
+
+    const newErrors: { [key: string]: string } = {};
+    if (!name.trim()) newErrors.name = "Department name is required";
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    setLoading(true);
+
+    const result = await departmentApi.update(department.department_id, {
+      department_name: name,
+      description: description || undefined,
+      supervisor_id: supervisorId ? parseInt(supervisorId) : undefined,
+    });
+
+    setLoading(false);
+
+    if (result.success) {
+      toast.success("Department updated successfully");
+      if (onSave) onSave();
+      onClose();
+    } else {
+      toast.error(result.message || "Failed to update department");
+    }
   };
 
   return (
@@ -91,62 +118,47 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElemen
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-4 text-[#3b2b1c]">
-              {/* Department ID (read-only) */}
-              <FormInput
-                label="Department ID"
-                type="text"
-                value={formData.id}
-                onChange={() => {}}
-                readOnly
-              />
-
               {/* Department Name */}
-              <FormInput
-                label="Department Name"
-                type="text"
-                value={formData.name}
-                onChange={handleChange}
-              />
+              <div>
+                <label className="block text-sm font-medium mb-1">Department Name</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className={`w-full p-2 border rounded-lg focus:outline-none ${
+                    errors.name ? "border-red-400" : "border-[#d6c3aa]"
+                  }`}
+                />
+                {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
+              </div>
 
               {/* Description */}
-              <div className="flex flex-col">
-                <label className="block text-[#3b2b1c] mb-1 font-medium">
-                  Description
-                </label>
+              <div>
+                <label className="block text-sm font-medium mb-1">Description</label>
                 <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleChange}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
                   rows={4}
-                  className="w-full bg-[#fdf4e3] border border-[#e6d2b5] rounded-lg px-3 py-2 shadow-inner focus:outline-none resize-none"
+                  className="w-full p-2 border border-[#d6c3aa] rounded-lg focus:outline-none resize-none"
                 />
               </div>
 
-              {/* Supervisor Name */}
-              <FormInput
-                label="Supervisor Name"
-                type="text"
-                value={formData.supervisor}
-                onChange={handleChange}
-              />
-
-              {/* ✅ New Field: Supervisor Employee Code */}
-              <FormInput
-                label="Supervisor Employee Code"
-                type="text"
-                placeholder="e.g., EMP-0001"
-                value={formData.supervisorCode || ""}
-                onChange={handleChange}
-              />
-
-              {/* Employee Count (read-only) */}
-              <FormInput
-                label="Number of Employees"
-                type="number"
-                value={formData.employeeCount.toString()}
-                onChange={() => {}}
-                readOnly
-              />
+              {/* Supervisor */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Supervisor (Optional)</label>
+                <select
+                  value={supervisorId}
+                  onChange={(e) => setSupervisorId(e.target.value)}
+                  className="w-full p-2 border border-[#d6c3aa] rounded-lg focus:outline-none"
+                >
+                  <option value="">No Supervisor</option>
+                  {supervisors.map((sup) => (
+                    <option key={sup.employee_id} value={sup.employee_id}>
+                      {sup.employee_code} - {sup.first_name} {sup.last_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               {/* Buttons */}
               <div className="flex justify-end gap-3 mt-6">
@@ -154,14 +166,16 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElemen
                   type="button"
                   onClick={onClose}
                   className="px-6 py-2 bg-gray-300 text-[#3b2b1c] rounded-lg hover:opacity-80 transition"
+                  disabled={loading}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 bg-[#3b2b1c] text-white rounded-lg hover:opacity-90 transition"
+                  className="px-6 py-2 bg-[#3b2b1c] text-white rounded-lg hover:opacity-90 transition disabled:opacity-50"
+                  disabled={loading}
                 >
-                  Save Changes
+                  {loading ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </form>

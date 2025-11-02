@@ -48,11 +48,15 @@ export default function Header({
 
   const handleProfile = () => {
     console.log("Profile clicked");
+    // Redirect to profile page
+    window.location.href = "/dashboard/profile";
+    console.log("Profile clicked");
     setDropdownOpen(false);
   };
 
   const handleSettings = () => {
     console.log("Settings clicked");
+    window.location.href = "/dashboard/settings";
     setDropdownOpen(false);
   };
 

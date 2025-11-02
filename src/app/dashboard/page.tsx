@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { employeeApi, leaveApi } from "@/lib/api";
 import { Employee } from "@/types/api";
-import { X } from "lucide-react";
+import { X, ChevronRight } from "lucide-react";
+import FloatingTicketButton from "@/components/dashboard/FloatingTicketButton";
 
 interface PendingLeave {
   leave_id: number;
@@ -84,9 +85,9 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-[#f5e6d3]">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4B0B14] mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8b4513] mx-auto mb-4"></div>
           <p className="text-lg text-gray-600">Loading dashboard...</p>
         </div>
       </div>
@@ -95,12 +96,12 @@ export default function Dashboard() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-[#f5e6d3]">
         <div className="text-center">
           <p className="text-lg text-red-600 mb-4">{error}</p>
           <button
             onClick={() => window.location.reload()}
-            className="bg-[#4B0B14] text-white px-6 py-2 rounded-lg hover:bg-[#60101C] transition"
+            className="bg-[#8b4513] text-white px-6 py-2 rounded-lg hover:bg-[#a0522d] transition"
           >
             Retry
           </button>
@@ -109,32 +110,52 @@ export default function Dashboard() {
     );
   }
 
-  // Calculate statistics from real employee data
-  const employeeCount = employees.length;
-  const activeEmployees = employees.filter(emp => emp.status === 'active').length;
-
   // Gender statistics
   const maleCount = employees.filter(emp => emp.gender?.toLowerCase() === 'male').length;
   const femaleCount = employees.filter(emp => emp.gender?.toLowerCase() === 'female').length;
   const otherCount = employees.filter(emp => emp.gender && !['male', 'female'].includes(emp.gender.toLowerCase())).length;
 
   const genderData = [
-    { name: 'Male', value: maleCount, color: '#3b82f6' },
-    { name: 'Female', value: femaleCount, color: '#ec4899' },
-    ...(otherCount > 0 ? [{ name: 'Other', value: otherCount, color: '#8b5cf6' }] : []),
+    { name: 'Male', value: maleCount, percentage: ((maleCount / employees.length) * 100).toFixed(1), color: '#4a90e2' },
+    { name: 'Female', value: femaleCount, percentage: ((femaleCount / employees.length) * 100).toFixed(1), color: '#f06292' },
+    ...(otherCount > 0 ? [{ name: 'Others', value: otherCount, percentage: ((otherCount / employees.length) * 100).toFixed(1), color: '#ffd54f' }] : []),
   ];
 
-  // Position statistics
-  const positionCounts = employees.reduce((acc: { [key: string]: number }, emp) => {
-    const position = emp.position_name || 'Unassigned';
-    acc[position] = (acc[position] || 0) + 1;
+  // Department statistics with gradient colors
+  const departmentCounts = employees.reduce((acc: { [key: string]: number }, emp) => {
+    const dept = emp.department_name || 'Vacant';
+    acc[dept] = (acc[dept] || 0) + 1;
     return acc;
   }, {});
 
-  const positionData = Object.entries(positionCounts).map(([name, value]) => ({
-    name,
-    value,
-  }));
+  const totalEmployees = employees.length;
+  
+  // Color palette - maroon to light pink gradient
+  const colorPalette = [
+    '#8b1a1a', '#a52a2a', '#b8423f', '#c94d4d', 
+    '#d35c5c', '#dd6b6b', '#e67373', '#ef8b8b',
+    '#f49999', '#f9a7a7', '#ffb3b3', '#ffc2c2', '#e0d5d5'
+  ];
+  
+  const departmentData = Object.entries(departmentCounts)
+    .sort((a, b) => b[1] - a[1]) // Sort by value first
+    .map(([name, value], index) => ({
+      name,
+      value,
+      percentage: ((value / totalEmployees) * 100).toFixed(0),
+      color: colorPalette[index % colorPalette.length]
+    }));
+
+  // Weekly attendance data (mock data for visualization)
+  const weeklyData = [
+    { day: 'Sun', present: 32, pastWeek: 30 },
+    { day: 'Mon', present: 28, pastWeek: 32 },
+    { day: 'Tue', present: 30, pastWeek: 31 },
+    { day: 'Wed', present: 25, pastWeek: 29 },
+    { day: 'Thu', present: 33, pastWeek: 28 },
+    { day: 'Fri', present: 26, pastWeek: 30 },
+    { day: 'Sat', present: 29, pastWeek: 27 },
+  ];
 
   const handleViewPendingLeaves = async () => {
     const result = await leaveApi.getPendingLeaves();
@@ -151,209 +172,265 @@ export default function Dashboard() {
       setShowAbsenceRecords(true);
     }
   };
-  return (
-    <div className="min-h-screen p-8 space-y-8 font-poppins text-[#3C1E1E]">
-      {/* Top Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats && [
-          { title: "Total Employees", value: stats.total_employees, clickable: false },
-          {
-            title: "On Duty",
-            value: stats.on_duty,
-            subtitle: `Out of ${stats.total_employees} scheduled`,
-            clickable: false
-          },
-          {
-            title: "Available Positions",
-            value: stats.total_positions,
-            subtitle: `in ${stats.total_departments} departments`,
-            clickable: false
-          },
-          { title: "On Leave", value: stats.on_leave, clickable: false },
-          { title: "Absents", value: stats.absent, clickable: true, onClick: handleViewAbsenceRecords },
-          { title: "Late", value: stats.late, clickable: false },
-          { title: "Pending Requests", value: stats.pending_requests, clickable: true, onClick: handleViewPendingLeaves },
-        ].map((item, i) => (
-          <div
-            key={i}
-            onClick={item.clickable ? item.onClick : undefined}
-            className={`bg-[#fff4e6] border-t-2 border-l-2 border-b-2 border-r-2 border-t-[#f8e9d2] border-l-[#f8e9d2] border-b-[#6d2b24] border-r-[#6d2b24] rounded-lg shadow-lg p-5 py-6 text-center hover:shadow-xl transition ${item.clickable ? 'cursor-pointer hover:bg-[#fef0e0]' : ''}`}
-          >
-            <h2 className="text-3xl font-bold text-orange-800">{item.value}</h2>
-            <p className="text-sm text-gray-700 mt-2">{item.title}</p>
-            {item.subtitle && <p className="text-xs text-gray-600 mt-1">{item.subtitle}</p>}
-            {item.clickable && <p className="text-xs text-gray-500 mt-1">Click to view details</p>}
-          </div>
-        ))}
-      </div>
 
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Gender Chart */}
-        <div className="bg-[#fff4e6] border border-orange-200 rounded-xl shadow-md p-5">
-          <h3 className="font-semibold mb-4">Gender Distribution</h3>
-          {genderData.length > 0 ? (
-            <>
-              <div className="flex justify-center">
-                <ResponsiveContainer width="80%" height={250}>
+  const getCurrentPHDate = () => {
+    return new Date().toLocaleDateString("en-PH", {
+      timeZone: "Asia/Manila",
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
+
+  return (
+    <div className="min-h-screen p-6 font-poppins">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Top Summary Bar */}
+        <div className="bg-[#faf5ed] rounded-xl shadow-sm p-6 flex justify-around items-center border border-[#e8dcc8]">
+          <div className="text-center">
+            <p className="text-3xl font-bold text-gray-800">{stats?.on_duty || 0}</p>
+            <p className="text-sm text-gray-600 mt-1">Present</p>
+          </div>
+          <div className="text-center">
+            <p className="text-3xl font-bold text-gray-800">{stats?.absent || 0}</p>
+            <p className="text-sm text-gray-600 mt-1">Absents</p>
+          </div>
+          <div className="text-center">
+            <p className="text-3xl font-bold text-gray-800">{stats?.on_leave || 0}</p>
+            <p className="text-sm text-gray-600 mt-1">On Leave</p>
+          </div>
+          <div className="text-center">
+            <p className="text-3xl font-bold text-gray-800">{stats?.late || 0}</p>
+            <p className="text-sm text-gray-600 mt-1">Late</p>
+          </div>
+          <div className="text-center">
+            <p className="text-3xl font-bold text-gray-800">{stats?.pending_requests || 0}</p>
+            <p className="text-sm text-gray-600 mt-1">Pending Requests</p>
+          </div>
+        </div>
+
+        {/* Charts Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Gender Distribution Chart */}
+          <div className="bg-white rounded-xl shadow-sm p-6 border border-[#e8dcc8]">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Gender Distribution</h2>
+            <div className="flex items-center justify-center">
+              <div className="w-1/2">
+                <ResponsiveContainer width="100%" height={200}>
                   <PieChart>
                     <Pie
                       data={genderData}
-                      dataKey="value"
-                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
                       outerRadius={80}
-                      innerRadius={50}
-                      label
+                      fill="#8884d8"
+                      dataKey="value"
+                      label={({ name, percentage }) => `${name}: ${percentage}%`}
                     >
                       {genderData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
+                    <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="mt-2 space-y-1 text-sm">
-                {genderData.map((g, i) => {
-                  const total = genderData.reduce((sum, item) => sum + item.value, 0);
-                  const percentage = total > 0 ? ((g.value / total) * 100).toFixed(1) : '0.0';
-                  return (
-                    <div key={i} className="flex items-center space-x-2">
-                      <span
-                        className="inline-block w-3 h-3 rounded-full"
-                        style={{ backgroundColor: g.color }}
-                      ></span>
-                      <span>
-                        {g.name}: {g.value} ({percentage}%)
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          ) : (
-            <p className="text-center text-gray-500 py-8">No gender data available</p>
-          )}
-        </div>
-
-        {/* Position Chart */}
-        <div className="bg-[#fff4e6] border border-orange-200 rounded-xl shadow-md p-5">
-          <h3 className="font-semibold mb-4">Positions</h3>
-          {positionData.length > 0 ? (
-            <div className="overflow-x-auto">
-              <div className="min-w-[800px]">
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={positionData}>
-                    <XAxis dataKey="name" interval={0} angle={-20} textAnchor="end" height={60} />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="value" fill="#2563eb" barSize={60} radius={[10, 10, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          ) : (
-            <p className="text-center text-gray-500 py-8">No position data available</p>
-          )}
-        </div>
-      </div>
-
-      {/* Pending Leaves Modal */}
-      {showPendingLeaves && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setShowPendingLeaves(false)}>
-          <div
-            className="bg-[#fdf3e2] w-full max-w-2xl p-8 rounded-2xl shadow-lg relative text-[#3b2b1c] max-h-[80vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setShowPendingLeaves(false)}
-              className="absolute top-4 right-4 text-[#3b2b1c] hover:opacity-70"
-            >
-              <X size={24} />
-            </button>
-
-            <h2 className="text-2xl font-semibold mb-6">Pending Leave Requests ({pendingLeaves.length})</h2>
-
-            {pendingLeaves.length > 0 ? (
-              <div className="space-y-4">
-                {pendingLeaves.map((leave) => (
-                  <div key={leave.leave_id} className="border border-[#d8c3a5] rounded-lg p-4 bg-white">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <p className="font-semibold text-lg">{leave.first_name} {leave.last_name}</p>
-                        <p className="text-sm text-gray-600">{leave.employee_code}</p>
-                      </div>
-                      <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold">
-                        {leave.leave_type.charAt(0).toUpperCase() + leave.leave_type.slice(1)}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <p className="text-gray-600">Start Date</p>
-                        <p className="font-semibold">{new Date(leave.start_date).toLocaleDateString()}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-600">End Date</p>
-                        <p className="font-semibold">{new Date(leave.end_date).toLocaleDateString()}</p>
-                      </div>
-                    </div>
+              <div className="w-1/2 space-y-2">
+                {genderData.map((item, index) => (
+                  <div key={index} className="flex items-center">
+                    <div 
+                      className="w-4 h-4 mr-2 rounded" 
+                      style={{ backgroundColor: item.color }}
+                    ></div>
+                    <span className="text-sm text-gray-700">
+                      {item.name}: {item.value} ({item.percentage}%)
+                    </span>
                   </div>
                 ))}
               </div>
-            ) : (
-              <p className="text-center text-gray-500 py-8">No pending leave requests</p>
-            )}
+            </div>
+          </div>
+
+          {/* Department Distribution Chart */}
+          <div className="bg-white rounded-xl shadow-sm p-6 border border-[#e8dcc8]">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Department Distribution</h2>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={departmentData}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                >
+                  <XAxis 
+                    dataKey="name" 
+                    angle={-45} 
+                    textAnchor="end" 
+                    height={60}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="value" name="Employees">
+                    {departmentData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Weekly Attendance */}
+          <div className="bg-white rounded-xl shadow-sm p-6 border border-[#e8dcc8]">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-gray-800">Weekly Attendance</h2>
+              <span className="text-sm text-gray-500">{getCurrentPHDate()}</span>
+            </div>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={weeklyData}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                >
+                  <XAxis dataKey="day" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="present" name="This Week" fill="#8b4513" />
+                  <Bar dataKey="pastWeek" name="Last Week" fill="#d3b89c" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="bg-white rounded-xl shadow-sm p-6 border border-[#e8dcc8]">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h2>
+            <div className="space-y-3">
+              <button
+                onClick={handleViewPendingLeaves}
+                className="w-full flex items-center justify-between p-4 bg-[#f0e6d2] hover:bg-[#e8dcc8] rounded-lg transition"
+              >
+                <span className="font-medium text-gray-800">View Pending Leave Requests</span>
+                <ChevronRight className="h-5 w-5 text-gray-500" />
+              </button>
+              <button
+                onClick={handleViewAbsenceRecords}
+                className="w-full flex items-center justify-between p-4 bg-[#f0e6d2] hover:bg-[#e8dcc8] rounded-lg transition"
+              >
+                <span className="font-medium text-gray-800">View Absence Records</span>
+                <ChevronRight className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Pending Leave Requests Modal */}
+      {showPendingLeaves && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-gray-800">Pending Leave Requests</h3>
+                <button
+                  onClick={() => setShowPendingLeaves(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              {pendingLeaves.length > 0 ? (
+                <div className="space-y-4">
+                  {pendingLeaves.map((leave) => (
+                    <div key={leave.leave_id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-gray-600">Employee</p>
+                          <p className="font-semibold text-gray-800">
+                            {leave.first_name} {leave.last_name} ({leave.employee_code})
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600">Leave Type</p>
+                          <p className="font-semibold text-gray-800 capitalize">
+                            {leave.leave_type.replace("_", " ")}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600">Leave Dates</p>
+                          <p className="font-semibold text-gray-800">
+                            {new Date(leave.start_date).toLocaleDateString()} - {new Date(leave.end_date).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600">Record Code</p>
+                          <p className="font-semibold text-gray-800">{leave.leave_code}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-gray-500 py-8">No pending leave requests</p>
+              )}
+            </div>
           </div>
         </div>
       )}
 
       {/* Absence Records Modal */}
       {showAbsenceRecords && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setShowAbsenceRecords(false)}>
-          <div
-            className="bg-[#fdf3e2] w-full max-w-2xl p-8 rounded-2xl shadow-lg relative text-[#3b2b1c] max-h-[80vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setShowAbsenceRecords(false)}
-              className="absolute top-4 right-4 text-[#3b2b1c] hover:opacity-70"
-            >
-              <X size={24} />
-            </button>
-
-            <h2 className="text-2xl font-semibold mb-6">Absence Records ({absenceRecords.length})</h2>
-
-            {absenceRecords.length > 0 ? (
-              <div className="space-y-4">
-                {absenceRecords.map((record) => (
-                  <div key={record.attendance_id} className="border border-[#d8c3a5] rounded-lg p-4 bg-white">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <p className="font-semibold text-lg">{record.first_name} {record.last_name}</p>
-                        <p className="text-sm text-gray-600">{record.employee_code}</p>
-                      </div>
-                      <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-semibold">
-                        Absent
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <p className="text-gray-600">Date</p>
-                        <p className="font-semibold">{new Date(record.date).toLocaleDateString()}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-600">Record Code</p>
-                        <p className="font-semibold">{record.attendance_code}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-gray-800">Absence Records</h3>
+                <button
+                  onClick={() => setShowAbsenceRecords(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="h-6 w-6" />
+                </button>
               </div>
-            ) : (
-              <p className="text-center text-gray-500 py-8">No absence records</p>
-            )}
+              {absenceRecords.length > 0 ? (
+                <div className="space-y-4">
+                  {absenceRecords.map((record) => (
+                    <div key={record.attendance_id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-gray-600">Employee</p>
+                          <p className="font-semibold text-gray-800">
+                            {record.first_name} {record.last_name} ({record.employee_code})
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600">Date</p>
+                          <p className="font-semibold text-gray-800">
+                            {new Date(record.date).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600">Record Code</p>
+                          <p className="font-semibold text-gray-800">{record.attendance_code}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-gray-500 py-8">No absence records</p>
+              )}
+            </div>
           </div>
         </div>
       )}
+      
+      {/* Floating Ticket Button */}
+      <FloatingTicketButton />
     </div>
   );
 }

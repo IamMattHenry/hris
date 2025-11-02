@@ -6,6 +6,18 @@ import { motion } from "framer-motion";
 import FormInput from "@/components/forms/FormInput";
 import FormSelect from "@/components/forms/FormSelect";
 import { departmentApi, positionApi, employeeApi } from "@/lib/api";
+import {
+  validateEmployeeForm,
+  validateDependent,
+  validateRoleManagement,
+  formatPhoneNumber,
+  generateClientId,
+  type ContactEmail,
+  type ContactNumber,
+  type Dependent,
+  type ValidationErrors,
+} from "./validation";
+import { toast } from "react-hot-toast";
 
 /* ---------- Interfaces ---------- */
 interface EditEmployeeModalProps {
@@ -26,47 +38,15 @@ interface EmployeeData {
   shift: string;
   email: string;
   civil_status?: string;
+  supervisor_id?: number;
+  province?: string;
   emails?: Array<{ email_id: number; email: string }>;
   contact_numbers?: Array<{ contact_id: number; contact_number: string }>;
-  dependents?: Array<Dependent>;
+  dependents?: Array<any>;
   role?: string;
   sub_role?: string;
   user_id?: number;
 }
-
-interface ContactEmail {
-  email_id?: number; // server id if persisted
-  id?: string; // client temporary unique id
-  email: string;
-  isNew?: boolean;
-}
-
-interface ContactNumber {
-  contact_id?: number; // server id if persisted
-  id?: string; // client temporary unique id
-  contact_number: string;
-  isNew?: boolean;
-}
-
-interface Dependent {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  contactInfo: string;
-  relationship: string;
-  relationshipSpecify?: string;
-  homeAddress: string;
-  region: string;
-  province: string;
-  city: string;
-}
-
-/* ---------- Helper ---------- */
-const generateClientId = () =>
-  `c-${Date.now().toString(36)}-${Math.floor(Math.random() * 100000)
-    .toString(36)
-    .padStart(2, "0")}`;
 
 /* ---------- Component ---------- */
 export default function EditEmployeeModal({
@@ -110,9 +90,7 @@ export default function EditEmployeeModal({
   const [dependentRegion, setDependentRegion] = useState("");
   const [dependentProvince, setDependentProvince] = useState("");
   const [dependentCity, setDependentCity] = useState("");
-  const [dependentErrors, setDependentErrors] = useState<{
-    [key: string]: string;
-  }>({});
+  const [dependentErrors, setDependentErrors] = useState<ValidationErrors>({});
 
   const [departments, setDepartments] = useState<any[]>([]);
   const [positions, setPositions] = useState<any[]>([]);
@@ -123,7 +101,7 @@ export default function EditEmployeeModal({
   const [dependentProvinces, setDependentProvinces] = useState<string[]>([]);
   const [dependentCities, setDependentCities] = useState<string[]>([]);
   const [phLocationsData, setPhLocationsData] = useState<any[]>([]);
-  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [errors, setErrors] = useState<ValidationErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   /* ---------- Fetch employee details ---------- */
@@ -179,7 +157,6 @@ export default function EditEmployeeModal({
 
         // Set dependents from the fetched data
         if (res.data.dependents && Array.isArray(res.data.dependents)) {
-          // Map dependents from backend to our Dependent shape (if needed)
           const dMapped = res.data.dependents.map((d: any) => ({
             id: d.dependant_id ? `d-${d.dependant_id}` : generateClientId(),
             firstName: d.firstname || "",
@@ -252,14 +229,14 @@ export default function EditEmployeeModal({
     try {
       const result = await employeeApi.getAll();
       if (result.success && result.data) {
-        // Filter employees by department and active status, excluding current employee
-        const deptEmployees = result.data.filter(
+        const deptSupervisors = result.data.filter(
           (emp: any) =>
             emp.department_id === deptId &&
             emp.status === "active" &&
+            emp.role === "supervisor" &&
             emp.employee_id !== id
         );
-        setSupervisors(deptEmployees);
+        setSupervisors(deptSupervisors);
       }
     } catch (error) {
       console.error("Error fetching supervisors:", error);
@@ -274,11 +251,11 @@ export default function EditEmployeeModal({
     if (!dept) return [];
 
     if (dept.department_name === "IT") {
-      return ["IT"];
+      return ["it"];
     } else if (dept.department_name === "Human Resources") {
-      return ["HR"];
+      return ["hr"];
     } else if (dept.department_name === "Front Desk") {
-      return ["Front Desk"];
+      return ["front_desk"];
     }
 
     return [];
@@ -401,140 +378,62 @@ export default function EditEmployeeModal({
     }
   }, [dependentRegion, dependentProvince, phLocationsData]);
 
-  /* ---------- Dependent formatting & validation ---------- */
+  /* ---------- Dependent formatting ---------- */
   const handleDependentContactInfoChange = (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
-    const value = e.target.value.replace(/\D/g, "");
-    let formatted = value;
-    if (value.startsWith("63")) {
-      formatted = `+${value.slice(0, 2)} ${value.slice(2, 5)} ${value.slice(
-        5,
-        8
-      )} ${value.slice(8, 12)}`.trim();
-    } else if (value.startsWith("09")) {
-      formatted = `${value.slice(0, 4)} ${value.slice(4, 7)} ${value.slice(
-        7,
-        11
-      )}`.trim();
-    }
+    let input = e.target.value.replace(/\D/g, "");
+    if (input.length > 11) input = input.slice(0, 11);
+    const formatted = formatPhoneNumber(e.target.value);
     setDependentContactInfo(formatted);
   };
 
-  const validateDependent = (
-    firstName: string,
-    lastName: string,
-    relationship: string,
-    email: string,
-    contactInfo: string,
-    relationshipSpecify: string
+  const handleContactNumberChange = (e: React.ChangeEvent<HTMLInputElement>,
+    index: number,
+    contactNumbers: any[],
+    setContactNumbers: React.Dispatch<React.SetStateAction<any[]>>
   ) => {
-    const newErrors: { [key: string]: string } = {};
+    let value = e.target.value;
+    value = value.replace(/\D/g, "");
 
-    if (!firstName.trim()) newErrors.firstName = "First name is required";
-    if (!lastName.trim()) newErrors.lastName = "Last name is required";
-    if (!relationship) newErrors.relationship = "Relationship is required";
-    if (relationship === "Other" && !relationshipSpecify.trim()) {
-      newErrors.relationshipSpecify = "Please specify the relationship";
-    }
-    if (!email.trim()) {
-      newErrors.email = "Email is required";
-    } else if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(email.trim())) {
-      newErrors.email = "Must be a valid Gmail address";
-    }
-    if (contactInfo.trim()) {
-      const cleanNumber = contactInfo.replace(/\s/g, "");
-      if (!/^(\+639|09)\d{9}$/.test(cleanNumber)) {
-        newErrors.contactInfo = "Invalid contact number format";
-      }
+    if (value.length > 11) {
+      value = value.slice(0, 11);
     }
 
-    return newErrors;
+    if (value.length >= 1 && value[0] !== "0") {
+      value = "0" + value.slice(1);
+    }
+    if (value.length >= 2 && value.slice(0, 2) !== "09") {
+      value = "09" + value.slice(2);
+    }
+
+    if (value.length > 7) {
+      value = value.replace(/^(\d{4})(\d{3})(\d{0,4})$/, "$1 $2 $3");
+    } else if (value.length > 4) {
+      value = value.replace(/^(\d{4})(\d{0,3})$/, "$1 $2");
+    }
+
+    const newContacts = [...contactNumbers];
+    newContacts[index].contact_number = value;
+    setContactNumbers(newContacts);
   };
 
-  /* ---------- Validation ---------- */
-  const validate = () => {
-    const newErrors: { [key: string]: string } = {};
-    if (!firstName.trim()) newErrors.firstName = "First name is required";
-    if (!lastName.trim()) newErrors.lastName = "Last name is required";
-    if (!departmentId) newErrors.department = "Department is required";
-    if (!positionId) newErrors.position = "Position is required";
-    if (!shift) newErrors.shift = "Shift is required";
-    if (!homeAddress.trim()) newErrors.homeAddress = "Home address is required";
-    if (!city) newErrors.city = "City is required";
-    if (!region) newErrors.region = "Region is required";
-    if (!civilStatus) newErrors.civilStatus = "Civil status is required";
-
-    // Validate at least one email exists
-    const validEmails = emails.filter((e) => e.email && e.email.trim());
-    if (validEmails.length === 0)
-      newErrors.emails = "At least one email is required";
-    else {
-      for (const emailItem of validEmails) {
-        if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(emailItem.email.trim())) {
-          newErrors.emails = "All emails must be valid Gmail addresses";
-          break;
-        }
-      }
-    }
-
-    // Validate at least one contact number exists
-    const validContacts = contactNumbers.filter(
-      (c) => c.contact_number && c.contact_number.trim()
-    );
-    if (validContacts.length === 0)
-      newErrors.contactNumbers = "At least one contact number is required";
-    else {
-      for (const contactItem of validContacts) {
-        const cleanNumber = contactItem.contact_number.replace(/\s/g, "");
-        if (!/^(\+639|09)\d{9}$/.test(cleanNumber)) {
-          newErrors.contactNumbers = "Invalid contact number format";
-          break;
-        }
-      }
-    }
-    if (validContacts.length > 5)
-      newErrors.contactNumbers = "Maximum of 5 contact numbers allowed";
-
-    // Validate dependents
-    if (dependents.length === 0) {
-      newErrors.dependents = "At least one dependent is required";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
 
   /* ---------- Submit ---------- */
   const handleSubmit = async () => {
     console.log("Save Changes clicked");
 
-    const roleErrors: { [key: string]: string } = {};
+    // Validate role management
+    const roleErrors = validateRoleManagement(
+      grantAdminPrivilege,
+      grantSupervisorPrivilege,
+      subRole,
+      departmentId,
+      getValidSubRoles(departmentId),
+      departments.find((d) => d.department_id === departmentId)?.department_name
+    );
 
-    if ((grantAdminPrivilege || grantSupervisorPrivilege) && !subRole) {
-      roleErrors.subRole =
-        "Sub-role is required when granting admin or supervisor privilege";
-    }
-
-    if (
-      (grantAdminPrivilege || grantSupervisorPrivilege) &&
-      departmentId &&
-      subRole
-    ) {
-      const validRoles = getValidSubRoles(departmentId);
-      const normalizedSubRole = subRole.toLowerCase();
-      const isValid = validRoles.some(
-        (role) => role.toLowerCase() === normalizedSubRole
-      );
-
-      if (!isValid) {
-        const deptName = departments.find(
-          (d) => d.department_id === departmentId
-        )?.department_name;
-        roleErrors.subRole = `${deptName} department employees can only have '${validRoles[0]?.toLowerCase()}' as sub_role.`;
-      }
-    }
-
+    // Check if department already has supervisor
     if (grantSupervisorPrivilege && departmentId) {
       const hasSupervisor = await checkDepartmentSupervisor(departmentId);
       if (hasSupervisor) {
@@ -548,11 +447,29 @@ export default function EditEmployeeModal({
       return;
     }
 
-    const isValid = validate();
-    console.log("Validation result:", isValid);
-    console.log("Current errors:", errors);
 
-    if (!isValid || !employee) {
+    // Validate employee form - NOW INCLUDING PROVINCE
+    const formErrors = validateEmployeeForm(
+      firstName,
+      lastName,
+      departmentId,
+      positionId,
+      shift,
+      homeAddress,
+      city,
+      region,
+      province,
+      civilStatus,
+      emails,
+      contactNumbers,
+      dependents
+    );
+
+    console.log("Validation result:", Object.keys(formErrors).length === 0);
+    console.log("Current errors:", formErrors);
+
+    if (Object.keys(formErrors).length > 0 || !employee) {
+      setErrors(formErrors);
       console.log("Validation failed or no employee");
       return;
     }
@@ -582,8 +499,8 @@ export default function EditEmployeeModal({
         updatedData.role = grantAdminPrivilege
           ? "admin"
           : grantSupervisorPrivilege
-          ? "supervisor"
-          : "employee";
+            ? "supervisor"
+            : "employee";
 
         if ((grantAdminPrivilege || grantSupervisorPrivilege) && subRole) {
           updatedData.sub_role = subRole.toLowerCase();
@@ -595,14 +512,14 @@ export default function EditEmployeeModal({
       console.log("Update result:", result);
 
       if (result.success) {
-        alert("Employee updated successfully!");
+        toast.success("Employee updated successfully!");
         onClose();
       } else {
-        alert(result.message || "Failed to update employee");
+        toast.error(result.message || "Failed to update employee");
       }
     } catch (err) {
       console.error("Update error:", err);
-      alert("An error occurred while updating employee");
+      toast.error("An error occurred while updating employee");
     } finally {
       setIsSubmitting(false);
     }
@@ -700,7 +617,7 @@ export default function EditEmployeeModal({
                 )}
               </div>
 
-              {/* Supervisor Dropdown - Filtered by Department */}
+              {/* Supervisor Dropdown */}
               <div>
                 <label className="block text-[#3b2b1c] mb-1 font-medium">
                   Reports To (Supervisor):
@@ -835,14 +752,12 @@ export default function EditEmployeeModal({
 
             {/* Contact Numbers Section */}
             <div className="mt-8 pt-6 border-t border-[#e6d2b5]">
-              <h3 className="text-lg font-semibold mb-4 text-[#3b2b1c]">
-                Contact Numbers
-              </h3>
+              <h3 className="text-lg font-semibold mb-4 text-[#3b2b1c]">Contact Numbers</h3>
+
               {errors.contactNumbers && (
-                <p className="text-red-500 text-sm mb-3">
-                  {errors.contactNumbers}
-                </p>
+                <p className="text-red-500 text-sm mb-3">{errors.contactNumbers}</p>
               )}
+
               <div className="space-y-3">
                 {contactNumbers.map((contactItem, index) => (
                   <div
@@ -854,17 +769,18 @@ export default function EditEmployeeModal({
                         type="text"
                         value={contactItem.contact_number}
                         onChange={(e) => {
-                          const newContacts = [...contactNumbers];
-                          newContacts[index].contact_number = e.target.value;
-                          setContactNumbers(newContacts);
+                          handleContactNumberChange(e, index, contactNumbers, setContactNumbers);
                         }}
                         placeholder="Enter contact number"
                         className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c]"
                       />
                     </div>
+
                     <button
                       type="button"
-                      onClick={() => setContactNumbers((prev) => prev.filter((_, i) => i !== index))}
+                      onClick={() =>
+                        setContactNumbers((prev) => prev.filter((_, i) => i !== index))
+                      }
                       className="px-3 py-2 bg-red-500 text-white rounded-lg hover:opacity-80"
                     >
                       Remove
@@ -872,16 +788,21 @@ export default function EditEmployeeModal({
                   </div>
                 ))}
               </div>
+
               <button
                 type="button"
                 onClick={() =>
-                  setContactNumbers((prev) => [...prev, { id: generateClientId(), contact_number: "", isNew: true }])
+                  setContactNumbers((prev) => [
+                    ...prev,
+                    { id: generateClientId(), contact_number: "", isNew: true },
+                  ])
                 }
                 className="mt-3 px-4 py-2 bg-[#3b2b1c] text-white rounded-lg hover:opacity-80"
               >
                 + Add Another Contact Number
               </button>
             </div>
+
 
             {/* Dependents Section */}
             <div className="border-t-2 border-[#e6d2b5] pt-6 mt-8">
@@ -1049,7 +970,11 @@ export default function EditEmployeeModal({
                       dependentRelationship,
                       dependentEmail,
                       dependentContactInfo,
-                      dependentRelationshipSpecify
+                      dependentRelationshipSpecify,
+                      dependentHomeAddress,
+                      dependentRegion,
+                      dependentProvince,
+                      dependentCity
                     );
 
                     if (Object.keys(newErrors).length > 0) {
@@ -1059,7 +984,7 @@ export default function EditEmployeeModal({
 
                     setDependentErrors({});
 
-                    const newDependent = {
+                    const newDependent: Dependent = {
                       id: generateClientId(),
                       firstName: dependentFirstName,
                       lastName: dependentLastName,

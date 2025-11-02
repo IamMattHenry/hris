@@ -5,26 +5,44 @@ export default function PasswordBox({
   value,
   placeholder = "password",
   onChange,
+  error = "",
+  labelColor = "#FFF2E0", 
 }: {
   label: string;
-  value: string;  
+  value: string;
   placeholder?: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  error?: string;
+  labelColor?: string; // ✅ optional label color
 }) {
   const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <div>
-      <label className="block text-sm text-[#FFF2E0] mb-2 font-poppins">{label}</label>                                  
-      <div className="relative mb-4">
+    <div className="mb-4">
+      {/* Label */}
+      <label
+        className="block text-sm mb-2 font-medium font-poppins"
+        style={{ color: labelColor }}
+      >
+        {label}
+      </label>
+
+      {/* Input Field */}
+      <div className="relative">
         <input
           type={showPassword ? "text" : "password"}
-          className="w-full bg-[#FAEFD8] text-gray-800 font-poppins rounded-full px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#D4A056]"
+          className={`w-full bg-[#FAEFD8] text-gray-800 rounded-full px-4 py-3 focus:outline-none focus:ring-2 font-poppins ${
+            error
+              ? "border border-red-500 focus:ring-red-400"
+              : "border border-[#E6D2B5] focus:ring-[#D4A056]"
+          }`}
           value={value}
           placeholder={placeholder}
           onChange={onChange}
           required
         />
+
+        {/* Toggle Password Visibility */}
         <span
           className="absolute right-4 top-3 text-gray-600 cursor-pointer material-icons"
           onClick={() => setShowPassword(!showPassword)}
@@ -33,12 +51,8 @@ export default function PasswordBox({
         </span>
       </div>
 
-      <div className="flex items-center justify-between mb-4 text-[#FFF2E0] text-sm font-poppins">
-
-        <a href="#" className="text-[#D4A056] hover:underline">
-          Forgot Password?
-        </a>
-      </div>
+      {/* Error Message */}
+      {error && <p className="text-red-600 text-xs mt-1 font-poppins">{error}</p>}
     </div>
   );
 }

@@ -3,12 +3,19 @@
 import { useState, useEffect, useRef } from "react";
 import { MoreVertical, Eye, Trash2, Pencil } from "lucide-react";
 
-// Define the Department interface
+// Define the Department interface (matches API response)
 interface Department {
-  id: string;
-  name: string;
-  supervisor: string;
-  employeeCount: number;
+  department_id: number;
+  department_code?: string;
+  department_name: string;
+  description?: string;
+  supervisor_id?: number;
+  supervisor_first_name?: string;
+  supervisor_last_name?: string;
+  supervisor_code?: string;
+  employee_count: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 // Define component props
@@ -16,8 +23,9 @@ interface DepartmentTableProps {
   departments: Department[];
   onView?: (department: Department) => void;
   onEdit?: (department: Department) => void;
-  onDelete?: (department: Department) => void;
+  onDelete?: (id: number) => void;
 }
+
 
 export default function DepartmentTable({
   departments,
@@ -42,8 +50,10 @@ export default function DepartmentTable({
     setOpenMenuIndex(openMenuIndex === index ? null : index);
   };
 
+  
+
   return (
-    <div className="overflow-x-auto shadow-sm bg-[#faeddc] rounded-lg max-h-136 h-136">
+    <div className="overflow-x-auto shadow-sm bg-[#faeddc] rounded-lg">
       <table className="w-full text-sm border-collapse">
         <thead className="text-md">
           <tr className="bg-[#3b2b1c] text-white">
@@ -56,15 +66,20 @@ export default function DepartmentTable({
         </thead>
 
         <tbody className="text-[#3b2b1c] text-base">
-          {departments.map((dept, index) => (
-            <tr
-              key={dept.id}
-              className="border-b border-[#e2d5c3] hover:bg-[#fdf4e7] transition"
-            >
-              <td className="py-4 px-4">{dept.id}</td>
-              <td className="py-4 px-4">{dept.name}</td>
-              <td className="py-4 px-4">{dept.supervisor}</td>
-              <td className="py-4 px-4">{dept.employeeCount}</td>
+          {departments.map((dept, index) => {
+            const supervisorName = dept.supervisor_first_name && dept.supervisor_last_name
+              ? `${dept.supervisor_code} - ${dept.supervisor_first_name} ${dept.supervisor_last_name}`
+              : "No Supervisor";
+
+            return (
+              <tr
+                key={dept.department_id}
+                className="border-b border-[#e2d5c3] hover:bg-[#fdf4e7] transition"
+              >
+                <td className="py-4 px-4">{dept.department_code || `DEPT-${dept.department_id}`}</td>
+                <td className="py-4 px-4">{dept.department_name}</td>
+                <td className="py-4 px-4">{supervisorName}</td>
+                <td className="py-4 px-4">{dept.employee_count}</td>
 
               <td className="py-4 px-4 text-center relative">
                 <button
@@ -110,7 +125,7 @@ export default function DepartmentTable({
                     {onDelete && (
                       <button
                         onClick={() => {
-                          onDelete(dept);
+                          onDelete(dept.department_id);
                           setOpenMenuIndex(null);
                         }}
                         className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#ffe5e5] text-[#b91c1c] rounded-b-lg"
@@ -122,7 +137,8 @@ export default function DepartmentTable({
                 )}
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>

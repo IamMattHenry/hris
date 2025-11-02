@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import logger from '../utils/logger.js';
+import * as db from '../config/db.js';
 
 export const verifyToken = (req, res, next) => {
   try {
@@ -74,5 +75,67 @@ export const verifyRole = (allowedRoles) => {
   };
 };
 
-export default { verifyToken, verifyRole };
+export const verifyAccess = ({ roles = [], subRoles = [], departments = [] }) => {
+  return async (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "User not authenticated",
+      });
+    }
+
+    const user = req.user; // user from JWT
+
+    if (user.role === "superadmin") {
+      return next();
+    }
+
+    // Check role
+    if (roles.length > 0 && !roles.includes(user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied: Role not permitted.",
+      });
+    }
+
+    // Load sub-role from user_roles table
+    const userSubrole = await db.getOne(
+      `SELECT sub_role FROM user_roles WHERE user_id = ?`,
+      [user.user_id]
+    );
+
+    const it = userSubrole?.sub_role || null;
+
+    if (subRoles.length > 0 && !subRoles.includes(it)) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied: Sub-role not permitted.",
+        sub_role: it,
+        user: user,
+      });
+    }
+
+    // Load department through employees table
+    const userDept = await db.getOne(
+      `SELECT department_id FROM employees WHERE user_id = ?`,
+      [user.user_id]
+    );
+
+    const userDepartment = userDept?.department_id || null;
+
+    if (departments.length > 0 && !departments.includes(userDepartment)) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied: Not allowed for this department.",
+        department: userDepartment,
+        user: user,
+      });
+    }
+
+    next();
+  };
+};
+
+
+export default { verifyToken, verifyRole, verifyAccess };
 

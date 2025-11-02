@@ -5,7 +5,7 @@
 
 /**
  * Generate a code with prefix and padded ID
- * @param {string} prefix - The prefix (e.g., 'DEP', 'EMP', 'POS')
+ * @param {string} prefix - The prefix (e.g., 'DEP', 'EMP', 'POS', 'TIC')
  * @param {number} id - The ID to pad
  * @returns {string} - The generated code (e.g., 'DEP-0001')
  */
@@ -71,21 +71,21 @@ export const generateLeaveCode = (leaveId) => {
 };
 
 /**
- * Generate payroll code
- * @param {number} payrollId - The payroll ID
- * @returns {string} - The generated code (e.g., 'PAY-0001')
- */
-export const generatePayrollCode = (payrollId) => {
-  return generateCode('PAY', payrollId);
-};
-
-/**
  * Generate dependent code
  * @param {number} dependentId - The dependent ID
  * @returns {string} - The generated code (e.g., 'DEP-0001')
  */
 export const generateDependentCode = (dependentId) => {
   return generateCode('DEP', dependentId);
+};
+
+/**
+ * Generate ticket code
+ * @param {number} ticketId - The ticket ID
+ * @returns {string} - The generated code (e.g., 'TIC-0001')
+ */
+export const generateTicketCode = (ticketId) => {
+  return generateCode('TIC', ticketId);
 };
 
 export default {
@@ -96,7 +96,6 @@ export default {
   generateAdminCode,
   generateAttendanceCode,
   generateLeaveCode,
-  generatePayrollCode,
   generateDependentCode,
+  generateTicketCode,
 };
-

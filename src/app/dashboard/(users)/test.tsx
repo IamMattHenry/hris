@@ -1,3 +1,5 @@
+/*
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -5,6 +7,8 @@ import { Search, Trash2, Eye } from "lucide-react";
 import { userApi } from "@/lib/api";
 import { User } from "@/types/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "react-hot-toast";
+
 
 export default function UsersPage() {
   const { user: currentUser } = useAuth();
@@ -36,22 +40,22 @@ export default function UsersPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this user? This will also delete associated employee/admin records.")) {
+    if (!window.confirm("Are you sure you want to delete this user? This will also delete associated employee/admin records.")) {
       return;
     }
 
     const result = await userApi.delete(id);
 
     if (result.success) {
-      alert("User deleted successfully");
+      toast.success("User deleted successfully");
       fetchUsers(); // Refresh the list
     } else {
-      alert(result.message || "Failed to delete user");
+      toast.error(result.message || "Failed to delete user");
     }
   };
 
   const handleView = (id: number) => {
-    alert(`View user details for ID: ${id}`);
+    toast.info(`View user details for ID: ${id}`);
   };
 
   // Filter users by search term
@@ -95,7 +99,7 @@ export default function UsersPage() {
 
   return (
     <div className="min-h-screen bg-[#fff7ec] p-8 space-y-6 text-gray-800 font-poppins">
-      {/* Header */}
+      {/* Header *
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <h1 className="text-xl font-bold">{users.length} Users</h1>
 
@@ -111,7 +115,7 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {/* Table */}
+      {/* Table 
       <div className="w-full">
         <table className="w-full text-sm table-fixed border-separate border-spacing-y-2">
           <thead className="bg-[#3b2b1c] text-white text-left sticky top-0 z-20">
@@ -164,7 +168,7 @@ export default function UsersPage() {
                       )}
                     </td>
                     <td className="py-3 px-4">
-                      {user.employee_code || user.admin_code || 'N/A'}
+                      {user.employee_code /*|| user.admin_code */ || 'N/A'}
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
@@ -203,3 +207,4 @@ export default function UsersPage() {
   );
 }
 
+*/

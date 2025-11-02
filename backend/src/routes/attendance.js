@@ -1,7 +1,7 @@
 import express from 'express';
 import { body } from 'express-validator';
 import { handleValidationErrors } from '../middleware/validation.js';
-import { verifyToken } from '../middleware/auth.js';
+import { verifyToken, verifyRole } from '../middleware/auth.js';
 import {
   getAttendanceRecords,
   getAttendanceById,
@@ -10,6 +10,7 @@ import {
   updateOvertimeHours,
   updateAttendanceStatus,
   getAttendanceSummary,
+  markAbsences,
 } from '../controllers/attendanceController.js';
 
 const router = express.Router();
@@ -67,6 +68,14 @@ router.put(
   ],
   handleValidationErrors,
   updateAttendanceStatus
+);
+
+// Mark absences for a date (admin/superadmin)
+router.post(
+  '/mark-absences',
+  verifyToken,
+  verifyRole(['admin', 'superadmin']),
+  markAbsences
 );
 
 export default router;

@@ -65,27 +65,27 @@ router.get('/employee/:employee_id', verifyToken, getLeaveByEmployee);
 
 // ============ GENERIC ROUTES (must come after specific routes) ============
 
-// Approve leave (admin only)
+// Approve leave (supervisor, admin, superadmin)
 router.put(
   '/:id/approve',
   verifyToken,
-  verifyRole(['admin']),
+  verifyRole(['supervisor', 'admin', 'superadmin']),
   approveLeave
 );
 
-// Reject leave (admin only)
+// Reject leave (supervisor, admin, superadmin)
 router.put(
   '/:id/reject',
   verifyToken,
-  verifyRole(['admin']),
+  verifyRole(['supervisor', 'admin', 'superadmin']),
   rejectLeave
 );
 
-// Delete leave (admin only)
+// Delete leave (admin and superadmin only)
 router.delete(
   '/:id',
   verifyToken,
-  verifyRole(['admin']),
+  verifyRole(['admin', 'superadmin']),
   deleteLeave
 );
 
