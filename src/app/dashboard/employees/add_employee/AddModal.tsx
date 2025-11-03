@@ -102,6 +102,31 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [dependentProvinces, setDependentProvinces] = useState<string[]>([]);
   const [dependentCities, setDependentCities] = useState<string[]>([]);
   const [dependentErrors, setDependentErrors] = useState<{ [key: string]: string }>({});
+  const today = new Date().toISOString().split("T")[0];
+
+  // Add these near your other states (username/password)
+  const [usernameEdited, setUsernameEdited] = useState(false);
+  const [passwordEdited, setPasswordEdited] = useState(false);
+
+  // Helper to normalize first name into a safe username
+  const makeUsernameFromFirst = (fn: string) =>
+    fn.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  useEffect(() => {
+    const base = makeUsernameFromFirst(firstName || "");
+    const generatedUsername = base || ""; // empty if no firstName
+    const generatedPassword = firstName ? `@${firstName.trim()}123` : "";
+
+    // Only update if the user hasn't manually edited
+    if (!usernameEdited) {
+      setUsername(generatedUsername);
+    }
+    if (!passwordEdited) {
+      setPassword(generatedPassword);
+      setConfirmPassword(generatedPassword);
+    }
+  }, [firstName, usernameEdited, passwordEdited]);
+
 
   // set the pay end date based on pay start date
   useEffect(() => {
@@ -416,7 +441,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
     // Step 2 - Job Info
     if (step === 2) {
-      newErrors = validateStep2(departmentId, positionId, hireDate, shift);
+      newErrors = validateStep2(departmentId, positionId, hireDate, shift, salary);
     }
 
     // Step 3 - Contact Info & Dependents
@@ -614,7 +639,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         )}
 
         {/* Scrollable Content Area */}
-        <div className="flex-1 overflow-y-auto px-8 pt-4">
+        <div className="flex-1 overflow-y-auto px-8 py-8">
           {/* Header */}
           <div className="flex flex-col items-start mb-6 space-y-1">
             <h2 className="text-2xl font-extrabold text-[#3b2b1c]">Add Employee</h2>
@@ -625,708 +650,715 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
           {/* Step Content */}
           <AnimatePresence mode="wait">
-          {step === 1 && (
-            <motion.div
-              key="step1"
-              initial={{ opacity: 0, x: -40 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 40 }}
-              transition={{ duration: 0.3 }}
-            >
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-                {/* Personal Info */}
-                <FormInput
-                  label="First Name:"
-                  type="text"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  error={errors.firstName}
-                />
-                <FormInput
-                  label="Last Name:"
-                  type="text"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  error={errors.lastName}
-                />
-                <FormInput
-                  label="Middle Name:"
-                  type="text"
-                  value={middleName}
-                  onChange={(e) => setMiddleName(e.target.value)}
-                  placeholder="(optional)"
-                />
-                <FormInput
-                  label="Extension Name:"
-                  type="text"
-                  value={extensionName}
-                  onChange={(e) => setExtensionName(e.target.value)}
-                  placeholder="Jr., Sr., III, etc. (optional)"
-                />
-                <FormInput
-                  label="Birth Date:"
-                  type="date"
-                  value={birthDate}
-                  onChange={handleBirthDateChange}
-                  error={errors.birthDate}
-                />
-                <FormSelect
-                  label="Gender:"
-                  value={gender}
-                  onChange={(e) => setGender(e.target.value)}
-                  options={["Male", "Female", "Others"]}
-                  error={errors.gender}
-                />
-                <FormSelect
-                  label="Civil Status:"
-                  value={civilStatus}
-                  onChange={(e) => setCivilStatus(e.target.value)}
-                  options={["Single", "Married", "Widowed", "Divorced"]}
-                  error={errors.civilStatus}
-                />
-
-                {/* Address Section - Grouped Region, Province, City */}
-                <div className="col-span-3 flex items-center gap-3 mt-6 mb-2">
-                  <div className="flex-grow border-t border-[#d6bfa3]"></div>
-                  <span className="text-[#3b2b1c] font-semibold text-sm uppercase tracking-wide">
-                    Address Location
-                  </span>
-                  <div className="flex-grow border-t border-[#d6bfa3]"></div>
-                </div>
-
-                <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-4 gap-6">
+            {step === 1 && (
+              <motion.div
+                key="step1"
+                initial={{ opacity: 0, x: -40 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 40 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+                  {/* Personal Info */}
                   <FormInput
-                    label="Address:"
+                    label="First Name:"
                     type="text"
-                    value={homeAddress}
-                    onChange={(e) => setHomeAddress(e.target.value)}
-                    error={errors.homeAddress}
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    error={errors.firstName}
                   />
-
+                  <FormInput
+                    label="Last Name:"
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    error={errors.lastName}
+                  />
+                  <FormInput
+                    label="Middle Name:"
+                    type="text"
+                    value={middleName}
+                    onChange={(e) => setMiddleName(e.target.value)}
+                    placeholder="(optional)"
+                  />
+                  <FormInput
+                    label="Extension Name:"
+                    type="text"
+                    value={extensionName}
+                    onChange={(e) => setExtensionName(e.target.value)}
+                    placeholder="Jr., Sr., III, etc. (optional)"
+                  />
+                  <FormInput
+                    label="Birth Date:"
+                    type="date"
+                    value={birthDate}
+                    onChange={handleBirthDateChange}
+                    error={errors.birthDate}
+                  />
                   <FormSelect
-                    label="Region:"
-                    value={region}
-                    onChange={(e) => {
-                      setRegion(e.target.value);
-                      setProvince("");
-                      setCity("");
-                    }}
-                    options={regions}
-                    error={errors.region}
+                    label="Gender:"
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value)}
+                    options={["Male", "Female", "Others"]}
+                    error={errors.gender}
                   />
-
                   <FormSelect
-                    label="Province:"
-                    value={province}
-                    onChange={(e) => {
-                      setProvince(e.target.value);
-                      setCity("");
-                    }}
-                    options={region ? provinces : []}
-                    error={errors.province}
+                    label="Civil Status:"
+                    value={civilStatus}
+                    onChange={(e) => setCivilStatus(e.target.value)}
+                    options={["Single", "Married", "Widowed", "Divorced"]}
+                    error={errors.civilStatus}
                   />
 
-                  <FormSelect
-                    label="City:"
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    options={province ? cities : []}
-                    error={errors.city}
-                  />
-                </div>
-
-              </div>
-
-            </motion.div>
-          )}
-
-          {step === 2 && (
-            <motion.div
-              key="step2"
-              initial={{ opacity: 0, x: 40 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -40 }}
-              transition={{ duration: 0.3 }}
-            >
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-                {/* Department Dropdown - Cascading */}
-                <div>
-                  <label className="block text-[#3b2b1c] mb-1 font-medium">
-                    Department: <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={departmentId || ""}
-                    onChange={(e) => {
-                      const value = e.target.value
-                        ? Number(e.target.value)
-                        : null;
-                      setDepartmentId(value);
-                      setPositionId(null);
-                      setSupervisorId(null);
-                      setErrors((prev) => ({ ...prev, department: "" }));
-                    }}
-                    className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14]"
-                  >
-                    <option value="">Select Department</option>
-                    {departments.map((dept) => (
-                      <option
-                        key={dept.department_id}
-                        value={dept.department_id}
-                      >
-                        {dept.department_name}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.department && (
-                    <p className="text-red-500 text-xs mt-1">
-                      {errors.department}
-                    </p>
-                  )}
-                </div>
-
-                {/* Position Dropdown - Filtered by Department */}
-                <div>
-                  <label className="block text-[#3b2b1c] mb-1 font-medium">
-                    Position: <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={positionId || ""}
-                    onChange={(e) => {
-                      const value = e.target.value
-                        ? Number(e.target.value)
-                        : null;
-                      setPositionId(value);
-                      setErrors((prev) => ({ ...prev, position: "" }));
-                    }}
-                    disabled={!departmentId}
-                    className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14] disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <option value="">
-                      {departmentId
-                        ? "Select Position"
-                        : "Select Department First"}
-                    </option>
-                    {positions.map((pos) => (
-                      <option key={pos.position_id} value={pos.position_id}>
-                        {pos.position_name}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.position && <p className="text-red-500 text-xs mt-1">{errors.position}</p>}
-                </div>
-
-                <div className="flex flex-col items-center justify-center space-y-3">
-                  {/* Profile Initial Circle */}
-                  <div className="w-32 h-32 rounded-full bg-[#800000] flex items-center justify-center text-white text-4xl font-bold">
-                    {firstName && lastName
-                      ? `${firstName[0]}${lastName[0]}`.toUpperCase()
-                      : "?"}
+                  {/* Address Section - Grouped Region, Province, City */}
+                  <div className="col-span-3 flex items-center gap-3 mt-6 mb-2">
+                    <div className="flex-grow border-t border-[#d6bfa3]"></div>
+                    <span className="text-[#3b2b1c] font-semibold text-sm uppercase tracking-wide">
+                      Address Location
+                    </span>
+                    <div className="flex-grow border-t border-[#d6bfa3]"></div>
                   </div>
-                </div>
 
-
-                <FormInput label="Hire Date:" type="date" value={hireDate} onChange={(e) => setHireDate(e.target.value)} error={errors.hireDate} />
-                <FormInput label="Pay Period Start:" type="date" value={payStart} onChange={(e) => setPayStart(e.target.value)} readOnly={true} />
-
-                <FormSelect label="Shift:" value={shift} onChange={(e) => setShift(e.target.value)} options={["Morning", "Night"]} error={errors.shift} />
-                <FormInput label="Pay Period End:" type="date" value={payEnd} onChange={(e) => setPayEnd(e.target.value)} readOnly={true} />
-
-                <div>
-                  <label className="block text-[#3b2b1c] mb-1">Salary:</label>
-                  <div className="flex items-center border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] overflow-hidden">
-                    <span className="px-3 py-2 text-[#3b2b1c] font-semibold">₱</span>
-                    <input
+                  <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <FormInput
+                      label="Address:"
                       type="text"
-                      value={salaryDisplay}
-                      onChange={handleSalaryChange}
-                      placeholder="0.00"
-                      className="flex-1 px-3 py-2 bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14] focus:ring-inset"
+                      value={homeAddress}
+                      onChange={(e) => setHomeAddress(e.target.value)}
+                      error={errors.homeAddress}
+                    />
+
+                    <FormSelect
+                      label="Region:"
+                      value={region}
+                      onChange={(e) => {
+                        setRegion(e.target.value);
+                        setProvince("");
+                        setCity("");
+                      }}
+                      options={regions}
+                      error={errors.region}
+                    />
+
+                    <FormSelect
+                      label="Province:"
+                      value={province}
+                      onChange={(e) => {
+                        setProvince(e.target.value);
+                        setCity("");
+                      }}
+                      options={region ? provinces : []}
+                      error={errors.province}
+                    />
+
+                    <FormSelect
+                      label="City:"
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      options={province ? cities : []}
+                      error={errors.city}
                     />
                   </div>
-                  {errors.salary && <p className="text-red-500 text-xs mt-1">{errors.salary}</p>}
+
                 </div>
 
-                {/* Supervisor Dropdown - Filtered by Department */}
-                <div>
-                  <label className="block text-[#3b2b1c] mb-1 font-medium">
-                    Reports To (Supervisor):
-                  </label>
-                  <select
-                    value={supervisorId || ""}
-                    onChange={(e) => {
-                      const value = e.target.value
-                        ? Number(e.target.value)
-                        : null;
-                      setSupervisorId(value);
-                      setErrors((prev) => ({ ...prev, supervisor: "" }));
-                    }}
-                    disabled={!departmentId}
-                    className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14] disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <option value="">
-                      {departmentId
-                        ? "No Supervisor (Optional)"
-                        : "Select Department First"}
-                    </option>
-                    {supervisors.map((sup) => (
-                      <option key={sup.employee_id} value={sup.employee_id}>
-                        {sup.employee_code} - {sup.first_name} {sup.last_name}
+              </motion.div>
+            )}
+
+            {step === 2 && (
+              <motion.div
+                key="step2"
+                initial={{ opacity: 0, x: 40 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -40 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+                  {/* Department Dropdown - Cascading */}
+                  <div>
+                    <label className="block text-[#3b2b1c] mb-1 font-medium">
+                      Department: <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={departmentId || ""}
+                      onChange={(e) => {
+                        const value = e.target.value
+                          ? Number(e.target.value)
+                          : null;
+                        setDepartmentId(value);
+                        setPositionId(null);
+                        setSupervisorId(null);
+                        setErrors((prev) => ({ ...prev, department: "" }));
+                      }}
+                      className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14]"
+                    >
+                      <option value="">Select Department</option>
+                      {departments.map((dept) => (
+                        <option
+                          key={dept.department_id}
+                          value={dept.department_id}
+                        >
+                          {dept.department_name}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.department && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.department}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Position Dropdown - Filtered by Department */}
+                  <div>
+                    <label className="block text-[#3b2b1c] mb-1 font-medium">
+                      Position: <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={positionId || ""}
+                      onChange={(e) => {
+                        const value = e.target.value
+                          ? Number(e.target.value)
+                          : null;
+                        setPositionId(value);
+                        setErrors((prev) => ({ ...prev, position: "" }));
+                      }}
+                      disabled={!departmentId}
+                      className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14] disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <option value="">
+                        {departmentId
+                          ? "Select Position"
+                          : "Select Department First"}
                       </option>
-                    ))}
-                  </select>
-                  {errors.supervisor && <p className="text-red-500 text-xs mt-1">{errors.supervisor}</p>}
-                  <p className="text-xs text-[#6b5344] mt-1">
-                    Select who this employee will report to
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {step === 3 && (
-            <motion.div
-              key="step3"
-              initial={{ opacity: 0, x: 40 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -40 }}
-              transition={{ duration: 0.3 }}
-            >
-              <div className="space-y-6">
-                {/* Contact Information Section */}
-                <div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-                    <FormInput label="Email:" type="email" value={email} onChange={(e) => setEmail(e.target.value)} error={errors.email} placeholder="(use gmail)" />
-                    <FormInput label="Contact Number:" type="text" value={contactNumber} onChange={handleContactNumberChange} error={errors.contactNumber} />
+                      {positions.map((pos) => (
+                        <option key={pos.position_id} value={pos.position_id}>
+                          {pos.position_name}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.position && <p className="text-red-500 text-xs mt-1">{errors.position}</p>}
                   </div>
-                </div>
 
-                {/* Dependent Information Section */}
-                <div className="border-t-2 border-[#e6d2b5] pt-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-[#3b2b1c] font-semibold">Employee Dependent Information <span className="text-red-500">*</span></h3>
-                    <span className="text-xs text-[#6b5344]">({dependents.length} added)</span>
-                  </div>
-                  {errors.dependents && <p className="text-red-500 text-xs mb-4">{errors.dependents}</p>}
-
-                  {/* Add Dependent Form */}
-                  <div className="bg-[#FFF2E0] p-4 rounded-lg mb-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
-                      <FormInput
-                        label="First Name:"
-                        type="text"
-                        value={dependentFirstName}
-                        onChange={(e) => {
-                          setDependentFirstName(e.target.value);
-                          if (dependentErrors.firstName) {
-                            setDependentErrors((prev) => ({ ...prev, firstName: "" }));
-                          }
-                        }}
-                        placeholder="Enter first name"
-                        error={dependentErrors.firstName}
-                      />
-                      <FormInput
-                        label="Last Name:"
-                        type="text"
-                        value={dependentLastName}
-                        onChange={(e) => {
-                          setDependentLastName(e.target.value);
-                          if (dependentErrors.lastName) {
-                            setDependentErrors((prev) => ({ ...prev, lastName: "" }));
-                          }
-                        }}
-                        placeholder="Enter last name"
-                        error={dependentErrors.lastName}
-                      />
-                      <FormInput
-                        label="Email:"
-                        type="email"
-                        value={dependentEmail}
-                        onChange={(e) => {
-                          setDependentEmail(e.target.value);
-                          if (dependentErrors.email) {
-                            setDependentErrors((prev) => ({ ...prev, email: "" }));
-                          }
-                        }}
-                        placeholder="(use gmail)"
-                        error={dependentErrors.email}
-                      />
-                      <FormInput
-                        label="Contact Info:"
-                        type="text"
-                        value={dependentContactInfo}
-                        onChange={(e) => {
-                          handleDependentContactInfoChange(e);
-                          if (dependentErrors.contactInfo) {
-                            setDependentErrors((prev) => ({ ...prev, contactInfo: "" }));
-                          }
-                        }}
-                        placeholder="Phone number (optional)"
-                        error={dependentErrors.contactInfo}
-                      />
-                      <FormSelect
-                        label="Relationship:"
-                        value={dependentRelationship}
-                        onChange={(e) => {
-                          setDependentRelationship(e.target.value);
-                          if (e.target.value !== "Other") {
-                            setDependentRelationshipSpecify("");
-                          }
-                          if (dependentErrors.relationship) {
-                            setDependentErrors((prev) => ({ ...prev, relationship: "" }));
-                          }
-                        }}
-                        options={["Spouse", "Child", "Parent", "Sibling", "Other"]}
-                        error={dependentErrors.relationship}
-                      />
-                      {dependentRelationship === "Other" && (
-                        <FormInput
-                          label="Specify Relationship:"
-                          type="text"
-                          value={dependentRelationshipSpecify}
-                          onChange={(e) => {
-                            setDependentRelationshipSpecify(e.target.value);
-                            if (dependentErrors.relationshipSpecify) {
-                              setDependentErrors((prev) => ({ ...prev, relationshipSpecify: "" }));
-                            }
-                          }}
-                          placeholder="Please specify the relationship"
-                          error={dependentErrors.relationshipSpecify}
-                        />
-                      )}
+                  <div className="flex flex-col items-center justify-center space-y-3">
+                    {/* Profile Initial Circle */}
+                    <div className="w-32 h-32 rounded-full bg-[#800000] flex items-center justify-center text-white text-4xl font-bold">
+                      {firstName && lastName
+                        ? `${firstName[0]}${lastName[0]}`.toUpperCase()
+                        : "?"}
                     </div>
+                  </div>
 
-                    {/* Home Address Section with Y-axis padding */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm py-4">
-                      <div className="md:col-span-2">
+
+                  <FormInput label="Hire Date:" type="date" max={today} value={hireDate} onChange={(e) => setHireDate(e.target.value)} error={errors.hireDate} />
+                  <FormInput label="Pay Period Start:" type="date" value={payStart} onChange={(e) => setPayStart(e.target.value)} readOnly={true} />
+
+                  <FormSelect label="Shift:" value={shift} onChange={(e) => setShift(e.target.value)} options={["Morning", "Night"]} error={errors.shift} />
+                  <FormInput label="Pay Period End:" type="date" value={payEnd} onChange={(e) => setPayEnd(e.target.value)} readOnly={true} />
+
+                  <div>
+                    <label className="block text-[#3b2b1c] mb-1">Salary:</label>
+                    <div className="flex items-center border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] overflow-hidden">
+                      <span className="px-3 py-2 text-[#3b2b1c] font-semibold">₱</span>
+                      <input
+                        type="text"
+                        value={salaryDisplay}
+                        onChange={handleSalaryChange}
+                        placeholder="0.00"
+                        className="flex-1 px-3 py-2 bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14] focus:ring-inset"
+                      />
+                    </div>
+                    {errors.salary && <p className="text-red-500 text-xs mt-1">{errors.salary}</p>}
+                  </div>
+
+                  {/* Supervisor Dropdown - Filtered by Department */}
+                  <div>
+                    <label className="block text-[#3b2b1c] mb-1 font-medium">
+                      Reports To (Supervisor):
+                    </label>
+                    <select
+                      value={supervisorId || ""}
+                      onChange={(e) => {
+                        const value = e.target.value
+                          ? Number(e.target.value)
+                          : null;
+                        setSupervisorId(value);
+                        setErrors((prev) => ({ ...prev, supervisor: "" }));
+                      }}
+                      disabled={!departmentId}
+                      className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14] disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <option value="">
+                        {departmentId
+                          ? "No Supervisor (Optional)"
+                          : "Select Department First"}
+                      </option>
+                      {supervisors.map((sup) => (
+                        <option key={sup.employee_id} value={sup.employee_id}>
+                          {sup.employee_code} - {sup.first_name} {sup.last_name}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.supervisor && <p className="text-red-500 text-xs mt-1">{errors.supervisor}</p>}
+                    <p className="text-xs text-[#6b5344] mt-1">
+                      Select who this employee will report to
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {step === 3 && (
+              <motion.div
+                key="step3"
+                initial={{ opacity: 0, x: 40 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -40 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="space-y-6">
+                  {/* Contact Information Section */}
+                  <div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                      <FormInput label="Email:" type="email" value={email} onChange={(e) => setEmail(e.target.value)} error={errors.email} placeholder="(use gmail)" />
+                      <FormInput label="Contact Number:" type="text" value={contactNumber} onChange={handleContactNumberChange} error={errors.contactNumber} />
+                    </div>
+                  </div>
+
+                  {/* Dependent Information Section */}
+                  <div className="border-t-2 border-[#e6d2b5] pt-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-[#3b2b1c] font-semibold">Employee Dependent Information <span className="text-red-500">*</span></h3>
+                      <span className="text-xs text-[#6b5344]">({dependents.length} added)</span>
+                    </div>
+                    {errors.dependents && <p className="text-red-500 text-xs mb-4">{errors.dependents}</p>}
+
+                    {/* Add Dependent Form */}
+                    <div className="bg-[#FFF2E0] p-4 rounded-lg mb-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
                         <FormInput
-                          label="Home Address:"
+                          label="First Name:"
                           type="text"
-                          value={dependentHomeAddress}
+                          value={dependentFirstName}
                           onChange={(e) => {
-                            setDependentHomeAddress(e.target.value);
-                            if (dependentErrors.homeAddress) {
-                              setDependentErrors((prev) => ({ ...prev, homeAddress: "" }));
+                            setDependentFirstName(e.target.value);
+                            if (dependentErrors.firstName) {
+                              setDependentErrors((prev) => ({ ...prev, firstName: "" }));
                             }
                           }}
-                          placeholder="Enter home address"
-                          error={dependentErrors.homeAddress}
+                          placeholder="Enter first name"
+                          error={dependentErrors.firstName}
+                        />
+                        <FormInput
+                          label="Last Name:"
+                          type="text"
+                          value={dependentLastName}
+                          onChange={(e) => {
+                            setDependentLastName(e.target.value);
+                            if (dependentErrors.lastName) {
+                              setDependentErrors((prev) => ({ ...prev, lastName: "" }));
+                            }
+                          }}
+                          placeholder="Enter last name"
+                          error={dependentErrors.lastName}
+                        />
+                        <FormInput
+                          label="Email:"
+                          type="email"
+                          value={dependentEmail}
+                          onChange={(e) => {
+                            setDependentEmail(e.target.value);
+                            if (dependentErrors.email) {
+                              setDependentErrors((prev) => ({ ...prev, email: "" }));
+                            }
+                          }}
+                          placeholder="(use gmail)"
+                          error={dependentErrors.email}
+                        />
+                        <FormInput
+                          label="Contact Info:"
+                          type="text"
+                          value={dependentContactInfo}
+                          onChange={(e) => {
+                            handleDependentContactInfoChange(e);
+                            if (dependentErrors.contactInfo) {
+                              setDependentErrors((prev) => ({ ...prev, contactInfo: "" }));
+                            }
+                          }}
+                          placeholder="Phone number (optional)"
+                          error={dependentErrors.contactInfo}
+                        />
+                        <FormSelect
+                          label="Relationship:"
+                          value={dependentRelationship}
+                          onChange={(e) => {
+                            setDependentRelationship(e.target.value);
+                            if (e.target.value !== "Other") {
+                              setDependentRelationshipSpecify("");
+                            }
+                            if (dependentErrors.relationship) {
+                              setDependentErrors((prev) => ({ ...prev, relationship: "" }));
+                            }
+                          }}
+                          options={["Spouse", "Child", "Parent", "Sibling", "Other"]}
+                          error={dependentErrors.relationship}
+                        />
+                        {dependentRelationship === "Other" && (
+                          <FormInput
+                            label="Specify Relationship:"
+                            type="text"
+                            value={dependentRelationshipSpecify}
+                            onChange={(e) => {
+                              setDependentRelationshipSpecify(e.target.value);
+                              if (dependentErrors.relationshipSpecify) {
+                                setDependentErrors((prev) => ({ ...prev, relationshipSpecify: "" }));
+                              }
+                            }}
+                            placeholder="Please specify the relationship"
+                            error={dependentErrors.relationshipSpecify}
+                          />
+                        )}
+                      </div>
+
+                      {/* Home Address Section with Y-axis padding */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm py-4">
+                        <div className="md:col-span-2">
+                          <FormInput
+                            label="Home Address:"
+                            type="text"
+                            value={dependentHomeAddress}
+                            onChange={(e) => {
+                              setDependentHomeAddress(e.target.value);
+                              if (dependentErrors.homeAddress) {
+                                setDependentErrors((prev) => ({ ...prev, homeAddress: "" }));
+                              }
+                            }}
+                            placeholder="Enter home address"
+                            error={dependentErrors.homeAddress}
+                          />
+                        </div>
+                        <FormSelect
+                          label="Region:"
+                          value={dependentRegion}
+                          onChange={(e) => {
+                            setDependentRegion(e.target.value);
+                            setDependentProvince("");
+                            setDependentCity("");
+                            if (dependentErrors.region) {
+                              setDependentErrors((prev) => ({ ...prev, region: "" }));
+                            }
+                          }}
+                          options={regions}
+                          error={dependentErrors.region}
+                        />
+                        <FormSelect
+                          label="Province:"
+                          value={dependentProvince}
+                          onChange={(e) => {
+                            setDependentProvince(e.target.value);
+                            setDependentCity("");
+                            if (dependentErrors.province) {
+                              setDependentErrors((prev) => ({ ...prev, province: "" }));
+                            }
+                          }}
+                          options={dependentRegion ? dependentProvinces : []}
+                          error={dependentErrors.province}
+                        />
+                        <FormSelect
+                          label="City:"
+                          value={dependentCity}
+                          onChange={(e) => {
+                            setDependentCity(e.target.value);
+                            if (dependentErrors.city) {
+                              setDependentErrors((prev) => ({ ...prev, city: "" }));
+                            }
+                          }}
+                          options={dependentProvince ? dependentCities : []}
+                          error={dependentErrors.city}
                         />
                       </div>
-                      <FormSelect
-                        label="Region:"
-                        value={dependentRegion}
-                        onChange={(e) => {
-                          setDependentRegion(e.target.value);
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // Validate dependent using the validation function
+                          const newErrors = validateDependent(
+                            dependentFirstName,
+                            dependentLastName,
+                            dependentRelationship,
+                            dependentEmail,
+                            dependentContactInfo,
+                            dependentRelationshipSpecify,
+                            dependentHomeAddress,
+                            dependentRegion,
+                            dependentProvince,
+                            dependentCity
+                          );
+
+                          // If there are errors, set them and return
+                          if (Object.keys(newErrors).length > 0) {
+                            setDependentErrors(newErrors);
+                            return;
+                          }
+
+                          // Clear errors if validation passes
+                          setDependentErrors({});
+
+                          const newDependent = {
+                            id: Date.now().toString(),
+                            firstName: dependentFirstName,
+                            lastName: dependentLastName,
+                            email: dependentEmail,
+                            contactInfo: dependentContactInfo,
+                            relationship: dependentRelationship,
+                            relationshipSpecify: dependentRelationshipSpecify || undefined,
+                            homeAddress: dependentHomeAddress,
+                            region: dependentRegion,
+                            province: dependentProvince,
+                            city: dependentCity,
+                          };
+                          setDependents([...dependents, newDependent]);
+                          setDependentFirstName("");
+                          setDependentLastName("");
+                          setDependentEmail("");
+                          setDependentContactInfo("");
+                          setDependentRelationship("");
+                          setDependentRelationshipSpecify("");
+                          setDependentHomeAddress("");
+                          setDependentRegion("");
                           setDependentProvince("");
                           setDependentCity("");
-                          if (dependentErrors.region) {
-                            setDependentErrors((prev) => ({ ...prev, region: "" }));
-                          }
                         }}
-                        options={regions}
-                        error={dependentErrors.region}
-                      />
-                      <FormSelect
-                        label="Province:"
-                        value={dependentProvince}
-                        onChange={(e) => {
-                          setDependentProvince(e.target.value);
-                          setDependentCity("");
-                          if (dependentErrors.province) {
-                            setDependentErrors((prev) => ({ ...prev, province: "" }));
-                          }
-                        }}
-                        options={dependentRegion ? dependentProvinces : []}
-                        error={dependentErrors.province}
-                      />
-                      <FormSelect
-                        label="City:"
-                        value={dependentCity}
-                        onChange={(e) => {
-                          setDependentCity(e.target.value);
-                          if (dependentErrors.city) {
-                            setDependentErrors((prev) => ({ ...prev, city: "" }));
-                          }
-                        }}
-                        options={dependentProvince ? dependentCities : []}
-                        error={dependentErrors.city}
-                      />
+                        className="w-full px-4 py-2 bg-[#4b0b14] text-white rounded-lg hover:bg-[#6b0b1f] transition-colors font-semibold"
+                      >
+                        Add Dependent
+                      </button>
                     </div>
+
+                    {/* Dependents List */}
+                    {dependents.length > 0 && (
+                      <div className="space-y-3">
+                        <h4 className="text-[#3b2b1c] font-semibold">Added Dependents:</h4>
+                        {dependents.map((dependent) => (
+                          <div key={dependent.id} className="bg-[#f5e6d3] p-4 rounded-lg border border-[#e6d2b5]">
+                            <div className="flex justify-between items-start mb-2">
+                              <div>
+                                <p className="font-semibold text-[#3b2b1c]">{dependent.firstName} {dependent.lastName}</p>
+                                <p className="text-xs text-[#6b5344]">
+                                  Relationship: {dependent.relationship}
+                                  {dependent.relationshipSpecify && ` (${dependent.relationshipSpecify})`}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setDependents(dependents.filter(d => d.id !== dependent.id))}
+                                className="text-red-500 hover:text-red-700 font-semibold text-sm"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                            {dependent.email && <p className="text-xs text-[#6b5344]">Email: {dependent.email}</p>}
+                            {dependent.contactInfo && <p className="text-xs text-[#6b5344]">Contact: {dependent.contactInfo}</p>}
+                            {dependent.homeAddress && <p className="text-xs text-[#6b5344]">Address: {dependent.homeAddress}</p>}
+                            {(dependent.city || dependent.province || dependent.region) && (
+                              <p className="text-xs text-[#6b5344]">
+                                Location: {[dependent.city, dependent.province, dependent.region].filter(Boolean).join(", ")}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {step === 4 && (
+              <motion.div
+                key="step4"
+                initial={{ opacity: 0, x: 40 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -40 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                  <FormInput
+                    label="Username:"
+                    type="text"
+                    value={username}
+                    onChange={(e) => {
+                      setUsername(e.target.value);
+                      setUsernameEdited(true);
+                    }}
+                    placeholder="auto-generated from first name"
+                    error={errors.username}
+                  />
+
+                  <div className="relative">
+                    <FormInput
+                      label="Password:"
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        setPasswordEdited(true);
+                      }}
+                      error={errors.password}
+                    />
                     <button
                       type="button"
-                      onClick={() => {
-                        // Validate dependent using the validation function
-                        const newErrors = validateDependent(
-                          dependentFirstName,
-                          dependentLastName,
-                          dependentRelationship,
-                          dependentEmail,
-                          dependentContactInfo,
-                          dependentRelationshipSpecify
-                        );
-
-                        // If there are errors, set them and return
-                        if (Object.keys(newErrors).length > 0) {
-                          setDependentErrors(newErrors);
-                          return;
-                        }
-
-                        // Clear errors if validation passes
-                        setDependentErrors({});
-
-                        const newDependent = {
-                          id: Date.now().toString(),
-                          firstName: dependentFirstName,
-                          lastName: dependentLastName,
-                          email: dependentEmail,
-                          contactInfo: dependentContactInfo,
-                          relationship: dependentRelationship,
-                          relationshipSpecify: dependentRelationshipSpecify || undefined,
-                          homeAddress: dependentHomeAddress,
-                          region: dependentRegion,
-                          province: dependentProvince,
-                          city: dependentCity,
-                        };
-                        setDependents([...dependents, newDependent]);
-                        setDependentFirstName("");
-                        setDependentLastName("");
-                        setDependentEmail("");
-                        setDependentContactInfo("");
-                        setDependentRelationship("");
-                        setDependentRelationshipSpecify("");
-                        setDependentHomeAddress("");
-                        setDependentRegion("");
-                        setDependentProvince("");
-                        setDependentCity("");
-                      }}
-                      className="w-full px-4 py-2 bg-[#4b0b14] text-white rounded-lg hover:bg-[#6b0b1f] transition-colors font-semibold"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-8 text-[#3b2b1c] hover:opacity-70"
                     >
-                      Add Dependent
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
                   </div>
 
-                  {/* Dependents List */}
-                  {dependents.length > 0 && (
-                    <div className="space-y-3">
-                      <h4 className="text-[#3b2b1c] font-semibold">Added Dependents:</h4>
-                      {dependents.map((dependent) => (
-                        <div key={dependent.id} className="bg-[#f5e6d3] p-4 rounded-lg border border-[#e6d2b5]">
-                          <div className="flex justify-between items-start mb-2">
-                            <div>
-                              <p className="font-semibold text-[#3b2b1c]">{dependent.firstName} {dependent.lastName}</p>
-                              <p className="text-xs text-[#6b5344]">
-                                Relationship: {dependent.relationship}
-                                {dependent.relationshipSpecify && ` (${dependent.relationshipSpecify})`}
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setDependents(dependents.filter(d => d.id !== dependent.id))}
-                              className="text-red-500 hover:text-red-700 font-semibold text-sm"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                          {dependent.email && <p className="text-xs text-[#6b5344]">Email: {dependent.email}</p>}
-                          {dependent.contactInfo && <p className="text-xs text-[#6b5344]">Contact: {dependent.contactInfo}</p>}
-                          {dependent.homeAddress && <p className="text-xs text-[#6b5344]">Address: {dependent.homeAddress}</p>}
-                          {(dependent.city || dependent.province || dependent.region) && (
-                            <p className="text-xs text-[#6b5344]">
-                              Location: {[dependent.city, dependent.province, dependent.region].filter(Boolean).join(", ")}
-                            </p>
-                          )}
+                  <div className="relative">
+                    <FormInput
+                      label="Confirm Password:"
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        setPasswordEdited(true);
+                      }}
+                      error={errors.confirmPassword}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-8 text-[#3b2b1c] hover:opacity-70"
+                    >
+                      {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+
+                  <div className="flex flex-col justify-end">
+                    <label className="block text-[#3b2b1c] mb-1">
+                      Register Your Fingerprint
+                    </label>
+                    <button
+                      onClick={handleFingerprintScan}
+                      className="bg-[#3b2b1c] text-[#FFF2E0] w-50 cursor-pointer border border-[#e6d2b5] rounded-lg px-3 py-2 shadow-inner hover:bg-[#60101c] transition"
+                    >
+                      Scan Now
+                    </button>
+                  </div>
+
+                  {/* Admin Privilege Checkbox */}
+                  <div className="col-span-2 flex items-center gap-3 mt-4 p-4 bg-[#FFF2E0] rounded-lg border border-[#e6d2b5]">
+                    <input
+                      type="checkbox"
+                      id="grantAdminPrivilege"
+                      checked={grantAdminPrivilege}
+                      onChange={(e) => {
+                        setGrantAdminPrivilege(e.target.checked);
+                        if (e.target.checked) {
+                          setGrantSupervisorPrivilege(false);
+                        }
+                        if (!e.target.checked) {
+                          setSubRole("");
+                          setErrors((prev) => ({ ...prev, subRole: "" }));
+                        }
+                      }}
+                      className="w-5 h-5 text-[#4b0b14] bg-white border-[#3b2b1c] rounded focus:ring-[#4b0b14] focus:ring-2 cursor-pointer"
+                    />
+                    <label
+                      htmlFor="grantAdminPrivilege"
+                      className="text-[#3b2b1c] font-semibold cursor-pointer select-none"
+                    >
+                      Grant Admin Privilege
+                    </label>
+                  </div>
+
+                  {/* Supervisor Privilege Checkbox */}
+                  <div className="col-span-2 flex items-center gap-3 mt-2 p-4 bg-[#E8F5E9] rounded-lg border border-[#c8e6c9]">
+                    <input
+                      type="checkbox"
+                      id="grantSupervisorPrivilege"
+                      checked={grantSupervisorPrivilege}
+                      onChange={(e) => {
+                        setGrantSupervisorPrivilege(e.target.checked);
+                        if (e.target.checked) {
+                          setGrantAdminPrivilege(false);
+                        }
+                        if (!e.target.checked) {
+                          setSubRole("");
+                          setErrors((prev) => ({ ...prev, subRole: "" }));
+                        }
+                      }}
+                      className="w-5 h-5 text-[#2e7d32] bg-white border-[#1b5e20] rounded focus:ring-[#2e7d32] focus:ring-2 cursor-pointer"
+                    />
+                    <label
+                      htmlFor="grantSupervisorPrivilege"
+                      className="text-[#1b5e20] font-semibold cursor-pointer select-none"
+                    >
+                      Grant Supervisor Privilege
+                    </label>
+                  </div>
+
+
+                  {(grantAdminPrivilege || grantSupervisorPrivilege) && (
+                    <div className="col-span-2">
+                      {!departmentId ? (
+                        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                          <p className="text-sm text-yellow-800">
+                            ⚠️ Please select a department first to choose the sub-role
+                          </p>
                         </div>
-                      ))}
+                      ) : (
+                        <FormSelect
+                          label={grantAdminPrivilege ? "Admin Sub-Role:" : "Supervisor Sub-Role:"}
+                          value={subRole}
+                          onChange={(e) => setSubRole(e.target.value)}
+                          options={getValidSubRoles(departmentId)}
+                          error={errors.subRole}
+                        />
+                      )}
                     </div>
                   )}
                 </div>
-              </div>
-            </motion.div>
-          )}
-
-          {step === 4 && (
-            <motion.div
-              key="step4"
-              initial={{ opacity: 0, x: 40 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -40 }}
-              transition={{ duration: 0.3 }}
-            >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-                <FormInput
-                  label="Username:"
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  error={errors.username}
-                />
-
-                <div className="relative">
-                  <FormInput
-                    label="Password:"
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    error={errors.password}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-8 text-[#3b2b1c] hover:opacity-70"
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-
-                <div className="relative">
-                  <FormInput
-                    label="Confirm Password:"
-                    type={showConfirmPassword ? "text" : "password"}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    error={errors.confirmPassword}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-8 text-[#3b2b1c] hover:opacity-70"
-                  >
-                    {showConfirmPassword ? (
-                      <EyeOff size={18} />
-                    ) : (
-                      <Eye size={18} />
-                    )}
-                  </button>
-                </div>
-
-                <div className="flex flex-col justify-end">
-                  <label className="block text-[#3b2b1c] mb-1">
-                    Register Your Fingerprint
-                  </label>
-                  <button
-                    onClick={handleFingerprintScan}
-                    className="bg-[#3b2b1c] text-[#FFF2E0] w-50 cursor-pointer border border-[#e6d2b5] rounded-lg px-3 py-2 shadow-inner hover:bg-[#60101c] transition"
-                  >
-                    Scan Now
-                  </button>
-                </div>
-
-                {/* Admin Privilege Checkbox */}
-                <div className="col-span-2 flex items-center gap-3 mt-4 p-4 bg-[#FFF2E0] rounded-lg border border-[#e6d2b5]">
-                  <input
-                    type="checkbox"
-                    id="grantAdminPrivilege"
-                    checked={grantAdminPrivilege}
-                    onChange={(e) => {
-                      setGrantAdminPrivilege(e.target.checked);
-                      if (e.target.checked) {
-                        setGrantSupervisorPrivilege(false);
-                      }
-                      if (!e.target.checked) {
-                        setSubRole("");
-                        setErrors((prev) => ({ ...prev, subRole: "" }));
-                      }
-                    }}
-                    className="w-5 h-5 text-[#4b0b14] bg-white border-[#3b2b1c] rounded focus:ring-[#4b0b14] focus:ring-2 cursor-pointer"
-                  />
-                  <label
-                    htmlFor="grantAdminPrivilege"
-                    className="text-[#3b2b1c] font-semibold cursor-pointer select-none"
-                  >
-                    Grant Admin Privilege
-                  </label>
-                </div>
-
-                {/* Supervisor Privilege Checkbox */}
-                <div className="col-span-2 flex items-center gap-3 mt-2 p-4 bg-[#E8F5E9] rounded-lg border border-[#c8e6c9]">
-                  <input
-                    type="checkbox"
-                    id="grantSupervisorPrivilege"
-                    checked={grantSupervisorPrivilege}
-                    onChange={(e) => {
-                      setGrantSupervisorPrivilege(e.target.checked);
-                      if (e.target.checked) {
-                        setGrantAdminPrivilege(false);
-                      }
-                      if (!e.target.checked) {
-                        setSubRole("");
-                        setErrors((prev) => ({ ...prev, subRole: "" }));
-                      }
-                    }}
-                    className="w-5 h-5 text-[#2e7d32] bg-white border-[#1b5e20] rounded focus:ring-[#2e7d32] focus:ring-2 cursor-pointer"
-                  />
-                  <label
-                    htmlFor="grantSupervisorPrivilege"
-                    className="text-[#1b5e20] font-semibold cursor-pointer select-none"
-                  >
-                    Grant Supervisor Privilege
-                  </label>
-                </div>
-
-
-                {(grantAdminPrivilege || grantSupervisorPrivilege) && (
-                  <div className="col-span-2">
-                    {!departmentId ? (
-                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <p className="text-sm text-yellow-800">
-                          ⚠️ Please select a department first to choose the sub-role
-                        </p>
-                      </div>
-                    ) : (
-                      <FormSelect
-                        label={grantAdminPrivilege ? "Admin Sub-Role:" : "Supervisor Sub-Role:"}
-                        value={subRole}
-                        onChange={(e) => setSubRole(e.target.value)}
-                        options={getValidSubRoles(departmentId)}
-                        error={errors.subRole}
-                      />
-                    )}
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Footer Section - Progress Bar and Buttons */}
         <div className="border-t border-[#e6d2b5] p-8 mt-4r bg-[#f9ecd7] rounded-b-2xl">
           {/* Progress Bar (Clickable) */}
           <div className="flex justify-between items-center w-3/4 mx-auto mb-6">
-          {[
-            { id: 1, label: "Basic Information" },
-            { id: 2, label: "Job Information" },
-            { id: 3, label: "Contact Information" },
-            { id: 4, label: "Authentication" },
-          ].map((item) => (
-            <div
-              key={item.id}
-              onClick={() => handleStepClick(item.id)}
-              className="flex flex-col items-center text-center space-y-1 cursor-pointer select-none"
-            >
+            {[
+              { id: 1, label: "Basic Information" },
+              { id: 2, label: "Job Information" },
+              { id: 3, label: "Contact Information" },
+              { id: 4, label: "Authentication" },
+            ].map((item) => (
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm transition-all duration-300 ${
-                  step >= item.id
+                key={item.id}
+                onClick={() => handleStepClick(item.id)}
+                className="flex flex-col items-center text-center space-y-1 cursor-pointer select-none"
+              >
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm transition-all duration-300 ${step >= item.id
                     ? "bg-[#4b0b14] text-white"
                     : "bg-[#e0c9a6] text-[#3b2b1c]"
-                } ${
-                  step === item.id
-                    ? "scale-110 shadow-md shadow-[#4b0b14]/30"
-                    : ""
-                }`}
-              >
-                {item.id}
+                    } ${step === item.id
+                      ? "scale-110 shadow-md shadow-[#4b0b14]/30"
+                      : ""
+                    }`}
+                >
+                  {item.id}
+                </div>
+                <span
+                  className={`text-xs font-medium transition-colors duration-300 ${step >= item.id ? "text-[#4b0b14]" : "text-[#a18256]"
+                    }`}
+                >
+                  {item.label}
+                </span>
               </div>
-              <span
-                className={`text-xs font-medium transition-colors duration-300 ${
-                  step >= item.id ? "text-[#4b0b14]" : "text-[#a18256]"
-                }`}
-              >
-                {item.label}
-              </span>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
 
           {/* Buttons */}
           <div className="flex justify-between">

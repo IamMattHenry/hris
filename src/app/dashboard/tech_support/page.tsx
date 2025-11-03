@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, memo } from "react";
 import { Eye, CheckCircle, X, RefreshCw, FileText } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ActionButton from "@/components/buttons/ActionButton";
+import SearchBar from "@/components/forms/FormSearch";
 import { ticketApi } from "@/lib/api";
 import { toast } from "react-hot-toast";
 
@@ -79,6 +80,9 @@ const TechnicalSupportTab = () => {
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [resolving, setResolving] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState("");
+  const itemsPerPage = 10;
 
   // Memoized fetch function to prevent unnecessary re-creations
   const fetchTickets = useCallback(async () => {
@@ -149,6 +153,40 @@ const TechnicalSupportTab = () => {
     }
   }, [selectedTicket, resolving]);
 
+
+  const handleSearch = (searchTerm: string) => {
+    setSearchTerm(searchTerm);
+    setCurrentPage(1);
+  };
+  const filteredTickets = tickets.filter((ticket) => {
+    if (!searchTerm.trim()) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      ticket.ticket_code.toLowerCase().includes(search) ||
+      ticket.first_name.toLowerCase().includes(search) ||
+      ticket.last_name.toLowerCase().includes(search) ||
+      ticket.email?.toLowerCase().includes(search) ||
+      ticket.title.toLowerCase().includes(search) ||
+      ticket.description?.toLowerCase().includes(search)
+    );
+  });
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentTickets = filteredTickets.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredTickets.length / itemsPerPage);
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) setCurrentPage(page);
+  };
+  const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filteredTickets]);
+
+
+
   // Loading state
   if (loading) {
     return (
@@ -172,7 +210,8 @@ const TechnicalSupportTab = () => {
             Review and manage system-related employee concerns efficiently.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <SearchBar placeholder="Search Ticket" value={searchTerm} onChange={handleSearch} />
           <button
             onClick={fetchTickets}
             className="flex items-center gap-2 px-4 py-2 bg-[#3D1A0B] text-[#FFF8EE] rounded-lg hover:bg-[#5C2A15] transition-colors"
@@ -196,14 +235,14 @@ const TechnicalSupportTab = () => {
         </div>
 
         <div
-          className={tickets.length > 10 ? "max-h-[500px] overflow-y-auto" : ""}
+          className={currentTickets.length > 10 ? "max-h-[500px] overflow-y-auto" : ""}
         >
-          {tickets.length === 0 ? (
+          {currentTickets.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
               No tickets found
             </div>
           ) : (
-            tickets.map((ticket, index) => (
+            currentTickets.map((ticket, index) => (
               <div
                 key={ticket.ticket_id}
                 className={`grid grid-cols-[80px_1fr_1fr_120px_100px] md:grid-cols-[100px_1.5fr_1.5fr_1.5fr_150px_120px_100px] items-center px-4 md:px-6 py-4 border-b border-[#F3E5CF] ${
@@ -269,8 +308,38 @@ const TechnicalSupportTab = () => {
             ))
           )}
         </div>
+        <div className="flex justify-center items-center px-4 md:px-6 py-3 bg-[#F3E5CF]">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => goToPage(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="px-4 py-3 rounded bg-[#3b2b1c] cursor-pointer text-white text-sm disabled:opacity-40"
+            >
+              Prev
+            </button>
+            {pageNumbers.map((num) => (
+              <button
+                key={num}
+                onClick={() => goToPage(num)}
+                className={`px-3 py-2 rounded text-sm transition cursor-pointer ${currentPage === num
+                  ? "bg-[#3b2b1c] text-white"
+                  : "text-[#3b2b1c] hover:underline"
+                  }`}
+              >
+                {num}
+              </button>
+            ))}
+            <button
+              onClick={() => goToPage(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="px-4 py-3 rounded bg-[#3b2b1c] cursor-pointer text-white text-sm disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+        
       </div>
-
       <AnimatePresence>
         {showModal && selectedTicket && (
           <motion.div

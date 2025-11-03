@@ -7,6 +7,7 @@ interface FormInputProps {
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   placeholder?: string;
   error?: string;
+  max?: string; // optional max date
   readOnly?: boolean; 
 }
 
@@ -17,6 +18,7 @@ export default function FormInput({
   onChange,
   placeholder,
   error,
+  max,
   readOnly = false, // default false
 }: FormInputProps) {
   return (
@@ -28,6 +30,7 @@ export default function FormInput({
         onChange={onChange}
         placeholder={placeholder}
         readOnly={readOnly} 
+        max={max} // optional max date
         className={`w-full bg-[#fdf4e3] border ${
           error ? "border-red-400" : "border-[#e6d2b5]"
         } rounded-lg px-3 py-2 shadow-inner focus:outline-none ${

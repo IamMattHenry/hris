@@ -63,6 +63,7 @@ interface EmployeeData {
   province?: string;
   username?: string;
   role?: string;
+  salary?: string;
 }
 
 type TabType = "profile" | "job" | "beneficiaries" | "authentication";
@@ -262,8 +263,6 @@ export default function ViewEmployeeModal({
                               <InfoBox label="Code" value={dependent.dependant_code} />
                               <InfoBox label="Name" value={`${dependent.firstname} ${dependent.lastname}`} />
                               <InfoBox label="Relationship" value={dependent.relationship} />
-                              <InfoBox label="Birthdate" value={formatDate(dependent.birth_date)} />
-                              <InfoBox label="Age" value={calculateAge(dependent.birth_date)} />
                               <InfoBox label="Email" value={dependent.email || "N/A"} />
                               <InfoBox label="Contact" value={dependent.contact_no || "N/A"} />
                               <InfoBox label="Address" value={dependent.home_address || "N/A"} isTextarea={true} />

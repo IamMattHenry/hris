@@ -36,12 +36,14 @@ export const validateStep2 = (
   departmentId: number | null,
   positionId: number | null,
   hireDate: string,
-  shift: string
+  shift: string,
+  salary: string
 ): ValidationErrors => {
   const errors: ValidationErrors = {};
 
   if (!departmentId) errors.department = "Department is required";
   if (!positionId) errors.position = "Position is required";
+  if (!salary) errors.salary = "Salary is required";
 
   if (!hireDate) {
     errors.hireDate = "Hire date is required";
@@ -179,41 +181,36 @@ export const validateDependent = (
   relationship: string,
   email: string,
   contactInfo: string,
-  relationshipSpecify: string
+  relationshipSpecify: string,
+  homeAddress: string,
+  region: string,
+  province: string,
+  city: string
 ): ValidationErrors => {
   const errors: ValidationErrors = {};
 
-  // Required fields
-  if (!firstName.trim()) {
-    errors.firstName = "First name is required";
-  }
-  if (!lastName.trim()) {
-    errors.lastName = "Last name is required";
-  }
-  if (!relationship) {
-    errors.relationship = "Relationship is required";
+  if (!firstName.trim()) errors.firstName = "First name is required";
+  if (!lastName.trim()) errors.lastName = "Last name is required";
+  if (!relationship) errors.relationship = "Relationship is required";
+  if (!homeAddress.trim()) errors.homeAddress = "Home address is required";
+  if (!region) errors.region = "Region is required";
+  if (!province) errors.province = "Province is required";
+  if (!city) errors.city = "City is required";
+  
+  // Contact number is required
+  if (!contactInfo.trim()) {
+    errors.contactInfo = "Contact number is required";
+  } else if (!/^(\+639|09)\d{9}$/.test(contactInfo.replace(/\s/g, ""))) {
+    errors.contactInfo =
+      "Invalid contact number format (must be 09XXXXXXXXX or +639XXXXXXXXX)";
   }
 
-  // At least one of email or contact info must be provided
-  if (!email.trim() && !contactInfo.trim()) {
-    errors.contactInfo = "Either email or contact number is required";
-  }
-
-  // Email validation if provided
+  // Email optional but validate if entered
   if (email && !/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(email.trim())) {
     errors.email = "Must be a valid Gmail address";
   }
 
-  // Contact info validation if provided
-  if (
-    contactInfo &&
-    !/^(\+639|09)\d{9}$/.test(contactInfo.replace(/\s/g, ""))
-  ) {
-    errors.contactInfo =
-      "Invalid format (must be 09XX XXX XXXX or +639XX XXX XXXX)";
-  }
-
-  // If relationship is "Other", require the specify field
+  // If relationship is "Other", require specify text
   if (relationship === "Other" && !relationshipSpecify.trim()) {
     errors.relationshipSpecify = "Please specify the relationship";
   }

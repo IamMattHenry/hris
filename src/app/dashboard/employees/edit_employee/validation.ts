@@ -67,19 +67,19 @@ export const validateDependent = (
     errors.relationshipSpecify = "Please specify the relationship";
   }
 
-  // --- Email ---
-  if (!email.trim()) {
-    errors.email = "Email is required";
-  } else if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(email.trim())) {
-    errors.email = "Must be a valid Gmail address";
-  }
-
-  // --- Contact Info (optional but must be valid if filled) ---
-  if (contactInfo.trim()) {
+  // --- Contact Info (NOW REQUIRED) ---
+  if (!contactInfo.trim()) {
+    errors.contactInfo = "Contact number is required";
+  } else {
     const cleanNumber = contactInfo.replace(/\s/g, "");
     if (!/^(\+639|09)\d{9}$/.test(cleanNumber)) {
-      errors.contactInfo = "Invalid contact number format";
+      errors.contactInfo = "Invalid contact number format (09XXXXXXXXX or +639XXXXXXXXX)";
     }
+  }
+
+  // --- Email (optional but must be valid if filled) ---
+  if (email.trim() && !/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(email.trim())) {
+    errors.email = "Must be a valid Gmail address";
   }
 
   // --- Address Section (required) ---

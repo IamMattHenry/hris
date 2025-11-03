@@ -388,35 +388,37 @@ export default function EditEmployeeModal({
     setDependentContactInfo(formatted);
   };
 
-  const handleContactNumberChange = (e: React.ChangeEvent<HTMLInputElement>,
+  const handleContactNumberChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
     index: number,
     contactNumbers: any[],
     setContactNumbers: React.Dispatch<React.SetStateAction<any[]>>
   ) => {
     let value = e.target.value;
+
+    // keep digits only
     value = value.replace(/\D/g, "");
 
-    if (value.length > 11) {
-      value = value.slice(0, 11);
-    }
+    // max 11 digits (09xxxxxxxxx)
+    value = value.slice(0, 11);
 
-    if (value.length >= 1 && value[0] !== "0") {
-      value = "0" + value.slice(1);
-    }
-    if (value.length >= 2 && value.slice(0, 2) !== "09") {
+    // auto prefix "09"
+    if (value.length > 0 && !value.startsWith("09")) {
       value = "09" + value.slice(2);
     }
 
+    // apply spacing: 09XX XXX XXXX
     if (value.length > 7) {
-      value = value.replace(/^(\d{4})(\d{3})(\d{0,4})$/, "$1 $2 $3");
+      value = value.replace(/^(\d{4})(\d{3})(\d{0,4}).*/, "$1 $2 $3");
     } else if (value.length > 4) {
-      value = value.replace(/^(\d{4})(\d{0,3})$/, "$1 $2");
+      value = value.replace(/^(\d{4})(\d{0,3}).*/, "$1 $2");
     }
 
-    const newContacts = [...contactNumbers];
-    newContacts[index].contact_number = value;
-    setContactNumbers(newContacts);
+    const updated = [...contactNumbers];
+    updated[index].contact_number = value;
+    setContactNumbers(updated);
   };
+
 
 
   /* ---------- Submit ---------- */
