@@ -34,7 +34,7 @@ export default function LoginForm() {
 
       if (result.success) {
         localStorage.setItem("token", result.data!.token);
-        router.push("/dashboard");
+        router.push("/dashboard_employee");
       } else {
         if (result.message === "Invalid credentials") {
           setErrorMessage("Incorrect username or password.");

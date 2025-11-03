@@ -3,7 +3,7 @@ import React from "react";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Admin Login - Celestia",
+  title: "Employee Login - Celestia",
 };
 
 export default function LoginEmployee({ children }: { children: React.ReactNode }) {
