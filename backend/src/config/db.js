@@ -16,6 +16,7 @@ const pool = mysql.createPool({
   queueLimit: 0,
   enableKeepAlive: true,
   keepAliveInitialDelayMs: 0,
+  timezone: '+08:00', // Set timezone to Philippine Time (UTC+8)
 });
 
 // Test the database connection
@@ -53,11 +54,17 @@ export const getAll = async (sql, values = []) => {
   return await query(sql, values);
 };
 
-// Insert a record
+// Insert a record with proper timezone handling
 export const insert = async (table, data) => {
   // Filter out undefined values and convert them to null
   const cleanedData = Object.entries(data).reduce((acc, [key, value]) => {
-    acc[key] = value === undefined ? null : value;
+    // Convert Date objects to Philippine time strings
+    if (value instanceof Date) {
+      const phTime = new Date(value.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+      acc[key] = phTime.toISOString().slice(0, 19).replace('T', ' ');
+    } else {
+      acc[key] = value === undefined ? null : value;
+    }
     return acc;
   }, {});
 
@@ -70,11 +77,17 @@ export const insert = async (table, data) => {
   return result.insertId;
 };
 
-// Update a record
+// Update a record with proper timezone handling
 export const update = async (table, data, whereClause, whereValues) => {
   // Filter out undefined values and convert them to null
   const cleanedData = Object.entries(data).reduce((acc, [key, value]) => {
-    acc[key] = value === undefined ? null : value;
+    // Convert Date objects to Philippine time strings
+    if (value instanceof Date) {
+      const phTime = new Date(value.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+      acc[key] = phTime.toISOString().slice(0, 19).replace('T', ' ');
+    } else {
+      acc[key] = value === undefined ? null : value;
+    }
     return acc;
   }, {});
 
@@ -214,7 +227,13 @@ export const transactionQuery = async (sql, values = []) => {
 export const transactionInsert = async (table, data) => {
   // Filter out undefined values and convert them to null
   const cleanedData = Object.entries(data).reduce((acc, [key, value]) => {
-    acc[key] = value === undefined ? null : value;
+    // Convert Date objects to Philippine time strings
+    if (value instanceof Date) {
+      const phTime = new Date(value.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+      acc[key] = phTime.toISOString().slice(0, 19).replace('T', ' ');
+    } else {
+      acc[key] = value === undefined ? null : value;
+    }
     return acc;
   }, {});
 
@@ -235,7 +254,13 @@ export const transactionInsert = async (table, data) => {
 export const transactionUpdate = async (table, data, whereClause, whereValues) => {
   // Filter out undefined values and convert them to null
   const cleanedData = Object.entries(data).reduce((acc, [key, value]) => {
-    acc[key] = value === undefined ? null : value;
+    // Convert Date objects to Philippine time strings
+    if (value instanceof Date) {
+      const phTime = new Date(value.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+      acc[key] = phTime.toISOString().slice(0, 19).replace('T', ' ');
+    } else {
+      acc[key] = value === undefined ? null : value;
+    }
     return acc;
   }, {});
 
@@ -254,6 +279,4 @@ export const transactionGetOne = async (sql, values = []) => {
   return results && results.length > 0 ? results[0] : null;
 };
 
-
 export default pool;
-

@@ -86,6 +86,7 @@ export const verifyAccess = ({ roles = [], subRoles = [], departments = [] }) =>
 
     const user = req.user; // user from JWT
 
+    // Superadmin bypasses all restrictions
     if (user.role === "superadmin") {
       return next();
     }
@@ -106,13 +107,17 @@ export const verifyAccess = ({ roles = [], subRoles = [], departments = [] }) =>
 
     const it = userSubrole?.sub_role || null;
 
+    // For subRoles check, make sure superadmin is not restricted by subRoles
     if (subRoles.length > 0 && !subRoles.includes(it)) {
-      return res.status(403).json({
-        success: false,
-        message: "Access denied: Sub-role not permitted.",
-        sub_role: it,
-        user: user,
-      });
+      // But still allow superadmin to pass regardless of subRole
+      if (user.role !== "superadmin") {
+        return res.status(403).json({
+          success: false,
+          message: "Access denied: Sub-role not permitted.",
+          sub_role: it,
+          user: user,
+        });
+      }
     }
 
     // Load department through employees table
@@ -124,18 +129,19 @@ export const verifyAccess = ({ roles = [], subRoles = [], departments = [] }) =>
     const userDepartment = userDept?.department_id || null;
 
     if (departments.length > 0 && !departments.includes(userDepartment)) {
-      return res.status(403).json({
-        success: false,
-        message: "Access denied: Not allowed for this department.",
-        department: userDepartment,
-        user: user,
-      });
+      // Allow superadmin to bypass department restrictions
+      if (user.role !== "superadmin") {
+        return res.status(403).json({
+          success: false,
+          message: "Access denied: Not allowed for this department.",
+          department: userDepartment,
+          user: user,
+        });
+      }
     }
 
     next();
   };
 };
 
-
 export default { verifyToken, verifyRole, verifyAccess };
-

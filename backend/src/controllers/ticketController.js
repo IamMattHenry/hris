@@ -46,6 +46,24 @@ export const getAllTickets = async (req, res, next) => {
       params.push(user_id);
     }
 
+    // If user is not superadmin, apply filtering based on their access level
+    if (req.user && req.user.role !== 'superadmin') {
+      // Get user's sub-role
+      const userSubrole = await db.getOne(
+        `SELECT sub_role FROM user_roles WHERE user_id = ?`,
+        [req.user.user_id]
+      );
+
+      const subRole = userSubrole?.sub_role || null;
+      
+      // If user has IT sub-role, show all tickets
+      if (subRole !== 'it') {
+        // For non-IT users, only show their own tickets
+        conditions.push('t.user_id = ?');
+        params.push(req.user.user_id);
+      }
+    }
+
     if (conditions.length > 0) {
       query += ' WHERE ' + conditions.join(' AND ');
     }
@@ -72,7 +90,7 @@ export const getTicketById = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    const query = `
+    let query = `
       SELECT 
         t.*,
         u.username,
@@ -102,6 +120,25 @@ export const getTicketById = async (req, res, next) => {
         success: false,
         message: 'Ticket not found',
       });
+    }
+
+    // If user is not superadmin, check if they have permission to view this ticket
+    if (req.user && req.user.role !== 'superadmin') {
+      // Get user's sub-role
+      const userSubrole = await db.getOne(
+        `SELECT sub_role FROM user_roles WHERE user_id = ?`,
+        [req.user.user_id]
+      );
+
+      const subRole = userSubrole?.sub_role || null;
+      
+      // If user doesn't have IT sub-role and doesn't own the ticket, deny access
+      if (subRole !== 'it' && ticket.user_id !== req.user.user_id) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied: You do not have permission to view this ticket',
+        });
+      }
     }
 
     res.json({
@@ -308,6 +345,25 @@ export const updateTicketStatus = async (req, res, next) => {
       });
     }
 
+    // If user is not superadmin, check permissions
+    if (req.user && req.user.role !== 'superadmin') {
+      // Get user's sub-role
+      const userSubrole = await db.getOne(
+        `SELECT sub_role FROM user_roles WHERE user_id = ?`,
+        [req.user.user_id]
+      );
+
+      const subRole = userSubrole?.sub_role || null;
+      
+      // Only IT users or ticket owners can update ticket status
+      if (subRole !== 'it' && ticket.user_id !== req.user.user_id) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied: You do not have permission to update this ticket',
+        });
+      }
+    }
+
     // Update ticket
     const updateData = {
       status,
@@ -365,6 +421,25 @@ export const updateTicket = async (req, res, next) => {
         success: false,
         message: 'Ticket not found',
       });
+    }
+
+    // If user is not superadmin, check permissions
+    if (req.user && req.user.role !== 'superadmin') {
+      // Get user's sub-role
+      const userSubrole = await db.getOne(
+        `SELECT sub_role FROM user_roles WHERE user_id = ?`,
+        [req.user.user_id]
+      );
+
+      const subRole = userSubrole?.sub_role || null;
+      
+      // Only IT users or ticket owners can update ticket
+      if (subRole !== 'it' && ticket.user_id !== req.user.user_id) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied: You do not have permission to update this ticket',
+        });
+      }
     }
 
     // Build update data
@@ -431,6 +506,25 @@ export const deleteTicket = async (req, res, next) => {
         success: false,
         message: 'Ticket not found',
       });
+    }
+
+    // If user is not superadmin, check permissions
+    if (req.user && req.user.role !== 'superadmin') {
+      // Get user's sub-role
+      const userSubrole = await db.getOne(
+        `SELECT sub_role FROM user_roles WHERE user_id = ?`,
+        [req.user.user_id]
+      );
+
+      const subRole = userSubrole?.sub_role || null;
+      
+      // Only IT users or ticket owners can delete ticket
+      if (subRole !== 'it' && ticket.user_id !== req.user.user_id) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied: You do not have permission to delete this ticket',
+        });
+      }
     }
 
     await db.delete('tickets', 'ticket_id = ?', [id]);

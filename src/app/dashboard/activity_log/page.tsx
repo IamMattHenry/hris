@@ -68,11 +68,11 @@ const ActivityLogTab = () => {
   const filteredActivities = logs
     .filter((a) => {
       const matchesSearch =
-        a.employee_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        a.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        a.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        a.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        a.module.toLowerCase().includes(searchTerm.toLowerCase());
+        (a.employee_code && a.employee_code.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (a.first_name && a.first_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (a.last_name && a.last_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (a.action && a.action.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (a.module && a.module.toLowerCase().includes(searchTerm.toLowerCase()));
 
       const normalize = (d: string) => new Date(d).toISOString().split("T")[0];
       const matchesDate = date ? normalize(a.created_at) === normalize(date) : true;
