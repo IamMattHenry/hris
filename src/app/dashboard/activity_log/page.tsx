@@ -126,7 +126,7 @@ const ActivityLogTab = () => {
 
       {/* Filters */}
       <div className="flex flex-wrap justify-between items-center bg-[#FFF2E0] p-4 rounded-lg shadow-sm gap-3">
-        
+
         {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
@@ -187,9 +187,8 @@ const ActivityLogTab = () => {
             currentActivities.map((activity, index) => (
               <div
                 key={activity.log_id}
-                className={`grid grid-cols-[120px_150px_1fr_2fr_200px] px-6 py-4 ${
-                  index % 2 === 0 ? "bg-[#FFF9F1]" : "bg-[#FFF2E0]"
-                }`}
+                className={`grid grid-cols-[120px_150px_1fr_2fr_200px] px-6 py-4 ${index % 2 === 0 ? "bg-[#FFF9F1]" : "bg-[#FFF2E0]"
+                  }`}
               >
                 <div className="font-medium">{activity.log_id}</div>
                 <div>{activity.employee_code}</div>
@@ -201,13 +200,17 @@ const ActivityLogTab = () => {
                 </div>
                 <div>
                   <span className="px-3 py-1 bg-[#EAD7C4] rounded-full text-sm">
-                    {new Date(activity.created_at).toLocaleString("en-PH", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                    {(() => {
+                      const date = new Date(activity.created_at);
+                      date.setHours(date.getHours() + 8); // Add 8 hours
+                      return date.toLocaleString("en-PH", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      });
+                    })()}
                   </span>
                 </div>
               </div>
@@ -232,9 +235,8 @@ const ActivityLogTab = () => {
           <button
             key={num}
             onClick={() => goToPage(num)}
-            className={`px-3 py-2 rounded text-sm ${
-              currentPage === num ? "bg-[#3b2b1c] text-white" : "text-[#3b2b1c]"
-            }`}
+            className={`px-3 py-2 rounded text-sm ${currentPage === num ? "bg-[#3b2b1c] text-white" : "text-[#3b2b1c]"
+              }`}
           >
             {num}
           </button>
