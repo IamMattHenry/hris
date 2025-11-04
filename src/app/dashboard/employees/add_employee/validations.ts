@@ -142,7 +142,7 @@ export const validateStep4 = (
     errors.password = "Password is required";
   } else {
     const passwordErrors = [];
-    if (password.length < 6) passwordErrors.push("At least 6 characters long");
+    if (password.length < 12) passwordErrors.push("At least 12 characters long");
     if (!/[A-Z]/.test(password))
       passwordErrors.push("At least one uppercase letter");
     if (!/[a-z]/.test(password))
