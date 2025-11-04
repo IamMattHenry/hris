@@ -115,7 +115,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   useEffect(() => {
     const base = makeUsernameFromFirst(firstName || "");
     const generatedUsername = base || ""; // empty if no firstName
-    const generatedPassword = firstName ? `@${firstName.trim()}123` : "";
+    const generatedPassword = firstName ? `@${firstName.trim()}12345678` : "";
 
     // Only update if the user hasn't manually edited
     if (!usernameEdited) {
@@ -921,6 +921,11 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                   <div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
                       <FormInput label="Email:" type="email" value={email} onChange={(e) => setEmail(e.target.value)} error={errors.email} placeholder="(use gmail)" />
+                      {/*
+                      
+                      Required to email confirmation 
+                      
+                      */}
                       <FormInput label="Contact Number:" type="text" value={contactNumber} onChange={handleContactNumberChange} error={errors.contactNumber} />
                     </div>
                   </div>
