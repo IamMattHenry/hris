@@ -12,12 +12,14 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   let currentPage =
     pathname.split("/").filter(Boolean).pop() || "dashboard";
 
-  // Special case for tech_support -> Technical Support
-  if (currentPage === "tech_support") {
-    currentPage = "Technical Support";
-  } else {
-    currentPage = currentPage.charAt(0).toUpperCase() + currentPage.slice(1);
-  }
+if (currentPage === "tech_support") {
+  currentPage = "Technical Support";
+} else if (currentPage === "activity_log") {
+  currentPage = "Activity Log";
+} else {
+  currentPage = currentPage.charAt(0).toUpperCase() + currentPage.slice(1);
+}
+
 
   const titleHeader = currentPage;
 

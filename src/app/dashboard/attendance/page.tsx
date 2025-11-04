@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Search, Calendar, RotateCw, UserX } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
@@ -64,19 +64,19 @@ export default function AttendanceTable() {
     day: "numeric",
   });
 
-  // Fetch attendance records
-  useEffect(() => {
-    fetchAttendance();
-  }, [selectedDate]);
-
-  const fetchAttendance = async () => {
-    setLoading(true);
-    const result = await attendanceApi.getAll(undefined, selectedDate, selectedDate);
-    if (result.success && result.data) {
-      setAttendanceList(result.data as Attendance[]);
-    }
-    setLoading(false);
+  const fetchAttendance = useCallback(async () => {
+  setLoading(true);
+  const result = await attendanceApi.getAll(undefined, selectedDate, selectedDate);
+  console.log(result);
+  if (result.success && result.data) {
+    setAttendanceList(result.data as Attendance[]);
   };
+  setLoading(false);
+}, [selectedDate]);
+
+useEffect(() => {
+  fetchAttendance();
+}, [fetchAttendance]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);

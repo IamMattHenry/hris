@@ -16,7 +16,8 @@ const pool = mysql.createPool({
   queueLimit: 0,
   enableKeepAlive: true,
   keepAliveInitialDelayMs: 0,
-  timezone: '+08:00', // Set timezone to Philippine Time (UTC+8)
+  timezone: '+08:00',
+  dateStrings: true,
 });
 
 // Test the database connection
