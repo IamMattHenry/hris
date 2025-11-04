@@ -202,7 +202,7 @@ const ActivityLogTab = () => {
                   <span className="px-3 py-1 bg-[#EAD7C4] rounded-full text-sm">
                     {(() => {
                       const date = new Date(activity.created_at);
-                      date.setHours(date.getHours() + 8); // ✅ Add 8 hours
+                      date.setHours(date.getHours() + 8); // Add 8 hours
                       return date.toLocaleString("en-PH", {
                         month: "short",
                         day: "numeric",
