@@ -1,7 +1,6 @@
 import express from 'express';
-import { body } from 'express-validator';
-import { handleValidationErrors } from '../middleware/validation.js';
 import { verifyToken, verifyRole } from '../middleware/auth.js';
+import { validateAttendance, handleValidationErrors } from '../middleware/validation.js';
 import {
   getAttendanceRecords,
   getAttendanceById,

@@ -1,7 +1,7 @@
 import express from 'express';
 import { body } from 'express-validator';
-import { handleValidationErrors } from '../middleware/validation.js';
 import { verifyToken, verifyRole } from '../middleware/auth.js';
+import { validateEmployee, handleValidationErrors } from '../middleware/validation.js';
 import {
   getAllEmployees,
   getEmployeeById,
@@ -18,30 +18,28 @@ router.get('/', verifyToken, getAllEmployees);
 // Get employee by ID (protected)
 router.get('/:id', verifyToken, getEmployeeById);
 
-// Create employee (admin and superadmin only)
-// Automatically creates user account, employee record, and admin record (if role is 'admin')
+// Create employee (admin and superadmin only) with enhanced validation
 router.post(
   '/',
   verifyToken,
   verifyRole(['admin', 'superadmin']),
   [
-    body('username').trim().notEmpty().withMessage('Username is required'),
+    // User validation
+    body('username').trim().isLength({ min: 3, max: 50 }).matches(/^[a-zA-Z0-9_]+$/).withMessage('Invalid username format'),
     body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-    body('role').optional().isIn(['admin', 'employee', 'supervisor', 'superadmin']).withMessage('Role must be one of: admin, employee, supervisor, superadmin'),
-    body('sub_role').optional().isIn(['hr', 'it', 'front_desk']).withMessage('Sub-role must be one of: hr, it, front_desk'),
-    body('first_name').trim().notEmpty().withMessage('First name is required'),
-    body('last_name').trim().notEmpty().withMessage('Last name is required'),
+    body('role').optional().isIn(['admin', 'employee', 'supervisor', 'superadmin']).withMessage('Invalid role'),
+    body('sub_role').optional().isIn(['hr', 'it', 'front_desk']).withMessage('Invalid sub-role'),
+    
+    // Employee validation (using enhanced rules)
+    body('first_name').trim().isLength({ min: 2, max: 100 }).matches(/^[a-zA-Z\s'-]+$/).withMessage('Invalid first name format'),
+    body('last_name').trim().isLength({ min: 2, max: 100 }).matches(/^[a-zA-Z\s'-]+$/).withMessage('Invalid last name format'),
     body('birthdate').isISO8601().withMessage('Invalid birthdate format'),
-    body('gender').optional().isIn(['male', 'female', 'others']).withMessage('Gender must be one of: male, female, others'),
-    body('civil_status').optional().isIn(['single', 'married', 'divorced', 'widowed']).withMessage('Civil status must be one of: single, married, divorced, widowed'),
-    body('home_address').optional().trim(),
-    body('city').optional().trim(),
-    body('region').optional().trim(),
-    body('province').optional().trim(),
-    body('province_city').optional().trim(),
+    body('gender').optional().isIn(['male', 'female', 'others']).withMessage('Invalid gender'),
+    body('civil_status').optional().isIn(['single', 'married', 'divorced', 'widowed']).withMessage('Invalid civil status'),
     body('hire_date').isISO8601().withMessage('Invalid hire date format'),
-    body('email').optional().isEmail().withMessage('Invalid email format'),
-    body('contact_number').optional().trim(),
+    body('email').optional().isEmail().normalizeEmail().withMessage('Invalid email format'),
+    body('contact_number').optional().matches(/^09\d{9}$/).withMessage('Invalid Philippine phone format'),
+    body('salary').optional().isFloat({ min: 0, max: 999999.99 }).withMessage('Invalid salary amount'),
   ],
   handleValidationErrors,
   createEmployee
