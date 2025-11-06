@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, AlertCircle, CheckCircle, Fingerprint } from "lucide-react";
+import { Loader2, AlertCircle, CheckCircle, Fingerprint, QrCode } from "lucide-react";
 import { useState, useEffect } from "react";
 import QRCodeScanner from "./Scanner/QRCodeScanner";
 import { attendanceApi } from "@/lib/api";
@@ -22,6 +22,10 @@ interface AttendanceRemarks {
 }
 
 export default function AttendanceSystemPage() {
+  // Tab state
+  const [activeTab, setActiveTab] = useState("fingerprint");
+  
+  // QR Scanner states
   const [qrValue, setQrValue] = useState("");
   const [employeeData, setEmployeeData] = useState<EmployeeQRData | null>(null);
   const [attendanceRemarks, setAttendanceRemarks] = useState<AttendanceRemarks | null>(null);
@@ -31,9 +35,10 @@ export default function AttendanceSystemPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showClockOutPrompt, setShowClockOutPrompt] = useState(false);
   const [clockOutData, setClockOutData] = useState<any>(null);
+  
+  // Fingerprint states
   const [statusLog, setStatusLog] = useState<Array<{ message: string; type: string; timestamp: string }>>([]);
   const [isConnected, setIsConnected] = useState(false);
-  const [sensorMode, setSensorMode] = useState<'ATTENDANCE' | 'ENROLLMENT'>('ATTENDANCE');
 
   const currentDate = new Date().toLocaleString("en-US", {
     weekday: "short",
@@ -45,8 +50,22 @@ export default function AttendanceSystemPage() {
     hour12: true,
   });
 
-  // Connect to fingerprint bridge SSE for real-time updates
+  // Reset QR scanner state when switching tabs
   useEffect(() => {
+    if (activeTab !== 'qr') {
+      // Clear QR scanner state when leaving QR tab
+      setQrValue('');
+      setEmployeeData(null);
+      setAttendanceRemarks(null);
+      setError(null);
+      setIsScanning(true);
+    }
+  }, [activeTab]);
+
+  // Connect to fingerprint bridge SSE for real-time updates (only for fingerprint tab)
+  useEffect(() => {
+    if (activeTab !== 'fingerprint') return;
+    
     const bridgeUrl = process.env.NEXT_PUBLIC_BRIDGE_URL || 'http://localhost:3001';
     const eventSource = new EventSource(`${bridgeUrl}/status/stream`);
 
@@ -58,29 +77,6 @@ export default function AttendanceSystemPage() {
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
       setStatusLog((prev) => [...prev.slice(-9), data]); // Keep last 10 messages
-
-      // Update sensor mode if provided
-      if (data.mode) {
-        setSensorMode(data.mode);
-      }
-
-      // Handle mode change messages
-      if (data.message.includes('Mode changed to') || data.message.includes('Switched to')) {
-        if (data.message.includes('ENROLLMENT')) {
-          setSensorMode('ENROLLMENT');
-          // Reset QR scanner state when entering enrollment mode
-          setQrValue('');
-          setEmployeeData(null);
-          setAttendanceRemarks(null);
-          setIsScanning(true);
-        } else if (data.message.includes('ATTENDANCE')) {
-          setSensorMode('ATTENDANCE');
-          // Reset QR scanner state when leaving enrollment mode
-          setQrValue('');
-          setEmployeeData(null);
-          setAttendanceRemarks(null);
-        }
-      }
 
       // Handle attendance success messages
       if (data.message.includes('CLOCK_IN:') || data.message.includes('CLOCK_OUT:')) {
@@ -112,15 +108,10 @@ export default function AttendanceSystemPage() {
     return () => {
       eventSource.close();
     };
-  }, []);
+  }, [activeTab]);
 
-  // QR code parsing - Only active when in ENROLLMENT mode
+  // QR code parsing
   useEffect(() => {
-    // Only process QR codes when sensor is in ENROLLMENT mode
-    if (sensorMode !== 'ENROLLMENT') {
-      return;
-    }
-
     if (!qrValue) {
       setEmployeeData(null);
       setAttendanceRemarks(null);
@@ -141,7 +132,7 @@ export default function AttendanceSystemPage() {
       setError("Invalid QR code format. Please scan a valid employee QR code.");
       console.error("QR parsing error:", err);
     }
-  }, [qrValue, sensorMode]);
+  }, [qrValue]);
 
   // Save attendance to database
   const saveAttendance = async (data: EmployeeQRData, remarks: AttendanceRemarks) => {
@@ -269,65 +260,51 @@ export default function AttendanceSystemPage() {
     setError(null);
   };
 
+  // Tab configuration
+  const tabs = [
+    { id: "fingerprint", label: "Fingerprint", icon: Fingerprint },
+    { id: "qr", label: "QR Code", icon: QrCode },
+  ];
+
   return (
-    <section className="bg-[#fff7ec] rounded-2xl shadow-2xl w-full font-poppins max-w-4xl px-10 py-8 mx-auto">
-      {/* Top Bar */}
-      <div className="flex justify-between items-center mb-5">
-        <div className="flex items-center gap-3">
-          {sensorMode === 'ATTENDANCE' ? (
-            <>
-              <Fingerprint className="w-8 h-8 text-[#8b7355]" />
-              <h3 className="text-3xl font-extrabold text-[#3b2b1c]">FINGERPRINT ATTENDANCE</h3>
-            </>
-          ) : (
-            <>
-              <svg className="w-8 h-8 text-[#8b7355]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth="2"/>
-                <path d="M7 7h4v4H7z M13 7h4v4h-4z M7 13h4v4H7z M13 13h4v4h-4z" strokeWidth="2"/>
-              </svg>
-              <h3 className="text-3xl font-extrabold text-[#3b2b1c]">QR CODE ATTENDANCE</h3>
-            </>
-          )}
+    <div className="min-h-screen bg-orange-50 p-8 font-poppins">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-6">
+          <h1 className="text-4xl font-extrabold text-[#3b2b1c] mb-2">Attendance System</h1>
+          <p className="text-[#3b2b1c]/70 text-lg">{currentDate}</p>
         </div>
-        <div className="text-right">
-          <p className="text-[#3b2b1c]/80 text-base">{currentDate}</p>
-          <p className="text-xs text-[#8b7355] mt-1">
-            Mode: <span className="font-semibold">{sensorMode}</span>
-          </p>
-        </div>
-      </div>
 
-      {/* Status Line */}
-      <div className="flex items-center gap-2 mb-5 text-[#8b7355] text-lg">
-        {sensorMode === 'ENROLLMENT' ? (
-          <div className="bg-yellow-100 border border-yellow-400 rounded-lg px-4 py-2 w-full">
-            <span className="text-yellow-800 font-semibold flex items-center gap-2">
-              ⚠️ Enrollment Mode Active - Fingerprint sensor is being used for employee enrollment. QR code scanning is enabled.
-            </span>
+        {/* Tabs */}
+        <div className="mb-8 shadow-lg bg-[#8b7355]">
+          <div className="flex border-b border-[#6d5a43]/30">
+            {tabs.map((tab) => {
+              const isActive = activeTab === tab.id;
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex-1 px-6 py-4 text-center font-medium transition-all duration-200 relative cursor-pointer flex items-center justify-center gap-2
+                    ${isActive
+                      ? "text-[#FFF2E0] font-semibold"
+                      : "text-[#fff7ec]/70 hover:text-[#FFF2E0]"}
+                  `}
+                >
+                  <Icon className="w-5 h-5" />
+                  {tab.label}
+                  {isActive && (
+                    <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#FFF2E0] rounded-t-md transition-all"></div>
+                  )}
+                </button>
+              );
+            })}
           </div>
-        ) : !isConnected ? (
-          <>
-            <Loader2 className="w-6 h-6 animate-spin text-[#b97a5b]" />
-            <span>Connecting to fingerprint sensor...</span>
-          </>
-        ) : error ? (
-          <span className="text-red-700 font-semibold text-lg flex items-center gap-2">
-            ❌ {error}
-          </span>
-        ) : successMessage ? (
-          <span className="text-green-700 font-semibold text-lg flex items-center gap-2">
-            ✅ {successMessage}
-          </span>
-        ) : (
-          <>
-            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-            <span>Ready - Waiting for fingerprint scan...</span>
-          </>
-        )}
-      </div>
+        </div>
 
-      {/* Main Content - Switch between Fingerprint and QR based on mode */}
-      {sensorMode === 'ATTENDANCE' ? (
+        {/* Tab Content */}
+        <div className="bg-[#fff7ec] rounded-lg shadow-lg border border-gray-200 p-8">
+          {activeTab === "fingerprint" ? (
         /* Fingerprint Status Display */
         <div className="flex gap-8 items-start">
           {/* Live Status Log */}
@@ -426,16 +403,24 @@ export default function AttendanceSystemPage() {
           </div>
         </div>
         </div>
-      ) : (
-        /* QR Scanner Section - Active in ENROLLMENT mode */
+          ) : (
+        /* QR Scanner Tab */
+        <div className="space-y-6">
+          <div className="flex items-center gap-3 mb-6">
+            <QrCode className="w-8 h-8 text-[#8b7355]" />
+            <h2 className="text-2xl font-bold text-[#3b2b1c]">QR Code Attendance</h2>
+          </div>
+
         <div className="flex gap-8 items-start">
           {/* QR Scanner */}
           <div className="flex flex-col items-center justify-center bg-[#f4eadb] rounded-xl shadow-inner p-4 min-h-[300px]">
-            <QRCodeScanner 
-              key="enrollment-scanner" 
-              onScan={(value) => setQrValue(value)} 
-              isActive={true} 
-            />
+            {activeTab === 'qr' && (
+              <QRCodeScanner 
+                key={`qr-scanner-${activeTab}`}
+                onScan={(value) => setQrValue(value)} 
+                isActive={activeTab === 'qr'} 
+              />
+            )}
           </div>
 
           {/* Employee Info Section */}
@@ -489,6 +474,7 @@ export default function AttendanceSystemPage() {
             )}
           </div>
         </div>
+        </div>
       )}
 
       {/* Clock Out Confirmation Modal */}
@@ -537,6 +523,8 @@ export default function AttendanceSystemPage() {
           </div>
         </div>
       )}
-    </section>
+        </div>
+      </div>
+    </div>
   );
 }
