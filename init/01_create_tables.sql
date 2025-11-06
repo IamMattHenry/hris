@@ -79,6 +79,7 @@ CREATE TABLE
         employee_id INT AUTO_INCREMENT PRIMARY KEY,
         employee_code VARCHAR(10) UNIQUE,
         user_id INT UNIQUE,
+        fingerprint_id INT UNIQUE,
         first_name VARCHAR(100) NOT NULL,
         last_name VARCHAR(100) NOT NULL,
         middle_name VARCHAR(100),

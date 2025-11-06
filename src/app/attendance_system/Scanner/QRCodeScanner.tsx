@@ -16,11 +16,24 @@ export default function QRCodeScanner({ onScan, isActive = true }: QRCodeScanner
 
   // Initialize the QR code instance once
   useEffect(() => {
-    html5QrCodeRef.current = new Html5Qrcode("reader");
+    // Delay initialization to ensure DOM is ready
+    const initTimeout = setTimeout(() => {
+      const readerElement = document.getElementById("reader");
+      if (readerElement && !html5QrCodeRef.current) {
+        try {
+          html5QrCodeRef.current = new Html5Qrcode("reader");
+        } catch (error) {
+          console.error("Failed to initialize QR scanner:", error);
+        }
+      }
+    }, 100);
+    
     return () => {
+      clearTimeout(initTimeout);
       if (html5QrCodeRef.current) {
         html5QrCodeRef.current.stop().catch(() => {});
         html5QrCodeRef.current.clear();
+        html5QrCodeRef.current = null;
       }
     };
   }, []);
@@ -62,16 +75,25 @@ export default function QRCodeScanner({ onScan, isActive = true }: QRCodeScanner
 
   // Auto-start scanner on mount
   useEffect(() => {
-    if (isActive && !isScanning) {
-      startScanner();
+    if (isActive && !isScanning && html5QrCodeRef.current) {
+      const startTimeout = setTimeout(() => {
+        startScanner();
+      }, 200);
+      
+      return () => clearTimeout(startTimeout);
     }
-  }, [isActive]);
+  }, [isActive, html5QrCodeRef.current]);
 
  
   const stopScanner = async () => {
     if (html5QrCodeRef.current && isScanning) {
-      await html5QrCodeRef.current.stop();
-      setIsScanning(false);
+      try {
+        await html5QrCodeRef.current.stop();
+        setIsScanning(false);
+      } catch (error) {
+        console.error("Error stopping scanner:", error);
+        setIsScanning(false);
+      }
     }
   };
 

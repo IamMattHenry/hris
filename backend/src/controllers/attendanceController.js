@@ -165,7 +165,14 @@ export const clockIn = async (req, res, next) => {
     res.status(201).json({
       success: true,
       message: 'Clocked in successfully',
-      data: { attendance_id: attendanceId, time_in: timeInWithAMPM, status: finalStatus },
+      data: {
+        attendance_id: attendanceId,
+        time_in: timeInWithAMPM,
+        status: finalStatus,
+        // normalized fields for frontend consumers
+        action: 'clock_in',
+        time: timeInWithAMPM,
+      },
     });
   } catch (error) {
     logger.error('Clock in error:', error);
@@ -287,7 +294,10 @@ export const clockOut = async (req, res, next) => {
         time_out: timeOutWithAMPM,
         duration_hours: durationHours.toFixed(2),
         status: newStatus,
-        overtime_hours: overtimeHours > 0 ? overtimeHours.toFixed(2) : 0
+        overtime_hours: overtimeHours > 0 ? overtimeHours.toFixed(2) : 0,
+        // normalized fields for frontend consumers
+        action: 'clock_out',
+        time: timeOutWithAMPM,
       },
     });
   } catch (error) {
@@ -295,6 +305,175 @@ export const clockOut = async (req, res, next) => {
     next(error);
   }
 };
+
+export const fingerprintAttendance = async (req, res, next) => {
+  try {
+    const { fingerprint_id, action = 'CLOCKIN' } = req.body;
+
+    if (!fingerprint_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Fingerprint ID is required',
+      });
+    }
+
+    // Find employee by fingerprint_id
+    const employee = await db.getOne(
+      'SELECT employee_id, first_name, last_name FROM employees WHERE fingerprint_id = ?',
+      [fingerprint_id]
+    );
+
+    if (!employee) {
+      return res.status(404).json({
+        success: false,
+        message: 'Employee not found for this fingerprint',
+      });
+    }
+
+    const { date: today, timeWithAMPM } = getPhilippineDateTime();
+
+    // Check if already clocked in today
+    const existing = await db.getOne(
+      'SELECT * FROM attendance WHERE employee_id = ? AND date = ?',
+      [employee.employee_id, today]
+    );
+
+    let result;
+    if (!existing) {
+      // Clock in
+      result = await clockInEmployee(employee.employee_id, 'present');
+      return res.status(201).json({
+        success: true,
+        message: 'Clocked in successfully',
+        data: {
+          ...result,
+          employee_name: `${employee.first_name} ${employee.last_name}`,
+          action: 'CLOCK_IN',
+          time: timeWithAMPM,
+        },
+      });
+    } else if (action === 'CLOCKOUT' || !existing.time_out) {
+      // Clock out
+      result = await clockOutEmployee(employee.employee_id);
+      return res.json({
+        success: true,
+        message: 'Clocked out successfully',
+        data: {
+          ...result,
+          employee_name: `${employee.first_name} ${employee.last_name}`,
+          action: 'CLOCK_OUT',
+          time: timeWithAMPM,
+        },
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Already clocked out today',
+      });
+    }
+  } catch (error) {
+    logger.error('Fingerprint attendance error:', error);
+    next(error);
+  }
+};
+
+// Helper function to clock in an employee
+async function clockInEmployee(employee_id, status = 'present') {
+  const { date: today, time: timeIn, timeWithAMPM: timeInWithAMPM } = getPhilippineDateTime();
+
+  const attendanceId = await db.insert('attendance', {
+    employee_id,
+    date: today,
+    time_in: `${today} ${timeIn}`,
+    status,
+    created_by: employee_id,
+  });
+
+  const attendanceCode = generateAttendanceCode(attendanceId);
+  await db.update('attendance', { attendance_code: attendanceCode }, 'attendance_id = ?', [attendanceId]);
+
+  logger.info(`Fingerprint clock in for employee ${employee_id}`);
+
+  return {
+    attendance_id: attendanceId,
+    time_in: timeInWithAMPM,
+    status,
+  };
+}
+
+// Helper function to clock out an employee
+async function clockOutEmployee(employee_id) {
+  const { date: today, time: timeOut, timeWithAMPM: timeOutWithAMPM } = getPhilippineDateTime();
+  const timeOutFull = `${today} ${timeOut}`;
+
+  const attendance = await db.getOne(
+    'SELECT * FROM attendance WHERE employee_id = ? AND date = ?',
+    [employee_id, today]
+  );
+
+  if (!attendance) {
+    throw new Error('No clock in record found');
+  }
+
+  // Calculate duration
+  const extractTimePart = (val) => {
+    if (!val) return null;
+    if (typeof val === 'string') {
+      if (val.includes(' ')) return val.split(' ')[1].slice(0, 8);
+      if (val.includes('T')) return val.split('T')[1].slice(0, 8);
+      return val.slice(0, 8);
+    }
+    try {
+      const ph = new Date(new Date(val).toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+      const hh = String(ph.getHours()).padStart(2, '0');
+      const mm = String(ph.getMinutes()).padStart(2, '0');
+      const ss = String(ph.getSeconds()).padStart(2, '0');
+      return `${hh}:${mm}:${ss}`;
+    } catch {
+      return null;
+    }
+  };
+
+  const timeInStr = extractTimePart(attendance.time_in);
+  const timeOutStr = extractTimePart(timeOut);
+
+  const timeInParts = timeInStr.split(':');
+  const timeOutParts = timeOutStr.split(':');
+
+  const timeInMinutes = parseInt(timeInParts[0]) * 60 + parseInt(timeInParts[1]);
+  const timeOutMinutes = parseInt(timeOutParts[0]) * 60 + parseInt(timeOutParts[1]);
+
+  const durationMinutes = timeOutMinutes - timeInMinutes;
+  const durationHours = durationMinutes / 60;
+
+  let newStatus = durationMinutes < 480 ? 'late' : 'present';
+  let overtimeHours = 0;
+  if (durationMinutes > 480) {
+    overtimeHours = (durationMinutes - 480) / 60;
+  }
+
+  const updateData = {
+    time_out: timeOutFull,
+    updated_by: employee_id,
+  };
+  if (newStatus !== attendance.status) {
+    updateData.status = newStatus;
+  }
+  if (overtimeHours > 0) {
+    updateData.overtime_hours = overtimeHours;
+  }
+
+  await db.update('attendance', updateData, 'attendance_id = ?', [attendance.attendance_id]);
+
+  logger.info(`Fingerprint clock out for employee ${employee_id}`);
+
+  return {
+    time_out: timeOutWithAMPM,
+    duration_hours: durationHours.toFixed(2),
+    status: newStatus,
+    overtime_hours: overtimeHours > 0 ? overtimeHours.toFixed(2) : 0,
+  };
+}
 
 export const updateOvertimeHours = async (req, res, next) => {
   try {
@@ -555,6 +734,7 @@ export default {
   getAttendanceById,
   clockIn,
   clockOut,
+  fingerprintAttendance,
   updateOvertimeHours,
   updateAttendanceStatus,
   getAttendanceSummary,
