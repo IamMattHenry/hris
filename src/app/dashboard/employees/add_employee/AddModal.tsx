@@ -16,6 +16,7 @@ import {
   validateDependent,
   validateBirthDate,
 } from "./validations";
+import FingerprintEnrollment from "@/components/FingerprintEnrollment";
 
 interface EmployeeModalProps {
   isOpen: boolean;
@@ -39,6 +40,11 @@ interface Dependent {
 export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps) {
   const { user } = useAuth();
   const [step, setStep] = useState(1);
+
+  // Fingerprint enrollment
+  const [showFingerprintEnrollment, setShowFingerprintEnrollment] = useState(false);
+  const [newEmployeeId, setNewEmployeeId] = useState<number | null>(null);
+  const [fingerprintId, setFingerprintId] = useState<number | null>(null);
 
   // Step data states
   const [firstName, setFirstName] = useState("");
@@ -420,6 +426,53 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     setDependentContactInfo(input);
   };
 
+  // Handle reset form
+  const resetForm = () => {
+  setFirstName("");
+  setLastName("");
+  setMiddleName("");
+  setExtensionName("");
+  setBirthDate("");
+  setGender("");
+  setCivilStatus("");
+  setHomeAddress("");
+  setCity("");
+  setRegion("");
+  setProvince("");
+  setDepartmentId(null);
+  setPositionId(null);
+  setSalary("");
+  setLeaveCredit("15");
+  setSupervisorId(null);
+  setHireDate("");
+  setPayStart("");
+  setPayEnd("");
+  setShift("");
+  setSalaryDisplay("");
+  setEmail("");
+  setContactNumber("");
+  setDependents([]);
+  setDependentFirstName("");
+  setDependentLastName("");
+  setDependentEmail("");
+  setDependentContactInfo("");
+  setDependentRelationship("");
+  setDependentRelationshipSpecify("");
+  setDependentErrors({});
+  setUsername("");
+  setPassword("");
+  setConfirmPassword("");
+  setGrantAdminPrivilege(false);
+  setGrantSupervisorPrivilege(false);
+  setSubRole("");
+  setStep(1);
+  setErrors({});
+  setMessage(null);
+  setShowFingerprintEnrollment(false);
+  setNewEmployeeId(null);
+  setFingerprintId(null);
+};
+
   // ─── Validation ───────────────────────────────
   const validateStep = async () => {
     let newErrors: { [key: string]: string } = {};
@@ -549,51 +602,14 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       if (result.success) {
         setMessage({ type: "success", text: "Employee created successfully!" });
 
-        // Reset everything after 2 seconds
-        setTimeout(() => {
-          setFirstName("");
-          setLastName("");
-          setMiddleName("");
-          setExtensionName("");
-          setBirthDate("");
-          setGender("");
-          setCivilStatus("");
-          setHomeAddress("");
-          setCity("");
-          setRegion("");
-          setProvince("");
-          setDepartmentId(null);
-          setPositionId(null);
-          setSalary("");
-          setLeaveCredit("15");
-          setSupervisorId(null);
-          setHireDate("");
-          setPayStart("");
-          setPayEnd("");
-          setShift("");
-          setSalaryDisplay("");
-          setEmail("");
-          setContactNumber("");
-          setDependents([]);
-          setDependentFirstName("");
-          setDependentLastName("");
-          setDependentEmail("");
-          setDependentContactInfo("");
-          setDependentRelationship("");
-          setDependentRelationshipSpecify("");
-          setDependentErrors({});
-          setUsername("");
-          setPassword("");
-          setConfirmPassword("");
-          setGrantAdminPrivilege(false);
-          setGrantSupervisorPrivilege(false);
-          setSubRole("");
-          setStep(1);
-          setErrors({});
-          setMessage(null);
+        // Store the new employee ID for fingerprint enrollment
+        setNewEmployeeId(result.data.employee_id);
 
-          onClose();
-        }, 2000);
+        // Show fingerprint enrollment after 1 second
+        setTimeout(() => {
+          setMessage(null);
+          setShowFingerprintEnrollment(true);
+        }, 1000);
       } else {
         setMessage({
           type: "error",
@@ -1386,6 +1402,39 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
             )}
           </div>
         </div>
+        {showFingerprintEnrollment && newEmployeeId && (
+  <div className="absolute inset-0 bg-white rounded-2xl z-10 p-8 overflow-y-auto">
+    <h2 className="text-2xl font-bold text-[#3b2b1c] mb-4">
+      Enroll Fingerprint (Optional)
+    </h2>
+    <p className="text-gray-600 mb-6">
+      You can enroll a fingerprint for this employee now, or skip and do it later.
+    </p>
+    
+    <FingerprintEnrollment
+      employeeId={newEmployeeId}
+      onEnrollmentComplete={(fpId) => {
+        setFingerprintId(fpId);
+        setShowFingerprintEnrollment(false);
+        
+        // Reset and close modal
+        setTimeout(() => {
+          resetForm();
+          onClose();
+        }, 1500);
+      }}
+      onSkip={() => {
+        setShowFingerprintEnrollment(false);
+        
+        // Reset and close modal
+        setTimeout(() => {
+          resetForm();
+          onClose();
+        }, 500);
+      }}
+    />
+  </div>
+)}
       </motion.div>
     </div>
   );

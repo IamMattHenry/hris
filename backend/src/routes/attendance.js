@@ -7,6 +7,7 @@ import {
   getAttendanceById,
   clockIn,
   clockOut,
+  fingerprintAttendance,
   updateOvertimeHours,
   updateAttendanceStatus,
   getAttendanceSummary,
@@ -44,6 +45,16 @@ router.post(
   ],
   handleValidationErrors,
   clockOut
+);
+
+// Fingerprint attendance (no auth required - called by Arduino bridge)
+router.post(
+  '/fingerprint',
+  [
+    body('fingerprint_id').isInt().withMessage('Fingerprint ID must be an integer'),
+  ],
+  handleValidationErrors,
+  fingerprintAttendance
 );
 
 // Update overtime hours (protected)
