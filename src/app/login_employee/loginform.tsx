@@ -38,6 +38,7 @@ export default function LoginForm() {
       } else {
         if (result.message === "Invalid credentials") {
           setErrorMessage("Incorrect username or password.");
+          window.location.href = "/login_employee";
         } else {
           setErrorMessage(result.message || "Login failed. Please try again.");
         }

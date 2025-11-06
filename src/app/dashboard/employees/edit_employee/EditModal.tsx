@@ -1140,7 +1140,7 @@ export default function EditEmployeeModal({
                   {!departmentId ? (
                     <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                       <p className="text-sm text-yellow-800">
-                        ⚠️ Please select a department first to choose the sub-role
+                         Please select a department first to choose the sub-role
                       </p>
                     </div>
                   ) : (
