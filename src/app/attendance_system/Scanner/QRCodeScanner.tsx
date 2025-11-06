@@ -30,11 +30,23 @@ export default function QRCodeScanner({ onScan, isActive = true }: QRCodeScanner
     
     return () => {
       clearTimeout(initTimeout);
-      if (html5QrCodeRef.current) {
-        html5QrCodeRef.current.stop().catch(() => {});
-        html5QrCodeRef.current.clear();
-        html5QrCodeRef.current = null;
-      }
+      // Cleanup scanner on unmount
+      const cleanup = async () => {
+        if (html5QrCodeRef.current) {
+          try {
+            const state = html5QrCodeRef.current.getState();
+            // Only stop if scanner is actually running
+            if (state === 2) { // 2 = SCANNING state
+              await html5QrCodeRef.current.stop();
+            }
+            html5QrCodeRef.current.clear();
+          } catch (error) {
+            console.log("Scanner cleanup:", error);
+          }
+          html5QrCodeRef.current = null;
+        }
+      };
+      cleanup();
     };
   }, []);
 
@@ -73,7 +85,7 @@ export default function QRCodeScanner({ onScan, isActive = true }: QRCodeScanner
     }
   };
 
-  // Auto-start scanner on mount
+  // Auto-start/stop scanner based on isActive prop
   useEffect(() => {
     if (isActive && !isScanning && html5QrCodeRef.current) {
       const startTimeout = setTimeout(() => {
@@ -81,15 +93,26 @@ export default function QRCodeScanner({ onScan, isActive = true }: QRCodeScanner
       }, 200);
       
       return () => clearTimeout(startTimeout);
+    } else if (!isActive && isScanning) {
+      // Stop scanner when tab becomes inactive
+      stopScanner();
     }
   }, [isActive, html5QrCodeRef.current]);
 
  
   const stopScanner = async () => {
-    if (html5QrCodeRef.current && isScanning) {
+    if (html5QrCodeRef.current) {
       try {
-        await html5QrCodeRef.current.stop();
-        setIsScanning(false);
+        const state = html5QrCodeRef.current.getState();
+        // Only stop if scanner is actually running (state 2 = SCANNING)
+        if (state === 2) {
+          await html5QrCodeRef.current.stop();
+          setIsScanning(false);
+          console.log("✅ Scanner stopped successfully");
+        } else {
+          console.log("⚠️ Scanner not running, no need to stop");
+          setIsScanning(false);
+        }
       } catch (error) {
         console.error("Error stopping scanner:", error);
         setIsScanning(false);
