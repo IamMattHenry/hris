@@ -688,3 +688,45 @@ export const ticketApi = {
     });
   },
 };
+
+// ============ FINGERPRINT API FUNCTIONS ============
+
+export const fingerprintApi = {
+  /**
+   * Get next available fingerprint ID
+   */
+  getNextId: async () => {
+    return apiCall<any>('/fingerprint/next-id', {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Check if fingerprint ID is available
+   */
+  checkId: async (fingerprintId: number) => {
+    return apiCall<any>(`/fingerprint/check/${fingerprintId}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Start fingerprint enrollment
+   */
+  startEnrollment: async (employeeId: number, fingerprintId: number) => {
+    return apiCall<any>('/fingerprint/enroll/start', {
+      method: 'POST',
+      body: JSON.stringify({ employee_id: employeeId, fingerprint_id: fingerprintId }),
+    });
+  },
+
+  /**
+   * Confirm fingerprint enrollment
+   */
+  confirmEnrollment: async (employeeId: number, fingerprintId: number) => {
+    return apiCall<any>('/fingerprint/enroll/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ employee_id: employeeId, fingerprint_id: fingerprintId }),
+    });
+  },
+};
