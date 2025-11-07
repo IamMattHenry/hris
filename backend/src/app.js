@@ -17,6 +17,7 @@ import attendanceRoutes from './routes/attendance.js';
 import leaveRoutes from './routes/leave.js';
 import activityRoutes from './routes/activity.js';
 import ticketRoutes from './routes/tickets.js';
+import fingerprintRoutes from './routes/fingerprint.js';
 
 dotenv.config();
 
@@ -68,6 +69,7 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/leave', leaveRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/tickets', ticketRoutes);
+app.use('/api/fingerprint', fingerprintRoutes);
 
 // ============ ERROR HANDLING ============
 
