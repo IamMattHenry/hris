@@ -37,17 +37,10 @@ export default function FingerprintEnrollment({
       const data = JSON.parse(event.data);
       setStatusLog((prev) => [...prev, data]);
 
-      // Auto-detect enrollment success and auto-confirm
+      // Auto-detect enrollment success
       if (data.message.includes('ENROLL:SUCCESS') || data.message.includes('Enrollment successful')) {
         setStatus('success');
-        setMessage('Fingerprint enrolled successfully! Saving to database...');
-        
-        // Auto-confirm enrollment to save to database
-        if (fingerprintId && employeeId) {
-          setTimeout(() => {
-            autoConfirmEnrollment();
-          }, 500);
-        }
+        setMessage('Fingerprint enrolled successfully!');
       }
 
       // Auto-detect enrollment errors
@@ -124,31 +117,6 @@ export default function FingerprintEnrollment({
     }
   };
 
-  const autoConfirmEnrollment = async () => {
-    if (!fingerprintId || !employeeId) return;
-
-    try {
-      const result = await fingerprintApi.confirmEnrollment(employeeId, fingerprintId);
-      
-      if (result.success) {
-        setMessage("Fingerprint enrolled and saved to database successfully!");
-        
-        // Arduino automatically returns to attendance mode, no need to switch manually
-        
-        // Notify parent component
-        setTimeout(() => {
-          onEnrollmentComplete && onEnrollmentComplete(fingerprintId);
-        }, 1500);
-      } else {
-        setError(result.message || "Failed to save to database");
-        setStatus("error");
-      }
-    } catch (err) {
-      setError("Error saving to database");
-      setStatus("error");
-    }
-  };
-
   const handleConfirmEnrollment = async () => {
     if (!fingerprintId || !employeeId) return;
 
@@ -160,7 +128,17 @@ export default function FingerprintEnrollment({
         setStatus("success");
         setMessage("Fingerprint enrolled and saved successfully!");
         
-        // Arduino automatically returns to attendance mode, no need to switch manually
+        // Switch back to attendance mode
+        try {
+          const bridgeUrl = process.env.NEXT_PUBLIC_BRIDGE_URL || 'http://localhost:3001';
+          await fetch(`${bridgeUrl}/mode`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'ATTENDANCE' })
+          });
+        } catch (modeError) {
+          console.error('Failed to switch mode:', modeError);
+        }
         
         // Notify parent component
         setTimeout(() => {

@@ -20,21 +20,6 @@ const bridge = new FingerprintBridge(SERIAL_PORT, BAUD_RATE);
 
 // Create Express server for bridge control
 const app = express();
-
-// Enable CORS for frontend
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  
-  next();
-});
-
 app.use(express.json());
 
 // Store SSE clients
@@ -86,11 +71,9 @@ app.get('/status/stream', (req, res) => {
 
 // Endpoint to get current mode
 app.get('/mode', (req, res) => {
-  const currentMode = sensorModeManager.getMode();
-  console.log(`📡 GET /mode - Current mode: ${currentMode}`);
   res.json({ 
     success: true, 
-    mode: currentMode,
+    mode: sensorModeManager.getMode(),
     isEnrollmentMode: sensorModeManager.isEnrollmentMode(),
     isAttendanceMode: sensorModeManager.isAttendanceMode()
   });
