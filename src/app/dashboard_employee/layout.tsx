@@ -11,11 +11,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const currentPage =
     pathname.split("/").filter(Boolean).pop() || "dashboard";
 
-  const titleHeader = currentPage.charAt(0).toUpperCase() + currentPage.slice(1);
-
-  const adminName = user?.first_name && user?.last_name
-    ? `${user.first_name} ${user.last_name}`
-    : user?.username || "User";
+  
 
   // Format role display: Show role (and sub_role if exists)
   const formatRole = (role?: string) => {
@@ -59,7 +55,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     return roleLabel;
   };
 
-  const adminType = getRoleDisplay();
+
 
   if (isLoading) {
     return (

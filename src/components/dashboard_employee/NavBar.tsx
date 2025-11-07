@@ -7,7 +7,6 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export default function Navbar() {
     const pathname = usePathname();
-    const { user } = useAuth();
 
     const links = [
         { name: "Overview", icon: House, path: "/dashboard_employee" },

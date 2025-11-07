@@ -390,7 +390,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
   // handle salary input with comma formatting
   const handleSalaryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let input = e.target.value.replace(/,/g, ""); // Remove existing commas
+    const input = e.target.value.replace(/,/g, ""); // Remove existing commas
 
     if (input === "") {
       setSalary("");
