@@ -91,6 +91,7 @@ export interface Employee {
   emails?: string[];
   contact_numbers?: string[];
   address?: EmployeeAddress;
+  dependents?: Dependent[];
   // Associated user info
   username?: string;
   role?: string;
@@ -259,6 +260,10 @@ export interface Dependent {
   birth_date: string;
   email?: string;
   contact_no?: string;
+  home_address?: string;
+  region_name?: string;
+  province_name?: string;
+  city_name?: string;
   created_at: string;
   updated_at: string;
   created_by?: number;
