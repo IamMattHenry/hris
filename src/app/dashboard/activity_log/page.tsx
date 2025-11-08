@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { Search, Clock } from "lucide-react";
 import { activityApi } from "@/lib/api";
+import SearchBar from "@/components/forms/FormSearch";
+import ActionButton from "@/components/buttons/ActionButton";
 
 const ActivityLogTab = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -129,20 +131,13 @@ const ActivityLogTab = () => {
 
         {/* Search */}
         <div className="relative">
-          <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search activity or name..."
-            className="pl-10 pr-4 py-2 rounded-lg border bg-white text-sm w-72"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+          <SearchBar placeholder="Search activity or name..." value={searchTerm} onChange={setSearchTerm} className="bg-white" />
         </div>
 
         {/* Date filter */}
         <input
           type="date"
-          className="px-4 py-2 rounded-lg border bg-white text-gray-700"
+          className="px-4 py-2 rounded-lg bg-white text-gray-500"
           value={date}
           onChange={(e) => setDate(e.target.value)}
           max={today}
@@ -153,19 +148,15 @@ const ActivityLogTab = () => {
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as any)}
-            className="px-3 py-2 rounded-lg border bg-white text-sm"
+            className="px-3 py-2 rounded-lg text-gray-500 bg-white text-sm"
           >
             <option value="log_id">Sort by Log ID</option>
             <option value="date">Sort by Date</option>
             <option value="name">Sort by Name</option>
           </select>
 
-          <button
-            onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-            className="px-3 py-2 rounded-lg bg-[#4B0B14] text-[#FFF2E0] text-sm"
-          >
-            {sortOrder === "asc" ? "Ascending ↑" : "Descending ↓"}
-          </button>
+          {/* Sort order */}
+          <ActionButton label={sortOrder === "asc" ? "Descending ↓" : "Ascending ↑"} onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")} />
         </div>
       </div>
 
