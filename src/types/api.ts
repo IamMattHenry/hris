@@ -35,6 +35,9 @@ export interface User {
   status?: 'active' | 'resigned' | 'terminated' | 'on_leave';
   department_id?: number;
   department_name?: string;
+  emails?: string[];
+  contact_numbers?: string[];
+  dependents?: Dependent[];
   // Associated user role info (if exists)
   user_role_id?: number;
   sub_role?: 'hr' | 'it' | 'front_desk';
@@ -91,6 +94,7 @@ export interface Employee {
   emails?: string[];
   contact_numbers?: string[];
   address?: EmployeeAddress;
+  dependents?: Dependent[];
   // Associated user info
   username?: string;
   role?: string;
@@ -259,6 +263,10 @@ export interface Dependent {
   birth_date: string;
   email?: string;
   contact_no?: string;
+  home_address?: string;
+  region_name?: string;
+  province_name?: string;
+  city_name?: string;
   created_at: string;
   updated_at: string;
   created_by?: number;

@@ -93,8 +93,41 @@ export const updateUser = async (req, res, next) => {
     const { id } = req.params;
     const { username, password, role } = req.body;
 
+    const isSelfUpdate = !id || id === 'me';
+    const authUserId = req.user?.user_id;
+    let targetUserId;
+
+    if (isSelfUpdate) {
+      if (!authUserId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized: No user ID in token',
+        });
+      }
+
+      targetUserId = Number(authUserId);
+      if (Number.isNaN(targetUserId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid user ID in token',
+        });
+      }
+
+      logger.info(`Resolving /me endpoint - using user_id ${targetUserId}`);
+    } else {
+      targetUserId = parseInt(id, 10);
+      if (Number.isNaN(targetUserId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid user ID in request',
+        });
+      }
+
+      logger.info(`Processing admin update for user_id ${targetUserId}`);
+    }
+
     // Validate that at least one field is being updated
-    if (!username && !password && !role) {
+    if (username === undefined && password === undefined && role === undefined) {
       return res.status(400).json({
         success: false,
         message: 'At least one field (username, password, or role) must be provided for update',
@@ -102,7 +135,8 @@ export const updateUser = async (req, res, next) => {
     }
 
     // Check if user exists
-    const user = await db.getOne('SELECT * FROM users WHERE user_id = ?', [id]);
+    logger.info(`Checking if user exists - id: ${targetUserId}`);
+    const user = await db.getOne('SELECT * FROM users WHERE user_id = ?', [targetUserId]);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -110,11 +144,19 @@ export const updateUser = async (req, res, next) => {
       });
     }
 
-    // Prevent updating the currently logged-in admin user
-    if (req.user && req.user.user_id === parseInt(id)) {
+    // Allow self-update via /me endpoint, but prevent role changes
+    if (!isSelfUpdate && req.user && req.user.user_id === targetUserId) {
       return res.status(403).json({
         success: false,
         message: 'You cannot update your own user account. Please ask another admin to make changes.',
+      });
+    }
+
+    // Prevent role changes when updating via /me endpoint (self-update)
+    if (isSelfUpdate && role !== undefined) {
+      return res.status(403).json({
+        success: false,
+        message: 'You cannot change your own role. Please ask an admin to make changes.',
       });
     }
 
@@ -122,11 +164,11 @@ export const updateUser = async (req, res, next) => {
     const updates = {};
 
     // Validate and add username if provided
-    if (username) {
+    if (username !== undefined) {
       // Check if username is already taken by another user
       const existingUser = await db.getOne(
         'SELECT user_id FROM users WHERE username = ? AND user_id != ?',
-        [username, id]
+        [username, targetUserId]
       );
 
       if (existingUser) {
@@ -140,7 +182,7 @@ export const updateUser = async (req, res, next) => {
     }
 
     // Validate and add password if provided
-    if (password) {
+    if (password !== undefined) {
       if (password.length < 6) {
         return res.status(400).json({
           success: false,
@@ -154,7 +196,7 @@ export const updateUser = async (req, res, next) => {
     }
 
     // Validate and add role if provided
-    if (role) {
+    if (role !== undefined) {
       const validRoles = ['admin', 'employee', 'supervisor', 'superadmin'];
       if (!validRoles.includes(role)) {
         return res.status(400).json({
@@ -173,9 +215,9 @@ export const updateUser = async (req, res, next) => {
     }
 
     // Perform update
-    const affectedRows = await db.update('users', updates, 'user_id = ?', [id]);
+    const affectedRows = await db.update('users', updates, 'user_id = ?', [targetUserId]);
 
-    logger.info(`User updated: ${id} (username: ${user.username})`);
+    logger.info(`User updated: ${targetUserId} (username: ${user.username})`);
 
     // Create activity log entry
     try {
@@ -183,7 +225,7 @@ export const updateUser = async (req, res, next) => {
         user_id: updatedBy || 1,
         action: "UPDATE",
         module: "users",
-        description: `Updated user ${user.username} (ID: ${id})`,
+        description: `Updated user ${user.username} (ID: ${targetUserId})`,
         created_by: updatedBy || 1,
       });
     } catch (logError) {

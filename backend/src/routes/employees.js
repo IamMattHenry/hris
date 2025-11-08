@@ -45,6 +45,13 @@ router.post(
   createEmployee
 );
 
+// Update own employee profile (any authenticated user can update their own profile)
+router.put(
+  '/me',
+  verifyToken,
+  updateEmployee
+);
+
 // Update employee (admin and superadmin only)
 router.put(
   '/:id',

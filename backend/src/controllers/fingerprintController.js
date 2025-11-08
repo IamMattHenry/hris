@@ -61,6 +61,21 @@ export const startEnrollment = async (req, res, next) => {
       });
     }
 
+    const actingUserId = req.user?.user_id;
+    const auditUserId = actingUserId || 1;
+
+    try {
+      await db.insert('activity_logs', {
+        user_id: auditUserId,
+        action: 'CREATE',
+        module: 'fingerprints',
+        description: `Initialized fingerprint enrollment for employee ${employee.first_name} ${employee.last_name} (ID: ${employee_id}) using fingerprint ID ${fingerprint_id}`,
+        created_by: auditUserId,
+      });
+    } catch (logError) {
+      logger.error('Failed to create activity log:', logError);
+    }
+
     res.json({
       success: true,
       message: 'Ready for fingerprint enrollment',
