@@ -62,6 +62,18 @@ export const login = async (req, res, next) => {
 
     logger.info(`User logged in: ${username}`);
 
+    try {
+      await db.insert('activity_logs', {
+        user_id: user.user_id,
+        action: 'LOGIN',
+        module: 'auth',
+        description: `User ${username} logged in`,
+        created_by: user.user_id,
+      });
+    } catch (logError) {
+      logger.error('Failed to create activity log:', logError);
+    }
+
     res.json({
   success: true,
   message: 'Login successful',

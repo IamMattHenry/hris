@@ -839,19 +839,53 @@ export const deleteEmployee = async (req, res, next) => {
     // Get user ID from JWT token for audit trail
     const deletedBy = req.user?.user_id;
 
-    const affectedRows = await db.deleteRecord("employees", "employee_id = ?", [
-      id,
-    ]);
+    await db.beginTransaction();
 
-    logger.info(`Employee deleted: ${id}`);
+    let userDeleted = false;
+    let employeeDeleted = false;
+
+    try {
+      if (employee.user_id) {
+        const userDeleteResult = await db.transactionQuery(
+          "DELETE FROM users WHERE user_id = ?",
+          [employee.user_id]
+        );
+        userDeleted = (userDeleteResult?.affectedRows || 0) > 0;
+        if (userDeleted) {
+          employeeDeleted = true;
+        }
+      }
+
+      if (!employeeDeleted) {
+        const employeeDeleteResult = await db.transactionQuery(
+          "DELETE FROM employees WHERE employee_id = ?",
+          [id]
+        );
+        employeeDeleted = (employeeDeleteResult?.affectedRows || 0) > 0;
+      }
+
+      await db.commit();
+    } catch (transactionError) {
+      await db.rollback();
+      throw transactionError;
+    }
+
+    logger.info(
+      `Employee deleted: ${id}${userDeleted ? ` (linked user ${employee.user_id} removed)` : ""}`
+    );
 
     // Create activity log entry
     try {
+      let description = `Deleted employee ${employee.first_name} ${employee.last_name} (${employee.employee_code})`;
+      if (userDeleted) {
+        description += " and linked user account";
+      }
+
       await db.insert("activity_logs", {
         user_id: deletedBy || 1,
         action: "DELETE",
         module: "employees",
-        description: `Deleted employee ${employee.first_name} ${employee.last_name} (${employee.employee_code})`,
+        description,
         created_by: deletedBy || 1,
       });
     } catch (logError) {
@@ -862,7 +896,8 @@ export const deleteEmployee = async (req, res, next) => {
     res.json({
       success: true,
       message: "Employee deleted successfully",
-      affectedRows,
+      affectedRows: employeeDeleted ? 1 : 0,
+      cascadedUserDeletion: userDeleted,
     });
   } catch (error) {
     logger.error("Delete employee error:", error);

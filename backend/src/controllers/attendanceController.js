@@ -686,6 +686,8 @@ export const markAbsences = async (req, res, next) => {
        WHERE e.status = 'active'`
     );
 
+    const actingUserId = req.user?.user_id;
+
     let inserted = 0;
     for (const emp of employees) {
       // Skip if attendance exists for target date
@@ -706,16 +708,27 @@ export const markAbsences = async (req, res, next) => {
       );
       if (onLeave) continue;
 
-      const createdBy = req.user?.user_id;
       const attendanceId = await db.insert('attendance', {
         employee_id: emp.employee_id,
         date: targetDate,
         status: 'absent',
-        created_by: createdBy,
+        created_by: actingUserId || emp.employee_id,
       });
       const code = generateAttendanceCode(attendanceId);
       await db.update('attendance', { attendance_code: code }, 'attendance_id = ?', [attendanceId]);
       inserted += 1;
+    }
+
+    try {
+      await db.insert('activity_logs', {
+        user_id: actingUserId || 1,
+        action: 'CREATE',
+        module: 'attendance',
+        description: `Auto-marked ${inserted} employees absent for ${targetDate}`,
+        created_by: actingUserId || 1,
+      });
+    } catch (logError) {
+      logger.error('Failed to create activity log:', logError);
     }
 
     res.json({
