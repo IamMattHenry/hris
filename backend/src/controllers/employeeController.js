@@ -482,8 +482,36 @@ export const createEmployee = async (req, res, next) => {
 
 export const updateEmployee = async (req, res, next) => {
   try {
-    const { id } = req.params;
+    let { id } = req.params;
     const { emails, contact_numbers, dependents, role, sub_role, ...updates } = req.body;
+
+    // Handle /me endpoint - resolve employee_id from JWT token
+    const isSelfUpdate = !id || id === 'me';
+
+    if (isSelfUpdate) {
+      const user_id = req.user?.user_id;
+      if (!user_id) {
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized: No user ID in token',
+        });
+      }
+
+      // Get employee_id from user_id
+      const userEmployee = await db.getOne(
+        "SELECT employee_id FROM employees WHERE user_id = ?",
+        [user_id]
+      );
+
+      if (!userEmployee) {
+        return res.status(404).json({
+          success: false,
+          message: 'Employee record not found for current user',
+        });
+      }
+
+      id = userEmployee.employee_id;
+    }
 
     // Check if employee exists
     const employee = await db.getOne(

@@ -35,6 +35,9 @@ export interface User {
   status?: 'active' | 'resigned' | 'terminated' | 'on_leave';
   department_id?: number;
   department_name?: string;
+  emails?: string[];
+  contact_numbers?: string[];
+  dependents?: Dependent[];
   // Associated user role info (if exists)
   user_role_id?: number;
   sub_role?: 'hr' | 'it' | 'front_desk';

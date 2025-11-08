@@ -1,7 +1,51 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { X, User, Briefcase, Shield } from "lucide-react";
+import { authApi } from "@/lib/api";
+
+type ContactItem = { id: number; number: string };
+type EmailItem = { id: number; email: string; isPrimary: boolean };
+type FormattedData = {
+  personal: {
+    photo: null | string;
+    firstName: string;
+    middleName: string;
+    lastName: string;
+    extensionName: string;
+    employeeCode: string;
+    gender: string;
+    birthdate: string;
+    civilStatus: string;
+    status: string;
+    hireDate: string;
+    shift: string;
+    leaveCredit: number;
+    address: { region: string; province: string; city: string; homeAddress: string };
+    contacts: ContactItem[];
+    emails: EmailItem[];
+  };
+  job: {
+    department: string;
+    position: string;
+    positionCode: string;
+    supervisor: string;
+    salary: number;
+    employmentStatus: string;
+    availability: string;
+  };
+  account: {
+    username: string;
+    role: string;
+    subRoles: string[];
+    isActive: boolean;
+    isSuperAdmin: boolean;
+    lastUpdated: string;
+  };
+  dependents: any[];
+  emergencyContacts: { id: number; name: string; relation: string; number: string }[];
+  attendance: any[];
+};
 
 const mockEmployeeData = {
     personal: {
@@ -92,6 +136,96 @@ const mockEmployeeData = {
 
 const Profile = () => {
     const [activeSection, setActiveSection] = useState("personal");
+    const [userData, setUserData] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const fetchUserData = async () => {
+            try {
+                setLoading(true);
+                const result = await authApi.getCurrentUser();
+                if (result.success && result.data) {
+                    setUserData(result.data);
+                } else {
+                    setError(result.message || "Failed to fetch user data");
+                }
+            } catch (err) {
+                console.error(err);
+                setError("An error occurred while fetching user data");
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchUserData();
+    }, []);
+
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center text-[#480C1B] font-semibold">
+                Loading profile...
+            </div>
+        );
+    }
+
+    if (error || !userData) {
+        return (
+            <div className="min-h-screen flex items-center justify-center text-red-600 font-medium">
+                {error || "Failed to load profile data"}
+            </div>
+        );
+    }
+
+    const formattedData: FormattedData = {
+        personal: {
+            photo: null,
+            firstName: userData.first_name || "",
+            middleName: userData.middle_name || "",
+            lastName: userData.last_name || "",
+            extensionName: userData.extension_name || "",
+            employeeCode: userData.employee_code || "",
+            gender: userData.gender ? userData.gender.charAt(0).toUpperCase() + userData.gender.slice(1) : "",
+            birthdate: userData.birthdate || "",
+            civilStatus: userData.civil_status ? userData.civil_status.charAt(0).toUpperCase() + userData.civil_status.slice(1) : "",
+            status: userData.status ? userData.status.charAt(0).toUpperCase() + userData.status.slice(1) : "",
+            hireDate: userData.hire_date || "",
+            shift: userData.shift ? userData.shift.charAt(0).toUpperCase() + userData.shift.slice(1) : "",
+            leaveCredit: userData.leave_credit || 0,
+            address: {
+                region: userData.region || "",
+                province: userData.province || "",
+                city: userData.city || "",
+                homeAddress: userData.home_address || "",
+            },
+            contacts: (userData.contact_numbers || []).map((n: string, i: number): ContactItem => ({ id: i + 1, number: n })),
+            emails: (userData.emails || []).map((e: string, i: number): EmailItem => ({ id: i + 1, email: e, isPrimary: i === 0 })),
+        },
+        job: {
+            department: userData.department_name || "",
+            position: userData.position_name || "",
+            positionCode: "",
+            supervisor: "",
+            salary: userData.salary || 0,
+            employmentStatus: userData.status ? userData.status.charAt(0).toUpperCase() + userData.status.slice(1) : "",
+            availability: "Available",
+        },
+        account: {
+            username: userData.username || "",
+            role: userData.role || "",
+            subRoles: userData.sub_role ? [String(userData.sub_role).toUpperCase()] : [],
+            isActive: userData.status === "active",
+            isSuperAdmin: userData.role === "superadmin",
+            lastUpdated: userData.created_at || "",
+        },
+        dependents: userData.dependents || [],
+        emergencyContacts: userData.dependents && userData.dependents.length > 0 ? [{
+            id: 1,
+            name: `${userData.dependents[0].firstname} ${userData.dependents[0].lastname}`,
+            relation: userData.dependents[0].relationship,
+            number: userData.dependents[0].contact_no || "",
+        }] : [],
+        attendance: [],
+    } as const;
 
     const menuItems = [
         { id: "personal", label: "Personal Information", icon: User },
@@ -138,42 +272,42 @@ const Profile = () => {
                             {/* Header Info */}
                             <div className="flex items-start gap-6 mb-8 pb-8 border-b">
                                 <div className="w-32 h-32 bg-gradient-to-br from-amber-900 to-amber-800 rounded-full flex items-center justify-center text-white text-4xl font-bold">
-                                    {mockEmployeeData.personal.firstName[0]}
-                                    {mockEmployeeData.personal.lastName[0]}
+                                    {formattedData.personal.firstName?.[0] || 'U'}
+                                    {formattedData.personal.lastName?.[0] || ''}
                                 </div>
                                 <div className="flex-1">
                                     <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                                        {mockEmployeeData.personal.firstName}{" "}
-                                        {mockEmployeeData.personal.lastName}
+                                        {formattedData.personal.firstName}{" "}
+                                        {formattedData.personal.lastName}
                                     </h1>
                                     <div className="grid grid-cols-2 gap-x-12 gap-y-2 text-gray-700">
                                         <div>
                                             <span className="text-gray-500">Job Title:</span>{" "}
                                             <span className="font-medium">
-                                                {mockEmployeeData.job.position}
+                                                {formattedData.job.position}
                                             </span>
                                         </div>
                                         <div>
                                             <span className="text-gray-500">Department:</span>{" "}
                                             <span className="font-medium">
-                                                {mockEmployeeData.job.department}
+                                                {formattedData.job.department}
                                             </span>
                                         </div>
                                         <div>
                                             <span className="text-gray-500">
-                                                {mockEmployeeData.personal.employeeCode}
+                                                {formattedData.personal.employeeCode}
                                             </span>
                                         </div>
                                         <div>
                                             <span className="text-gray-500">Shift:</span>{" "}
                                             <span className="font-medium">
-                                                {mockEmployeeData.personal.shift}
+                                                {formattedData.personal.shift}
                                             </span>
                                         </div>
                                         <div>
                                             <span className="text-gray-500">Status:</span>{" "}
                                             <span className="inline-block px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                                                {mockEmployeeData.personal.status}
+                                                {formattedData.personal.status}
                                             </span>
                                         </div>
                                     </div>
@@ -187,7 +321,7 @@ const Profile = () => {
                                 </h2>
 
                                 {(() => {
-                                    const emergency = mockEmployeeData.emergencyContacts[0] || {};
+                                    const emergency = formattedData.emergencyContacts[0] || {};
                                     return (
                                         <div className="grid grid-cols-3 gap-4">
                                             <div>
@@ -230,34 +364,38 @@ const Profile = () => {
                                 </h2>
                                 <div className="grid grid-cols-2 gap-x-8 gap-y-4">
                                     {[
-                                        ["First Name", mockEmployeeData.personal.firstName],
-                                        ["Last Name", mockEmployeeData.personal.lastName],
-                                        ["Middle Name", mockEmployeeData.personal.middleName],
+                                        ["First Name", formattedData.personal.firstName],
+                                        ["Last Name", formattedData.personal.lastName],
+                                        ["Middle Name", formattedData.personal.middleName],
                                         [
                                             "Extension Name",
-                                            mockEmployeeData.personal.extensionName || "N/A",
+                                            formattedData.personal.extensionName || "N/A",
                                         ],
-                                        ["Gender", mockEmployeeData.personal.gender],
+                                        ["Gender", formattedData.personal.gender],
                                         [
                                             "Birthdate",
-                                            new Date(
-                                                mockEmployeeData.personal.birthdate
-                                            ).toLocaleDateString("en-US", {
-                                                year: "numeric",
-                                                month: "long",
-                                                day: "numeric",
-                                            }),
+                                            formattedData.personal.birthdate
+                                                ? new Date(
+                                                    formattedData.personal.birthdate
+                                                ).toLocaleDateString("en-US", {
+                                                    year: "numeric",
+                                                    month: "long",
+                                                    day: "numeric",
+                                                })
+                                                : "N/A",
                                         ],
-                                        ["Civil Status", mockEmployeeData.personal.civilStatus],
+                                        ["Civil Status", formattedData.personal.civilStatus],
                                         [
                                             "Hire Date",
-                                            new Date(
-                                                mockEmployeeData.personal.hireDate
-                                            ).toLocaleDateString("en-US", {
-                                                year: "numeric",
-                                                month: "long",
-                                                day: "numeric",
-                                            }),
+                                            formattedData.personal.hireDate
+                                                ? new Date(
+                                                    formattedData.personal.hireDate
+                                                ).toLocaleDateString("en-US", {
+                                                    year: "numeric",
+                                                    month: "long",
+                                                    day: "numeric",
+                                                })
+                                                : "N/A",
                                         ],
                                     ].map(([label, value], idx) => (
                                         <div key={idx}>
@@ -276,13 +414,13 @@ const Profile = () => {
                                     Address
                                 </h2>
                                 <div className="grid grid-cols-2 gap-x-8 gap-y-4">
-                                    {Object.entries(mockEmployeeData.personal.address).map(
+                                    {Object.entries(formattedData.personal.address).map(
                                         ([label, value]) => (
                                             <div key={label}>
                                                 <label className="block text-sm text-gray-600 mb-1 capitalize">
-                                                    {label}
+                                                    {label.replace(/([A-Z])/g, ' $1').trim()}
                                                 </label>
-                                                <p className="text-gray-900">{value}</p>
+                                                <p className="text-gray-900">{value || "N/A"}</p>
                                             </div>
                                         )
                                     )}
@@ -299,26 +437,34 @@ const Profile = () => {
                                         <label className="block text-sm text-gray-600 mb-1">
                                             Phone Numbers
                                         </label>
-                                        {mockEmployeeData.personal.contacts.map((contact) => (
-                                            <p key={contact.id} className="text-gray-900">
-                                                {contact.number}
-                                            </p>
-                                        ))}
+                                        {formattedData.personal.contacts.length > 0 ? (
+                                            formattedData.personal.contacts.map((contact) => (
+                                                <p key={contact.id} className="text-gray-900">
+                                                    {contact.number}
+                                                </p>
+                                            ))
+                                        ) : (
+                                            <p className="text-gray-900">No contact numbers</p>
+                                        )}
                                     </div>
                                     <div>
                                         <label className="block text-sm text-gray-600 mb-1">
                                             Email Addresses
                                         </label>
-                                        {mockEmployeeData.personal.emails.map((email) => (
-                                            <div key={email.id} className="flex items-center gap-2">
-                                                <p className="text-gray-900">{email.email}</p>
-                                                {email.isPrimary && (
-                                                    <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-800 rounded">
-                                                        Primary
-                                                    </span>
-                                                )}
-                                            </div>
-                                        ))}
+                                        {formattedData.personal.emails.length > 0 ? (
+                                            formattedData.personal.emails.map((email) => (
+                                                <div key={email.id} className="flex items-center gap-2">
+                                                    <p className="text-gray-900">{email.email}</p>
+                                                    {email.isPrimary && (
+                                                        <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-800 rounded">
+                                                            Primary
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p className="text-gray-900">No email addresses</p>
+                                        )}
                                     </div>
                                 </div>
                             </section>
@@ -333,14 +479,14 @@ const Profile = () => {
                             </h1>
                             <div className="grid grid-cols-2 gap-x-8 gap-y-6">
                                 {Object.entries({
-                                    Department: mockEmployeeData.job.department,
-                                    "Position / Job Title": mockEmployeeData.job.position,
-                                    "Position Code": mockEmployeeData.job.positionCode,
-                                    Supervisor: mockEmployeeData.job.supervisor,
-                                    Salary: `₱${mockEmployeeData.job.salary.toLocaleString()}`,
-                                    "Employment Status": mockEmployeeData.job.employmentStatus,
-                                    Availability: mockEmployeeData.job.availability,
-                                    "Leave Credits": `${mockEmployeeData.personal.leaveCredit} days`,
+                                    Department: formattedData.job.department,
+                                    "Position / Job Title": formattedData.job.position,
+                                    "Position Code": formattedData.job.positionCode || "N/A",
+                                    Supervisor: formattedData.job.supervisor || "N/A",
+                                    Salary: formattedData.job.salary ? `₱${formattedData.job.salary.toLocaleString()}` : "N/A",
+                                    "Employment Status": formattedData.job.employmentStatus,
+                                    Availability: formattedData.job.availability,
+                                    "Leave Credits": `${formattedData.personal.leaveCredit} days`,
                                 }).map(([label, value]) => (
                                     <div key={label}>
                                         <label className="block text-sm text-gray-600 mb-1">
@@ -365,13 +511,13 @@ const Profile = () => {
                                         Username
                                     </label>
                                     <p className="text-gray-900">
-                                        {mockEmployeeData.account.username}
+                                        {formattedData.account.username}
                                     </p>
                                 </div>
                                 <div>
                                     <label className="block text-sm text-gray-600 mb-1">Role</label>
                                     <p className="text-gray-900 capitalize">
-                                        {mockEmployeeData.account.role}
+                                        {formattedData.account.role}
                                     </p>
                                 </div>
                                 <div>
@@ -379,7 +525,7 @@ const Profile = () => {
                                         Sub-Roles
                                     </label>
                                     <div className="flex gap-2 flex-wrap">
-                                        {mockEmployeeData.account.subRoles.map((role, idx) => (
+                                        {formattedData.account.subRoles.map((role, idx) => (
                                             <span
                                                 key={idx}
                                                 className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm"
@@ -394,12 +540,12 @@ const Profile = () => {
                                         Account Status
                                     </label>
                                     <span
-                                        className={`inline-block px-3 py-1 rounded-full text-sm ${mockEmployeeData.account.isActive
+                                        className={`inline-block px-3 py-1 rounded-full text-sm ${formattedData.account.isActive
                                             ? "bg-green-100 text-green-800"
                                             : "bg-red-100 text-red-800"
                                             }`}
                                     >
-                                        {mockEmployeeData.account.isActive ? "Active" : "Inactive"}
+                                        {formattedData.account.isActive ? "Active" : "Inactive"}
                                     </span>
                                 </div>
                                 <div>
@@ -407,12 +553,12 @@ const Profile = () => {
                                         Super Admin
                                     </label>
                                     <span
-                                        className={`inline-block px-3 py-1 rounded-full text-sm ${mockEmployeeData.account.isSuperAdmin
+                                        className={`inline-block px-3 py-1 rounded-full text-sm ${formattedData.account.isSuperAdmin
                                             ? "bg-red-100 text-red-800"
                                             : "bg-gray-100 text-gray-800"
                                             }`}
                                     >
-                                        {mockEmployeeData.account.isSuperAdmin ? "Yes" : "No"}
+                                        {formattedData.account.isSuperAdmin ? "Yes" : "No"}
                                     </span>
                                 </div>
                                 <div>
@@ -420,15 +566,17 @@ const Profile = () => {
                                         Last Updated
                                     </label>
                                     <p className="text-gray-900">
-                                        {new Date(
-                                            mockEmployeeData.account.lastUpdated
-                                        ).toLocaleString("en-US", {
-                                            year: "numeric",
-                                            month: "long",
-                                            day: "numeric",
-                                            hour: "2-digit",
-                                            minute: "2-digit",
-                                        })}
+                                        {formattedData.account.lastUpdated
+                                            ? new Date(
+                                                formattedData.account.lastUpdated
+                                            ).toLocaleString("en-US", {
+                                                year: "numeric",
+                                                month: "long",
+                                                day: "numeric",
+                                                hour: "2-digit",
+                                                minute: "2-digit",
+                                            })
+                                            : "N/A"}
                                     </p>
                                 </div>
                             </div>

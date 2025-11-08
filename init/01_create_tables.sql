@@ -123,7 +123,7 @@ CREATE TABLE
     IF NOT EXISTS employee_addresses (
         address_id INT AUTO_INCREMENT PRIMARY KEY,
         employee_id INT UNIQUE,
-        region_name VARCHAR(50),
+        region_name VARCHAR(100),
         province_name VARCHAR(50),
         city_name VARCHAR(50),
         home_address VARCHAR(255),
@@ -258,7 +258,7 @@ CREATE TABLE
     IF NOT EXISTS dependant_address (
         dependant_address_id INT AUTO_INCREMENT PRIMARY KEY,
         dependant_id INT UNIQUE,
-        region_name VARCHAR(50),
+        region_name VARCHAR(100),
         province_name VARCHAR(50),
         city_name VARCHAR(50),
         home_address VARCHAR(255),

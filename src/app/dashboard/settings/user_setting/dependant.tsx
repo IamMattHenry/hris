@@ -1,12 +1,29 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import FormInput from "@/components/forms/FormInput";
 import { Save } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
+import { authApi, employeeApi } from "@/lib/api";
+
+type DependentForm = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  contactInfo: string;
+  relationship: string;
+  relationshipSpecify: string;
+  homeAddress: string;
+  region: string;
+  province: string;
+  city: string;
+};
+
+const RELATIONSHIP_OPTIONS = ["Spouse", "Child", "Parent", "Sibling"] as const;
 
 const DependantsSection = () => {
-  const [dependents, setDependents] = useState<any[]>([]);
+  const [dependents, setDependents] = useState<DependentForm[]>([]);
 
   // Dependent form fields
   const [dependentFirstName, setDependentFirstName] = useState("");
@@ -19,7 +36,11 @@ const DependantsSection = () => {
   const [dependentRegion, setDependentRegion] = useState("");
   const [dependentProvince, setDependentProvince] = useState("");
   const [dependentCity, setDependentCity] = useState("");
-  const [dependentErrors, setDependentErrors] = useState<any>({});
+  const [dependentErrors, setDependentErrors] = useState<Record<string, string>>({});
+
+  const [loadingData, setLoadingData] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [generalError, setGeneralError] = useState<string | null>(null);
 
   // Locations
   const [phLocationsData, setPhLocationsData] = useState<any[]>([]);
@@ -28,22 +49,61 @@ const DependantsSection = () => {
   const [dependentCities, setDependentCities] = useState<string[]>([]);
   const [loadingLocations, setLoadingLocations] = useState(true);
 
-  // Load PH location data
+  // Load PH location data & current dependents
   useEffect(() => {
-    async function loadPhLocations() {
+    async function bootstrap() {
       try {
-        const res = await fetch("/data/ph_locations.json");
-        if (!res.ok) throw new Error(`Failed to load PH locations (${res.status})`);
-        const data = await res.json();
-        setPhLocationsData(data);
-        setRegions(data.map((r: any) => r.region));
+        setLoadingData(true);
+        setGeneralError(null);
+
+        const [locationsRes, userRes] = await Promise.all([
+          fetch("/data/ph_locations.json"),
+          authApi.getCurrentUser(),
+        ]);
+
+        if (!locationsRes.ok) {
+          throw new Error(`Failed to load PH locations (${locationsRes.status})`);
+        }
+
+        const locations = await locationsRes.json();
+        setPhLocationsData(locations);
+        setRegions(locations.map((r: any) => r.region));
+
+        if (userRes.success && userRes.data) {
+          const mapped = (userRes.data.dependents || []).map((dep: any): DependentForm => {
+            const relationshipRaw = dep.relationship || "";
+            const normalized = relationshipRaw
+              ? relationshipRaw.charAt(0).toUpperCase() + relationshipRaw.slice(1).toLowerCase()
+              : "";
+            const isStandard = RELATIONSHIP_OPTIONS.includes(normalized as typeof RELATIONSHIP_OPTIONS[number]);
+
+            return {
+              id: dep.dependant_id ? String(dep.dependant_id) : `${Date.now()}-${Math.random()}`,
+              firstName: dep.firstname || "",
+              lastName: dep.lastname || "",
+              email: dep.email || "",
+              contactInfo: dep.contact_no || "",
+              relationship: isStandard ? normalized : normalized ? "Other" : "",
+              relationshipSpecify: isStandard ? "" : (relationshipRaw || ""),
+              homeAddress: dep.home_address || dep?.address || "",
+              region: dep.region_name || "",
+              province: dep.province_name || "",
+              city: dep.city_name || "",
+            };
+          });
+
+          setDependents(mapped);
+        }
       } catch (err) {
-        console.error("Error loading PH locations:", err);
+        console.error("Error loading dependents data:", err);
+        setGeneralError("Failed to load dependents data. Please try again later.");
       } finally {
         setLoadingLocations(false);
+        setLoadingData(false);
       }
     }
-    loadPhLocations();
+
+    bootstrap();
   }, []);
 
   // Update provinces & cities dynamically
@@ -118,7 +178,7 @@ const DependantsSection = () => {
       return;
     }
 
-    const newDependent = {
+    const newDependent: DependentForm = {
       id: Date.now().toString(),
       firstName: dependentFirstName,
       lastName: dependentLastName,
@@ -150,20 +210,91 @@ const DependantsSection = () => {
     setDependentErrors({});
   };
 
-  // ✅ Handle Save (mock)
-  const handleSave = () => {
+  const payloadDependents = useMemo(
+    () =>
+      dependents.map((d) => ({
+        firstName: d.firstName.trim(),
+        lastName: d.lastName.trim(),
+        relationship: d.relationship,
+        relationshipSpecify: d.relationship === "Other" ? d.relationshipSpecify.trim() : "",
+        email: d.email.trim(),
+        contactInfo: d.contactInfo.trim(),
+        homeAddress: d.homeAddress.trim(),
+        region: d.region,
+        province: d.province,
+        city: d.city,
+      })),
+    [dependents]
+  );
+
+  // ✅ Handle Save (integrated with backend)
+  const handleSave = async () => {
     if (dependents.length === 0) {
       alert("Please add at least one dependent before saving.");
       return;
     }
 
-    console.log("✅ Dependents Saved:", dependents);
-    alert("Dependents data has been saved and logged in the console.");
+    setSaving(true);
+    setGeneralError(null);
+
+    try {
+      const result = await employeeApi.updateMe({ dependents: payloadDependents });
+
+      if (result.success) {
+        alert("Dependents saved successfully!");
+
+        // Refresh dependents from backend to reflect generated codes/IDs
+        const refreshed = await authApi.getCurrentUser();
+        if (refreshed.success && refreshed.data) {
+          const mapped = (refreshed.data.dependents || []).map((dep: any): DependentForm => {
+            const relationshipRaw = dep.relationship || "";
+            const normalized = relationshipRaw
+              ? relationshipRaw.charAt(0).toUpperCase() + relationshipRaw.slice(1).toLowerCase()
+              : "";
+            const isStandard = RELATIONSHIP_OPTIONS.includes(normalized as typeof RELATIONSHIP_OPTIONS[number]);
+
+            return {
+              id: dep.dependant_id ? String(dep.dependant_id) : `${Date.now()}-${Math.random()}`,
+              firstName: dep.firstname || "",
+              lastName: dep.lastname || "",
+              email: dep.email || "",
+              contactInfo: dep.contact_no || "",
+              relationship: isStandard ? normalized : normalized ? "Other" : "",
+              relationshipSpecify: isStandard ? "" : (relationshipRaw || ""),
+              homeAddress: dep.home_address || dep?.address || "",
+              region: dep.region_name || "",
+              province: dep.province_name || "",
+              city: dep.city_name || "",
+            };
+          });
+
+          setDependents(mapped);
+        }
+      } else {
+        alert(result.message || "Failed to save dependents");
+      }
+    } catch (error) {
+      console.error("Error saving dependents:", error);
+      setGeneralError("An error occurred while saving dependents. Please try again.");
+      alert("An error occurred while saving dependents");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <div className="space-y-6 text-gray-900 relative">
       <h3 className="text-xl font-semibold mb-6">Emergency Contacts</h3>
+
+      {loadingData ? (
+        <div className="py-8 text-center text-[#4B0B14] font-medium">
+          Loading dependents...
+        </div>
+      ) : generalError ? (
+        <div className="py-4 text-center text-red-600 text-sm font-medium">
+          {generalError}
+        </div>
+      ) : null}
 
       <div className="border-t-2 border-[#e6d2b5] pt-6 pb-24">
         <div className="flex items-center justify-between mb-4">
@@ -338,9 +469,10 @@ const DependantsSection = () => {
       <div className="sticky bottom-0 py-4 border-t border-[#e6d2b5] flex justify-end">
         <ActionButton
           onClick={handleSave}
-          label="Save Dependents"
-          icon={Save}
-          className="bg-[#4B0B14] hover:opacity-90 transition"
+          label={saving ? "Saving..." : "Save Dependents"}
+          icon={saving ? undefined : Save}
+          disabled={saving}
+          className={`bg-[#4B0B14] hover:opacity-90 transition ${saving ? "opacity-75 cursor-not-allowed" : ""}`}
         />
       </div>
     </div>

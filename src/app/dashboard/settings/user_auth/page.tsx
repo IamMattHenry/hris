@@ -5,27 +5,45 @@ import { Save, KeyRound, UserCog } from "lucide-react";
 import FormInput from "@/components/forms/FormInput";
 import PasswordBox from "@/components/auth/passwordbox";
 import ActionButton from "@/components/buttons/ActionButton";
+import { userApi } from "@/lib/api";
 
 const AuthenticationTab = () => {
   const [username, setUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errors, setErrors] = useState<{ username?: string; password?: string }>({});
+  const [savingUsername, setSavingUsername] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
 
-  // ✅ Username Validation
-  const handleSaveUsername = () => {
+  // ✅ Username Validation and Save
+  const handleSaveUsername = async () => {
     if (!username.trim()) {
       setErrors({ username: "Username cannot be empty." });
       return;
     }
 
     setErrors({});
-    console.log("✅ Username changed to:", username);
-    alert("Username saved successfully!");
+    setSavingUsername(true);
+
+    try {
+      const result = await userApi.updateMe({ username: username.trim() });
+      
+      if (result.success) {
+        alert("Username updated successfully!");
+        setUsername("");
+      } else {
+        alert(result.message || "Failed to update username");
+      }
+    } catch (error) {
+      console.error("Error updating username:", error);
+      alert("An error occurred while updating username");
+    } finally {
+      setSavingUsername(false);
+    }
   };
 
-  // ✅ Password Validation
-  const handleSavePassword = () => {
+  // ✅ Password Validation and Save
+  const handleSavePassword = async () => {
     const newErrors: { password?: string } = {};
     if (!newPassword.trim() || !confirmPassword.trim()) {
       newErrors.password = "Both password fields are required.";
@@ -39,8 +57,24 @@ const AuthenticationTab = () => {
     }
 
     setErrors({});
-    console.log("✅ Password changed successfully!");
-    alert("Password saved successfully!");
+    setSavingPassword(true);
+
+    try {
+      const result = await userApi.updateMe({ password: newPassword });
+      
+      if (result.success) {
+        alert("Password updated successfully!");
+        setNewPassword("");
+        setConfirmPassword("");
+      } else {
+        alert(result.message || "Failed to update password");
+      }
+    } catch (error) {
+      console.error("Error updating password:", error);
+      alert("An error occurred while updating password");
+    } finally {
+      setSavingPassword(false);
+    }
   };
 
   return (
@@ -71,10 +105,13 @@ const AuthenticationTab = () => {
 
           <div className="flex justify-end">
             <ActionButton
-              label="Save Username"
+              label={savingUsername ? "Saving..." : "Save Username"}
               onClick={handleSaveUsername}
-              icon={Save}
-              className="bg-[#4B0B14] hover:opacity-90 transition"
+              icon={savingUsername ? undefined : Save}
+              disabled={savingUsername}
+              className={`bg-[#4B0B14] hover:opacity-90 transition ${
+                savingUsername ? "opacity-75 cursor-not-allowed" : ""
+              }`}
             />
           </div>
         </div>
@@ -105,10 +142,13 @@ const AuthenticationTab = () => {
 
           <div className="flex justify-end">
             <ActionButton
-              label="Save Password"
+              label={savingPassword ? "Saving..." : "Save Password"}
               onClick={handleSavePassword}
-              icon={Save}
-              className="bg-[#4B0B14] hover:opacity-90 transition"
+              icon={savingPassword ? undefined : Save}
+              disabled={savingPassword}
+              className={`bg-[#4B0B14] hover:opacity-90 transition ${
+                savingPassword ? "opacity-75 cursor-not-allowed" : ""
+              }`}
             />
           </div>
         </div>

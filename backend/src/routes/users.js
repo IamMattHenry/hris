@@ -17,6 +17,25 @@ router.get('/', verifyToken, verifyRole(['admin', 'superadmin']), getAllUsers);
 // Get user by ID (admin and superadmin only)
 router.get('/:id', verifyToken, verifyRole(['admin', 'superadmin']), getUserById);
 
+// Update current user (self) - any authenticated user
+router.put(
+  '/me',
+  verifyToken,
+  [
+    body('username')
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage('Username cannot be empty'),
+    body('password')
+      .optional()
+      .isLength({ min: 6 })
+      .withMessage('Password must be at least 6 characters'),
+  ],
+  handleValidationErrors,
+  updateUser
+);
+
 // Update user (admin and superadmin only)
 router.put(
   '/:id',

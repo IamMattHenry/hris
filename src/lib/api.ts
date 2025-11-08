@@ -96,6 +96,16 @@ export const userApi = {
   },
 
   /**
+   * Update current user (self)
+   */
+  updateMe: async (data: { username?: string; password?: string }) => {
+    return apiCall<any>('/users/me', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
    * Delete user
    */
   delete: async (id: number) => {
@@ -165,6 +175,25 @@ export const employeeApi = {
     return apiCall<any>(`/employees/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Update current employee (self)
+   */
+  updateMe: async (data: any) => {
+    return apiCall<any>(`/employees/me`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Get current employee with dependents
+   */
+  getMe: async () => {
+    return apiCall<any>(`/employees/me`, {
+      method: 'GET',
     });
   },
 
