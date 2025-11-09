@@ -6,7 +6,7 @@ import logger from '../utils/logger.js';
 import sensorModeManager from '../services/sensorModeManager.js';
 
 // Configuration
-const SERIAL_PORT = process.env.FINGERPRINT_PORT || 'COM3'; // Change to your Arduino port
+const SERIAL_PORT = process.env.FINGERPRINT_PORT || "COM13"; // Change to your Arduino port
 const BAUD_RATE = parseInt(process.env.FINGERPRINT_BAUD || '9600');
 const BRIDGE_PORT = parseInt(process.env.BRIDGE_PORT || '3001');
 
