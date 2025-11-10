@@ -121,7 +121,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   useEffect(() => {
     const base = makeUsernameFromFirst(firstName || "");
     const generatedUsername = base || ""; // empty if no firstName
-    const generatedPassword = firstName ? `@${firstName.trim()}12345678` : "";
+    const generatedPassword = firstName ? `@${firstName.trim()}12345` : "";
 
     // Only update if the user hasn't manually edited
     if (!usernameEdited) {
