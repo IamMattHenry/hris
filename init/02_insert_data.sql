@@ -192,19 +192,19 @@ VALUES
 -- ===========================
 INSERT INTO employee_emails (employee_id, email, created_by, created_at)
 VALUES
-(1, 'superadmin@company.com', 1, NOW()),
-(2, 'maria.santos@company.com', 1, NOW()),
-(3, 'juan.delacruz@company.com', 1, NOW()),
-(4, 'ana.garcia@company.com', 1, NOW()),
-(5, 'pedro.ramos@company.com', 1, NOW()),
-(6, 'carlos.mendoza@company.com', 1, NOW()),
-(7, 'rosa.martinez@company.com', 1, NOW()),
-(8, 'lisa.tan@company.com', 1, NOW()),
-(9, 'mark.villanueva@company.com', 1, NOW()),
-(10, 'james.lim@company.com', 1, NOW()),
-(11, 'sarah.gomez@company.com', 1, NOW()),
-(12, 'jenny.cruz@company.com', 1, NOW()),
-(13, 'michael.reyes@company.com', 1, NOW());
+(1, 'superadmin@gmail.com', 1, NOW()),
+(2, 'maria.santos@gmail.com', 1, NOW()),
+(3, 'juan.delacruz@gmail.com', 1, NOW()),
+(4, 'ana.garcia@gmail.com', 1, NOW()),
+(5, 'pedro.ramos@gmail.com', 1, NOW()),
+(6, 'carlos.mendoza@gmail.com', 1, NOW()),
+(7, 'rosa.martinez@gmail.com', 1, NOW()),
+(8, 'lisa.tan@gmail.com', 1, NOW()),
+(9, 'mark.villanueva@gmail.com', 1, NOW()),
+(10, 'james.lim@gmail.com', 1, NOW()),
+(11, 'sarah.gomez@gmail.com', 1, NOW()),
+(12, 'jenny.cruz@gmail.com', 1, NOW()),
+(13, 'michael.reyes@gmail.com', 1, NOW());
 
 -- ===========================
 -- EMPLOYEE ADDRESSES
