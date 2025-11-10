@@ -14,10 +14,16 @@ export default function Home() {
         />
         <h1 className="text-4xl font-thin tracking-widest font-abril">CELESTIA HOTEL</h1>
         <p className="text-lg text-yellow-300 font-medium font-arial">Human Resource Information System</p>
-         <Link href="/login_hr" className="mt-6 px-8 py-3 bg-none from-yellow-500 to-yellow-600 text-yellow font-poppins rounded-full shadow-[0_0_10px_rgba(255,200,0,0.5)] hover:shadow-[0_0_20px_rgba(255,200,0,0.7)] transition duration-300">
-          Get Started
-        </Link>
-      </div>   
+        <div className="flex flex-column gap-8">
+          <Link href="/login_hr" className="mt-6 px-8 py-3 bg-none from-yellow-500 to-yellow-600 text-yellow font-poppins rounded-full shadow-[0_0_10px_rgba(255,200,0,0.5)] hover:shadow-[0_0_20px_rgba(255,200,0,0.7)] transition duration-300">
+            Admin Portal
+          </Link>
+          <a href="/portal" className="mt-6 px-8 py-3 bg-none from-yellow-500 to-yellow-600 text-yellow font-poppins rounded-full shadow-[0_0_10px_rgba(255,200,0,0.5)] hover:shadow-[0_0_20px_rgba(255,200,0,0.7)] transition duration-300">
+            Employee Portal
+          </a>
+        </div>
+
+      </div>
       <div className="absolute bottom-4 left-4 text-xs text-yellow-800 opacity-60">
         <div className="flex flex-column items-center">
           <Image src="/logo/logo_outline.png" alt="Celestia Logo" width={48} height={48} />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { leaveApi, employeeApi } from "@/lib/api";
+import { leaveApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "react-hot-toast";
 
@@ -39,7 +39,6 @@ export default function RequestsPage() {
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Form state
   const [formData, setFormData] = useState({
     leave_type: "" as LeaveType | "",
     start_date: "",
@@ -47,29 +46,57 @@ export default function RequestsPage() {
     remarks: "",
   });
 
+  // Prevent selecting past dates
+  const today = new Date().toISOString().split("T")[0];
+
   const fetchLeaves = async () => {
     if (!user?.employee_id) return;
 
     setLoading(true);
     const result = await leaveApi.getAll();
     if (result.success && result.data) {
-      // Filter to only show current user's requests
       const userLeaves = (result.data as Leave[]).filter(
-        leave => leave.employee_id === user.employee_id
+        (leave) => leave.employee_id === user.employee_id
       );
       setLeaves(userLeaves);
     }
     setLoading(false);
   };
 
-  // Fetch user's leave requests
   useEffect(() => {
     fetchLeaves();
   }, []);
 
+  const handleInputChange = (field: string, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user?.employee_id) return;
+
+    // Validation
+    if (!formData.leave_type || !formData.start_date || !formData.end_date || !formData.remarks) {
+      toast.error("Please fill out all required fields.");
+      return;
+    }
+
+    const start = new Date(formData.start_date);
+    const end = new Date(formData.end_date);
+    const now = new Date(today);
+
+    if (start < now) {
+      toast.error("Start date cannot be in the past.");
+      return;
+    }
+
+    if (end < start) {
+      toast.error("End date cannot be earlier than start date.");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -89,22 +116,15 @@ export default function RequestsPage() {
           end_date: "",
           remarks: "",
         });
-        fetchLeaves(); // Refresh the list
+        fetchLeaves();
       } else {
         toast.error(result.message || "Failed to submit leave request");
       }
-    } catch (error) {
+    } catch {
       toast.error("An error occurred while submitting the request");
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
   };
 
   if (loading) {
@@ -121,68 +141,87 @@ export default function RequestsPage() {
   return (
     <div className="min-h-screen bg-[#fff7ec] p-6 text-[#3b2b1c] font-poppins">
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
         <h1 className="text-3xl font-extrabold">Leave Requests</h1>
 
-        {/* Request Form */}
+        {/* Leave Request Form */}
         <div className="bg-white rounded-xl shadow-sm border border-[#e8dcc8] p-6">
           <h2 className="text-xl font-semibold mb-4">Submit New Leave Request</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Leave Type */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Type of Request
+                  Type of Request <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={formData.leave_type}
-                  onChange={(e) => handleInputChange('leave_type', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#073532]"
+                  onChange={(e) => handleInputChange("leave_type", e.target.value)}
                   required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#073532]"
                 >
                   <option value="">Select leave type</option>
                   {Object.entries(LEAVE_TYPE_LABELS).map(([key, label]) => (
-                    <option key={key} value={key}>{label}</option>
+                    <option key={key} value={key}>
+                      {label}
+                    </option>
                   ))}
                 </select>
               </div>
 
+              {/* Start Date */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Date From
+                  Date From <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="date"
+                  min={today}
                   value={formData.start_date}
-                  onChange={(e) => handleInputChange('start_date', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#073532]"
+                  onChange={(e) => {
+                    const newStart = e.target.value;
+                    handleInputChange("start_date", newStart);
+
+                    // If end date is before new start, reset it
+                    if (formData.end_date && newStart > formData.end_date) {
+                      handleInputChange("end_date", "");
+                    }
+                  }}
                   required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#073532]"
                 />
               </div>
 
+              {/* End Date */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Date To
+                  Date To <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="date"
+                  min={formData.start_date || today}
                   value={formData.end_date}
-                  onChange={(e) => handleInputChange('end_date', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#073532]"
+                  onChange={(e) => handleInputChange("end_date", e.target.value)}
                   required
+                  disabled={!formData.start_date}
+                  className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#073532] ${
+                    !formData.start_date ? "bg-gray-100 cursor-not-allowed" : ""
+                  }`}
                 />
               </div>
             </div>
 
+            {/* Remarks */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Reason/Remarks
+                Reason/Remarks <span className="text-red-500">*</span>
               </label>
               <textarea
                 value={formData.remarks}
-                onChange={(e) => handleInputChange('remarks', e.target.value)}
+                onChange={(e) => handleInputChange("remarks", e.target.value)}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#073532]"
+                required
                 placeholder="Please provide a reason for your leave request..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#073532]"
               />
             </div>
 
@@ -191,37 +230,36 @@ export default function RequestsPage() {
               disabled={isSubmitting}
               className="w-full bg-[#073532] text-white py-2 px-4 rounded-lg hover:bg-[#073532]/90 disabled:opacity-50 transition"
             >
-              {isSubmitting ? 'Submitting...' : 'Submit Request'}
+              {isSubmitting ? "Submitting..." : "Submit Request"}
             </button>
           </form>
         </div>
 
-        {/* Request History Table */}
+        {/* Request History */}
         <div className="bg-white rounded-xl shadow-sm border border-[#e8dcc8] overflow-hidden">
           <div className="bg-[#073532] px-6 py-4">
             <h2 className="text-xl font-semibold text-white">Request History</h2>
           </div>
-
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Code
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Type
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Date From
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Date To
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Remarks
                   </th>
                 </tr>
@@ -230,31 +268,33 @@ export default function RequestsPage() {
                 {leaves.length > 0 ? (
                   leaves.map((leave) => (
                     <tr key={leave.leave_id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
                         {leave.leave_code}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 text-sm text-gray-500">
                         {LEAVE_TYPE_LABELS[leave.leave_type]}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 text-sm text-gray-500">
                         {new Date(leave.start_date).toLocaleDateString()}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 text-sm text-gray-500">
                         {new Date(leave.end_date).toLocaleDateString()}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          leave.status === 'approved'
-                            ? 'bg-green-100 text-green-800'
-                            : leave.status === 'rejected'
-                            ? 'bg-red-100 text-red-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
+                      <td className="px-6 py-4">
+                        <span
+                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                            leave.status === "approved"
+                              ? "bg-green-100 text-green-800"
+                              : leave.status === "rejected"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-yellow-100 text-yellow-800"
+                          }`}
+                        >
                           {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-500">
-                        {leave.remarks || '-'}
+                        {leave.remarks || "-"}
                       </td>
                     </tr>
                   ))

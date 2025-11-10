@@ -2,7 +2,6 @@
 
 import { Html5Qrcode } from "html5-qrcode";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "react-hot-toast";
 
 interface QRCodeScannerProps {
   onScan: (value: string) => void;
@@ -11,134 +10,161 @@ interface QRCodeScannerProps {
 
 export default function QRCodeScanner({ onScan, isActive = true }: QRCodeScannerProps) {
   const [isScanning, setIsScanning] = useState(false);
+  const [error, setError] = useState<string>("");
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const lastScannedRef = useRef<string>("");
+  const isOperatingRef = useRef(false);
 
-  // Initialize the QR code instance once
+  // Initialize scanner once
   useEffect(() => {
-    // Delay initialization to ensure DOM is ready
-    const initTimeout = setTimeout(() => {
-      const readerElement = document.getElementById("reader");
-      if (readerElement && !html5QrCodeRef.current) {
-        try {
-          html5QrCodeRef.current = new Html5Qrcode("reader");
-        } catch (error) {
-          console.error("Failed to initialize QR scanner:", error);
-        }
-      }
-    }, 100);
-    
+    const readerElement = document.getElementById("reader");
+    if (readerElement && !html5QrCodeRef.current) {
+      html5QrCodeRef.current = new Html5Qrcode("reader");
+    }
+
     return () => {
-      clearTimeout(initTimeout);
-      // Cleanup scanner on unmount
-      const cleanup = async () => {
-        if (html5QrCodeRef.current) {
-          try {
-            const state = html5QrCodeRef.current.getState();
-            // Only stop if scanner is actually running
-            if (state === 2) { // 2 = SCANNING state
-              await html5QrCodeRef.current.stop();
-            }
-            html5QrCodeRef.current.clear();
-          } catch (error) {
-            console.log("Scanner cleanup:", error);
-          }
-          html5QrCodeRef.current = null;
+      // Cleanup on unmount
+      const scanner = html5QrCodeRef.current;
+      if (scanner) {
+        const state = scanner.getState();
+        if (state === 2) { // SCANNING state
+          scanner.stop().catch(() => {}).finally(() => {
+            scanner.clear();
+          });
+        } else {
+          scanner.clear();
         }
-      };
-      cleanup();
+        html5QrCodeRef.current = null;
+      }
     };
   }, []);
 
-  // Start scanning
+  // Start scanner
   const startScanner = async () => {
-    if (!html5QrCodeRef.current || !isActive) return;
+    const scanner = html5QrCodeRef.current;
+    if (!scanner || isOperatingRef.current) {
+      return;
+    }
+
+    // Check actual scanner state
+    const state = scanner.getState();
+    if (state === 2) { // Already scanning
+      setIsScanning(true);
+      return;
+    }
+
+    isOperatingRef.current = true;
+    setError("");
 
     try {
       const devices = await Html5Qrcode.getCameras();
-      if (devices && devices.length) {
-        const cameraId = devices[0].id;
-        await html5QrCodeRef.current.start(
-          cameraId,
-          {
-            fps: 10,
-            qrbox: { width: 200, height: 200 },
-          },
-          (decodedText) => {
-            // Prevent duplicate scans
-            if (decodedText !== lastScannedRef.current) {
-              lastScannedRef.current = decodedText;
-              onScan(decodedText);
-            }
-          },
-          (errorMessage) => {
-            
-          }
-        );
-        setIsScanning(true);
-      } else {
-        toast.error("No camera found!");
+      if (!devices || devices.length === 0) {
+        setError("No camera found!");
+        return;
       }
+
+      const cameraId = devices[0].id;
+      await scanner.start(
+        cameraId,
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        (decodedText) => {
+          if (decodedText && decodedText !== lastScannedRef.current) {
+            lastScannedRef.current = decodedText;
+            onScan(decodedText);
+            
+            // Reset after 2 seconds to allow re-scanning
+            setTimeout(() => {
+              lastScannedRef.current = "";
+            }, 2000);
+          }
+        },
+        () => {
+          // Silently ignore decode errors (normal during scanning)
+        }
+      );
+
+      setIsScanning(true);
     } catch (err) {
       console.error("Failed to start scanner:", err);
-      toast.error("Failed to start camera scanner");
+      setError("Failed to start camera. Please check permissions.");
+      setIsScanning(false);
+    } finally {
+      isOperatingRef.current = false;
     }
   };
 
-  // Auto-start/stop scanner based on isActive prop
-  useEffect(() => {
-    if (isActive && !isScanning && html5QrCodeRef.current) {
-      const startTimeout = setTimeout(() => {
-        startScanner();
-      }, 200);
-      
-      return () => clearTimeout(startTimeout);
-    } else if (!isActive && isScanning) {
-      // Stop scanner when tab becomes inactive
-      stopScanner();
-    }
-  }, [isActive, html5QrCodeRef.current]);
-
- 
+  // Stop scanner safely
   const stopScanner = async () => {
-    if (html5QrCodeRef.current) {
-      try {
-        const state = html5QrCodeRef.current.getState();
-        // Only stop if scanner is actually running (state 2 = SCANNING)
-        if (state === 2) {
-          await html5QrCodeRef.current.stop();
-          setIsScanning(false);
-          console.log("✅ Scanner stopped successfully");
-        } else {
-          console.log("⚠️ Scanner not running, no need to stop");
-          setIsScanning(false);
-        }
-      } catch (error) {
-        console.error("Error stopping scanner:", error);
-        setIsScanning(false);
-      }
+    const scanner = html5QrCodeRef.current;
+    if (!scanner || isOperatingRef.current) {
+      return;
+    }
+
+    // Check actual scanner state
+    const state = scanner.getState();
+    if (state !== 2) { // Not scanning
+      setIsScanning(false);
+      return;
+    }
+
+    isOperatingRef.current = true;
+
+    try {
+      await scanner.stop();
+      scanner.clear();
+      setIsScanning(false);
+      lastScannedRef.current = "";
+    } catch (err) {
+      console.warn("Error stopping scanner:", err);
+      // Force state sync
+      setIsScanning(false);
+    } finally {
+      isOperatingRef.current = false;
     }
   };
+
+  // Auto-start/stop when isActive changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (isActive && !isScanning) {
+        startScanner();
+      } else if (!isActive && isScanning) {
+        stopScanner();
+      }
+    }, 100); // Small delay to prevent race conditions
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, isScanning]);
 
   return (
     <div className="flex flex-col items-center gap-3">
-      <div
-        id="reader"
-        className="w-[250px] h-[200px] overflow-hidden"
-      ></div>
+      <div 
+        id="reader" 
+        className="w-[300px] border-2 border-gray-300 rounded-lg overflow-hidden"
+        style={{ minHeight: '250px' }}
+      />
+
+      {error && (
+        <div className="text-red-600 text-sm font-semibold">
+          {error}
+        </div>
+      )}
 
       <div className="flex gap-3 mt-2">
         {!isScanning ? (
           <button
             onClick={startScanner}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
+            disabled={isOperatingRef.current}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Start Camera
           </button>
         ) : (
           <button
             onClick={stopScanner}
-            className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition"
+            disabled={isOperatingRef.current}
+            className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Stop Camera
           </button>

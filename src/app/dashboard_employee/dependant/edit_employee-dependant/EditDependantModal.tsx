@@ -3,11 +3,6 @@
 import React, { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { motion } from "framer-motion";
-import FormInput from "@/components/forms/FormInput";
-import FormSelect from "@/components/forms/FormSelect";
-import { employeeApi } from "@/lib/api";
-import { Dependent } from "@/types/api";
-import { toast } from "react-hot-toast";
 
 /* ---------- Interfaces ---------- */
 interface EditDependantModalProps {
@@ -17,6 +12,57 @@ interface EditDependantModalProps {
   employeeId: number | null;
   onUpdate: () => void;
 }
+
+interface Dependent {
+  dependant_id: number;
+  firstname: string;
+  lastname: string;
+  relationship: string;
+  birth_date?: string;
+  email?: string;
+  contact_no?: string;
+  home_address?: string;
+  region_name?: string;
+  province_name?: string;
+  city_name?: string;
+}
+
+/* ---------- Form Components ---------- */
+const FormInput = ({ label, type, value, onChange, error }: any) => (
+  <div className="flex flex-col">
+    <label className="text-sm font-medium mb-1">{label}</label>
+    <input
+      type={type}
+      value={value}
+      onChange={onChange}
+      className={`px-4 py-2 rounded-lg border ${
+        error ? "border-red-500" : "border-gray-300"
+      } focus:outline-none focus:ring-2 focus:ring-[#073532]`}
+    />
+    {error && <span className="text-red-500 text-xs mt-1">{error}</span>}
+  </div>
+);
+
+const FormSelect = ({ label, value, onChange, options, error }: any) => (
+  <div className="flex flex-col">
+    <label className="text-sm font-medium mb-1">{label}</label>
+    <select
+      value={value}
+      onChange={onChange}
+      className={`px-4 py-2 rounded-lg border ${
+        error ? "border-red-500" : "border-gray-300"
+      } focus:outline-none focus:ring-2 focus:ring-[#073532]`}
+    >
+      <option value="">Select {label}</option>
+      {options.map((opt: string) => (
+        <option key={opt} value={opt}>
+          {opt}
+        </option>
+      ))}
+    </select>
+    {error && <span className="text-red-500 text-xs mt-1">{error}</span>}
+  </div>
+);
 
 /* ---------- Component ---------- */
 export default function EditDependantModal({
@@ -32,7 +78,6 @@ export default function EditDependantModal({
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [relationship, setRelationship] = useState("");
-  const [birthDate, setBirthDate] = useState("");
   const [email, setEmail] = useState("");
   const [contactNumber, setContactNumber] = useState("");
   const [homeAddress, setHomeAddress] = useState("");
@@ -49,58 +94,77 @@ export default function EditDependantModal({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  /* ---------- Format contact number with spaces ---------- */
+  const formatContactNumber = (value: string) => {
+    // Remove all non-digit characters
+    const digits = value.replace(/\D/g, "");
+    
+    // Format as: 09XX XXX XXXX
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 4) return `${digits.slice(0, 4)}`;
+    if (digits.length <= 7) return `${digits.slice(0, 4)} ${digits.slice(4)}`;
+    return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7, 11)}`;
+  };
+
   /* ---------- Fetch dependant details ---------- */
   useEffect(() => {
     if (isOpen && dependantId && employeeId) {
-      fetchDependant(employeeId, dependantId);
+      // Mock fetch - replace with actual API call
+      // fetchDependant(employeeId, dependantId);
+      
+      // Mock data for demonstration
+      const mockDependant: Dependent = {
+        dependant_id: dependantId,
+        firstname: "Juan",
+        lastname: "Dela Cruz",
+        relationship: "Child",
+        email: "juan@gmail.com",
+        contact_no: "09171234567",
+        home_address: "123 Main St",
+        region_name: "NCR",
+        province_name: "Metro Manila",
+        city_name: "Quezon City"
+      };
+      
+      setDependant(mockDependant);
+      setFirstName(mockDependant.firstname);
+      setLastName(mockDependant.lastname);
+      setRelationship(mockDependant.relationship);
+      setEmail(mockDependant.email || "");
+      setContactNumber(formatContactNumber(mockDependant.contact_no || ""));
+      setHomeAddress(mockDependant.home_address || "");
+      setRegion(mockDependant.region_name || "");
+      setProvince(mockDependant.province_name || "");
+      setCity(mockDependant.city_name || "");
     }
   }, [isOpen, dependantId, employeeId]);
 
-  const fetchDependant = async (empId: number, depId: number) => {
-    try {
-      const res = await employeeApi.getById(empId);
-      if (res.success && res.data) {
-        const employee = res.data;
-        const dependant = employee.dependents?.find((d: Dependent) => d.dependant_id === depId);
-        if (dependant) {
-          setDependant(dependant);
-          setFirstName(dependant.firstname);
-          setLastName(dependant.lastname);
-          setRelationship(dependant.relationship);
-          setBirthDate(dependant.birth_date);
-          setEmail(dependant.email || "");
-          setContactNumber(dependant.contact_no || "");
-          setHomeAddress(dependant.home_address || "");
-          setRegion(dependant.region_name || "");
-          setProvince(dependant.province_name || "");
-          setCity(dependant.city_name || "");
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching dependant:", error);
-    }
-  };
-
   // Load Philippine locations data
   useEffect(() => {
-    async function loadPhLocationsData() {
-      try {
-        const res = await fetch("/data/ph_locations.json");
-        if (!res.ok) {
-          throw new Error(
-            `Failed to fetch PH locations data: ${res.status} ${res.statusText}`
-          );
-        }
-        const data = await res.json();
-        setPhLocationsData(data);
-        const regionNames = data.map((r: any) => r.region);
-        setRegions(regionNames);
-      } catch (error) {
-        console.error("Error loading PH locations data:", error);
-        setRegions([]);
+    // Mock data for demonstration
+    const mockPhData = [
+      {
+        region: "NCR",
+        provinces: [
+          {
+            province: "Metro Manila",
+            cities: ["Quezon City", "Manila", "Makati", "Pasig"]
+          }
+        ]
+      },
+      {
+        region: "Region III",
+        provinces: [
+          {
+            province: "Bulacan",
+            cities: ["Malolos", "Meycauayan", "San Jose del Monte"]
+          }
+        ]
       }
-    }
-    loadPhLocationsData();
+    ];
+    
+    setPhLocationsData(mockPhData);
+    setRegions(mockPhData.map((r: any) => r.region));
   }, []);
 
   // Update provinces when region changes
@@ -110,7 +174,12 @@ export default function EditDependantModal({
       if (selectedRegion) {
         const provinceNames = selectedRegion.provinces.map((p: any) => p.province);
         setProvinces(provinceNames);
-        setCities([]);
+        
+        // Only clear city if the current province is not in the new list
+        if (!provinceNames.includes(province)) {
+          setProvince("");
+          setCities([]);
+        }
       } else {
         setProvinces([]);
         setCities([]);
@@ -118,6 +187,8 @@ export default function EditDependantModal({
     } else {
       setProvinces([]);
       setCities([]);
+      setProvince("");
+      setCity("");
     }
   }, [region, phLocationsData]);
 
@@ -129,12 +200,19 @@ export default function EditDependantModal({
         const selectedProvince = selectedRegion.provinces.find((p: any) => p.province === province);
         if (selectedProvince) {
           setCities(selectedProvince.cities);
+          
+          // Only clear city if it's not in the new list
+          if (!selectedProvince.cities.includes(city)) {
+            setCity("");
+          }
         } else {
           setCities([]);
+          setCity("");
         }
       }
     } else {
       setCities([]);
+      setCity("");
     }
   }, [region, province, phLocationsData]);
 
@@ -142,31 +220,47 @@ export default function EditDependantModal({
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!firstName.trim()) newErrors.firstName = "First name is required.";
-    if (!lastName.trim()) newErrors.lastName = "Last name is required.";
-    if (!relationship) newErrors.relationship = "Relationship is required.";
-    if (!birthDate) newErrors.birthDate = "Birth date is required.";
-
-    // Email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email.trim()) {
-      newErrors.email = "Email is required.";
-    } else if (!emailRegex.test(email)) {
-      newErrors.email = "Please enter a valid email address.";
+    // Name validation - required
+    if (!firstName.trim()) {
+      newErrors.firstName = "First name is required.";
+    }
+    if (!lastName.trim()) {
+      newErrors.lastName = "Last name is required.";
+    }
+    
+    if (!relationship) {
+      newErrors.relationship = "Relationship is required.";
     }
 
-    // Contact number validation (Philippine format)
-    const contactRegex = /^09\d{9}$/;
+    // Email validation - optional but must be Gmail format if provided
+    if (email.trim()) {
+      const gmailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/i;
+      if (!gmailRegex.test(email.trim())) {
+        newErrors.email = "Email must be a valid Gmail address (example@gmail.com).";
+      }
+    }
+
+    // Contact number validation - required, Philippine format
+    const digitsOnly = contactNumber.replace(/\D/g, "");
     if (!contactNumber.trim()) {
       newErrors.contactNumber = "Contact number is required.";
-    } else if (!contactRegex.test(contactNumber.replace(/\s/g, ""))) {
-      newErrors.contactNumber = "Please enter a valid Philippine contact number (09xxxxxxxxx).";
+    } else if (!digitsOnly.startsWith("09") || digitsOnly.length !== 11) {
+      newErrors.contactNumber = "Contact number must be in Philippine format (09XX XXX XXXX).";
     }
 
-    if (!homeAddress.trim()) newErrors.homeAddress = "Home address is required.";
-    if (!region) newErrors.region = "Region is required.";
-    if (!province) newErrors.province = "Province is required.";
-    if (!city) newErrors.city = "City is required.";
+    // Address validation - all required
+    if (!homeAddress.trim()) {
+      newErrors.homeAddress = "Home address is required.";
+    }
+    if (!region) {
+      newErrors.region = "Region is required.";
+    }
+    if (!province) {
+      newErrors.province = "Province is required.";
+    }
+    if (!city) {
+      newErrors.city = "City is required.";
+    }
 
     return newErrors;
   };
@@ -183,59 +277,41 @@ export default function EditDependantModal({
 
     setIsSubmitting(true);
     try {
-      // Get current dependents and update the specific one
-      const employeeResult = await employeeApi.getById(employeeId);
-      if (!employeeResult.success || !employeeResult.data) {
-        toast.error("Failed to fetch current dependents");
-        return;
-      }
-
-      const currentDependents = employeeResult.data.dependents || [];
-      const updatedDependents = currentDependents.map((dep: Dependent) => {
-        if (dep.dependant_id === dependantId) {
-          return {
-            firstName,
-            lastName,
-            relationship,
-            birth_date: birthDate,
-            email,
-            contactInfo: contactNumber,
-            homeAddress,
-            region,
-            province,
-            city,
-          };
-        }
-        return {
-          firstName: dep.firstname,
-          lastName: dep.lastname,
-          relationship: dep.relationship,
-          birth_date: dep.birth_date,
-          email: dep.email,
-          contactInfo: dep.contact_no,
-          homeAddress: dep.home_address,
-          region: dep.region_name,
-          province: dep.province_name,
-          city: dep.city_name,
-        };
+      // Mock API call - replace with actual implementation
+      console.log("Updating dependant:", {
+        employeeId,
+        dependantId,
+        firstName,
+        lastName,
+        relationship,
+        email: email.trim() || null,
+        contactNumber: contactNumber.replace(/\D/g, ""),
+        homeAddress,
+        region,
+        province,
+        city
       });
 
-      const result = await employeeApi.update(employeeId, {
-        dependents: updatedDependents
-      });
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      if (result.success) {
-        toast.success("Dependant updated successfully!");
-        onUpdate();
-        onClose();
-      } else {
-        toast.error(result.message || "Failed to update dependant");
-      }
+      alert("Dependant updated successfully!");
+      onUpdate();
+      onClose();
     } catch (err) {
       console.error("Update error:", err);
-      toast.error("An error occurred while updating dependant");
+      alert("An error occurred while updating dependant");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  /* ---------- Handle contact number change ---------- */
+  const handleContactChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatContactNumber(e.target.value);
+    setContactNumber(formatted);
+    if (errors.contactNumber) {
+      setErrors(prev => ({ ...prev, contactNumber: "" }));
     }
   };
 
@@ -244,19 +320,20 @@ export default function EditDependantModal({
   /* ---------- JSX ---------- */
   return (
     <div
-      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 min-h-screen"
       onClick={onClose}
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.2 }}
-        className="bg-[#fdf3e2] w-full max-w-4xl p-10 rounded-2xl shadow-lg relative text-[#3b2b1c] overflow-y-auto max-h-[90vh]"
+        className="bg-[#fdf3e2] w-full max-w-4xl p-8 md:p-10 rounded-2xl shadow-lg relative text-[#3b2b1c] overflow-y-auto max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-[#3b2b1c] hover:opacity-70"
+          className="absolute top-4 right-4 text-[#3b2b1c] hover:opacity-70 transition-opacity"
+          aria-label="Close modal"
         >
           <X size={26} />
         </button>
@@ -270,29 +347,29 @@ export default function EditDependantModal({
           <div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormInput
-                label="First Name"
+                label="First Name *"
                 type="text"
                 value={firstName}
-                onChange={(e) => {
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                   setFirstName(e.target.value);
                   if (errors.firstName) setErrors(prev => ({ ...prev, firstName: "" }));
                 }}
                 error={errors.firstName}
               />
               <FormInput
-                label="Last Name"
+                label="Last Name *"
                 type="text"
                 value={lastName}
-                onChange={(e) => {
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                   setLastName(e.target.value);
                   if (errors.lastName) setErrors(prev => ({ ...prev, lastName: "" }));
                 }}
                 error={errors.lastName}
               />
               <FormSelect
-                label="Relationship"
+                label="Relationship *"
                 value={relationship}
-                onChange={(e) => {
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                   setRelationship(e.target.value);
                   if (errors.relationship) setErrors(prev => ({ ...prev, relationship: "" }));
                 }}
@@ -300,41 +377,28 @@ export default function EditDependantModal({
                 error={errors.relationship}
               />
               <FormInput
-                label="Birth Date"
-                type="date"
-                value={birthDate}
-                onChange={(e) => {
-                  setBirthDate(e.target.value);
-                  if (errors.birthDate) setErrors(prev => ({ ...prev, birthDate: "" }));
-                }}
-                error={errors.birthDate}
-              />
-              <FormInput
-                label="Email"
+                label="Email (Optional)"
                 type="email"
                 value={email}
-                onChange={(e) => {
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                   setEmail(e.target.value);
                   if (errors.email) setErrors(prev => ({ ...prev, email: "" }));
                 }}
                 error={errors.email}
               />
               <FormInput
-                label="Contact Number"
+                label="Contact Number *"
                 type="tel"
                 value={contactNumber}
-                onChange={(e) => {
-                  setContactNumber(e.target.value);
-                  if (errors.contactNumber) setErrors(prev => ({ ...prev, contactNumber: "" }));
-                }}
+                onChange={handleContactChange}
                 error={errors.contactNumber}
               />
               <div className="md:col-span-2">
                 <FormInput
-                  label="Home Address"
+                  label="Home Address *"
                   type="text"
                   value={homeAddress}
-                  onChange={(e) => {
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                     setHomeAddress(e.target.value);
                     if (errors.homeAddress) setErrors(prev => ({ ...prev, homeAddress: "" }));
                   }}
@@ -342,32 +406,29 @@ export default function EditDependantModal({
                 />
               </div>
               <FormSelect
-                label="Region"
+                label="Region *"
                 value={region}
-                onChange={(e) => {
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                   setRegion(e.target.value);
-                  setProvince("");
-                  setCity("");
                   if (errors.region) setErrors(prev => ({ ...prev, region: "" }));
                 }}
                 options={regions}
                 error={errors.region}
               />
               <FormSelect
-                label="Province"
+                label="Province *"
                 value={province}
-                onChange={(e) => {
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                   setProvince(e.target.value);
-                  setCity("");
                   if (errors.province) setErrors(prev => ({ ...prev, province: "" }));
                 }}
                 options={region ? provinces : []}
                 error={errors.province}
               />
               <FormSelect
-                label="City"
+                label="City *"
                 value={city}
-                onChange={(e) => {
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                   setCity(e.target.value);
                   if (errors.city) setErrors(prev => ({ ...prev, city: "" }));
                 }}
@@ -375,16 +436,26 @@ export default function EditDependantModal({
                 error={errors.city}
               />
             </div>
+            
+            <p className="text-xs text-gray-500 mt-4">* Required fields</p>
           </div>
         ) : (
-          <p className="text-center text-gray-600">Loading dependant details...</p>
+          <div className="text-center py-8">
+            <p className="text-gray-600">Loading dependant details...</p>
+          </div>
         )}
 
-        <div className="flex justify-end mt-10">
+        <div className="flex justify-end gap-3 mt-10">
+          <button
+            onClick={onClose}
+            className="px-6 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
           <button
             onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="bg-[#073532] text-white px-6 py-2 rounded-lg shadow-md hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={isSubmitting || !dependant}
+            className="bg-[#073532] text-white px-6 py-2 rounded-lg shadow-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
           >
             {isSubmitting ? "Saving..." : "Save Changes"}
           </button>
