@@ -396,7 +396,8 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
   // handle salary input with comma formatting
   const handleSalaryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const input = e.target.value.replace(/,/g, ""); // Remove existing commas
+    // Remove commas and non-numeric characters
+    let input = e.target.value.replace(/,/g, "").replace(/\D/g, "");
 
     if (input === "") {
       setSalary("");
@@ -404,13 +405,20 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       return;
     }
 
-    // Store the raw value
-    setSalary(input);
+    // Convert to number and cap at 1,000,000
+    let numericValue = parseInt(input, 10);
+    if (numericValue > 1000000) {
+      numericValue = 1000000;
+    }
+
+    // Store the raw numeric value
+    setSalary(numericValue.toString());
 
     // Format with commas for display
-    const formatted = input.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    const formatted = numericValue.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     setSalaryDisplay(formatted);
   };
+
 
   // handle dependent contact info with formatting (similar to contact number)
   const handleDependentContactInfoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -428,50 +436,50 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
   // Handle reset form
   const resetForm = () => {
-  setFirstName("");
-  setLastName("");
-  setMiddleName("");
-  setExtensionName("");
-  setBirthDate("");
-  setGender("");
-  setCivilStatus("");
-  setHomeAddress("");
-  setCity("");
-  setRegion("");
-  setProvince("");
-  setDepartmentId(null);
-  setPositionId(null);
-  setSalary("");
-  setLeaveCredit("15");
-  setSupervisorId(null);
-  setHireDate("");
-  setPayStart("");
-  setPayEnd("");
-  setShift("");
-  setSalaryDisplay("");
-  setEmail("");
-  setContactNumber("");
-  setDependents([]);
-  setDependentFirstName("");
-  setDependentLastName("");
-  setDependentEmail("");
-  setDependentContactInfo("");
-  setDependentRelationship("");
-  setDependentRelationshipSpecify("");
-  setDependentErrors({});
-  setUsername("");
-  setPassword("");
-  setConfirmPassword("");
-  setGrantAdminPrivilege(false);
-  setGrantSupervisorPrivilege(false);
-  setSubRole("");
-  setStep(1);
-  setErrors({});
-  setMessage(null);
-  setShowFingerprintEnrollment(false);
-  setNewEmployeeId(null);
-  setFingerprintId(null);
-};
+    setFirstName("");
+    setLastName("");
+    setMiddleName("");
+    setExtensionName("");
+    setBirthDate("");
+    setGender("");
+    setCivilStatus("");
+    setHomeAddress("");
+    setCity("");
+    setRegion("");
+    setProvince("");
+    setDepartmentId(null);
+    setPositionId(null);
+    setSalary("");
+    setLeaveCredit("15");
+    setSupervisorId(null);
+    setHireDate("");
+    setPayStart("");
+    setPayEnd("");
+    setShift("");
+    setSalaryDisplay("");
+    setEmail("");
+    setContactNumber("");
+    setDependents([]);
+    setDependentFirstName("");
+    setDependentLastName("");
+    setDependentEmail("");
+    setDependentContactInfo("");
+    setDependentRelationship("");
+    setDependentRelationshipSpecify("");
+    setDependentErrors({});
+    setUsername("");
+    setPassword("");
+    setConfirmPassword("");
+    setGrantAdminPrivilege(false);
+    setGrantSupervisorPrivilege(false);
+    setSubRole("");
+    setStep(1);
+    setErrors({});
+    setMessage(null);
+    setShowFingerprintEnrollment(false);
+    setNewEmployeeId(null);
+    setFingerprintId(null);
+  };
 
   // ─── Validation ───────────────────────────────
   const validateStep = async () => {
@@ -1403,38 +1411,38 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
           </div>
         </div>
         {showFingerprintEnrollment && newEmployeeId && (
-  <div className="absolute inset-0 bg-white rounded-2xl z-10 p-8 overflow-y-auto">
-    <h2 className="text-2xl font-bold text-[#3b2b1c] mb-4">
-      Enroll Fingerprint (Optional)
-    </h2>
-    <p className="text-gray-600 mb-6">
-      You can enroll a fingerprint for this employee now, or skip and do it later.
-    </p>
-    
-    <FingerprintEnrollment
-      employeeId={newEmployeeId}
-      onEnrollmentComplete={(fpId) => {
-        setFingerprintId(fpId);
-        setShowFingerprintEnrollment(false);
-        
-        // Reset and close modal
-        setTimeout(() => {
-          resetForm();
-          onClose();
-        }, 1500);
-      }}
-      onSkip={() => {
-        setShowFingerprintEnrollment(false);
-        
-        // Reset and close modal
-        setTimeout(() => {
-          resetForm();
-          onClose();
-        }, 500);
-      }}
-    />
-  </div>
-)}
+          <div className="absolute inset-0 bg-white rounded-2xl z-10 p-8 overflow-y-auto">
+            <h2 className="text-2xl font-bold text-[#3b2b1c] mb-4">
+              Enroll Fingerprint (Optional)
+            </h2>
+            <p className="text-gray-600 mb-6">
+              You can enroll a fingerprint for this employee now, or skip and do it later.
+            </p>
+
+            <FingerprintEnrollment
+              employeeId={newEmployeeId}
+              onEnrollmentComplete={(fpId) => {
+                setFingerprintId(fpId);
+                setShowFingerprintEnrollment(false);
+
+                // Reset and close modal
+                setTimeout(() => {
+                  resetForm();
+                  onClose();
+                }, 1500);
+              }}
+              onSkip={() => {
+                setShowFingerprintEnrollment(false);
+
+                // Reset and close modal
+                setTimeout(() => {
+                  resetForm();
+                  onClose();
+                }, 500);
+              }}
+            />
+          </div>
+        )}
       </motion.div>
     </div>
   );
