@@ -16,6 +16,7 @@ export default function Dashboard() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+ 
 
   const [activeTab, setActiveTab] = useState<"basic" | "job">("basic");
   const [employeeAttendanceSummary, setEmployeeAttendanceSummary] = useState<{
@@ -141,6 +142,18 @@ export default function Dashboard() {
                   <div className="text-left">
                     <p className="text-sm text-[#412f23d4]">
                       {currentEmployee?.department_name || 'N/A'}
+                    </p>
+                  </div>
+
+                  <hr className="w-full border-none mb-4" />
+
+                  <div className="text-left">
+                    <p className="text-sm font-bold text-[#412f23de]">Email</p>
+                  </div>
+                  <hr className="w-80 border-[#e3b983]" />
+                  <div className="text-left">
+                    <p className="text-sm text-[#412f23d4]">
+                      {user?.emails || 'N/A'}
                     </p>
                   </div>
                 </div>
