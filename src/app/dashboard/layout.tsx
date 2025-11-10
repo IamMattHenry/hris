@@ -101,7 +101,11 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <AuthProvider>
+    <AuthProvider
+      allowedRoles={['admin', 'supervisor', 'superadmin']}
+      redirectTo="/login_hr"
+      unauthorizedRedirectTo="/"
+    >
       <DashboardContent>{children}</DashboardContent>
     </AuthProvider>
   );

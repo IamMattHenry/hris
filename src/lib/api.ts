@@ -47,10 +47,10 @@ async function apiCall<T>(
 
     // Handle authentication errors
     if (response.status === 401) {
-      // Token expired or invalid - redirect to login
+      // Token expired or invalid - redirect to landing page
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token');
-        window.location.href = '/login_hr';
+        window.location.href = '/';
       }
     }
 
@@ -221,6 +221,16 @@ export const authApi = {
   },
 
   /**
+   * Employee portal login
+   */
+  loginEmployee: async (username: string, password: string) => {
+    return apiCall<{ token: string; user: any }>('/auth/login/employee', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    });
+  },
+
+  /**
    * Get current user
    */
   getCurrentUser: async () => {
@@ -235,7 +245,7 @@ export const authApi = {
   logout: () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('token');
-      window.location.href = '/login_hr';
+      window.location.href = '/';
     }
   },
 };

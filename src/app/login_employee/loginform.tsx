@@ -29,7 +29,7 @@ export default function LoginForm() {
     setIsLoading(true);
 
     try {
-      const result = await authApi.login(username, password);
+      const result = await authApi.loginEmployee(username, password);
       console.log("Result:", result);
 
       if (result.success) {
@@ -38,6 +38,8 @@ export default function LoginForm() {
       } else {
         if (result.message === "Invalid credentials") {
           setErrorMessage("Incorrect username or password.");
+        } else if (result.message === "Only employees are allowed to access this portal") {
+          setErrorMessage("This portal is for employees only. Please use the admin login instead.");
         } else {
           setErrorMessage(result.message || "Login failed. Please try again.");
         }

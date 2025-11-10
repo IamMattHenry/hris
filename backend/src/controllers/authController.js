@@ -3,11 +3,10 @@ import jwt from 'jsonwebtoken';
 import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
 
-export const login = async (req, res, next) => {
+const handleLogin = async (req, res, next, { allowedRoles, deniedMessage }) => {
   try {
     const { username, password } = req.body;
 
-    // Validate input
     if (!username || !password) {
       return res.status(400).json({
         success: false,
@@ -15,7 +14,6 @@ export const login = async (req, res, next) => {
       });
     }
 
-    // Find user
     const user = await db.getOne(
       'SELECT * FROM users WHERE username = ?',
       [username]
@@ -29,7 +27,6 @@ export const login = async (req, res, next) => {
       });
     }
 
-    // Verify password
     const isPasswordValid = await bcryptjs.compare(password, user.password);
 
     if (!isPasswordValid) {
@@ -40,16 +37,14 @@ export const login = async (req, res, next) => {
       });
     }
 
-    // Check the user's role
-    if (user.role !== 'admin' && user.role !== 'supervisor' && user.role !== 'superadmin') {
+    if (!allowedRoles.includes(user.role)) {
       return res.status(401).json({
         success: false,
-        message: 'Only admins, supervisors, and superadmins are allowed to access this portal',
+        message: deniedMessage,
         role: user.role,
-      })
+      });
     }
 
-    // Generate JWT token
     const token = jwt.sign(
       {
         user_id: user.user_id,
@@ -75,23 +70,34 @@ export const login = async (req, res, next) => {
     }
 
     res.json({
-  success: true,
-  message: 'Login successful',
-  data: {
-    token,
-    user: {
-      user_id: user.user_id,
-      username: user.username,
-      role: user.role,
-    },
-  },
-});
- 
+      success: true,
+      message: 'Login successful',
+      data: {
+        token,
+        user: {
+          user_id: user.user_id,
+          username: user.username,
+          role: user.role,
+        },
+      },
+    });
   } catch (error) {
     logger.error('Login error:', error);
     next(error);
   }
 };
+
+export const login = async (req, res, next) =>
+  handleLogin(req, res, next, {
+    allowedRoles: ['admin', 'supervisor', 'superadmin'],
+    deniedMessage: 'Only admins, supervisors, and superadmins are allowed to access this portal',
+  });
+
+export const loginEmployeePortal = async (req, res, next) =>
+  handleLogin(req, res, next, {
+    allowedRoles: ['employee'],
+    deniedMessage: 'Only employees are allowed to access this portal',
+  });
 
 export const getCurrentUser = async (req, res, next) => {
   try {

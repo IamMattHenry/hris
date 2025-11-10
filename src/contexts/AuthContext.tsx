@@ -17,9 +17,17 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 interface AuthProviderProps {
   children: ReactNode;
+  allowedRoles?: string[];
+  redirectTo?: string;
+  unauthorizedRedirectTo?: string;
 }
 
-export function AuthProvider({ children }: AuthProviderProps) {
+export function AuthProvider({
+  children,
+  allowedRoles = [],
+  redirectTo = '/login_hr',
+  unauthorizedRedirectTo = '/',
+}: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,24 +42,39 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       
       if (!token) {
-        // No token, redirect to login
-        router.push('/login_hr');
+        // No token, redirect to configured login page
+        router.replace(redirectTo);
         return;
       }
 
       const result = await authApi.getCurrentUser();
 
       if (result.success && result.data) {
+        if (
+          allowedRoles.length > 0 &&
+          result.data.role &&
+          !allowedRoles.includes(result.data.role)
+        ) {
+          // Role not permitted for this portal
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('token');
+          }
+          setUser(null);
+          setError('Unauthorized role for this portal');
+          router.replace(unauthorizedRedirectTo);
+          return;
+        }
+
         setUser(result.data);
       } else {
         setError(result.message || 'Failed to fetch user data');
-        // If failed to get user, redirect to login
-        router.push('/login_hr');
+        // If failed to get user, redirect to configured login page
+        router.replace(redirectTo);
       }
     } catch (err) {
       console.error('Error fetching user:', err);
       setError('An error occurred while fetching user data');
-      router.push('/login_hr');
+      router.replace(redirectTo);
     } finally {
       setIsLoading(false);
     }
