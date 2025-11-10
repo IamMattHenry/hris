@@ -8,6 +8,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import Image from "next/image";
 import EditPersonalModal from "./edit_personal-information/EditPersonalModal";
 import EditEmployeeModal from "./edit_employee-information/EditEmployeeModal";
+import EditContactsModal from "./edit_contact-information/editContact";
+import EditEmailModal from "./edit_email-information/editEmail";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -29,6 +31,8 @@ export default function Dashboard() {
   // Modal states
   const [isEditPersonalModalOpen, setIsEditPersonalModalOpen] = useState(false);
   const [isEditEmployeeModalOpen, setIsEditEmployeeModalOpen] = useState(false);
+  const [isEditContactsModalOpen, setIsEditContactsModalOpen] = useState(false);
+  const [isEditEmailModalOpen, setIsEmailModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -92,6 +96,14 @@ export default function Dashboard() {
     );
   }
 
+  const handleContactmodal = () => {
+    setIsEditContactsModalOpen(true);
+  };
+
+  const handleEmailModal = () => {
+    setIsEmailModalOpen(true);
+  };
+
   return (
     <div className="min-h-screen p-6 font-poppins">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -147,13 +159,39 @@ export default function Dashboard() {
 
                   <hr className="w-full border-none mb-4" />
 
-                  <div className="text-left">
+                  <div className="text-left flex flex-row justify-between">
                     <p className="text-sm font-bold text-[#412f23de]">Email</p>
+                    <p onClick={handleEmailModal} className="text-sm font-semibold underline cursor-pointer text-[#412f23de]">edit</p>
+                  </div>
+                  <hr className="w-80 border-[#e3b983]" />
+                  <div className="text-left">
+                    <div className="text-sm text-[#412f23d4] flex flex-col">
+                      {user?.emails && user.emails.length > 0 ? (
+                        user.emails.map((email, index) => (
+                          <span key={index}>{email}</span>
+                        ))
+                      ) : (
+                        <span>N/A</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <hr className="w-full border-none mb-4" />
+
+                  <div className="text-left flex flex-row justify-between">
+                    <p className="text-sm font-bold text-[#412f23de]">Contacts</p>
+                    <p onClick={handleContactmodal} className="text-sm font-semibold underline cursor-pointer text-[#412f23de]">edit</p>
                   </div>
                   <hr className="w-80 border-[#e3b983]" />
                   <div className="text-left">
                     <p className="text-sm text-[#412f23d4]">
-                      {user?.emails || 'N/A'}
+                      {user?.contact_numbers && user.contact_numbers.length > 0 ? (
+                        user.contact_numbers.map((contact, index) => (
+                          <span key={index}>{contact}</span>
+                        ))
+                      ) : (
+                        <span>N/A</span>  
+                      )}
                     </p>
                   </div>
                 </div>
@@ -352,8 +390,21 @@ export default function Dashboard() {
         id={user?.employee_id || null}
       />
 
+      <EditContactsModal
+        isOpen={isEditContactsModalOpen}
+        onClose={() => setIsEditContactsModalOpen(false)}
+        id={user?.employee_id || null}
+      />
+
+      <EditEmailModal
+        isOpen={isEditEmailModalOpen}
+        onClose={() => setIsEmailModalOpen(false)}
+        id={user?.employee_id || null}
+      />
+<div>
       {/* Floating Ticket Button */}
       <FloatingTicketButton />
+      </div>
     </div>
   );
 }
