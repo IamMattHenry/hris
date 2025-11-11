@@ -24,7 +24,7 @@ export default function Sidebar() {
     }
 
     return (
-        <aside className="w-96 bg-[linear-gradient(180deg,#190006_23%,#480C1B_67%,#300611_100%)] text-[#FFF2E0] font-poppins p-4 min-h-screen shadow-xl relative">
+        <aside className="w-96 bg-[linear-gradient(180deg,#190006_23%,#480C1B_67%,#300611_100%)] text-[#FFF2E0] font-poppins sticky  p-4 h-auto shadow-xl relative">
             <div className="mb-8 flex items-center justify-center">
                 <Image
                     src="/logo/celestia-hr-logo.png"

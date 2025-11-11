@@ -4,9 +4,8 @@ import { useState, useEffect } from "react";
 import InputBox from "@/components/auth/inputbox";
 import PasswordBox from "@/components/auth/passwordbox";
 import { useRouter } from "next/navigation";
-import { authApi } from "@/lib/api";
+import { authApi, ticketApi } from "@/lib/api";
 import { toast } from "react-hot-toast";
-import { ticketApi } from "@/lib/api";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -19,72 +18,87 @@ export default function LoginForm() {
   const [ticketTitle, setTicketTitle] = useState("");
   const [ticketDescription, setTicketDescription] = useState("");
   const [isTicketSubmitting, setIsTicketSubmitting] = useState(false);
-  const [ticketType, setTicketType] = useState<"forgot_password" | "contact_support">("contact_support");
+  const [ticketType, setTicketType] = useState<
+    "forgot_password" | "contact_support"
+  >("contact_support");
 
+  // Auto-clear error message
   useEffect(() => {
     if (!errorMessage) return;
-    const timer = setTimeout(() => {
-      setErrorMessage("");
-    }, 5000);
+    const timer = setTimeout(() => setErrorMessage(""), 4000);
     return () => clearTimeout(timer);
   }, [errorMessage]);
 
+  /** ✅ LOGIN HANDLER **/
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     setIsLoading(true);
 
     try {
-      const result = await authApi.login(username, password);
-      console.log("Result:", result);
+      const result = await authApi.loginEmployee(username, password);
 
       if (result.success) {
         localStorage.setItem("token", result.data!.token);
-        router.push("/dashboard");
+        router.push("/dashboard_employee");
       } else {
-        if (result.message === "Invalid credentials") {
-          setErrorMessage("Incorrect username or password.");
-          alert("Incorrect username or password.");
-        } else {
-          setErrorMessage(result.message || "Login failed. Please try again.");
-          alert(result.message || "Login failed. Please try again.");
+        switch (result.message) {
+          case "Invalid credentials":
+            setErrorMessage("Incorrect username or password.");
+            alert("Incorrect username or password.");
+            break;
+          case "Only employees are allowed to access this portal":
+            setErrorMessage(
+              "This portal is for employees only. Please use the admin login instead."
+            );
+            alert(
+              "This portal is for employees only. Please use the admin login instead."
+            );
+            break;
+          default:
+            setErrorMessage(result.message || "Login failed. Please try again.");
+            alert(result.message || "Login failed. Please try again.");
         }
       }
     } catch (error) {
       console.error("Login error:", error);
       setErrorMessage("An unexpected error occurred. Please try again later.");
-      alert("An unexpected error occurred. Please try again later.");
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
+  /** ✅ SUPPORT / FORGOT PASSWORD TICKET HANDLER **/
   const handleTicketSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isTicketSubmitting) return;
     setIsTicketSubmitting(true);
 
     try {
-      let title, description;
-      
+      let title: string;
+      let description: string;
+
       if (ticketType === "forgot_password") {
-        title = `Forgot Password Request: ${username || "No username provided"}`;
-        description = `User ${username || "unknown user"} has forgotten their password.\n\n${ticketDescription}`;
+        title = `Forgot Password Request (Employee): ${
+          username || "No username provided"
+        }`;
+        description = `Employee ${
+          username || "unknown user"
+        } has forgotten their password.\n\n${ticketDescription}`;
       } else {
-        title = ticketTitle;
-        description = ticketDescription;
+        title = ticketTitle.trim();
+        description = ticketDescription.trim();
       }
 
-      // Using the public ticket API for unauthenticated users
       const response = await ticketApi.createPublic({
         title,
         description,
-        name: username || undefined
+        name: username || undefined,
       });
 
       if (response.success) {
         toast.success("Your request has been submitted successfully!");
-        setShowTicketModal(false);
-        setTicketTitle("");
-        setTicketDescription("");
+        closeModal();
       } else {
         throw new Error(response.message || "Failed to submit request");
       }
@@ -96,8 +110,16 @@ export default function LoginForm() {
     }
   };
 
+  /** ✅ Reset modal state **/
+  const closeModal = () => {
+    setShowTicketModal(false);
+    setTicketTitle("");
+    setTicketDescription("");
+  };
+
   return (
     <>
+      {/* LOGIN FORM */}
       <form onSubmit={handleSubmit} className="space-y-5">
         {errorMessage && (
           <span className="block text-yellow-500 text-sm font-poppins font-medium text-center transition-opacity duration-500">
@@ -105,7 +127,6 @@ export default function LoginForm() {
           </span>
         )}
 
-        {/* Username */}
         <InputBox
           type="text"
           label="Username"
@@ -114,15 +135,15 @@ export default function LoginForm() {
           onChange={(e) => setUsername(e.target.value)}
         />
 
-        {/* Password */}
         <PasswordBox
           label="Password"
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
+
         <div className="flex items-center justify-between mb-4 text-[#FFF2E0] text-sm font-poppins">
-          <button 
+          <button
             type="button"
             onClick={() => {
               setTicketType("forgot_password");
@@ -134,19 +155,17 @@ export default function LoginForm() {
           </button>
         </div>
 
-        {/* Submit button */}
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full bg-[#4B0B14] hover:bg-[#60101C] text-[#FAEFD8] font-poppins font-semibold py-3 mt-4 rounded-lg transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-[#073532] hover:bg-[#0A4844] text-[#FAEFD8] font-poppins font-semibold py-3 mt-4 rounded-lg transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isLoading ? "Logging in..." : "Login"}
         </button>
 
-        {/* Support */}
         <p className="text-center text-sm text-gray-300 mt-3 font-poppins">
           Having trouble logging in?{" "}
-          <button 
+          <button
             type="button"
             onClick={() => {
               setTicketType("contact_support");
@@ -159,33 +178,39 @@ export default function LoginForm() {
         </p>
       </form>
 
-      {/* Ticket Modal */}
+      {/* ✅ MODAL */}
       {showTicketModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center text-black font-poppins justify-center z-50 p-4">
-          <div 
-            className="bg-white rounded-xl shadow-2xl w-full max-w-md"
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={closeModal}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl w-full max-w-md font-poppins animate-fadeIn"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-bold text-gray-800">
-                  {ticketType === "forgot_password" ? "Forgot Password Request" : "Contact Support"}
+                  {ticketType === "forgot_password"
+                    ? "Forgot Password Request"
+                    : "Contact Support"}
                 </h3>
                 <button
-                  onClick={() => setShowTicketModal(false)}
+                  onClick={closeModal}
                   className="text-gray-500 hover:text-gray-700"
                   aria-label="Close"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  ✕
                 </button>
               </div>
 
               <form onSubmit={handleTicketSubmit}>
                 {ticketType === "contact_support" && (
                   <div className="mb-4">
-                    <label htmlFor="ticketTitle" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label
+                      htmlFor="ticketTitle"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
                       Subject <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -193,47 +218,56 @@ export default function LoginForm() {
                       id="ticketTitle"
                       value={ticketTitle}
                       onChange={(e) => setTicketTitle(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4B0B14]"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#073532]"
                       placeholder="Briefly describe your issue"
                       maxLength={100}
-                      required={ticketType === "contact_support"}
+                      required
                     />
                   </div>
                 )}
 
                 <div className="mb-6">
-                  <label htmlFor="ticketDescription" className="block text-sm font-medium text-gray-700 mb-1">
-                    {ticketType === "forgot_password" ? "Additional Information" : "Description"}
+                  <label
+                    htmlFor="ticketDescription"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    {ticketType === "forgot_password"
+                      ? "Additional Information"
+                      : "Description"}
                   </label>
                   <textarea
                     id="ticketDescription"
                     value={ticketDescription}
                     onChange={(e) => setTicketDescription(e.target.value)}
                     rows={4}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4B0B14]"
-                    placeholder={ticketType === "forgot_password" 
-                      ? "Provide any additional information that might help us identify your account" 
-                      : "Provide detailed information about your issue"}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#073532]"
+                    placeholder={
+                      ticketType === "forgot_password"
+                        ? "Provide any additional information that might help us identify your account"
+                        : "Provide detailed information about your issue"
+                    }
                   />
                 </div>
 
                 <div className="flex justify-end gap-3">
                   <button
                     type="button"
-                    onClick={() => setShowTicketModal(false)}
+                    onClick={closeModal}
                     className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-md transition"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    disabled={isTicketSubmitting || (ticketType === "contact_support" && !ticketTitle.trim())}
+                    disabled={
+                      isTicketSubmitting ||
+                      (ticketType === "contact_support" && !ticketTitle.trim())
+                    }
                     className={`px-4 py-2 text-white rounded-md transition ${
-                      isTicketSubmitting 
-                        ? "bg-gray-400 cursor-not-allowed" 
-                        : (ticketType === "contact_support" && !ticketTitle.trim())
+                      isTicketSubmitting ||
+                      (ticketType === "contact_support" && !ticketTitle.trim())
                         ? "bg-gray-400 cursor-not-allowed"
-                        : "bg-[#4B0B14] hover:bg-[#60101C]"
+                        : "bg-[#073532] hover:bg-[#0A4844]"
                     }`}
                   >
                     {isTicketSubmitting ? "Submitting..." : "Submit Request"}
