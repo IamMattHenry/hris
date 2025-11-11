@@ -34,15 +34,17 @@ export default function LoginForm() {
     setIsLoading(true);
 
     try {
-      const result = await authApi.login(username, password);
+      const result = await authApi.loginEmployee(username, password);
       console.log("Result:", result);
 
       if (result.success) {
         localStorage.setItem("token", result.data!.token);
-        router.push("/dashboard");
+        router.push("/dashboard_employee");
       } else {
         if (result.message === "Invalid credentials") {
           setErrorMessage("Incorrect username or password.");
+        } else if (result.message === "Only employees are allowed to access this portal") {
+          setErrorMessage("This portal is for employees only. Please use the admin login instead.");
         } else {
           setErrorMessage(result.message || "Login failed. Please try again.");
         }
@@ -63,8 +65,8 @@ export default function LoginForm() {
       let title, description;
       
       if (ticketType === "forgot_password") {
-        title = `Forgot Password Request: ${username || "No username provided"}`;
-        description = `User ${username || "unknown user"} has forgotten their password.\n\n${ticketDescription}`;
+        title = `Forgot Password Request (Employee): ${username || "No username provided"}`;
+        description = `Employee ${username || "unknown user"} has forgotten their password.\n\n${ticketDescription}`;
       } else {
         title = ticketTitle;
         description = ticketDescription;
@@ -135,7 +137,7 @@ export default function LoginForm() {
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full bg-[#4B0B14] hover:bg-[#60101C] text-[#FAEFD8] font-poppins font-semibold py-3 mt-4 rounded-lg transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-[#073532] hover:bg-[#0A4844] text-[#FAEFD8] font-poppins font-semibold py-3 mt-4 rounded-lg transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isLoading ? "Logging in..." : "Login"}
         </button>
@@ -190,7 +192,7 @@ export default function LoginForm() {
                       id="ticketTitle"
                       value={ticketTitle}
                       onChange={(e) => setTicketTitle(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4B0B14]"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#073532]"
                       placeholder="Briefly describe your issue"
                       maxLength={100}
                       required={ticketType === "contact_support"}
@@ -207,7 +209,7 @@ export default function LoginForm() {
                     value={ticketDescription}
                     onChange={(e) => setTicketDescription(e.target.value)}
                     rows={4}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4B0B14]"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#073532]"
                     placeholder={ticketType === "forgot_password" 
                       ? "Provide any additional information that might help us identify your account" 
                       : "Provide detailed information about your issue"}
@@ -230,7 +232,7 @@ export default function LoginForm() {
                         ? "bg-gray-400 cursor-not-allowed" 
                         : (ticketType === "contact_support" && !ticketTitle.trim())
                         ? "bg-gray-400 cursor-not-allowed"
-                        : "bg-[#4B0B14] hover:bg-[#60101C]"
+                        : "bg-[#073532] hover:bg-[#0A4844]"
                     }`}
                   >
                     {isTicketSubmitting ? "Submitting..." : "Submit Request"}
