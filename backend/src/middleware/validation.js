@@ -21,7 +21,7 @@ export const validateLogin = [
     .trim()
     .isLength({ min: 3, max: 50 })
     .withMessage('Username must be 3-50 characters')
-    .matches(/^[a-zA-Z0-9_]+$/)
+    .matches(/^[a-zA-Z0-9._-]+$/)
     .withMessage('Invalid username format'),
   body('password')
     .isLength({ min: 6 })

@@ -77,7 +77,13 @@ export default function Dashboard() {
         }
 
         if (statsResult.success && statsResult.data) {
-          setOverallAttendanceStats(statsResult.data);
+          const stats = statsResult.data as Record<string, number | string | undefined>;
+          setOverallAttendanceStats({
+            present: Number(stats.on_duty ?? stats.present ?? 0),
+            absent: Number(stats.absent ?? 0),
+            leave: Number(stats.on_leave ?? stats.leave ?? 0),
+            late: Number(stats.late ?? 0),
+          });
         }
 
         if (user?.employee_id) {
@@ -88,7 +94,13 @@ export default function Dashboard() {
 
           const attendanceSummaryResult = await attendanceApi.getSummary(user.employee_id);
           if (attendanceSummaryResult.success && attendanceSummaryResult.data) {
-            setEmployeeAttendanceSummary(attendanceSummaryResult.data);
+            const summary = attendanceSummaryResult.data as Record<string, number | string | undefined>;
+            setEmployeeAttendanceSummary({
+              present: Number(summary.present ?? summary.present_count ?? 0),
+              absent: Number(summary.absent ?? summary.absent_count ?? 0),
+              leave: Number(summary.leave ?? summary.leave_count ?? 0),
+              late: Number(summary.late ?? summary.late_count ?? 0),
+            });
           }
         }
       } catch (err) {
@@ -130,11 +142,18 @@ export default function Dashboard() {
   }
 
   // Attendance data
+  const normalizedSummary = {
+    present: employeeAttendanceSummary?.present ?? 0,
+    leave: employeeAttendanceSummary?.leave ?? 0,
+    absent: employeeAttendanceSummary?.absent ?? 0,
+    late: employeeAttendanceSummary?.late ?? 0,
+  };
+
   const attendanceSummaryData = [
-    { name: "Present", value: employeeAttendanceSummary?.present || 0, color: "#ff5149" },
-    { name: "On Leave", value: employeeAttendanceSummary?.leave || 0, color: "#fc94af" },
-    { name: "Absent", value: employeeAttendanceSummary?.absent || 0, color: "#edc001" },
-    { name: "Late", value: employeeAttendanceSummary?.late || 0, color: "#ff6300" },
+    { name: "Present", value: normalizedSummary.present, color: "#ff5149" },
+    { name: "On Leave", value: normalizedSummary.leave, color: "#fc94af" },
+    { name: "Absent", value: normalizedSummary.absent, color: "#edc001" },
+    { name: "Late", value: normalizedSummary.late, color: "#ff6300" },
   ];
 
   return (
@@ -294,6 +313,24 @@ export default function Dashboard() {
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
+            </div>
+            <div className="px-6 pb-6 grid grid-cols-2 gap-4 text-sm text-gray-700">
+              <div className="flex items-center justify-between">
+                <span>Present</span>
+                <span className="font-semibold">{normalizedSummary.present}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>On Leave</span>
+                <span className="font-semibold">{normalizedSummary.leave}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Absent</span>
+                <span className="font-semibold">{normalizedSummary.absent}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Late</span>
+                <span className="font-semibold">{normalizedSummary.late}</span>
+              </div>
             </div>
           </div>
         </div>
