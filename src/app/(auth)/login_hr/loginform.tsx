@@ -43,13 +43,16 @@ export default function LoginForm() {
       } else {
         if (result.message === "Invalid credentials") {
           setErrorMessage("Incorrect username or password.");
+          alert("Incorrect username or password.");
         } else {
           setErrorMessage(result.message || "Login failed. Please try again.");
+          alert(result.message || "Login failed. Please try again.");
         }
       }
     } catch (error) {
       console.error("Login error:", error);
       setErrorMessage("An unexpected error occurred. Please try again later.");
+      alert("An unexpected error occurred. Please try again later.");
     }
 
     setIsLoading(false);
