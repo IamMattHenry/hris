@@ -329,7 +329,7 @@ export default function EditDependantModal({
         transition={{ duration: 0.2 }}
         className="bg-[#fdf3e2] w-full max-w-4xl p-8 md:p-10 rounded-2xl shadow-lg relative text-[#3b2b1c] overflow-y-auto max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
-      >
+      >2
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-[#3b2b1c] hover:opacity-70 transition-opacity"

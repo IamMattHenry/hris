@@ -210,9 +210,9 @@ export default function PositionTable() {
             <table className="w-full text-sm border-collapse">
               <thead className="text-md">
                 <tr className="bg-[#3b2b1c] text-white">
-                  <th className="py-4 px-4 text-left">ID</th>
+                  <th className="py-4 px-4 text-left">Job ID</th>
+                   <th className="py-4 px-4 text-left">Job Position</th>
                   <th className="py-4 px-4 text-left">Department</th>
-                  <th className="py-4 px-4 text-left">Job Position</th>
                   <th className="py-4 px-4 text-left">Availability</th>
                   <th className="py-4 px-4 text-left">Total Assigned</th>
                   <th className="py-4 px-4 text-center">Actions</th>
@@ -226,8 +226,8 @@ export default function PositionTable() {
                     className="border-b border-[#e2d5c3] hover:bg-[#fdf4e7] transition"
                   >
                     <td className="py-4 px-4">{pos.position_code || `POS-${String(pos.position_id).padStart(4, '0')}`}</td>
-                    <td className="py-4 px-4">{pos.department_name || 'N/A'}</td>
                     <td className="py-4 px-4">{pos.position_name}</td>
+                    <td className="py-4 px-4">{pos.department_name || 'N/A'}</td>
                     <td className="py-4 px-4">{pos.availability > 0 ? 'Yes' : 'No'}</td>
                     <td className="py-4 px-4">{pos.availability || 0}</td>
 

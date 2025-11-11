@@ -84,14 +84,18 @@ const TechnicalSupportTab = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const itemsPerPage = 7;
 
-  // Memoized fetch function to prevent unnecessary re-creations
+  // ✅ Fetch tickets with deduplication
   const fetchTickets = useCallback(async () => {
     try {
       setLoading(true);
       const response: ApiResponse<Ticket[]> = await ticketApi.getAll();
 
       if (response.success && response.data) {
-        setTickets(response.data);
+        const uniqueTickets = response.data.filter(
+          (t, index, self) =>
+            index === self.findIndex((s) => s.ticket_id === t.ticket_id)
+        );
+        setTickets(uniqueTickets);
       } else {
         throw new Error(response.message || "Failed to fetch tickets");
       }
@@ -104,8 +108,15 @@ const TechnicalSupportTab = () => {
     }
   }, []);
 
+  // ✅ UseEffect to safely call fetchTickets (prevents duplicate calls in StrictMode)
   useEffect(() => {
-    fetchTickets();
+    let ignore = false;
+    (async () => {
+      if (!ignore) await fetchTickets();
+    })();
+    return () => {
+      ignore = true;
+    };
   }, [fetchTickets]);
 
   const handleView = useCallback((ticket: Ticket) => {
@@ -158,28 +169,32 @@ const TechnicalSupportTab = () => {
     setCurrentPage(1); // Reset to page 1 when searching
   };
 
-  // Memoize filtered tickets to prevent unnecessary recalculations
+  // ✅ Filtered tickets
   const filteredTickets = useMemo(() => {
     if (!searchTerm.trim()) return tickets;
     const search = searchTerm.toLowerCase();
-    return tickets.filter((ticket) =>
-      ticket.ticket_code.toLowerCase().includes(search) ||
-      ticket.first_name.toLowerCase().includes(search) ||
-      ticket.last_name.toLowerCase().includes(search) ||
-      ticket.email?.toLowerCase().includes(search) ||
-      ticket.title.toLowerCase().includes(search) ||
-      ticket.description?.toLowerCase().includes(search)
+    return tickets.filter(
+      (ticket) =>
+        ticket.ticket_code.toLowerCase().includes(search) ||
+        ticket.first_name.toLowerCase().includes(search) ||
+        ticket.last_name.toLowerCase().includes(search) ||
+        ticket.email?.toLowerCase().includes(search) ||
+        ticket.title.toLowerCase().includes(search) ||
+        ticket.description?.toLowerCase().includes(search)
     );
   }, [tickets, searchTerm]);
 
-  // Memoize pagination calculations
+  // ✅ Pagination
   const { currentTickets, totalPages, pageNumbers } = useMemo(() => {
     const indexOfLastItem = currentPage * itemsPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    const currentTickets = filteredTickets.slice(indexOfFirstItem, indexOfLastItem);
+    const currentTickets = filteredTickets.slice(
+      indexOfFirstItem,
+      indexOfLastItem
+    );
     const totalPages = Math.ceil(filteredTickets.length / itemsPerPage);
     const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1);
-    
+
     return { currentTickets, totalPages, pageNumbers };
   }, [filteredTickets, currentPage, itemsPerPage]);
 
@@ -189,11 +204,11 @@ const TechnicalSupportTab = () => {
     }
   };
 
-  // Only reset page when search term changes
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
 
+  // ✅ Loading state
   if (loading) {
     return (
       <div className="p-6 bg-[#FAF6F1] rounded-xl h-[90vh] flex items-center justify-center">
@@ -205,6 +220,7 @@ const TechnicalSupportTab = () => {
     );
   }
 
+  // ✅ Main Render
   return (
     <div className="p-6 bg-[#FAF6F1] rounded-xl space-y-6 overflow-hidden h-[90vh] shadow-inner relative font-poppins">
       <div className="flex justify-between items-center">
@@ -217,8 +233,12 @@ const TechnicalSupportTab = () => {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <SearchBar placeholder="Search Ticket" value={searchTerm} onChange={handleSearch} />
-          <ActionButton label="Refresh" icon={RefreshCw} onClick={fetchTickets}/>
+          <SearchBar
+            placeholder="Search Ticket"
+            value={searchTerm}
+            onChange={handleSearch}
+          />
+          <ActionButton label="Refresh" icon={RefreshCw} onClick={fetchTickets} />
         </div>
       </div>
 
@@ -235,9 +255,7 @@ const TechnicalSupportTab = () => {
 
         <div className={currentTickets.length > 10 ? "max-h-[500px] overflow-y-auto" : ""}>
           {currentTickets.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              No tickets found
-            </div>
+            <div className="text-center py-12 text-gray-500">No tickets found</div>
           ) : (
             currentTickets.map((ticket, index) => (
               <div
@@ -269,9 +287,7 @@ const TechnicalSupportTab = () => {
                   </div>
                 </div>
 
-                <div className="text-gray-700 truncate">
-                  {ticket.email || "N/A"}
-                </div>
+                <div className="text-gray-700 truncate">{ticket.email || "N/A"}</div>
                 <div className="hidden md:block text-gray-700 truncate">
                   {ticket.title}
                 </div>
@@ -366,17 +382,11 @@ const TechnicalSupportTab = () => {
                 <X className="w-6 h-6" />
               </button>
 
-              <h3
-                id="modal-title"
-                className="text-xl font-semibold text-[#3D1A0B] mb-4"
-              >
+              <h3 id="modal-title" className="text-xl font-semibold text-[#3D1A0B] mb-4">
                 Ticket Details
               </h3>
 
-              <div
-                id="modal-description"
-                className="space-y-3 text-sm text-[#3b2b1c]"
-              >
+              <div id="modal-description" className="space-y-3 text-sm text-[#3b2b1c]">
                 <p>
                   <span className="font-semibold">Ticket ID:</span>{" "}
                   {selectedTicket.ticket_code}
