@@ -116,9 +116,7 @@ export default function DepartmentsPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filteredDepartments]);
+
 
 
 
@@ -130,7 +128,7 @@ export default function DepartmentsPage() {
         </h2>
 
         <div className="flex items-center gap-4">
-          <SearchBar placeholder="Search Department" value={searchTerm} onChange={handleSearch} />
+          <SearchBar placeholder="Search Department Code, Name, Supervisor" value={searchTerm} onChange={handleSearch} />
           {!isSupervisor && (
             <ActionButton
               label="Add Department"
