@@ -533,6 +533,7 @@ export default function EditEmployeeModal({
       if (result.success) {
         toast.success("Employee updated successfully!");
         onClose();
+        setTimeout(() => window.location.reload(), 3000);
       } else {
         toast.error(result.message || "Failed to update employee");
       }
