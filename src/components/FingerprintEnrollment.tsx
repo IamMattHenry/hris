@@ -16,10 +16,20 @@ export default function FingerprintEnrollment({
   onSkip,
 }: FingerprintEnrollmentProps) {
   const [fingerprintId, setFingerprintId] = useState<number | null>(null);
-  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "enrolling" | "success" | "error">("idle");
+  const [status, setStatus] = useState<
+    | "idle"
+    | "loading"
+    | "ready"
+    | "enrolling"
+    | "success"
+    | "confirming"
+    | "confirmed"
+    | "error"
+  >( "idle");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [statusLog, setStatusLog] = useState<Array<{ message: string; type: string; timestamp: string }>>([]);
+  const [confirmAttempted, setConfirmAttempted] = useState(false);
 
   // Auto-fetch next available fingerprint ID on mount
   useEffect(() => {
@@ -65,6 +75,7 @@ export default function FingerprintEnrollment({
       const result = await fingerprintApi.getNextId();
       if (result.success) {
         setFingerprintId(result.data.next_fingerprint_id);
+        setConfirmAttempted(false);
         setStatus("idle");
       } else {
         setError("Failed to get next fingerprint ID");
@@ -90,6 +101,7 @@ export default function FingerprintEnrollment({
     try {
       setStatus("loading");
       setError("");
+      setConfirmAttempted(false);
 
       // Check if fingerprint ID is available
       const checkResult = await fingerprintApi.checkId(fingerprintId);
@@ -117,15 +129,18 @@ export default function FingerprintEnrollment({
     }
   };
 
-  const handleConfirmEnrollment = async () => {
+  const handleConfirmEnrollment = async (autoTriggered = false) => {
     if (!fingerprintId || !employeeId) return;
 
     try {
-      setStatus("loading");
+      setConfirmAttempted(true);
+      setStatus("confirming");
+      setError("");
+      setMessage("Saving fingerprint to employee record...");
       const result = await fingerprintApi.confirmEnrollment(employeeId, fingerprintId);
       
       if (result.success) {
-        setStatus("success");
+        setStatus("confirmed");
         setMessage("Fingerprint enrolled and saved successfully!");
         
         // Switch back to attendance mode
@@ -141,9 +156,10 @@ export default function FingerprintEnrollment({
         }
         
         // Notify parent component
+        const notifyDelay = autoTriggered ? 500 : 1500;
         setTimeout(() => {
           onEnrollmentComplete && onEnrollmentComplete(fingerprintId);
-        }, 1500);
+        }, notifyDelay);
       } else {
         setError(result.message || "Failed to confirm enrollment");
         setStatus("error");
@@ -159,6 +175,12 @@ export default function FingerprintEnrollment({
       onSkip();
     }
   };
+
+  useEffect(() => {
+    if (status === "success" && employeeId && fingerprintId && !confirmAttempted) {
+      handleConfirmEnrollment(true);
+    }
+  }, [status, employeeId, fingerprintId, confirmAttempted]);
 
   return (
     <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
@@ -186,6 +208,12 @@ export default function FingerprintEnrollment({
         <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-start gap-2">
           <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
           <p className="text-sm text-green-800">Fingerprint enrolled successfully!</p>
+        </div>
+      )}
+      {status === "confirmed" && (
+        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-start gap-2">
+          <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-green-800">Fingerprint saved to employee record.</p>
         </div>
       )}
 
@@ -250,49 +278,112 @@ export default function FingerprintEnrollment({
 
       {/* Action Buttons */}
       <div className="flex gap-3">
-        {status === "idle" || status === "error" ? (
-          <>
-            <button
-              onClick={handleStartEnrollment}
-              disabled={!fingerprintId || !employeeId}
-              className="flex-1 bg-[#8b7355] hover:bg-[#6d5a43] disabled:bg-gray-300 text-white font-medium py-2 px-4 rounded-lg transition flex items-center justify-center gap-2"
-            >
-              <Fingerprint className="w-4 h-4" />
-              Start Enrollment
-            </button>
-            {onSkip && (
+        {(() => {
+          if (status === "idle" || status === "ready") {
+            return (
+              <>
+                <button
+                  onClick={handleStartEnrollment}
+                  disabled={!fingerprintId || !employeeId}
+                  className="flex-1 bg-[#8b7355] hover:bg-[#6d5a43] disabled:bg-gray-300 text-white font-medium py-2 px-4 rounded-lg transition flex items-center justify-center gap-2"
+                >
+                  <Fingerprint className="w-4 h-4" />
+                  Start Enrollment
+                </button>
+                {onSkip && (
+                  <button
+                    onClick={handleSkip}
+                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+                  >
+                    Skip
+                  </button>
+                )}
+              </>
+            );
+          }
+
+          if (status === "loading" || status === "confirming") {
+            return (
               <button
-                onClick={handleSkip}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+                disabled
+                className="flex-1 bg-gray-300 text-white font-medium py-2 px-4 rounded-lg flex items-center justify-center gap-2"
               >
-                Skip
+                <Loader2 className="w-4 h-4 animate-spin" />
+                {status === "confirming" ? "Saving fingerprint..." : "Processing..."}
               </button>
-            )}
-          </>
-        ) : status === "loading" ? (
-          <button
-            disabled
-            className="flex-1 bg-gray-300 text-white font-medium py-2 px-4 rounded-lg flex items-center justify-center gap-2"
-          >
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Processing...
-          </button>
-        ) : status === "enrolling" ? (
-          <button
-            onClick={handleConfirmEnrollment}
-            className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition flex items-center justify-center gap-2"
-          >
-            <CheckCircle className="w-4 h-4" />
-            Confirm Enrollment
-          </button>
-        ) : status === "success" ? (
-          <button
-            onClick={() => onEnrollmentComplete && onEnrollmentComplete(fingerprintId!)}
-            className="flex-1 bg-[#8b7355] hover:bg-[#6d5a43] text-white font-medium py-2 px-4 rounded-lg transition"
-          >
-            Continue
-          </button>
-        ) : null}
+            );
+          }
+
+          if (status === "enrolling") {
+            return (
+              <button
+                onClick={() => handleConfirmEnrollment(false)}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition flex items-center justify-center gap-2"
+              >
+                <CheckCircle className="w-4 h-4" />
+                Confirm Enrollment
+              </button>
+            );
+          }
+
+          if (status === "success") {
+            return (
+              <button
+                disabled
+                className="flex-1 bg-gray-300 text-white font-medium py-2 px-4 rounded-lg flex items-center justify-center gap-2"
+              >
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Finalizing...
+              </button>
+            );
+          }
+
+          if (status === "confirmed") {
+            return (
+              <button
+                onClick={() => onEnrollmentComplete && onEnrollmentComplete(fingerprintId!)}
+                className="flex-1 bg-[#8b7355] hover:bg-[#6d5a43] text-white font-medium py-2 px-4 rounded-lg transition"
+              >
+                Continue
+              </button>
+            );
+          }
+
+          if (status === "error") {
+            return (
+              <>
+                {confirmAttempted ? (
+                  <button
+                    onClick={() => handleConfirmEnrollment(false)}
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    Retry Confirmation
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleStartEnrollment}
+                    disabled={!fingerprintId || !employeeId}
+                    className="flex-1 bg-[#8b7355] hover:bg-[#6d5a43] disabled:bg-gray-300 text-white font-medium py-2 px-4 rounded-lg transition flex items-center justify-center gap-2"
+                  >
+                    <Fingerprint className="w-4 h-4" />
+                    Start Enrollment
+                  </button>
+                )}
+                {onSkip && (
+                  <button
+                    onClick={handleSkip}
+                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+                  >
+                    Skip
+                  </button>
+                )}
+              </>
+            );
+          }
+
+          return null;
+        })()}
       </div>
 
       {/* Additional Info */}

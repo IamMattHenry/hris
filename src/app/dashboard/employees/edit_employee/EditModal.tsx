@@ -1197,13 +1197,6 @@ export default function EditEmployeeModal({
                   )}
                   {errors.subRole && (
                     <p className="text-red-500 text-xs mt-2">{errors.subRole}</p>
-                          </option>
-                        ))}
-                      </select>
-                      {errors.subRole && (
-                        <p className="text-red-500 text-xs mt-1">{errors.subRole}</p>
-                      )}
-                    </>
                   )}
                 </div>
               )}
