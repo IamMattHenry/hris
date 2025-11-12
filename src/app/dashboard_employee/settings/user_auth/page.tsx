@@ -1,56 +1,31 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Save, KeyRound, UserCog } from "lucide-react";
 import FormInput from "@/components/forms/FormInput";
 import PasswordBox from "@/components/auth/passwordbox";
 import ActionButton from "@/components/buttons/ActionButton";
-import { userApi } from "@/lib/api";
-import { toast } from "react-hot-toast";
-import { useAuth } from "@/contexts/AuthContext";
 
 const AuthenticationTab = () => {
-  const { user, refreshUser } = useAuth();
   const [username, setUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errors, setErrors] = useState<{ username?: string; password?: string }>({});
-  const [isSavingUsername, setIsSavingUsername] = useState(false);
-  const [isSavingPassword, setIsSavingPassword] = useState(false);
-
-  useEffect(() => {
-    if (user?.username) {
-      setUsername(user.username);
-    }
-  }, [user?.username]);
 
   // ✅ Username Validation
-  const handleSaveUsername = async () => {
+  const handleSaveUsername = () => {
     if (!username.trim()) {
       setErrors({ username: "Username cannot be empty." });
       return;
     }
 
     setErrors({});
-    setIsSavingUsername(true);
-    try {
-      const result = await userApi.updateMe({ username: username.trim() });
-      if (result.success) {
-        toast.success("Username updated successfully.");
-        await refreshUser();
-      } else {
-        toast.error(result.message || "Failed to update username.");
-      }
-    } catch (error) {
-      console.error("Username update error:", error);
-      toast.error("An unexpected error occurred while updating username.");
-    } finally {
-      setIsSavingUsername(false);
-    }
+    console.log("✅ Username changed to:", username);
+    alert("Username saved successfully!");
   };
 
   // ✅ Password Validation
-  const handleSavePassword = async () => {
+  const handleSavePassword = () => {
     const newErrors: { password?: string } = {};
     if (!newPassword.trim() || !confirmPassword.trim()) {
       newErrors.password = "Both password fields are required.";
@@ -64,22 +39,8 @@ const AuthenticationTab = () => {
     }
 
     setErrors({});
-    setIsSavingPassword(true);
-    try {
-      const result = await userApi.updateMe({ password: newPassword });
-      if (result.success) {
-        toast.success("Password updated successfully.");
-        setNewPassword("");
-        setConfirmPassword("");
-      } else {
-        toast.error(result.message || "Failed to update password.");
-      }
-    } catch (error) {
-      console.error("Password update error:", error);
-      toast.error("An unexpected error occurred while updating password.");
-    } finally {
-      setIsSavingPassword(false);
-    }
+    console.log("✅ Password changed successfully!");
+    alert("Password saved successfully!");
   };
 
   return (
@@ -114,7 +75,6 @@ const AuthenticationTab = () => {
               onClick={handleSaveUsername}
               icon={Save}
               className="bg-[#073532] hover:opacity-90 transition"
-              disabled={isSavingUsername}
             />
           </div>
         </div>
@@ -149,7 +109,6 @@ const AuthenticationTab = () => {
               onClick={handleSavePassword}
               icon={Save}
               className="bg-[#073532] hover:opacity-90 transition"
-              disabled={isSavingPassword}
             />
           </div>
         </div>

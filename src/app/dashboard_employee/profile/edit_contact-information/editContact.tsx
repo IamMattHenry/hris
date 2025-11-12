@@ -6,7 +6,6 @@ import { motion } from "framer-motion";
 import { toast } from "react-hot-toast";
 import { employeeApi } from "@/lib/api";
 import FormInput from "@/components/forms/FormInput";
-import { useAuth } from "@/contexts/AuthContext";
 
 interface EditContactsModalProps {
     isOpen: boolean;
@@ -16,7 +15,7 @@ interface EditContactsModalProps {
 
 interface EmployeeData {
     employee_id: number;
-    contact_numbers?: { contact_number: string }[] | string[];
+    contacts?: { contact_number: string }[];
 }
 
 export default function EditContactsModal({
@@ -28,7 +27,6 @@ export default function EditContactsModal({
     const [contacts, setContacts] = useState<string[]>([""]);
     const [errors, setErrors] = useState<Record<number, string>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const { refreshUser } = useAuth();
 
     /* ---------- Fetch employee contacts ---------- */
     useEffect(() => {
@@ -42,16 +40,8 @@ export default function EditContactsModal({
                 setEmployee(res.data);
 
                 // Populate contacts from API
-                const rawContacts = res.data.contact_numbers ?? [];
-                const normalized = Array.isArray(rawContacts)
-                    ? rawContacts.map((c: any) =>
-                          typeof c === "string" ? c : c?.contact_number || ""
-                      ).filter(Boolean)
-                    : [];
-
-                const contactList = normalized.length
-                    ? normalized.map((c: string) => formatPHNumber(c))
-                    : [""];
+                const contactList =
+                    res.data.contacts?.map((c: any) => formatPHNumber(c.contact_number || c)) ?? [""];
 
                 // If no contacts exist, show one empty input
                 setContacts(contactList.length ? contactList : [""]);
@@ -137,15 +127,10 @@ export default function EditContactsModal({
 
         setIsSubmitting(true);
         try {
-            const payload = { contact_numbers: validContacts };
-            const result = await employeeApi.updateMe(payload);
+            const payload = { contacts: validContacts };
+            const result = await employeeApi.update(employee.employee_id, payload);
             if (result.success) {
                 toast.success("Contact numbers updated successfully!");
-                await refreshUser();
-                // Refresh modal data to reflect latest contacts
-                if (employee?.employee_id) {
-                    await fetchEmployeeContacts(employee.employee_id);
-                }
                 onClose();
             } else {
                 toast.error(result.message || "Failed to update contacts.");

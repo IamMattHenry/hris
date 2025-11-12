@@ -153,8 +153,7 @@ export default function EditEmployeeModal({
       };
 
       console.log("Submitting update:", updatedData);
-      const result = await employeeApi.updateMe(updatedData);
-
+      const result = await employeeApi.update(employee.employee_id, updatedData);
       console.log("Update result:", result);
 
       if (result.success) {

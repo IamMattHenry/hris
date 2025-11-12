@@ -6,7 +6,6 @@ import { motion } from "framer-motion";
 import { toast } from "react-hot-toast";
 import { employeeApi } from "@/lib/api";
 import FormInput from "@/components/forms/FormInput";
-import { useAuth } from "@/contexts/AuthContext";
 
 interface EditEmailsModalProps {
   isOpen: boolean;
@@ -28,7 +27,6 @@ export default function EditEmailsModal({
   const [emails, setEmails] = useState<string[]>([""]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { refreshUser } = useAuth();
 
   useEffect(() => {
     if (isOpen && id) fetchEmployeeEmails(id);
@@ -39,13 +37,8 @@ export default function EditEmailsModal({
       const res = await employeeApi.getById(empId);
       if (res.success && res.data) {
         setEmployee(res.data);
-        const rawEmails = res.data.emails ?? [];
-        const emailList = Array.isArray(rawEmails)
-          ? rawEmails
-              .map((e: any) => (typeof e === "string" ? e : e?.email || ""))
-              .filter(Boolean)
-          : [];
-
+        const emailList =
+          res.data.emails?.map((e: any) => e.email || e) ?? [""];
         setEmails(emailList.length ? emailList : [""]);
       }
     } catch (err) {
@@ -75,13 +68,9 @@ export default function EditEmailsModal({
     setIsSubmitting(true);
     try {
       const payload = { emails: validEmails };
-      const result = await employeeApi.updateMe(payload);
+      const result = await employeeApi.update(employee.employee_id, payload);
       if (result.success) {
         toast.success("Emails updated successfully!");
-        await refreshUser();
-        if (employee?.employee_id) {
-          await fetchEmployeeEmails(employee.employee_id);
-        }
         onClose();
       } else {
         toast.error(result.message || "Failed to update emails.");
