@@ -28,7 +28,7 @@ router.post(
     body('username').trim().isLength({ min: 3, max: 50 }).matches(/^[a-zA-Z0-9_]+$/).withMessage('Invalid username format'),
     body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
     body('role').optional().isIn(['admin', 'employee', 'supervisor', 'superadmin']).withMessage('Invalid role'),
-    body('sub_role').optional().isIn(['hr', 'it', 'front_desk']).withMessage('Invalid sub-role'),
+    body('sub_role').optional().isIn(['hr', 'it']).withMessage('Invalid sub-role'),
     
     // Employee validation (using enhanced rules)
     body('first_name').trim().isLength({ min: 2, max: 100 }).matches(/^[a-zA-Z\s'-]+$/).withMessage('Invalid first name format'),

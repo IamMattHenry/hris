@@ -6,16 +6,42 @@ import {
   generateDependentCode,
 } from "../utils/codeGenerator.js";
 
+const mapDepartmentToSubRole = (departmentName = "") => {
+  const normalized = departmentName.trim().toLowerCase();
+
+  if (!normalized) return null;
+
+  if (
+    normalized === "it" ||
+    normalized.includes("information technology") ||
+    normalized.includes("i.t.")
+  ) {
+    return "it";
+  }
+
+  if (normalized === "hr" || normalized.includes("human resources")) {
+    return "hr";
+  }
+
+  return null;
+};
+
 export const getAllEmployees = async (req, res, next) => {
   try {
     // Get user info from JWT token
     const currentUser = req.user;
 
     let sql = `
-      SELECT e.*, jp.position_name, d.department_name, u.username, u.role
+      SELECT
+        e.*,
+        jp.position_name,
+        d.department_name,
+        d.department_code,
+        u.username,
+        u.role
       FROM employees e
       LEFT JOIN job_positions jp ON e.position_id = jp.position_id
-      LEFT JOIN departments d ON jp.department_id = d.department_id
+      LEFT JOIN departments d ON e.department_id = d.department_id
       LEFT JOIN users u ON e.user_id = u.user_id
     `;
 
@@ -60,12 +86,13 @@ export const getEmployeeById = async (req, res, next) => {
     e.*,
     jp.position_name,
     d.department_name,
+    d.department_code,
     u.username,
     u.role,
     ur.sub_role
   FROM employees e
   LEFT JOIN job_positions jp ON e.position_id = jp.position_id
-  LEFT JOIN departments d ON jp.department_id = d.department_id
+  LEFT JOIN departments d ON e.department_id = d.department_id
   LEFT JOIN users u ON e.user_id = u.user_id
   LEFT JOIN user_roles ur ON u.user_id = ur.user_id
   WHERE e.employee_id = ?
@@ -187,7 +214,7 @@ export const createEmployee = async (req, res, next) => {
 
     try {
       // Validate sub_role if role is 'admin' or 'supervisor'
-      const validSubRoles = ["hr", "it", "front_desk"];
+      const validSubRoles = ["hr", "it"];
       if (userRole === "admin" || userRole === "supervisor") {
         if (!sub_role) {
           await db.rollback();
@@ -218,11 +245,7 @@ export const createEmployee = async (req, res, next) => {
 
           if (deptResult && deptResult.length > 0) {
             const deptName = deptResult[0].department_name;
-            let validDeptSubRole = null;
-
-            if (deptName === "IT") validDeptSubRole = "it";
-            else if (deptName === "Human Resources") validDeptSubRole = "hr";
-            else if (deptName === "Front Desk") validDeptSubRole = "front_desk";
+            const validDeptSubRole = mapDepartmentToSubRole(deptName);
 
             if (validDeptSubRole && sub_role !== validDeptSubRole) {
               await db.rollback();
@@ -556,25 +579,12 @@ export const updateEmployee = async (req, res, next) => {
         if (department) {
           const deptName = department.department_name;
           const normalizedSubRole = sub_role.toLowerCase();
+          const validDeptSubRole = mapDepartmentToSubRole(deptName);
 
-          if (deptName === "IT" && normalizedSubRole !== "it") {
+          if (validDeptSubRole && normalizedSubRole !== validDeptSubRole) {
             return res.status(400).json({
               success: false,
-              message: "IT department employees can only have 'it' as sub_role.",
-            });
-          }
-
-          if (deptName === "Human Resources" && normalizedSubRole !== "hr") {
-            return res.status(400).json({
-              success: false,
-              message: "Human Resources department employees can only have 'hr' as sub_role.",
-            });
-          }
-
-          if (deptName === "Front Desk" && normalizedSubRole !== "front_desk") {
-            return res.status(400).json({
-              success: false,
-              message: "Front Desk department employees can only have 'front_desk' as sub_role.",
+              message: `${deptName} department employees can only have '${validDeptSubRole}' as sub_role.`,
             });
           }
         }

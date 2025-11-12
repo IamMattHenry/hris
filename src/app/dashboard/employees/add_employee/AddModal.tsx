@@ -324,24 +324,38 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     }
   };
 
+  const mapDepartmentToSubRole = (departmentName?: string | null) => {
+    if (!departmentName) return null;
+
+    const normalized = departmentName.toLowerCase();
+
+    if (
+      normalized === "it" ||
+      normalized.includes("information technology") ||
+      normalized.includes("i.t.")
+    ) {
+      return "it";
+    }
+
+    if (
+      normalized === "hr" ||
+      normalized.includes("human resource") ||
+      normalized.includes("human-resource")
+    ) {
+      return "hr";
+    }
+
+    return null;
+  };
+
   // Get valid sub_roles based on department
   const getValidSubRoles = (deptId: number | null) => {
     if (!deptId) return [];
 
-    // Get department name to determine valid sub_roles
-    const dept = departments.find(d => d.department_id === deptId);
-    if (!dept) return [];
+    const dept = departments.find((d) => d.department_id === deptId);
+    const mapped = mapDepartmentToSubRole(dept?.department_name);
 
-    // Map department to valid sub_role (must match database enum: 'hr', 'it', 'front_desk')
-    if (dept.department_name === "IT") {
-      return ["it"];
-    } else if (dept.department_name === "Human Resources") {
-      return ["hr"];
-    } else if (dept.department_name === "Front Desk") {
-      return ["front_desk"];
-    }
-
-    return [];
+    return mapped ? [mapped] : [];
   };
 
   // Check if department already has a supervisor
@@ -530,7 +544,8 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
         if (!isValid) {
           const deptName = departments.find(d => d.department_id === departmentId)?.department_name;
-          newErrors.subRole = `${deptName} department employees can only have '${validRoles[0].toLowerCase()}' as sub_role.`;
+          const allowed = validRoles[0]?.toLowerCase() || "hr";
+          newErrors.subRole = `${deptName ?? "This"} department employees can only have '${allowed}' as sub_role.`;
         }
       }
     }

@@ -40,7 +40,7 @@ export interface User {
   dependents?: Dependent[];
   // Associated user role info (if exists)
   user_role_id?: number;
-  sub_role?: 'hr' | 'it' | 'front_desk';
+  sub_role?: 'hr' | 'it';
 }
 
 /**

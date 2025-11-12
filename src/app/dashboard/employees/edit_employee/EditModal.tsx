@@ -244,21 +244,37 @@ export default function EditEmployeeModal({
   };
 
   /* ---------- Valid sub roles ---------- */
+  const mapDepartmentToSubRole = (departmentName?: string | null) => {
+    if (!departmentName) return null;
+
+    const normalized = departmentName.toLowerCase();
+
+    if (
+      normalized === "it" ||
+      normalized.includes("information technology") ||
+      normalized.includes("i.t.")
+    ) {
+      return "it";
+    }
+
+    if (
+      normalized === "hr" ||
+      normalized.includes("human resource") ||
+      normalized.includes("human-resource")
+    ) {
+      return "hr";
+    }
+
+    return null;
+  };
+
   const getValidSubRoles = (deptId: number | null) => {
     if (!deptId) return [];
 
     const dept = departments.find((d) => d.department_id === deptId);
-    if (!dept) return [];
+    const mapped = mapDepartmentToSubRole(dept?.department_name);
 
-    if (dept.department_name === "IT") {
-      return ["it"];
-    } else if (dept.department_name === "Human Resources") {
-      return ["hr"];
-    } else if (dept.department_name === "Front Desk") {
-      return ["front_desk"];
-    }
-
-    return [];
+    return mapped ? [mapped] : [];
   };
 
   const checkDepartmentSupervisor = async (
