@@ -277,6 +277,27 @@ export default function EditEmployeeModal({
     return mapped ? [mapped] : [];
   };
 
+  useEffect(() => {
+    if (!(grantAdminPrivilege || grantSupervisorPrivilege)) {
+      if (subRole !== "") setSubRole("");
+      return;
+    }
+
+    if (!departmentId) {
+      if (subRole !== "") setSubRole("");
+      return;
+    }
+
+    const dept = departments.find((d) => d.department_id === departmentId);
+    const mapped = mapDepartmentToSubRole(dept?.department_name);
+
+    if (mapped) {
+      if (subRole !== mapped) setSubRole(mapped);
+    } else if (subRole !== "") {
+      setSubRole("");
+    }
+  }, [departmentId, departments, grantAdminPrivilege, grantSupervisorPrivilege]);
+
   const checkDepartmentSupervisor = async (
     deptId: number
   ): Promise<boolean> => {
@@ -1153,31 +1174,28 @@ export default function EditEmployeeModal({
               </div>
 
               {(grantAdminPrivilege || grantSupervisorPrivilege) && (
-                <div className="mt-4">
+                <div className="col-span-2">
                   {!departmentId ? (
                     <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                       <p className="text-sm text-yellow-800">
                         ⚠️ Please select a department first to choose the sub-role
                       </p>
                     </div>
+                  ) : subRole ? (
+                    <div className="p-3 bg-[#FFF2E0] border border-[#e6d2b5] rounded-lg">
+                      <p className="text-sm text-[#3b2b1c]">
+                        Auto-assigned sub-role: <span className="font-semibold uppercase">{subRole}</span>
+                      </p>
+                    </div>
                   ) : (
-                    <>
-                      <label className="block text-[#3b2b1c] mb-1">
-                        {grantAdminPrivilege ? "Admin Sub-Role:" : "Supervisor Sub-Role:"}{" "}
-                        <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        value={subRole}
-                        onChange={(e) => {
-                          setSubRole(e.target.value);
-                          setErrors((prev) => ({ ...prev, subRole: "" }));
-                        }}
-                        className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c]"
-                      >
-                        <option value="">Select Sub-Role</option>
-                        {getValidSubRoles(departmentId).map((role) => (
-                          <option key={role} value={role}>
-                            {role}
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-sm text-red-700">
+                        ⚠️ The selected department does not have an associated HR/IT sub-role. Choose another department or disable the privilege.
+                      </p>
+                    </div>
+                  )}
+                  {errors.subRole && (
+                    <p className="text-red-500 text-xs mt-2">{errors.subRole}</p>
                           </option>
                         ))}
                       </select>

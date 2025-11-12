@@ -133,7 +133,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     }
   }, [firstName, usernameEdited, passwordEdited]);
 
-
   // set the pay end date based on pay start date
   useEffect(() => {
     if (hireDate) {
@@ -151,7 +150,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       setPayEnd("");
     }
   }, [hireDate]);
-
 
   // Load PH locations data from JSON file
   useEffect(() => {
@@ -375,6 +373,27 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     return false;
   };
 
+  useEffect(() => {
+    if (!(grantAdminPrivilege || grantSupervisorPrivilege)) {
+      if (subRole !== "") setSubRole("");
+      return;
+    }
+
+    if (!departmentId) {
+      if (subRole !== "") setSubRole("");
+      return;
+    }
+
+    const dept = departments.find((d) => d.department_id === departmentId);
+    const mapped = mapDepartmentToSubRole(dept?.department_name);
+
+    if (mapped) {
+      if (subRole !== mapped) setSubRole(mapped);
+    } else if (subRole !== "") {
+      setSubRole("");
+    }
+  }, [departmentId, departments, grantAdminPrivilege, grantSupervisorPrivilege]);
+
   if (!isOpen) return null;
 
   // handle birth date change with age validation
@@ -432,7 +451,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     const formatted = numericValue.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     setSalaryDisplay(formatted);
   };
-
 
   // handle dependent contact info with formatting (similar to contact number)
   const handleDependentContactInfoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -888,7 +906,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                     </div>
                   </div>
 
-
                   <FormInput label="Hire Date:" type="date" max={today} value={hireDate} onChange={(e) => setHireDate(e.target.value)} error={errors.hireDate} />
                   <FormInput label="Pay Period Start:" type="date" value={payStart} onChange={(e) => setPayStart(e.target.value)} readOnly={true} />
 
@@ -1342,7 +1359,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                     </label>
                   </div>
 
-
                   {(grantAdminPrivilege || grantSupervisorPrivilege) && (
                     <div className="col-span-2">
                       {!departmentId ? (
@@ -1351,14 +1367,21 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                             ⚠️ Please select a department first to choose the sub-role
                           </p>
                         </div>
+                      ) : subRole ? (
+                        <div className="p-3 bg-[#FFF2E0] border border-[#e6d2b5] rounded-lg">
+                          <p className="text-sm text-[#3b2b1c]">
+                            Auto-assigned sub-role: <span className="font-semibold uppercase">{subRole}</span>
+                          </p>
+                        </div>
                       ) : (
-                        <FormSelect
-                          label={grantAdminPrivilege ? "Admin Sub-Role:" : "Supervisor Sub-Role:"}
-                          value={subRole}
-                          onChange={(e) => setSubRole(e.target.value)}
-                          options={getValidSubRoles(departmentId)}
-                          error={errors.subRole}
-                        />
+                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                          <p className="text-sm text-red-700">
+                            ⚠️ The selected department does not have an associated HR/IT sub-role. Choose another department or disable the privilege.
+                          </p>
+                        </div>
+                      )}
+                      {errors.subRole && (
+                        <p className="text-red-500 text-xs mt-2">{errors.subRole}</p>
                       )}
                     </div>
                   )}
