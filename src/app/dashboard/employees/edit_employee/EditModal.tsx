@@ -497,6 +497,7 @@ export default function EditEmployeeModal({
       const updatedData: any = {
         first_name: firstName,
         last_name: lastName,
+        department_id: departmentId,
         position_id: positionId,
         supervisor_id: supervisorId || null,
         shift: shift ? shift.toLowerCase() : null,
