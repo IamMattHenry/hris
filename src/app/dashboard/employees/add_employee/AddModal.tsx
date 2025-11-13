@@ -665,6 +665,14 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     }
   };
 
+
+  // Reusable name validation function
+  const validateNameFormat = (value: string, setValue: (v: string) => void, maxLength: number = 30 ) => {
+    if (/^[A-Za-z\s'-]*$/.test(value) && value.length <= maxLength) {
+      setValue(value);
+    }
+  };
+
   // ─── UI ───────────────────────────────────────
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
@@ -718,28 +726,36 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                     label="First Name:"
                     type="text"
                     value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
+                    onChange={(e) => {
+                     validateNameFormat(e.target.value, setFirstName);
+                    }}
                     error={errors.firstName}
                   />
                   <FormInput
                     label="Last Name:"
                     type="text"
                     value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
+                    onChange={(e) => {
+                     validateNameFormat(e.target.value, setLastName);
+                    }}
                     error={errors.lastName}
                   />
                   <FormInput
                     label="Middle Name:"
                     type="text"
                     value={middleName}
-                    onChange={(e) => setMiddleName(e.target.value)}
+                    onChange={(e) => {
+                      validateNameFormat(e.target.value, setMiddleName);
+                    }}
                     placeholder="(optional)"
                   />
                   <FormInput
                     label="Extension Name:"
                     type="text"
                     value={extensionName}
-                    onChange={(e) => setExtensionName(e.target.value)}
+                    onChange={(e) => {
+                      validateNameFormat(e.target.value, setExtensionName, 10);
+                    }}
                     placeholder="Jr., Sr., III, etc. (optional)"
                   />
                   <FormInput
@@ -778,7 +794,12 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                       label="Address:"
                       type="text"
                       value={homeAddress}
-                      onChange={(e) => setHomeAddress(e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value.length <= 100) {
+                          setHomeAddress(value);
+                        }
+                      }}
                       error={errors.homeAddress}
                     />
 
@@ -973,7 +994,10 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                   {/* Contact Information Section */}
                   <div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-                      <FormInput label="Email:" type="email" value={email} onChange={(e) => setEmail(e.target.value)} error={errors.email} placeholder="(use gmail)" />
+                      <FormInput label="Email:" type="email" value={email} onChange={(e) =>{
+                        const value = e.target.value;
+                        if(value.length < 100) setEmail(value);
+                      }} error={errors.email} placeholder="(use gmail)" />
                       {/*
                       
                       Required to email confirmation 
@@ -999,7 +1023,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                           type="text"
                           value={dependentFirstName}
                           onChange={(e) => {
-                            setDependentFirstName(e.target.value);
+                            validateNameFormat(e.target.value, setDependentFirstName);
                             if (dependentErrors.firstName) {
                               setDependentErrors((prev) => ({ ...prev, firstName: "" }));
                             }
@@ -1012,7 +1036,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                           type="text"
                           value={dependentLastName}
                           onChange={(e) => {
-                            setDependentLastName(e.target.value);
+                            validateNameFormat(e.target.value, setDependentLastName);
                             if (dependentErrors.lastName) {
                               setDependentErrors((prev) => ({ ...prev, lastName: "" }));
                             }
