@@ -110,7 +110,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [dependentErrors, setDependentErrors] = useState<{ [key: string]: string }>({});
   const today = new Date().toISOString().split("T")[0];
 
-  // Add these near your other states (username/password)
   const [usernameEdited, setUsernameEdited] = useState(false);
   const [passwordEdited, setPasswordEdited] = useState(false);
 
@@ -123,7 +122,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     const generatedUsername = base || ""; // empty if no firstName
     const generatedPassword = firstName ? `@${firstName.trim()}12345` : "";
 
-    // Only update if the user hasn't manually edited
     if (!usernameEdited) {
       setUsername(generatedUsername);
     }
@@ -133,7 +131,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     }
   }, [firstName, usernameEdited, passwordEdited]);
 
-  // set the pay end date based on pay start date
   useEffect(() => {
     if (hireDate) {
       const start = new Date(hireDate);
@@ -645,7 +642,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
         // Store the new employee ID for fingerprint enrollment
         setNewEmployeeId(result.data.employee_id);
-
+        console.log("newEmployeeId: ", newEmployeeId);
         // Show fingerprint enrollment after 1 second
         setTimeout(() => {
           setMessage(null);
@@ -1456,7 +1453,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
             <p className="text-gray-600 mb-6">
               You can enroll a fingerprint for this employee now, or skip and do it later.
             </p>
-
             <FingerprintEnrollment
               employeeId={newEmployeeId}
               onEnrollmentComplete={(fpId) => {

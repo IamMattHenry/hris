@@ -51,6 +51,9 @@ export default function FingerprintEnrollment({
       if (data.message.includes('ENROLL:SUCCESS') || data.message.includes('Enrollment successful')) {
         setStatus('success');
         setMessage('Fingerprint enrolled successfully!');
+        if (!confirmAttempted && employeeId && fingerprintId) {
+          handleConfirmEnrollment(true);
+        }
       }
 
       // Auto-detect enrollment errors
@@ -116,9 +119,6 @@ export default function FingerprintEnrollment({
       if (result.success) {
         setStatus("enrolling");
         setMessage(`Enrollment started for ID ${fingerprintId}. Follow the instructions below.`);
-        
-        // Note: The Arduino will handle the enrollment process
-        // User needs to manually confirm when Arduino shows success
       } else {
         setError(result.message || "Failed to start enrollment");
         setStatus("error");
@@ -175,12 +175,6 @@ export default function FingerprintEnrollment({
       onSkip();
     }
   };
-
-  useEffect(() => {
-    if (status === "success" && employeeId && fingerprintId && !confirmAttempted) {
-      handleConfirmEnrollment(true);
-    }
-  }, [status, employeeId, fingerprintId, confirmAttempted]);
 
   return (
     <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
@@ -385,7 +379,20 @@ export default function FingerprintEnrollment({
           return null;
         })()}
       </div>
-
+      {process.env.NODE_ENV !== "production" && (
+  <button
+    onClick={() => {
+      // Fake a fingerprint ID and trigger confirm
+      const fakeId = 123; // pick any test value
+      setFingerprintId(fakeId);
+      setStatus("success");
+      handleConfirmEnrollment(true);
+    }}
+    className="mt-3 text-xs text-blue-500 underline"
+  >
+    DEV: Simulate success + confirm
+  </button>
+)}
       {/* Additional Info */}
       <div className="mt-4 p-3 bg-gray-50 rounded-lg">
         <p className="text-xs text-gray-600">
