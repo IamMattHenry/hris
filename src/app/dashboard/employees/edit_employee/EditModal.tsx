@@ -277,27 +277,6 @@ export default function EditEmployeeModal({
     return mapped ? [mapped] : [];
   };
 
-  useEffect(() => {
-    if (!(grantAdminPrivilege || grantSupervisorPrivilege)) {
-      if (subRole !== "") setSubRole("");
-      return;
-    }
-
-    if (!departmentId) {
-      if (subRole !== "") setSubRole("");
-      return;
-    }
-
-    const dept = departments.find((d) => d.department_id === departmentId);
-    const mapped = mapDepartmentToSubRole(dept?.department_name);
-
-    if (mapped) {
-      if (subRole !== mapped) setSubRole(mapped);
-    } else if (subRole !== "") {
-      setSubRole("");
-    }
-  }, [departmentId, departments, grantAdminPrivilege, grantSupervisorPrivilege]);
-
   const checkDepartmentSupervisor = async (
     deptId: number
   ): Promise<boolean> => {
@@ -554,6 +533,7 @@ export default function EditEmployeeModal({
       if (result.success) {
         toast.success("Employee updated successfully!");
         onClose();
+        setTimeout(() => window.location.reload(), 3000);
       } else {
         toast.error(result.message || "Failed to update employee");
       }
@@ -1174,7 +1154,7 @@ export default function EditEmployeeModal({
               </div>
 
               {(grantAdminPrivilege || grantSupervisorPrivilege) && (
-                <div className="col-span-2">
+                <div className="mt-4">
                   {!departmentId ? (
                     <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                       <p className="text-sm text-yellow-800">
