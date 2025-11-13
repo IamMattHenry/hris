@@ -14,7 +14,7 @@ const ActivityLogTab = () => {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const itemsPerPage = 5;
+  const itemsPerPage = 4;
   const [currentPage, setCurrentPage] = useState(1);
 
   const [sortBy, setSortBy] = useState<"log_id" | "name" | "date">("date");
@@ -113,56 +113,60 @@ const ActivityLogTab = () => {
   }, [searchTerm, date, sortBy, sortOrder]);
 
   return (
-    <div className="min-h-screen bg-[#fff7ec] p-8 space-y-6 text-gray-800 font-poppins">
+    <div className="h-screen bg-[#fff7ec] p-8 flex flex-col text-gray-800 font-poppins overflow-hidden">
+      {/* 🔸 Header & Filters Section (non-scrollable) */}
+      <div className="flex-shrink-0 space-y-6">
+        {/* Header */}
+        <div className="flex flex-col gap-4">
+          <h2 className="text-2xl font-semibold text-[#4B0B14]">Activity Log</h2>
+          <div className="flex items-center justify-between text-[#4B0B14] text-sm font-medium">
+            <p>{currentDate}</p>
+            <p className="flex items-center gap-1">
+              <Clock className="w-4 h-4 text-[#4B0B14]" /> {currentTime}
+            </p>
+          </div>
+        </div>
 
-      {/* Header */}
-      <div className="flex flex-col gap-4">
-        <h2 className="text-2xl font-semibold text-[#4B0B14]">Activity Log</h2>
-        <div className="flex items-center justify-between text-[#4B0B14] text-sm font-medium">
-          <p>{currentDate}</p>
-          <p className="flex items-center gap-1">
-            <Clock className="w-4 h-4 text-[#4B0B14]" /> {currentTime}
-          </p>
+        {/* Filters */}
+        <div className="flex flex-wrap justify-between items-center bg-[#FFF2E0] p-4 rounded-lg shadow-sm gap-3">
+          <div className="relative">
+            <SearchBar
+              placeholder="Search activity or name..."
+              value={searchTerm}
+              onChange={setSearchTerm}
+              className="bg-white"
+            />
+          </div>
+
+          <input
+            type="date"
+            className="px-4 py-2 rounded-lg bg-white text-gray-500"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            max={today}
+          />
+
+          <div className="flex items-center gap-3">
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="px-3 py-2 rounded-lg text-gray-500 bg-white text-sm"
+            >
+              <option value="log_id">Sort by Log ID</option>
+              <option value="date">Sort by Date</option>
+              <option value="name">Sort by Name</option>
+            </select>
+            <ActionButton
+              label={sortOrder === "asc" ? "Descending ↓" : "Ascending ↑"}
+              onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+            />
+          </div>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap justify-between items-center bg-[#FFF2E0] p-4 rounded-lg shadow-sm gap-3">
-
-        {/* Search */}
-        <div className="relative">
-          <SearchBar placeholder="Search activity or name..." value={searchTerm} onChange={setSearchTerm} className="bg-white" />
-        </div>
-
-        {/* Date filter */}
-        <input
-          type="date"
-          className="px-4 py-2 rounded-lg bg-white text-gray-500"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          max={today}
-        />
-
-        {/* Sorting */}
-        <div className="flex items-center gap-3">
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className="px-3 py-2 rounded-lg text-gray-500 bg-white text-sm"
-          >
-            <option value="log_id">Sort by Log ID</option>
-            <option value="date">Sort by Date</option>
-            <option value="name">Sort by Name</option>
-          </select>
-
-          {/* Sort order */}
-          <ActionButton label={sortOrder === "asc" ? "Descending ↓" : "Ascending ↑"} onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")} />
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="rounded-xl shadow-sm overflow-hidden">
-        <div className="grid grid-cols-[120px_150px_1fr_2fr_200px] bg-[#4B0B14] text-[#FFF2E0] px-6 py-4 font-medium">
+      {/* 🔸 Logs Table Section (scrollable only here) */}
+      <div className="flex-1 overflow-y-auto mt-4 rounded-xl shadow-sm bg-[#FFF9F1]">
+        <div className="grid grid-cols-[120px_150px_1fr_2fr_200px] bg-[#4B0B14] text-[#FFF2E0] px-6 py-4 font-medium sticky top-0 z-10">
           <div>Log ID</div>
           <div>Employee Code</div>
           <div>Employee</div>
@@ -170,79 +174,99 @@ const ActivityLogTab = () => {
           <div>Date & Time</div>
         </div>
 
-        {/* Body */}
-        <div className={`${currentActivities.length > 5 ? "max-h-[300px] overflow-y-auto" : ""}`}>
-          {loading ? (
-            <div className="text-center py-6 text-gray-500 bg-[#FFF9F1]">Loading logs...</div>
-          ) : currentActivities.length > 0 ? (
-            currentActivities.map((activity, index) => (
-              <div
-                key={activity.log_id}
-                className={`grid grid-cols-[120px_150px_1fr_2fr_200px] px-6 py-4 ${index % 2 === 0 ? "bg-[#FFF9F1]" : "bg-[#FFF2E0]"
-                  }`}
-              >
-                <div className="font-medium">{activity.log_id}</div>
-                <div>{activity.employee_code}</div>
-                <div>{activity.first_name} {activity.last_name}</div>
-                <div>
-                  <div className="font-medium">{activity.action}</div>
-                  <div className="text-sm text-gray-600">{activity.module}</div>
-                  <div className="text-gray-700">{activity.description}</div>
-                </div>
-                <div>
-                  <span className="px-3 py-1 bg-[#EAD7C4] rounded-full text-sm">
-                    {(() => {
-                      const date = new Date(activity.created_at);
-                      date.setHours(date.getHours() + 8); // Add 8 hours
-                      return date.toLocaleString("en-PH", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      });
-                    })()}
-                  </span>
-                </div>
+        {loading ? (
+          <div className="text-center py-6 text-gray-500">Loading logs...</div>
+        ) : currentActivities.length > 0 ? (
+          currentActivities.map((activity, index) => (
+            <div
+              key={activity.log_id}
+              className={`grid grid-cols-[120px_150px_1fr_2fr_200px] px-6 py-4 ${index % 2 === 0 ? "bg-[#FFF9F1]" : "bg-[#FFF2E0]"
+                }`}
+            >
+              <div className="font-medium">{activity.log_id}</div>
+              <div>{activity.employee_code}</div>
+              <div>
+                {activity.first_name} {activity.last_name}
               </div>
-            ))
-          ) : (
-            <div className="text-center py-6 text-gray-500 bg-[#FFF9F1]">No activities found.</div>
-          )}
+              <div>
+                <div className="font-medium">{activity.action}</div>
+                <div className="text-sm text-gray-600">{activity.module}</div>
+                <div className="text-gray-700">{activity.description}</div>
+              </div>
+              <div>
+                <span className="px-3 py-1 bg-[#EAD7C4] rounded-full text-sm">
+                  {(() => {
+                    const date = new Date(activity.created_at);
+                    date.setHours(date.getHours() + 8);
+                    return date.toLocaleString("en-PH", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    });
+                  })()}
+                </span>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="text-center py-6 text-gray-500">No activities found.</div>
+        )}
+      </div>
+
+      {/* Pagination*/}
+      <div className="flex-shrink-0 flex justify-center items-center mt-4 select-none">
+        <div className="flex items-center gap-2  px-4 py-2 max-w-[400px] w-full justify-center truncate">
+          <button
+            onClick={() => goToPage(currentPage - 1)}
+            disabled={currentPage === 1}
+            className="px-3 py-1 bg-[#3b2b1c] text-white rounded disabled:opacity-40 truncate"
+            title="Previous Page"
+          >
+            Prev
+          </button>
+
+          {/* ✅ Truncated pagination numbers */}
+          <div className="flex items-center gap-1 overflow-hidden truncate">
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .slice(
+                Math.max(currentPage - 2, 0),
+                Math.min(currentPage + 1, totalPages)
+              )
+              .map((num) => (
+                <button
+                  key={num}
+                  onClick={() => goToPage(num)}
+                  className={`px-3 py-1 rounded text-sm truncate ${currentPage === num
+                      ? "bg-[#3b2b1c] text-white"
+                      : "text-[#3b2b1c] hover:bg-[#EAD7C4]"
+                    }`}
+                >
+                  {num}
+                </button>
+              ))}
+
+            {/* Ellipsis if many pages */}
+            {totalPages > 5 && currentPage < totalPages - 2 && (
+              <span className="px-1 text-[#3b2b1c] truncate">...</span>
+            )}
+          </div>
+
+          <button
+            onClick={() => goToPage(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className="px-3 py-1 bg-[#3b2b1c] text-white rounded disabled:opacity-40 truncate"
+            title="Next Page"
+          >
+            Next
+          </button>
         </div>
       </div>
 
-      {/* Pagination */}
-      <div className="flex justify-center items-center gap-3 mt-4 select-none">
-        <button
-          onClick={() => goToPage(currentPage - 1)}
-          disabled={currentPage === 1}
-          className="px-4 py-2 bg-[#3b2b1c] text-white rounded disabled:opacity-40"
-        >
-          Prev
-        </button>
-
-        {Array.from({ length: totalPages }, (_, i) => i + 1).map((num) => (
-          <button
-            key={num}
-            onClick={() => goToPage(num)}
-            className={`px-3 py-2 rounded text-sm ${currentPage === num ? "bg-[#3b2b1c] text-white" : "text-[#3b2b1c]"
-              }`}
-          >
-            {num}
-          </button>
-        ))}
-
-        <button
-          onClick={() => goToPage(currentPage + 1)}
-          disabled={currentPage === totalPages}
-          className="px-4 py-2 bg-[#3b2b1c] text-white rounded disabled:opacity-40"
-        >
-          Next
-        </button>
-      </div>
     </div>
   );
+
 };
 
 export default ActivityLogTab;
