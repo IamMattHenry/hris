@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 export default function Home() {
+
   return (
     <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-[#3b0a0a] to-[#1e0000] text-center text-yellow-400">
       <div className="flex flex-col items-center space-y-4">
@@ -18,9 +19,12 @@ export default function Home() {
           <Link href="/login_hr" className="mt-6 px-8 py-3 bg-none from-yellow-500 to-yellow-600 text-yellow font-poppins rounded-full shadow-[0_0_10px_rgba(255,200,0,0.5)] hover:shadow-[0_0_20px_rgba(255,200,0,0.7)] transition duration-300">
             Admin Portal
           </Link>
-          <a href="/portal" className="mt-6 px-8 py-3 bg-none from-yellow-500 to-yellow-600 text-yellow font-poppins rounded-full shadow-[0_0_10px_rgba(255,200,0,0.5)] hover:shadow-[0_0_20px_rgba(255,200,0,0.7)] transition duration-300">
+          <Link href="/portal" className="mt-6 px-8 py-3 bg-none from-yellow-500 to-yellow-600 text-yellow font-poppins rounded-full shadow-[0_0_10px_rgba(255,200,0,0.5)] hover:shadow-[0_0_20px_rgba(255,200,0,0.7)] transition duration-300">
             Employee Portal
-          </a>
+          </Link>
+          <Link href="/attendance_system" className="mt-6 px-8 py-3 bg-none from-yellow-500 to-yellow-600 text-yellow font-poppins rounded-full shadow-[0_0_10px_rgba(255,200,0,0.5)] hover:shadow-[0_0_20px_rgba(255,200,0,0.7)] transition duration-300">
+          Attendance System
+          </Link>
         </div>
 
       </div>

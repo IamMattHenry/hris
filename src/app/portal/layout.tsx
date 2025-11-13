@@ -18,17 +18,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-
-    <html lang="en">
-      <head>
-        <link
-          href="https://fonts.googleapis.com/icon?family=Material+Icons"
-          rel="stylesheet"
-        />
-      </head>
-      <body className={` ${abrilFatface.variable} antialiased`}>
-        {children}
-      </body>
-    </html>
+    <div className={` ${abrilFatface.variable} antialiased`}>
+      {children}
+    </div>
   );
 }
