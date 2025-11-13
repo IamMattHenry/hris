@@ -115,21 +115,40 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
   // Helper to normalize first name into a safe username
   const makeUsernameFromFirst = (fn: string) =>
-    fn.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  fn.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 
-  useEffect(() => {
-    const base = makeUsernameFromFirst(firstName || "");
-    const generatedUsername = base || ""; // empty if no firstName
-    const generatedPassword = firstName ? `@${firstName.trim()}12345` : "";
+useEffect(() => {
+  const base = makeUsernameFromFirst(firstName || "");
+  
+  // --- Username generation ---
+  let generatedUsername = base;
+  if (generatedUsername.length < 5) {
+    // pad with random 3-digit number
+    const randomNumber = Math.floor(100 + Math.random() * 900); // 100-999
+    generatedUsername += randomNumber.toString();
+  } else {
+    // still append random 3-digit number
+    const randomNumber = Math.floor(100 + Math.random() * 900);
+    generatedUsername += randomNumber.toString();
+  }
 
-    if (!usernameEdited) {
-      setUsername(generatedUsername);
-    }
-    if (!passwordEdited) {
-      setPassword(generatedPassword);
-      setConfirmPassword(generatedPassword);
-    }
-  }, [firstName, usernameEdited, passwordEdited]);
+  // --- Password generation ---
+  let generatedPassword = firstName ? `@${firstName.trim()}` : "";
+  let suffixNumber = 12345; // starting number to append if needed
+
+  // Keep adding numbers until password reaches at least 12 characters
+  while (generatedPassword.length < 12) {
+    generatedPassword = `${generatedPassword}${suffixNumber}`;
+    suffixNumber++;
+  }
+
+  if (!usernameEdited) setUsername(generatedUsername);
+  if (!passwordEdited) {
+    setPassword(generatedPassword);
+    setConfirmPassword(generatedPassword);
+  }
+
+}, [firstName, usernameEdited, passwordEdited]);
 
   useEffect(() => {
     if (hireDate) {
@@ -1091,7 +1110,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                             type="text"
                             value={dependentRelationshipSpecify}
                             onChange={(e) => {
-                              setDependentRelationshipSpecify(e.target.value);
+                              validateNameFormat(e.target.value, setDependentRelationshipSpecify, 30);
                               if (dependentErrors.relationshipSpecify) {
                                 setDependentErrors((prev) => ({ ...prev, relationshipSpecify: "" }));
                               }
