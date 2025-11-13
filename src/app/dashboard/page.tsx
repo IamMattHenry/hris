@@ -129,14 +129,14 @@ export default function Dashboard() {
   }, {});
 
   const totalEmployees = employees.length;
-  
+
   // Color palette - maroon to light pink gradient
   const colorPalette = [
-    '#8b1a1a', '#a52a2a', '#b8423f', '#c94d4d', 
+    '#8b1a1a', '#a52a2a', '#b8423f', '#c94d4d',
     '#d35c5c', '#dd6b6b', '#e67373', '#ef8b8b',
     '#f49999', '#f9a7a7', '#ffb3b3', '#ffc2c2', '#e0d5d5'
   ];
-  
+
   const departmentData = Object.entries(departmentCounts)
     .sort((a, b) => b[1] - a[1])
     .map(([name, value], index) => ({
@@ -393,9 +393,31 @@ export default function Dashboard() {
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip />
+
+                    {/*  Custom Tooltip */}
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload;
+                          return (
+                            <div className="bg-white/90 backdrop-blur-sm border border-gray-200 rounded-lg shadow-md p-2 text-xs text-gray-800">
+                              <p className="font-semibold truncate max-w-[180px]" title={data.name}>
+                                {data.name.length > 22
+                                  ? data.name.slice(0, 22) + "..."
+                                  : data.name}
+                              </p>
+                              <p>Value: <span className="font-medium">{data.value}</span></p>
+                              <p>Share: <span className="font-medium">{data.percentage}%</span></p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
+
+                {/* Center label */}
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span className="text-3xl font-bold text-gray-800">
                     {departmentData.length > 0 ? departmentData[0].percentage : 0}%
@@ -404,24 +426,33 @@ export default function Dashboard() {
               </div>
             </div>
 
+
+        
             {/* Department List */}
             <div className="space-y-3">
               {departmentData.map((dept, index) => (
                 <div key={index} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center flex-1">
+                  <div className="flex items-center flex-1 min-w-0">
                     <div
-                      className="w-3 h-3 rounded-full mr-3"
+                      className="w-3 h-3 rounded-full mr-3 shrink-0"
                       style={{ backgroundColor: dept.color }}
                     />
-                    <span className="text-gray-700">{dept.name}</span>
+                    <span className="text-gray-700 truncate block max-w-[160px]">
+                      {dept.name}
+                    </span>
                   </div>
                   <div className="flex items-center space-x-3">
-                    <span className="text-gray-800 font-medium">{dept.value}</span>
-                    <span className="text-gray-600 w-10 text-right">{dept.percentage}%</span>
+                    <span className="text-gray-800 font-medium w-10 text-right truncate">
+                      {dept.value}
+                    </span>
+                    <span className="text-gray-600 w-10 text-right">
+                      {dept.percentage}%
+                    </span>
                   </div>
                 </div>
               ))}
             </div>
+
           </div>
         </div>
 
@@ -546,7 +577,7 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-      
+
       {/* Floating Ticket Button */}
       <FloatingTicketButton />
     </div>
