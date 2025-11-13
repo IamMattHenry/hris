@@ -545,6 +545,18 @@ export default function EditEmployeeModal({
     }
   };
 
+  // Reusable validation function
+  const validateName = (
+    value: string,
+    setValue: (v: string) => void,
+    maxLength: number = 50 // default limit = 50
+  ) => {
+    // Allow only letters, spaces, apostrophes, and hyphens, and limit to maxLength
+    if (/^[A-Za-z\s'-]*$/.test(value) && value.length <= maxLength) {
+      setValue(value);
+    }
+  };
+
   if (!isOpen) return null;
 
   /* ---------- JSX ---------- */
@@ -579,14 +591,18 @@ export default function EditEmployeeModal({
                 label="First Name"
                 type="text"
                 value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
+                onChange={(e) => {
+                  validateName(e.target.value, setFirstName);
+                }}
                 error={errors.firstName}
               />
               <FormInput
                 label="Last Name"
                 type="text"
                 value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
+                onChange={(e) => {
+                  validateName(e.target.value, setLastName);
+                }}
                 error={errors.lastName}
               />
               <div>
@@ -687,7 +703,12 @@ export default function EditEmployeeModal({
                 label="Home Address"
                 type="text"
                 value={homeAddress}
-                onChange={(e) => setHomeAddress(e.target.value)}
+                onChange={(e) => {
+                 const value = e.target.value;
+                 if(value.length <= 100){
+                  setHomeAddress(value);
+                 }
+                }}
                 error={errors.homeAddress}
               />
               <FormSelect

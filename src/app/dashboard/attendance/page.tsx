@@ -65,18 +65,18 @@ export default function AttendanceTable() {
   });
 
   const fetchAttendance = useCallback(async () => {
-  setLoading(true);
-  const result = await attendanceApi.getAll(undefined, selectedDate, selectedDate);
-  console.log(result);
-  if (result.success && result.data) {
-    setAttendanceList(result.data as Attendance[]);
-  };
-  setLoading(false);
-}, [selectedDate]);
+    setLoading(true);
+    const result = await attendanceApi.getAll(undefined, selectedDate, selectedDate);
+    console.log(result);
+    if (result.success && result.data) {
+      setAttendanceList(result.data as Attendance[]);
+    };
+    setLoading(false);
+  }, [selectedDate]);
 
-useEffect(() => {
-  fetchAttendance();
-}, [fetchAttendance]);
+  useEffect(() => {
+    fetchAttendance();
+  }, [fetchAttendance]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -149,6 +149,36 @@ useEffect(() => {
       </div>
     );
   }
+
+
+  const formatTo12Hour = (timeString: string | null) => {
+    if (!timeString) return "-";
+
+    try {
+      // Handle both "HH:MM:SS" and "HH:MM" formats
+      const timeParts = timeString.split(":");
+      if (timeParts.length >= 2) {
+        let hours = parseInt(timeParts[0], 10);
+        const minutes = parseInt(timeParts[1], 10);
+
+        // Subtract 8 hours (handle negative wrap-around)
+        hours = (hours - 8 + 24) % 24;
+
+        const period = hours >= 12 ? "PM" : "AM";
+        const displayHours = hours % 12 || 12;
+
+        // Pad minutes with leading zero if needed
+        const formattedMinutes = minutes.toString().padStart(2, "0");
+
+        return `${displayHours}:${formattedMinutes} ${period}`;
+      }
+
+      return timeString;
+    } catch (error) {
+      return timeString;
+    }
+  };
+
 
   return (
     <div className="min-h-screen bg-[#fff7ec] p-8 space-y-6 text-gray-800 font-poppins z-30">
@@ -258,16 +288,16 @@ useEffect(() => {
                     <span>{record.first_name} {record.last_name}</span>
                   </td>
                   <td className="py-3 px-4">{new Date(record.date).toLocaleDateString()}</td>
-                  <td className="py-3 px-4">{record.time_in || "-"}</td>
-                  <td className="py-3 px-4">{record.time_out || "-"}</td>
+                  <td className="py-3 px-4">{formatTo12Hour(record.time_in) || "-"}</td>
+                  <td className="py-3 px-4">{formatTo12Hour(record.time_out) || "-"}</td>
                   <td className="py-3 px-4">
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold ${record.status === "present" ? "bg-green-100 text-green-800" :
-                        record.status === "absent" ? "bg-red-100 text-red-800" :
-                          record.status === "late" ? "bg-yellow-100 text-yellow-800" :
-                            record.status === "half_day" ? "bg-orange-100 text-orange-800" :
-                              record.status === "on_leave" ? "bg-blue-100 text-blue-800" :
-                                record.status === "work_from_home" ? "bg-purple-100 text-purple-800" :
-                                  "bg-gray-100 text-gray-800"
+                      record.status === "absent" ? "bg-red-100 text-red-800" :
+                        record.status === "late" ? "bg-yellow-100 text-yellow-800" :
+                          record.status === "half_day" ? "bg-orange-100 text-orange-800" :
+                            record.status === "on_leave" ? "bg-blue-100 text-blue-800" :
+                              record.status === "work_from_home" ? "bg-purple-100 text-purple-800" :
+                                "bg-gray-100 text-gray-800"
                       }`}>
                       {STATUS_LABELS[record.status]}
                     </span>
