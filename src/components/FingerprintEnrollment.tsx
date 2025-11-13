@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Fingerprint, Loader2, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { fingerprintApi } from "@/lib/api";
 
@@ -30,6 +30,7 @@ export default function FingerprintEnrollment({
   const [error, setError] = useState("");
   const [statusLog, setStatusLog] = useState<Array<{ message: string; type: string; timestamp: string }>>([]);
   const [confirmAttempted, setConfirmAttempted] = useState(false);
+  const confirmAttemptedRef = useRef(false);
 
   // Auto-fetch next available fingerprint ID on mount
   useEffect(() => {
@@ -51,7 +52,8 @@ export default function FingerprintEnrollment({
       if (data.message.includes('ENROLL:SUCCESS') || data.message.includes('Enrollment successful')) {
         setStatus('success');
         setMessage('Fingerprint enrolled successfully!');
-        if (!confirmAttempted && employeeId && fingerprintId) {
+        if (!confirmAttemptedRef.current && employeeId && fingerprintId) {
+          confirmAttemptedRef.current = true;
           handleConfirmEnrollment(true);
         }
       }
@@ -70,7 +72,7 @@ export default function FingerprintEnrollment({
     return () => {
       eventSource.close();
     };
-  }, [status]);
+  }, [status, confirmAttempted, employeeId, fingerprintId]);
 
   const fetchNextFingerprintId = async () => {
     try {
@@ -133,6 +135,7 @@ export default function FingerprintEnrollment({
     if (!fingerprintId || !employeeId) return;
 
     try {
+      confirmAttemptedRef.current = true;
       setConfirmAttempted(true);
       setStatus("confirming");
       setError("");
