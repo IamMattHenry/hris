@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Cell, Tooltip, ResponsiveContainer, PieChart, Pie, Legend } from "recharts";
 import { employeeApi, leaveApi, attendanceApi } from "@/lib/api";
+import { RefreshCcw } from "lucide-react"
 import { Employee, Attendance } from "@/types/api";
 import FloatingTicketButton from "@/components/dashboard/FloatingTicketButton";
 import { useAuth } from "@/contexts/AuthContext";
 import Image from "next/image";
+import ActionButton from "@/components/buttons/ActionButton";
 
 
 export default function Dashboard() {
@@ -161,6 +162,10 @@ export default function Dashboard() {
     { name: 'Late', value: employeeAttendanceSummary?.late || 0 },
   ];
 
+  const handleRefresh = () => {
+    fetchAttendanceData(selectedMonth);
+  }
+
   return (
     <div className="min-h-screen p-6 font-poppins">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -254,8 +259,10 @@ export default function Dashboard() {
           {/* Month Selector */}
           <div className="p-6 border-b border-gray-200">
             <div className="flex items-center justify-between">
+              
               <h3 className="text-2xl font-normal text-gray-800">Logs</h3>
               <div className="flex items-center space-x-4">
+                <ActionButton label="Refresh" icon={RefreshCcw} onClick={handleRefresh} />
                 <div>
                   <label htmlFor="month-select" className="block text-sm font-medium text-gray-700 mb-1">Select Month:</label>
                   <select
