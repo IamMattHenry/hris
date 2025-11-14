@@ -56,7 +56,6 @@ router.put(
 router.put(
   '/:id',
   verifyToken,
-  verifyRole(['admin', 'superadmin']),
   updateEmployee
 );
 

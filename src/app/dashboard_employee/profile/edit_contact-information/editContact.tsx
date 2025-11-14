@@ -41,7 +41,7 @@ export default function EditContactsModal({
 
                 // Populate contacts from API
                 const contactList =
-                    res.data.contacts?.map((c: any) => formatPHNumber(c.contact_number || c)) ?? [""];
+                    res.data.contact_numbers?.map((c: any) => formatPHNumber(c.contact_number || c)) ?? [""];
 
                 // If no contacts exist, show one empty input
                 setContacts(contactList.length ? contactList : [""]);
@@ -127,7 +127,7 @@ export default function EditContactsModal({
 
         setIsSubmitting(true);
         try {
-            const payload = { contacts: validContacts };
+            const payload = { contact_numbers: validContacts };
             const result = await employeeApi.update(employee.employee_id, payload);
             if (result.success) {
                 toast.success("Contact numbers updated successfully!");
