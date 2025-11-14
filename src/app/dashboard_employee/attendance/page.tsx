@@ -66,7 +66,7 @@ export default function Dashboard() {
         const minutes = parseInt(timeParts[1], 10);
 
         // Subtract 21 hours (handle negative wrap-around)
-        hours = (hours - 21 + 24) % 24;
+        hours = (hours - 20 + 24) % 24;
 
         const period = hours >= 12 ? "PM" : "AM";
         const displayHours = hours % 12 || 12;
