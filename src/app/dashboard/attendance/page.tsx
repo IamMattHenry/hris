@@ -150,32 +150,17 @@ export default function AttendanceTable() {
     );
   }
 
-  const formatTo12Hour = (timeString: string | null) => {
-    if (!timeString) return "-";
+  const formatDateTimeTo12Hour = (dateTimeString: string = "") => {
+    const date = new Date(dateTimeString);
+    if (isNaN(date.getTime())) return "-";
 
-    try {
-      // Handle both "HH:MM:SS" and "HH:MM" formats
-      const timeParts = timeString.split(":");
-      if (timeParts.length >= 2) {
-        let hours = parseInt(timeParts[0], 10);
-        const minutes = parseInt(timeParts[1], 10);
+    let hours = date.getHours();
+    const minutes = date.getMinutes().toString().padStart(2, "0");
+    const period = hours >= 12 ? "PM" : "AM";
 
-        // Subtract 21 hours (handle negative wrap-around)
-        hours = (hours - 20 + 24) % 24;
+    const displayHours = hours % 12 || 12;
 
-        const period = hours >= 12 ? "PM" : "AM";
-        const displayHours = hours % 12 || 12;
-
-        // Pad minutes with leading zero if needed
-        const formattedMinutes = minutes.toString().padStart(2, "0");
-
-        return `${displayHours}:${formattedMinutes} ${period}`;
-      }
-
-      return timeString;
-    } catch (error) {
-      return timeString;
-    }
+    return `${displayHours}:${minutes} ${period}`;
   };
 
 
@@ -287,8 +272,8 @@ export default function AttendanceTable() {
                     <span>{record.first_name} {record.last_name}</span>
                   </td>
                   <td className="py-3 px-4">{new Date(record.date).toLocaleDateString()}</td>
-                  <td className="py-3 px-4">{formatTo12Hour(record.time_in) || "-"}</td>
-                  <td className="py-3 px-4">{formatTo12Hour(record.time_out) || "-"}</td>
+                  <td className="py-3 px-4">{record.time_in ? formatDateTimeTo12Hour(record.time_in) : "-"}</td>
+                  <td className="py-3 px-4">{record.time_out ? formatDateTimeTo12Hour(record.time_out) : "-"}</td>
                   <td className="py-3 px-4">
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold ${record.status === "present" ? "bg-green-100 text-green-800" :
                       record.status === "absent" ? "bg-red-100 text-red-800" :
