@@ -55,27 +55,32 @@ export default function Dashboard() {
     }
   };
 
-  const formatTime = (time: string | null) => {
-    if (!time) return "-";
+ const formatTo12Hour = (timeString: string | null) => {
+    if (!timeString) return "-";
 
-    // Normalize formats: HH:MM or HH:MM:SS
-    const parts = time.split(":");
-    if (parts.length < 2) return "-";
+    try {
+      // Handle both "HH:MM:SS" and "HH:MM" formats
+      const timeParts = timeString.split(":");
+      if (timeParts.length >= 2) {
+        let hours = parseInt(timeParts[0], 10);
+        const minutes = parseInt(timeParts[1], 10);
 
-    let hour = parseInt(parts[0], 10);
-    const minute = parts[1];
+        // Subtract 21 hours (handle negative wrap-around)
+        hours = (hours - 21 + 24) % 24;
 
-    if (isNaN(hour)) return "-";
+        const period = hours >= 12 ? "PM" : "AM";
+        const displayHours = hours % 12 || 12;
 
-    hour -= 8;
-    if (hour < 0) {
-      hour += 24; // wrap around midnight
+        // Pad minutes with leading zero if needed
+        const formattedMinutes = minutes.toString().padStart(2, "0");
+
+        return `${displayHours}:${formattedMinutes} ${period}`;
+      }
+
+      return timeString;
+    } catch (error) {
+      return timeString;
     }
-
-    const ampm = hour >= 12 ? "PM" : "AM";
-    hour = hour % 12 || 12;
-
-    return `${hour}:${minute} ${ampm}`;
   };
 
 
@@ -297,12 +302,12 @@ export default function Dashboard() {
                         </td>
                         <td className="border border-gray-300 px-4 py-2">      
                           {
-                            record.time_in &&  formatTime(record.time_in) || '--'
+                            record.time_in &&  formatTo12Hour(record.time_in) || '--'
                           }
                         </td>
                         <td className="border border-gray-300 px-4 py-2">
                           {
-                            record.time_out && formatTime(record.time_out) || '--'
+                            record.time_out && formatTo12Hour(record.time_out) || '--'
                           }
                         </td>
                         <td className="border border-gray-300 px-4 py-2">
