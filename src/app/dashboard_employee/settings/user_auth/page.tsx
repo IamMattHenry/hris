@@ -18,30 +18,51 @@ const AuthenticationTab = () => {
       setErrors({ username: "Username cannot be empty." });
       return;
     }
-
     setErrors({});
     console.log("✅ Username changed to:", username);
     alert("Username saved successfully!");
   };
 
-  // ✅ Password Validation
+  // Password Validation
   const handleSavePassword = () => {
-    const newErrors: { password?: string } = {};
-    if (!newPassword.trim() || !confirmPassword.trim()) {
-      newErrors.password = "Both password fields are required.";
-    } else if (newPassword !== confirmPassword) {
-      newErrors.password = "Passwords do not match.";
-    }
+  const newErrors: { password?: string } = {};
 
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
+  // --- Required fields ---
+  if (!newPassword.trim() || !confirmPassword.trim()) {
+    newErrors.password = "Both password fields are required.";
+  } 
+  // --- Matching check ---
+  else if (newPassword !== confirmPassword) {
+    newErrors.password = "Passwords do not match.";
+  } 
+  // --- Strength validation ---
+  else {
+    const password = newPassword;
 
-    setErrors({});
-    console.log("✅ Password changed successfully!");
-    alert("Password saved successfully!");
-  };
+    if (password.length < 12) {
+      newErrors.password = "Password must be at least 12 characters long.";
+    } else if (!/[A-Z]/.test(password)) {
+      newErrors.password = "Password must contain at least 1 uppercase letter.";
+    } else if (!/[a-z]/.test(password)) {
+      newErrors.password = "Password must contain at least 1 lowercase letter.";
+    } else if (!/[0-9]/.test(password)) {
+      newErrors.password = "Password must contain at least 1 number.";
+    } else if (!/[!@#$%^&*(),.?":{}|<>_\-=+~`]/.test(password)) {
+      newErrors.password = "Password must contain at least 1 special character.";
+    }
+  }
+
+  // --- If any validation errors exist ---
+  if (Object.keys(newErrors).length > 0) {
+    setErrors(newErrors);
+    return;
+  }
+
+  // --- Passed all checks ---
+  setErrors({});
+  console.log("✅ Password changed successfully!");
+  alert("Password saved successfully!");
+};
 
   return (
     <div className="max-w-4xl mx-auto text-[#073532]">

@@ -667,12 +667,15 @@ useEffect(() => {
           setMessage(null);
           setShowFingerprintEnrollment(true);
         }, 1000);
+
+       
       } else {
         setMessage({
           type: "error",
           text: result.message || "Failed to create employee",
         });
       }
+     
     } catch (error) {
       console.error("Error creating employee:", error);
       setMessage({
@@ -681,7 +684,9 @@ useEffect(() => {
       });
     } finally {
       setIsSubmitting(false);
+      
     }
+  
   };
 
 
