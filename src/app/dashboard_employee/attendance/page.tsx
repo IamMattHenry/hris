@@ -55,6 +55,29 @@ export default function Dashboard() {
     }
   };
 
+  const formatTime = (time: string | null) => {
+    if (!time) return "-";
+
+    // Normalize formats: HH:MM or HH:MM:SS
+    const parts = time.split(":");
+    if (parts.length < 2) return "-";
+
+    let hour = parseInt(parts[0], 10);
+    const minute = parts[1];
+
+    if (isNaN(hour)) return "-";
+
+    hour -= 8;
+    if (hour < 0) {
+      hour += 24; // wrap around midnight
+    }
+
+    const ampm = hour >= 12 ? "PM" : "AM";
+    hour = hour % 12 || 12;
+
+    return `${hour}:${minute} ${ampm}`;
+  };
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -269,28 +292,25 @@ export default function Dashboard() {
                             month: 'short',
                             day: 'numeric',
                             year: 'numeric'
-                          })}
+                          })
+                          }
+                        </td>
+                        <td className="border border-gray-300 px-4 py-2">      
+                          {
+                            record.time_in &&  formatTime(record.time_in) || '--'
+                          }
                         </td>
                         <td className="border border-gray-300 px-4 py-2">
-                          {record.time_in ? new Date(`1970-01-01T${record.time_in}`).toLocaleTimeString('en-US', {
-                            hour: 'numeric',
-                            minute: '2-digit',
-                            hour12: true
-                          }) : '-'}
-                        </td>
-                        <td className="border border-gray-300 px-4 py-2">
-                          {record.time_out ? new Date(`1970-01-01T${record.time_out}`).toLocaleTimeString('en-US', {
-                            hour: 'numeric',
-                            minute: '2-digit',
-                            hour12: true
-                          }) : '-'}
+                          {
+                            record.time_out && formatTime(record.time_out) || '--'
+                          }
                         </td>
                         <td className="border border-gray-300 px-4 py-2">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${record.status === 'present' ? 'bg-green-100 text-green-800' :
-                              record.status === 'absent' ? 'bg-red-100 text-red-800' :
-                                record.status === 'late' ? 'bg-orange-100 text-orange-800' :
-                                  record.status === 'on_leave' ? 'bg-blue-100 text-blue-800' :
-                                    'bg-gray-100 text-gray-800'
+                            record.status === 'absent' ? 'bg-red-100 text-red-800' :
+                              record.status === 'late' ? 'bg-orange-100 text-orange-800' :
+                                record.status === 'on_leave' ? 'bg-blue-100 text-blue-800' :
+                                  'bg-gray-100 text-gray-800'
                             }`}>
                             {record.status.charAt(0).toUpperCase() + record.status.slice(1).replace('_', ' ')}
                           </span>
