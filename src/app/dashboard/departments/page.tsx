@@ -69,7 +69,7 @@ export default function DepartmentsPage() {
 
   const confirmDelete = async () => {
     if (!departmentToDelete) return;
-    
+
     const result = await departmentApi.delete(departmentToDelete);
     if (result.success) {
       toast.success("Department deleted successfully");
@@ -77,7 +77,7 @@ export default function DepartmentsPage() {
     } else {
       toast.error(result.message || "Failed to delete department");
     }
-    
+
     setDepartmentToDelete(null);
   };
 
@@ -88,7 +88,7 @@ export default function DepartmentsPage() {
   // Filter departments based on search term
   const filteredDepartments = departments.filter((dept) => {
     if (!searchTerm.trim()) return true;
-    
+
     const search = searchTerm.toLowerCase();
     const deptCode = (dept.department_code || `DEPT-${dept.department_id}`).toLowerCase();
     const deptName = dept.department_name.toLowerCase();
@@ -96,7 +96,7 @@ export default function DepartmentsPage() {
       ? `${dept.supervisor_first_name} ${dept.supervisor_last_name}`.toLowerCase()
       : "";
     const supervisorCode = (dept.supervisor_code || "").toLowerCase();
-    
+
     return (
       deptCode.includes(search) ||
       deptName.includes(search) ||
@@ -167,18 +167,32 @@ export default function DepartmentsPage() {
           Prev
         </button>
 
-        {pageNumbers.map((num) => (
-          <button
-            key={num}
-            onClick={() => goToPage(num)}
-            className={`px-3 py-2 rounded text-sm transition cursor-pointer ${currentPage === num
-              ? "bg-[#3b2b1c] text-white"
-              : "text-[#3b2b1c] hover:underline"
-              }`}
-          >
-            {num}
-          </button>
-        ))}
+        <div className="flex items-center gap-1 overflow-hidden truncate">
+          {Array.from({ length: totalPages }, (_, i) => i + 1)
+            .slice(
+              Math.max(currentPage - 2, 0),
+              Math.min(currentPage + 1, totalPages)
+            )
+            .map((num) => (
+              <button
+                key={num}
+                onClick={() => goToPage(num)}
+                className={`px-3 py-2 rounded text-sm transition cursor-pointer ${currentPage === num
+                    ? "bg-[#3b2b1c] text-white"
+                    : "text-[#3b2b1c] hover:underline"
+                  }`}
+              >
+                {num}
+              </button>
+            ))}
+
+          {/* Ellipsis if many pages */}
+          {totalPages > 5 && currentPage < totalPages - 2 && (
+            <span className="px-1 text-[#3b2b1c] truncate">...</span>
+          )}
+        </div>
+
+
 
         <button
           onClick={() => goToPage(currentPage + 1)}
