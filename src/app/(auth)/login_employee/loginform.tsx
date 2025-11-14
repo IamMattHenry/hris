@@ -46,6 +46,7 @@ export default function LoginForm() {
           case "Invalid credentials":
             setErrorMessage("Incorrect username or password.");
             alert("Incorrect username or password.");
+            window.location.reload();
             break;
           case "Only employees are allowed to access this portal":
             setErrorMessage(

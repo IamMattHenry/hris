@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { House, User, Users, UserCheck, Mail, Cog } from "lucide-react";
+import { House, User, Users, UserCheck, Mail, Cog, LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function Navbar() {
@@ -23,7 +23,7 @@ export default function Navbar() {
   const handleLogout = async () => {
     try {
       await logout();
-      window.location.href = "/portal";
+      window.location.href = "/login_employee";
     } catch (error) {
       console.error("Logout failed:", error);
     }
@@ -66,9 +66,10 @@ export default function Navbar() {
               </li>
             ))}
             <li
-              className="flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors bg-[#073532] text-white cursor-pointer hover:bg-[#385d5a]"
+              className="flex items-center border border-[#FFF2E0] space-x-2 px-4 py-2 gap-2 rounded-lg transition-colors bg-[#073532] text-white cursor-pointer hover:bg-[#385d5a]"
               onClick={handleLogout}
             >
+              <LogOut className="w-5 h-5" />
               Logout
             </li>
           </ul>

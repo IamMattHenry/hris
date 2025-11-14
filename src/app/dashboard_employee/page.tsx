@@ -148,13 +148,13 @@ export default function Dashboard() {
             </h1>
             <span
               className={`inline-block px-3 py-1 text-sm font-medium rounded-full ${currentEmployee.status === "active"
-                  ? "bg-green-100 text-green-800"
-                  : currentEmployee.status === "on_leave"
-                    ? "bg-yellow-100 text-yellow-800"
-                    : currentEmployee.status === "resigned" ||
-                      currentEmployee.status === "terminated"
-                      ? "bg-red-100 text-red-800"
-                      : "bg-gray-100 text-gray-800"
+                ? "bg-green-100 text-green-800"
+                : currentEmployee.status === "on_leave"
+                  ? "bg-yellow-100 text-yellow-800"
+                  : currentEmployee.status === "resigned" ||
+                    currentEmployee.status === "terminated"
+                    ? "bg-red-100 text-red-800"
+                    : "bg-gray-100 text-gray-800"
                 }`}
             >
               {currentEmployee.status || "Unknown"}
@@ -253,7 +253,7 @@ export default function Dashboard() {
                 )}
                 <div className="text-center">
                   <p className="text-3xl font-bold text-[#8B1A1A] capitalize">
-                    {currentEmployee?.shift || "Not Assigned"}
+                    {currentEmployee?.shift + " Shift" || "Not Assigned"}
                   </p>
                   {currentEmployee?.shift && (
                     <p className="text-sm text-gray-500 mt-1">
@@ -274,33 +274,39 @@ export default function Dashboard() {
             <div className="bg-[#281b0d] px-6 py-3 shadow-lg rounded-b-lg">
               <h2 className="text-lg font-semibold text-white">My Attendance Summary</h2>
             </div>
+
             <div className="p-6 h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={attendanceSummaryData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {attendanceSummaryData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
+
+              {!employeeAttendanceSummary ? (
+                <p className="text-gray-500 text-center mt-10">Loading chart...</p>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={attendanceSummaryData}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      dataKey="value"
+                      label
+                    >
+                      {attendanceSummaryData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Floating Ticket Button */}
-      <FloatingTicketButton />
+        {/* Floating Ticket Button */}
+        <FloatingTicketButton />
+      </div>
     </div>
   );
 }
