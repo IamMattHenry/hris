@@ -18,7 +18,7 @@ export default function Dashboard() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
- 
+
 
   const [activeTab, setActiveTab] = useState<"basic" | "job">("basic");
   const [employeeAttendanceSummary, setEmployeeAttendanceSummary] = useState<{
@@ -183,17 +183,18 @@ export default function Dashboard() {
                     <p onClick={handleContactmodal} className="text-sm font-semibold underline cursor-pointer text-[#412f23de]">edit</p>
                   </div>
                   <hr className="w-80 border-[#e3b983]" />
-                  <div className="text-left">
-                    <p className="text-sm text-[#412f23d4]">
-                      {user?.contact_numbers && user.contact_numbers.length > 0 ? (
-                        user.contact_numbers.map((contact, index) => (
-                          <span key={index}>{contact}</span>
-                        ))
-                      ) : (
-                        <span>N/A</span>  
-                      )}
-                    </p>
+                  <div className="text-left flex flex-col">
+                    {user?.contact_numbers && user.contact_numbers.length > 0 ? (
+                      user.contact_numbers.map((contact, index) => (
+                        <div key={index} className="text-sm text-[#412f23d4]">
+                          {contact}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-sm text-[#412f23d4]">N/A</div>
+                    )}
                   </div>
+
                 </div>
 
               </div>
@@ -211,8 +212,8 @@ export default function Dashboard() {
               <button
                 onClick={() => setActiveTab("basic")}
                 className={`px-20 py-5 rounded-lg font-medium transition-all ${activeTab === "basic"
-                    ? "bg-[#073532] text-white shadow-md"
-                    : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+                  ? "bg-[#073532] text-white shadow-md"
+                  : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
                   }`}
               >
                 Basic Information
@@ -220,8 +221,8 @@ export default function Dashboard() {
               <button
                 onClick={() => setActiveTab("job")}
                 className={`px-20 py-5 rounded-lg font-medium transition-all ${activeTab === "job"
-                    ? "bg-[#073532] text-white shadow-md"
-                    : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+                  ? "bg-[#073532] text-white shadow-md"
+                  : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
                   }`}
               >
                 Job Information
@@ -401,9 +402,9 @@ export default function Dashboard() {
         onClose={() => setIsEmailModalOpen(false)}
         id={user?.employee_id || null}
       />
-<div>
-      {/* Floating Ticket Button */}
-      <FloatingTicketButton />
+      <div>
+        {/* Floating Ticket Button */}
+        <FloatingTicketButton />
       </div>
     </div>
   );

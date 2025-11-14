@@ -72,6 +72,10 @@ export default function EditEmailsModal({
       if (result.success) {
         toast.success("Emails updated successfully!");
         onClose();
+
+        setTimeout(() => {
+          window.location.reload();
+        }, 300);
       } else {
         toast.error(result.message || "Failed to update emails.");
       }
@@ -108,39 +112,39 @@ export default function EditEmailsModal({
         <p className="text-sm text-gray-600 mb-6">Update your email list</p>
 
         {employee ? (
-  <div className="space-y-4 w-full">
-    {emails.map((email, i) => (
-      <div key={i} className="flex items-center gap-2">
-        <FormInput
-          label=""
-          type="email"
-          value={email}
-          onChange={(e) => handleEmailChange(i, e.target.value)}
-          placeholder="Enter email"   // <- Make input take full width
-        />
-        {emails.length > 1 && (
-          <button
-            onClick={() => removeEmail(i)}
-            className="text-red-600 hover:text-red-800 font-bold"
-          >
-            ✕
-          </button>
+          <div className="space-y-4 w-full">
+            {emails.map((email, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <FormInput
+                  label=""
+                  type="email"
+                  value={email}
+                  onChange={(e) => handleEmailChange(i, e.target.value)}
+                  placeholder="Enter email"   // <- Make input take full width
+                />
+                {emails.length > 1 && (
+                  <button
+                    onClick={() => removeEmail(i)}
+                    className="text-red-600 hover:text-red-800 font-bold"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+            <button
+              onClick={addEmail}
+              className="text-sm text-[#4b0b14] hover:underline"
+            >
+              + Add another email
+            </button>
+            {errors.emails && (
+              <p className="text-red-600 text-sm">{errors.emails}</p>
+            )}
+          </div>
+        ) : (
+          <p className="text-center text-gray-600">Loading emails...</p>
         )}
-      </div>
-    ))}
-    <button
-      onClick={addEmail}
-      className="text-sm text-[#4b0b14] hover:underline"
-    >
-      + Add another email
-    </button>
-    {errors.emails && (
-      <p className="text-red-600 text-sm">{errors.emails}</p>
-    )}
-  </div>
-) : (
-  <p className="text-center text-gray-600">Loading emails...</p>
-)}
 
         <div className="flex justify-end mt-8">
           <button

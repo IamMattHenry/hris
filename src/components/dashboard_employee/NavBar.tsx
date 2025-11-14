@@ -30,7 +30,7 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="bg-[#073532] text-[#FFF2E0] font-poppins shadow-xl sticky top-0">
+    <nav className="bg-[#073532] text-[#FFF2E0] font-poppins z-50 shadow-xl sticky top-0">
       <div className="max-w-8xl mx-auto px-8 py-4">
         <div className="flex items-center justify-between">
           {/* Logo */}

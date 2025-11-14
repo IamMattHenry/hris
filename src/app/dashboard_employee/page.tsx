@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Cell, Tooltip, ResponsiveContainer, PieChart, Pie, Legend } from "recharts";
+import { Cell, Tooltip, ResponsiveContainer, YAxis, XAxis, LabelList, BarChart, Bar } from "recharts";
 import { employeeApi, leaveApi, attendanceApi } from "@/lib/api";
 import { Employee } from "@/types/api";
 import FloatingTicketButton from "@/components/dashboard/FloatingTicketButton";
@@ -137,6 +137,9 @@ export default function Dashboard() {
     { name: "Late", value: employeeAttendanceSummary?.late || 0, color: "#ff6300" },
   ];
 
+
+  const hasAttendanceData = employeeAttendanceSummary && Object.values(employeeAttendanceSummary).some((v) => v > 0);
+
   return (
     <div className="min-h-screen p-6 font-poppins">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -268,6 +271,9 @@ export default function Dashboard() {
           </div>
         </div>
 
+
+
+
         {/* Attendance Summary */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white rounded-xl shadow-sm border border-[#e8dcc8] overflow-hidden">
@@ -275,35 +281,70 @@ export default function Dashboard() {
               <h2 className="text-lg font-semibold text-white">My Attendance Summary</h2>
             </div>
 
-            <div className="p-6 h-64">
-
+            <div className="p-6">
               {!employeeAttendanceSummary ? (
-                <p className="text-gray-500 text-center mt-10">Loading chart...</p>
+                <div className="flex items-center justify-center h-56">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8b4513] mx-auto mb-4"></div>
+                    <p className="text-gray-500">Loading chart...</p>
+                  </div>
+                </div>
+              ) : !hasAttendanceData ? (
+                <div className="flex items-center justify-center h-56">
+                  <p className="text-gray-500 text-center">No attendance data available yet</p>
+                </div>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={attendanceSummaryData}
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      dataKey="value"
-                      label
-                    >
-                      {attendanceSummaryData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
+                <>
+<div className="h-56 w-full">
+  <ResponsiveContainer width="100%" height="100%">
+    <BarChart
+      data={attendanceSummaryData}
+      layout="vertical"
+      margin={{ top: 10, right: 30, bottom: 10, left: 50 }}
+    >
+      <XAxis type="number" hide />
+      <YAxis type="category" dataKey="name" width={90} />
+      <Tooltip />
 
+      <Bar dataKey="value" barSize={25} radius={[5, 5, 5, 5]}>
+        {attendanceSummaryData.map((entry, index) => (
+          <Cell key={`cell-${index}`} fill={entry.color} />
+        ))}
+
+        {/* VALUE LABELS */}
+        <LabelList
+          dataKey="value"
+          position="right"
+          style={{ fill: "#333", fontSize: "12px", fontWeight: "600" }}
+        />
+      </Bar>
+    </BarChart>
+  </ResponsiveContainer>
+</div>
+
+                  {/* Summary Stats Below Chart */}
+                  <div className="grid grid-cols-2 gap-3 mt-6">
+                    {attendanceSummaryData.map((item, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center gap-2 p-3 rounded-lg bg-gray-50 border border-gray-100"
+                      >
+                        <div
+                          className="w-4 h-4 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: item.color }}
+                        ></div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-600 truncate">{item.name}</p>
+                          <p className="text-lg font-semibold text-gray-900">{item.value}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
-
         {/* Floating Ticket Button */}
         <FloatingTicketButton />
       </div>
