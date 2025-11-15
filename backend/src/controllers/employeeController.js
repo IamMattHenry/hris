@@ -28,8 +28,13 @@ const mapDepartmentToSubRole = (departmentName = "") => {
 
 export const getAllEmployees = async (req, res, next) => {
   try {
-    // Get user info from JWT token
     const currentUser = req.user;
+    const {
+      department_id: queryDeptId,
+      role: queryRole,
+      status: queryStatus,
+      exclude_employee_id: excludeEmployeeId,
+    } = req.query;
 
     let sql = `
       SELECT
@@ -45,20 +50,61 @@ export const getAllEmployees = async (req, res, next) => {
       LEFT JOIN users u ON e.user_id = u.user_id
     `;
 
+    const whereClauses = [];
     const params = [];
 
-    // If user is admin (not superadmin), filter by their department
+    let parsedDeptId = queryDeptId ? parseInt(queryDeptId, 10) : null;
+    if (Number.isNaN(parsedDeptId)) parsedDeptId = null;
+
     if (currentUser && currentUser.role === 'admin') {
-      // Get admin's department_id from their employee record
       const adminEmployee = await db.getOne(
         'SELECT department_id FROM employees WHERE user_id = ?',
         [currentUser.user_id]
       );
 
-      if (adminEmployee && adminEmployee.department_id) {
-        sql += ' WHERE e.department_id = ?';
-        params.push(adminEmployee.department_id);
+      const adminDeptId = adminEmployee?.department_id;
+
+      if (!adminDeptId) {
+        return res.status(403).json({
+          success: false,
+          message: 'Admin is not associated with any department',
+        });
       }
+
+      if (parsedDeptId && parsedDeptId !== adminDeptId) {
+        return res.status(403).json({
+          success: false,
+          message: 'Admins can only access employees within their department',
+        });
+      }
+
+      whereClauses.push('e.department_id = ?');
+      params.push(adminDeptId);
+    } else if (parsedDeptId) {
+      whereClauses.push('e.department_id = ?');
+      params.push(parsedDeptId);
+    }
+
+    if (queryRole) {
+      whereClauses.push('u.role = ?');
+      params.push(queryRole);
+    }
+
+    if (queryStatus) {
+      whereClauses.push('e.status = ?');
+      params.push(queryStatus);
+    }
+
+    if (excludeEmployeeId) {
+      const parsedExclude = parseInt(excludeEmployeeId, 10);
+      if (!Number.isNaN(parsedExclude)) {
+        whereClauses.push('e.employee_id != ?');
+        params.push(parsedExclude);
+      }
+    }
+
+    if (whereClauses.length > 0) {
+      sql += ` WHERE ${whereClauses.join(' AND ')}`;
     }
 
     sql += ' ORDER BY e.employee_id DESC';
@@ -71,7 +117,7 @@ export const getAllEmployees = async (req, res, next) => {
       count: employees.length,
     });
   } catch (error) {
-    logger.error("Get all employees error:", error);
+    logger.error('Get all employees error:', error);
     next(error);
   }
 };

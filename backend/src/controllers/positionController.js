@@ -1,6 +1,15 @@
 import * as db from "../config/db.js";
 import logger from "../utils/logger.js";
 
+const getUserDepartmentId = async (userId) => {
+  if (!userId) return null;
+  const record = await db.getOne(
+    "SELECT department_id FROM employees WHERE user_id = ?",
+    [userId]
+  );
+  return record?.department_id ?? null;
+};
+
 export const getAllPositions = async (req, res, next) => {
   try {
     const { department_id } = req.query;
@@ -11,12 +20,16 @@ export const getAllPositions = async (req, res, next) => {
       LEFT JOIN departments d ON jp.department_id = d.department_id
     `;
 
+    const conditions = [];
     const params = [];
 
-    // Filter by department if provided
     if (department_id) {
-      query += " WHERE jp.department_id = ?";
+      conditions.push("jp.department_id = ?");
       params.push(department_id);
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(" AND ")}`;
     }
 
     query += " ORDER BY jp.position_id DESC";
@@ -94,8 +107,24 @@ export const createPosition = async (req, res, next) => {
       });
     }
 
-    // Get user ID from JWT token for audit trail
+    // Prevent admin from creating positions for other departments
     const createdBy = req.user?.user_id;
+    if (req.user?.role === "admin") {
+      const adminDeptId = await getUserDepartmentId(createdBy);
+      if (!adminDeptId) {
+        return res.status(403).json({
+          success: false,
+          message: "Admin is not associated with any department",
+        });
+      }
+
+      if (parseInt(department_id, 10) !== adminDeptId) {
+        return res.status(403).json({
+          success: false,
+          message: "Admins can only manage positions within their department",
+        });
+      }
+    }
 
     // Insert position without code first
     const positionId = await db.insert("job_positions", {
@@ -153,7 +182,7 @@ export const createPosition = async (req, res, next) => {
 export const updatePosition = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const updates = { ...req.body };
 
     // Check if position exists
     const position = await db.getOne(
@@ -172,8 +201,37 @@ export const updatePosition = async (req, res, next) => {
       delete updates.position_code;
     }
 
-    // Get user ID from JWT token for audit trail
+    // Restrict admins to their own department
     const updatedBy = req.user?.user_id;
+    if (req.user?.role === "admin") {
+      const adminDeptId = await getUserDepartmentId(updatedBy);
+      if (!adminDeptId) {
+        return res.status(403).json({
+          success: false,
+          message: "Admin is not associated with any department",
+        });
+      }
+
+      if (position.department_id !== adminDeptId) {
+        return res.status(403).json({
+          success: false,
+          message: "Admins can only edit positions within their department",
+        });
+      }
+
+      if (
+        updates.department_id &&
+        parseInt(updates.department_id, 10) !== adminDeptId
+      ) {
+        return res.status(403).json({
+          success: false,
+          message: "Admins cannot move positions to another department",
+        });
+      }
+
+      updates.department_id = adminDeptId;
+    }
+
     if (updatedBy) {
       updates.updated_by = updatedBy;
     }
@@ -229,6 +287,23 @@ export const deletePosition = async (req, res, next) => {
 
     // Get user ID from JWT token for audit trail
     const deletedBy = req.user?.user_id;
+
+    if (req.user?.role === "admin") {
+      const adminDeptId = await getUserDepartmentId(deletedBy);
+      if (!adminDeptId) {
+        return res.status(403).json({
+          success: false,
+          message: "Admin is not associated with any department",
+        });
+      }
+
+      if (position.department_id !== adminDeptId) {
+        return res.status(403).json({
+          success: false,
+          message: "Admins can only delete positions within their department",
+        });
+      }
+    }
 
     const affectedRows = await db.deleteRecord(
       "job_positions",

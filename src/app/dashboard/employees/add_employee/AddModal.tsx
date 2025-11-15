@@ -322,16 +322,13 @@ useEffect(() => {
 
   const fetchSupervisors = async (deptId: number) => {
     try {
-      const result = await employeeApi.getAll();
+      const result = await employeeApi.getAll({
+        department_id: deptId,
+        role: "supervisor",
+        status: "active",
+      });
       if (result.success && result.data) {
-        // Filter employees by department, active status, and supervisor role
-        const deptSupervisors = result.data.filter(
-          (emp: any) =>
-            emp.department_id === deptId &&
-            emp.status === "active" &&
-            emp.role === "supervisor"
-        );
-        setSupervisors(deptSupervisors);
+        setSupervisors(result.data);
       }
     } catch (error) {
       console.error("Error fetching supervisors:", error);
@@ -375,13 +372,12 @@ useEffect(() => {
   // Check if department already has a supervisor
   const checkDepartmentSupervisor = async (deptId: number) => {
     try {
-      const result = await employeeApi.getAll();
+      const result = await employeeApi.getAll({
+        department_id: deptId,
+        role: "supervisor",
+      });
       if (result.success && result.data) {
-        // Find employees in this department with supervisor role
-        const supervisors = result.data.filter(
-          (emp: any) => emp.department_id === deptId && emp.role === "supervisor"
-        );
-        return supervisors.length > 0;
+        return result.data.length > 0;
       }
     } catch (error) {
       console.error("Error checking department supervisor:", error);
