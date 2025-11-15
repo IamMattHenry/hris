@@ -5,67 +5,115 @@ import { Save, KeyRound, UserCog } from "lucide-react";
 import FormInput from "@/components/forms/FormInput";
 import PasswordBox from "@/components/auth/passwordbox";
 import ActionButton from "@/components/buttons/ActionButton";
+import { userApi } from "@/lib/api";
 
 const AuthenticationTab = () => {
   const [username, setUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errors, setErrors] = useState<{ username?: string; password?: string }>({});
+  const [savingUsername, setSavingUsername] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
 
-  // ✅ Username Validation
   const handleSaveUsername = () => {
-    if (!username.trim()) {
+    const trimmed = username.trim();
+
+    if (!trimmed) {
       setErrors({ username: "Username cannot be empty." });
       return;
     }
+
+    if (trimmed.length < 5) {
+      setErrors({ username: "Username must be at least 5 characters long." });
+      return;
+    }
+
     setErrors({});
-    console.log("✅ Username changed to:", username);
-    alert("Username saved successfully!");
+    setSavingUsername(true);
+    
+    userApi
+      .updateMe({ username: trimmed })
+      .then((result) => {
+        if (result.success) {
+          alert("Username updated successfully!");
+          setUsername("");
+        } else {
+          alert(result.message || "Failed to update username");
+        }
+      })
+      .catch((error) => {
+        console.error("Error updating username:", error);
+        alert("An error occurred while updating username");
+      })
+      .finally(() => {
+        setSavingUsername(false);
+      });
   };
+
 
   // Password Validation
   const handleSavePassword = () => {
-  const newErrors: { password?: string } = {};
+    const newErrors: { password?: string } = {};
 
-  // --- Required fields ---
-  if (!newPassword.trim() || !confirmPassword.trim()) {
-    newErrors.password = "Both password fields are required.";
-  } 
-  // --- Matching check ---
-  else if (newPassword !== confirmPassword) {
-    newErrors.password = "Passwords do not match.";
-  } 
-  // --- Strength validation ---
-  else {
-    const password = newPassword;
-
-    if (password.length < 12) {
-      newErrors.password = "Password must be at least 12 characters long.";
-    } else if (!/[A-Z]/.test(password)) {
-      newErrors.password = "Password must contain at least 1 uppercase letter.";
-    } else if (!/[a-z]/.test(password)) {
-      newErrors.password = "Password must contain at least 1 lowercase letter.";
-    } else if (!/[0-9]/.test(password)) {
-      newErrors.password = "Password must contain at least 1 number.";
-    } else if (!/[!@#$%^&*(),.?":{}|<>_\-=+~`]/.test(password)) {
-      newErrors.password = "Password must contain at least 1 special character.";
+    // --- Required fields ---
+    if (!newPassword.trim() || !confirmPassword.trim()) {
+      newErrors.password = "Both password fields are required.";
     }
-  }
+    // --- Matching check ---
+    else if (newPassword !== confirmPassword) {
+      newErrors.password = "Passwords do not match.";
+    }
+    // --- Strength validation ---
+    else {
+      const password = newPassword;
 
-  // --- If any validation errors exist ---
-  if (Object.keys(newErrors).length > 0) {
-    setErrors(newErrors);
-    return;
-  }
+      if (password.length < 12) {
+        newErrors.password = "Password must be at least 12 characters long.";
+      } else if (!/[A-Z]/.test(password)) {
+        newErrors.password = "Password must contain at least 1 uppercase letter.";
+      } else if (!/[a-z]/.test(password)) {
+        newErrors.password = "Password must contain at least 1 lowercase letter.";
+      } else if (!/[0-9]/.test(password)) {
+        newErrors.password = "Password must contain at least 1 number.";
+      } else if (!/[!@#$%^&*(),.?":{}|<>_\-=+~`]/.test(password)) {
+        newErrors.password = "Password must contain at least 1 special character.";
+      }
+    }
 
-  // --- Passed all checks ---
-  setErrors({});
-  console.log("✅ Password changed successfully!");
-  alert("Password saved successfully!");
-};
+    // --- If any validation errors exist ---
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    // --- Passed all checks ---
+    setErrors({});
+    setSavingPassword(true);
+
+    userApi
+      .updateMe({ password: newPassword })
+      .then((result) => {
+        if (result.success) {
+          alert("Password updated successfully!");
+          setNewPassword("");
+          setConfirmPassword("");
+        } else {
+          alert(result.message || "Failed to update password");
+        }
+      })
+      .catch((error) => {
+        console.error("Error updating password:", error);
+        alert("An error occurred while updating password");
+      })
+      .finally(() => {
+        setSavingPassword(false);
+      });
+    console.log("✅ Password changed successfully!");
+    alert("Password saved successfully!");
+  };
 
   return (
-    <div className="max-w-4xl mx-auto text-[#073532]">
+    <div className="max-w-4xl mx-auto text-[#073532] font-poppins">
       <div className="border border-[#EAD7C4] rounded-2xl p-10 bg-[#FFF2E0]/50 shadow-sm space-y-12">
         {/* Header */}
         <div className="text-left mb-4">
@@ -94,7 +142,8 @@ const AuthenticationTab = () => {
             <ActionButton
               label="Save Username"
               onClick={handleSaveUsername}
-              icon={Save}
+              icon={savingUsername ? undefined : Save}
+              disabled={savingUsername}
               className="bg-[#073532] hover:opacity-90 transition"
             />
           </div>
@@ -128,7 +177,8 @@ const AuthenticationTab = () => {
             <ActionButton
               label="Save Password"
               onClick={handleSavePassword}
-              icon={Save}
+              icon={savingPassword ? undefined : Save}
+              disabled={savingPassword}
               className="bg-[#073532] hover:opacity-90 transition"
             />
           </div>

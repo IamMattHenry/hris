@@ -241,10 +241,10 @@ export default function LoginForm() {
                     value={ticketDescription}
                     onChange={(e) => setTicketDescription(e.target.value)}
                     rows={4}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#073532]"
+                    className="w-full px-3 py-2 border border-gray-300 text-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-[#073532]"
                     placeholder={
                       ticketType === "forgot_password"
-                        ? "Provide any additional information that might help us identify your account"
+                        ? "Provide any additional information that might help us identify your account give your email or phone number"
                         : "Provide detailed information about your issue"
                     }
                   />
