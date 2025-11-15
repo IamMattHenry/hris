@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+
 import { Plus } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
 import AddDepartmentModal from "./add_dept/AddModal";
@@ -27,6 +28,8 @@ export default function DepartmentsPage() {
 
   const itemsPerPage = 10;
   const [currentPage, setCurrentPage] = useState(1);
+  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
+  const [sortOrder, setSortOrder] = useState<"default" | "asc" | "desc">("default");
 
   // Check if user is supervisor (view-only access)
   const isSupervisor = user?.role === "supervisor";
@@ -69,7 +72,7 @@ export default function DepartmentsPage() {
 
   const confirmDelete = async () => {
     if (!departmentToDelete) return;
-    
+
     const result = await departmentApi.delete(departmentToDelete);
     if (result.success) {
       toast.success("Department deleted successfully");
@@ -77,7 +80,7 @@ export default function DepartmentsPage() {
     } else {
       toast.error(result.message || "Failed to delete department");
     }
-    
+
     setDepartmentToDelete(null);
   };
 
@@ -86,24 +89,49 @@ export default function DepartmentsPage() {
   };
 
   // Filter departments based on search term
-  const filteredDepartments = departments.filter((dept) => {
-    if (!searchTerm.trim()) return true;
-    
-    const search = searchTerm.toLowerCase();
-    const deptCode = (dept.department_code || `DEPT-${dept.department_id}`).toLowerCase();
-    const deptName = dept.department_name.toLowerCase();
-    const supervisorName = dept.supervisor_first_name && dept.supervisor_last_name
-      ? `${dept.supervisor_first_name} ${dept.supervisor_last_name}`.toLowerCase()
-      : "";
-    const supervisorCode = (dept.supervisor_code || "").toLowerCase();
-    
-    return (
-      deptCode.includes(search) ||
-      deptName.includes(search) ||
-      supervisorName.includes(search) ||
-      supervisorCode.includes(search)
-    );
-  });
+  const filteredDepartments = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+
+    let list = departments.filter((dept) => {
+      if (!query) return true;
+
+      const deptCode = (dept.department_code || `DEPT-${dept.department_id}`).toLowerCase();
+      const deptName = dept.department_name.toLowerCase();
+      const supervisorName = dept.supervisor_first_name && dept.supervisor_last_name
+        ? `${dept.supervisor_first_name} ${dept.supervisor_last_name}`.toLowerCase()
+        : "";
+      const supervisorCode = (dept.supervisor_code || "").toLowerCase();
+
+      return (
+        deptCode.includes(query) ||
+        deptName.includes(query) ||
+        supervisorName.includes(query) ||
+        supervisorCode.includes(query)
+      );
+    });
+
+    if (departmentFilter !== "all") {
+      list = list.filter((dept) => String(dept.department_id) === departmentFilter);
+    }
+
+    if (sortOrder !== "default") {
+      list = [...list].sort((a, b) => {
+        const nameA = (a.department_name ?? "").toLowerCase();
+        const nameB = (b.department_name ?? "").toLowerCase();
+        if (nameA === nameB) return 0;
+        const comparison = nameA < nameB ? -1 : 1;
+        return sortOrder === "asc" ? comparison : -comparison;
+      });
+    }
+
+    return list;
+  }, [departments, searchTerm, departmentFilter, sortOrder]);
+
+  const departmentOptions = useMemo(() => {
+    return departments
+      .map((dept) => ({ id: String(dept.department_id), name: dept.department_name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [departments]);
 
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
@@ -115,10 +143,7 @@ export default function DepartmentsPage() {
   const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1);
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm]);
-
-
-
+  }, [searchTerm, departmentFilter, sortOrder]);
 
   return (
     <div className="p-6 min-h-screen font-poppins bg-[#fff7ec]">
@@ -127,8 +152,38 @@ export default function DepartmentsPage() {
           Total Departments: {departments.length}
         </h2>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-2">
           <SearchBar placeholder="Search Department Code, Name, Supervisor" value={searchTerm} onChange={handleSearch} />
+
+          <select
+            value={departmentFilter}
+            onChange={(e) => {
+              setDepartmentFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="px-3 py-2 border border-[#d6c3aa] rounded-lg bg-white text-sm text-[#3b2b1c]"
+          >
+            <option value="all">All Department IDs</option>
+            {departmentOptions.map((dept) => (
+              <option key={dept.id} value={dept.id}>
+                {dept.name}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={sortOrder}
+            onChange={(e) => {
+              setSortOrder(e.target.value as typeof sortOrder);
+              setCurrentPage(1);
+            }}
+            className="px-3 py-2 border border-[#d6c3aa] rounded-lg bg-white text-sm text-[#3b2b1c]"
+          >
+            <option value="default">Sort: Default</option>
+            <option value="asc">Sort: Name A-Z</option>
+            <option value="desc">Sort: Name Z-A</option>
+          </select>
+
           {!isSupervisor && (
             <ActionButton
               label="Add Department"
@@ -167,18 +222,32 @@ export default function DepartmentsPage() {
           Prev
         </button>
 
-        {pageNumbers.map((num) => (
-          <button
-            key={num}
-            onClick={() => goToPage(num)}
-            className={`px-3 py-2 rounded text-sm transition cursor-pointer ${currentPage === num
-              ? "bg-[#3b2b1c] text-white"
-              : "text-[#3b2b1c] hover:underline"
-              }`}
-          >
-            {num}
-          </button>
-        ))}
+        <div className="flex items-center gap-1 overflow-hidden truncate">
+          {Array.from({ length: totalPages }, (_, i) => i + 1)
+            .slice(
+              Math.max(currentPage - 2, 0),
+              Math.min(currentPage + 1, totalPages)
+            )
+            .map((num) => (
+              <button
+                key={num}
+                onClick={() => goToPage(num)}
+                className={`px-3 py-2 rounded text-sm transition cursor-pointer ${currentPage === num
+                    ? "bg-[#3b2b1c] text-white"
+                    : "text-[#3b2b1c] hover:underline"
+                  }`}
+              >
+                {num}
+              </button>
+            ))}
+
+          {/* Ellipsis if many pages */}
+          {totalPages > 5 && currentPage < totalPages - 2 && (
+            <span className="px-1 text-[#3b2b1c] truncate">...</span>
+          )}
+        </div>
+
+
 
         <button
           onClick={() => goToPage(currentPage + 1)}

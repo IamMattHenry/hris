@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { MoreVertical, Plus, Eye, Trash2, Pencil } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
 import AddJobModal from "./add_positions/AddModal";
@@ -23,6 +23,8 @@ export default function PositionTable() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
+  const [sortOrder, setSortOrder] = useState<"default" | "asc" | "desc">("default");
 
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -88,22 +90,50 @@ export default function PositionTable() {
     setCurrentPage(1); // Reset to first page when searching
   };
 
-  const filteredPositions = positions.filter((pos) => {
-    if (!searchTerm.trim()) return true;
+  const filteredPositions = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
 
-    const search = searchTerm.toLowerCase();
-    const posCode = (pos.position_code || `POS-${pos.position_id}`).toLowerCase();
-    const posName = pos.position_name.toLowerCase();
-    const deptName = (pos.department_name || '').toLowerCase();
+    let list = positions.filter((pos) => {
+      if (!query) return true;
+      const code = (pos.position_code ?? `POS-${pos.position_id}`).toLowerCase();
+      const name = pos.position_name.toLowerCase();
+      const department = (pos.department_name ?? "").toLowerCase();
+      return code.includes(query) || name.includes(query) || department.includes(query);
+    });
 
-    return (
-      posCode.includes(search) ||
-      posName.includes(search) ||
-      deptName.includes(search)
-    );
-  });
+    if (departmentFilter !== "all") {
+      list = list.filter((pos) => String(pos.department_id) === departmentFilter);
+    }
 
-  const totalPages = Math.ceil(filteredPositions.length / itemsPerPage);
+    if (sortOrder !== "default") {
+      list = [...list].sort((a, b) => {
+        const nameA = (a.position_name ?? "").toLowerCase();
+        const nameB = (b.position_name ?? "").toLowerCase();
+        if (nameA === nameB) return 0;
+        const comparison = nameA < nameB ? -1 : 1;
+        return sortOrder === "asc" ? comparison : -comparison;
+      });
+    }
+
+    return list;
+  }, [positions, searchTerm, departmentFilter, sortOrder]);
+
+  const departmentOptions = useMemo(() => {
+    const unique = new Map<string, { id: string; name: string }>();
+    positions.forEach((pos) => {
+      if (!pos.department_id) return;
+      const id = String(pos.department_id);
+      if (!unique.has(id)) {
+        unique.set(id, {
+          id,
+          name: pos.department_name || `Department ${id}`,
+        });
+      }
+    });
+    return Array.from(unique.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [positions]);
+
+  const totalPages = Math.ceil(filteredPositions.length / itemsPerPage) || 1;
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentPositions = filteredPositions.slice(indexOfFirstItem, indexOfLastItem);
@@ -114,7 +144,6 @@ export default function PositionTable() {
     }
   };
 
-  // Generate page numbers with ellipsis for large page counts
   const getPageNumbers = () => {
     const pages = [];
     const maxVisible = 5;
@@ -179,20 +208,49 @@ export default function PositionTable() {
 
   return (
     <div className="p-6 min-h-screen font-poppins bg-[#fff7ec]">
-      {/* Header */}
       <div className="flex justify-between items-center my-8">
         <h2 className="text-2xl font-semibold text-[#3b2b1c]">
           Total Positions: {positions.length}
           {searchTerm && ` (Showing ${filteredPositions.length})`}
         </h2>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <SearchBar placeholder="Search Position" value={searchTerm} onChange={handleSearch} />
+
+          <select
+            value={departmentFilter}
+            onChange={(e) => {
+              setDepartmentFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="px-3 py-2 border border-[#d6c3aa] rounded-lg bg-white text-sm text-[#3b2b1c]"
+          >
+            <option value="all">All Departments</option>
+            {departmentOptions.map((dept) => (
+              <option key={dept.id} value={dept.id}>
+                {dept.name}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={sortOrder}
+            onChange={(e) => {
+              setSortOrder(e.target.value as typeof sortOrder);
+              setCurrentPage(1);
+            }}
+            className="px-3 py-2 border border-[#d6c3aa] rounded-lg bg-white text-sm text-[#3b2b1c]"
+          >
+            <option value="default">Sort: Default</option>
+            <option value="asc">Sort: Name A-Z</option>
+            <option value="desc">Sort: Name Z-A</option>
+          </select>
+
           {!isSupervisor && (
             <ActionButton
               label="Add Position"
-              onClick={() => setInsertIsOpen(true)}
               icon={Plus}
+              onClick={() => setInsertIsOpen(true)}
               className="py-4"
             />
           )}

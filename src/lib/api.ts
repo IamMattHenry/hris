@@ -121,8 +121,26 @@ export const employeeApi = {
   /**
    * Get all employees
    */
-  getAll: async () => {
-    return apiCall<any[]>('/employees', {
+  getAll: async (params?: {
+    department_id?: number | string;
+    role?: string;
+    status?: string;
+    exclude_employee_id?: number | string;
+  }) => {
+    let query = '';
+    if (params) {
+      const searchParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          searchParams.append(key, String(value));
+        }
+      });
+      const serialized = searchParams.toString();
+      if (serialized) {
+        query = `?${serialized}`;
+      }
+    }
+    return apiCall<any[]>(`/employees${query}`, {
       method: 'GET',
     });
   },

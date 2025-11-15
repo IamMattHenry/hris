@@ -2,22 +2,32 @@ import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
 import { generateDepartmentCode } from '../utils/codeGenerator.js';
 
+const getUserDepartmentId = async (userId) => {
+  if (!userId) return null;
+  const record = await db.getOne(
+    'SELECT department_id FROM employees WHERE user_id = ?',
+    [userId]
+  );
+  return record?.department_id ?? null;
+};
+
 export const getAllDepartments = async (req, res, next) => {
   try {
-    // Get departments with employee count and supervisor info
-    const departments = await db.getAll(`
+    let query = `
       SELECT
         d.*,
-        COUNT(DISTINCT e.employee_id) as employee_count,
-        s.first_name as supervisor_first_name,
-        s.last_name as supervisor_last_name,
-        s.employee_code as supervisor_code
+        COUNT(DISTINCT e.employee_id) AS employee_count,
+        s.first_name AS supervisor_first_name,
+        s.last_name AS supervisor_last_name,
+        s.employee_code AS supervisor_code
       FROM departments d
       LEFT JOIN employees e ON d.department_id = e.department_id
       LEFT JOIN employees s ON d.supervisor_id = s.employee_id
-      GROUP BY d.department_id
-      ORDER BY d.department_id DESC
-    `);
+    `;
+
+    query += ' GROUP BY d.department_id ORDER BY d.department_id DESC';
+
+    const departments = await db.getAll(query);
 
     res.json({
       success: true,
@@ -57,22 +67,41 @@ export const createDepartment = async (req, res, next) => {
   try {
     const { department_name, description, supervisor_id } = req.body;
 
-    // Validate required fields
-    if (!department_name) {
+    if (req.user?.role === 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Admins are not allowed to create new departments',
+      });
+    }
+
+    if (!department_name || department_name.trim() === '') {
       return res.status(400).json({
         success: false,
         message: 'Department name is required',
       });
     }
 
-    // Get user ID from JWT token for audit trail
+    let supervisorId = null;
+    if (supervisor_id) {
+      const supervisor = await db.getOne(
+        'SELECT employee_id, role FROM employees WHERE employee_id = ?',
+        [supervisor_id]
+      );
+      if (!supervisor || supervisor.role !== 'supervisor') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid supervisor selected',
+        });
+      }
+      supervisorId = supervisor.employee_id;
+    }
+
     const createdBy = req.user?.user_id;
 
-    // Insert department without code first
     const departmentId = await db.insert('departments', {
       department_name,
       description,
-      supervisor_id: supervisor_id || null,
+      supervisor_id: supervisorId,
       created_by: createdBy,
     });
 
@@ -117,6 +146,26 @@ export const createDepartment = async (req, res, next) => {
 export const updateDepartment = async (req, res, next) => {
   try {
     const { id } = req.params;
+    let supervisorId = null;
+    if (req.body.supervisor_id) {
+      const supervisor = await db.getOne(
+        'SELECT employee_id, department_id, role FROM employees WHERE employee_id = ?',
+        [req.body.supervisor_id]
+      );
+      if (!supervisor || supervisor.role !== 'supervisor') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid supervisor selected',
+        });
+      }
+      if (supervisor.department_id !== parseInt(id)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Supervisor must belong to the same department',
+        });
+      }
+      supervisorId = supervisor.employee_id;
+    }
     const updates = req.body;
 
     // Check if department exists
@@ -126,6 +175,23 @@ export const updateDepartment = async (req, res, next) => {
         success: false,
         message: 'Department not found',
       });
+    }
+
+    if (req.user?.role === 'admin') {
+      const adminDeptId = await getUserDepartmentId(req.user.user_id);
+      if (!adminDeptId) {
+        return res.status(403).json({
+          success: false,
+          message: 'Admin is not associated with any department',
+        });
+      }
+
+      if (department.department_id !== adminDeptId) {
+        return res.status(403).json({
+          success: false,
+          message: 'Admins can only update their own department',
+        });
+      }
     }
 
     // Prevent updating the code
@@ -182,6 +248,23 @@ export const deleteDepartment = async (req, res, next) => {
 
     // Get user ID from JWT token for audit trail
     const deletedBy = req.user?.user_id;
+
+    if (req.user?.role === 'admin') {
+      const adminDeptId = await getUserDepartmentId(deletedBy);
+      if (!adminDeptId) {
+        return res.status(403).json({
+          success: false,
+          message: 'Admin is not associated with any department',
+        });
+      }
+
+      if (department.department_id !== adminDeptId) {
+        return res.status(403).json({
+          success: false,
+          message: 'Admins can only delete their own department',
+        });
+      }
+    }
 
     const affectedRows = await db.deleteRecord('departments', 'department_id = ?', [id]);
 

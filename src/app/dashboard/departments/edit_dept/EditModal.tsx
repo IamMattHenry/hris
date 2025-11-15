@@ -37,10 +37,12 @@ export default function EditDepartmentModal({
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   useEffect(() => {
-    if (isOpen) {
-      fetchSupervisors();
+    if (isOpen && department?.department_id) {
+      fetchSupervisors(department.department_id);
+    } else {
+      setSupervisors([]);
     }
-  }, [isOpen]);
+  }, [isOpen, department?.department_id]);
 
   useEffect(() => {
     if (department) {
@@ -50,12 +52,16 @@ export default function EditDepartmentModal({
     }
   }, [department]);
 
-  const fetchSupervisors = async () => {
-    const result = await employeeApi.getAll();
+  const fetchSupervisors = async (deptId: number) => {
+    const result = await employeeApi.getAll({
+      department_id: deptId,
+      role: 'supervisor',
+      status: 'active',
+    });
     if (result.success && result.data) {
-      // Filter only supervisors
-      const supervisorList = result.data.filter((emp: any) => emp.role === 'supervisor');
-      setSupervisors(supervisorList);
+      setSupervisors(result.data);
+    } else {
+      setSupervisors([]);
     }
   };
 

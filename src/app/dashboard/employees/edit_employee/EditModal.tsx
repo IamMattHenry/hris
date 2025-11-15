@@ -227,16 +227,14 @@ export default function EditEmployeeModal({
 
   const fetchSupervisors = async (deptId: number) => {
     try {
-      const result = await employeeApi.getAll();
+      const result = await employeeApi.getAll({
+        department_id: deptId,
+        role: "supervisor",
+        status: "active",
+        exclude_employee_id: id,
+      });
       if (result.success && result.data) {
-        const deptSupervisors = result.data.filter(
-          (emp: any) =>
-            emp.department_id === deptId &&
-            emp.status === "active" &&
-            emp.role === "supervisor" &&
-            emp.employee_id !== id
-        );
-        setSupervisors(deptSupervisors);
+        setSupervisors(result.data);
       }
     } catch (error) {
       console.error("Error fetching supervisors:", error);
@@ -281,15 +279,13 @@ export default function EditEmployeeModal({
     deptId: number
   ): Promise<boolean> => {
     try {
-      const res = await employeeApi.getAll();
+      const res = await employeeApi.getAll({
+        department_id: deptId,
+        role: "supervisor",
+        exclude_employee_id: id,
+      });
       if (res.success && res.data) {
-        const supervisors = res.data.filter(
-          (emp: any) =>
-            emp.department_id === deptId &&
-            emp.role === "supervisor" &&
-            emp.employee_id !== id
-        );
-        return supervisors.length > 0;
+        return res.data.length > 0;
       }
       return false;
     } catch (error) {

@@ -393,16 +393,31 @@ export default function RequestsPage() {
           Prev
         </button>
 
-        {pageNumbers.map((num) => (
-          <button
-            key={num}
-            onClick={() => goToPage(num)}
-            className={`px-3 py-2 rounded text-sm transition cursor-pointer ${currentPage === num ?
-              "bg-[#3b2b1c] text-white" : "text-[#3b2b1c] hover:underline"}`}
-          >
-            {num}
-          </button>
-        ))}
+        <div className="flex items-center gap-1 overflow-hidden truncate">
+          {Array.from({ length: totalPages }, (_, i) => i + 1)
+            .slice(
+              Math.max(currentPage - 2, 0),
+              Math.min(currentPage + 1, totalPages)
+            )
+            .map((num) => (
+              <button
+                key={num}
+                onClick={() => goToPage(num)}
+                className={`px-3 py-2 rounded text-sm transition cursor-pointer ${currentPage === num
+                    ? "bg-[#3b2b1c] text-white"
+                    : "text-[#3b2b1c] hover:underline"
+                  }`}
+              >
+                {num}
+              </button>
+            ))}
+
+          {/* Ellipsis */}
+          {totalPages > 5 && currentPage < totalPages - 2 && (
+            <span className="px-1 text-[#3b2b1c] truncate">...</span>
+          )}
+        </div>
+
         <button
           onClick={() => goToPage(currentPage + 1)}
           disabled={currentPage === totalPages}
