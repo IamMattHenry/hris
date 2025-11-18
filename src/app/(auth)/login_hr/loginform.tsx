@@ -5,6 +5,7 @@ import InputBox from "@/components/auth/inputbox";
 import PasswordBox from "@/components/auth/passwordbox";
 import { useRouter } from "next/navigation";
 import { authApi } from "@/lib/api";
+import Link from "next/link";
 import { toast } from "react-hot-toast";
 import { ticketApi } from "@/lib/api";
 
@@ -123,16 +124,9 @@ export default function LoginForm() {
           onChange={(e) => setPassword(e.target.value)}
         />
         <div className="flex items-center justify-between mb-4 text-[#FFF2E0] text-sm font-poppins">
-          <button 
-            type="button"
-            onClick={() => {
-              setTicketType("forgot_password");
-              setShowTicketModal(true);
-            }}
-            className="text-[#D4A056] hover:underline"
-          >
+          <Link href="/password-recovery" className="text-[#D4A056] hover:underline">
             Forgot Password?
-          </button>
+          </Link>
         </div>
 
         {/* Submit button */}

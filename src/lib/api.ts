@@ -268,6 +268,40 @@ export const authApi = {
   },
 };
 
+// ============ PASSWORD RECOVERY API FUNCTIONS ============
+
+export const passwordRecoveryApi = {
+  /**
+   * Request an OTP for password recovery
+   */
+  requestOtp: async (identifier: string) => {
+    return apiCall<any>('/password/otp/request', {
+      method: 'POST',
+      body: JSON.stringify({ identifier }),
+    });
+  },
+
+  /**
+   * Verify OTP and get a reset token
+   */
+  verifyOtp: async (identifier: string, code: string) => {
+    return apiCall<any>('/password/otp/verify', {
+      method: 'POST',
+      body: JSON.stringify({ identifier, code }),
+    });
+  },
+
+  /**
+   * Reset password using the reset token
+   */
+  resetPassword: async (token: string, password: string) => {
+    return apiCall<any>('/password/reset', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    });
+  },
+};
+
 // ============ DEPARTMENT API FUNCTIONS ============
 
 export const departmentApi = {

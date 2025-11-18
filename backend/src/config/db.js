@@ -11,6 +11,48 @@ console.log("ENV:", {
   port: process.env.DB_PORT
 });
 
+const formatDateToManilaDateTime = (date) => {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
+    .formatToParts(date)
+    .reduce((acc, part) => {
+      if (part.type !== 'literal') {
+        acc[part.type] = part.value;
+      }
+      return acc;
+    }, {});
+
+  const { year, month, day, hour, minute, second } = parts;
+  if (!year || !month || !day || !hour || !minute || !second) {
+    return null;
+  }
+
+  return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+};
+
+const sanitizeDataForWrite = (data = {}) => {
+  return Object.entries(data).reduce((acc, [key, value]) => {
+    if (value instanceof Date) {
+      const formatted = formatDateToManilaDateTime(value);
+      acc[key] = formatted;
+    } else {
+      acc[key] = value === undefined ? null : value;
+    }
+    return acc;
+  }, {});
+};
 
 // Create a connection pool for better performance
 const pool = mysql.createPool({
@@ -66,16 +108,7 @@ export const getAll = async (sql, values = []) => {
 // Insert a record with proper timezone handling
 export const insert = async (table, data) => {
   // Filter out undefined values and convert them to null
-  const cleanedData = Object.entries(data).reduce((acc, [key, value]) => {
-    // Convert Date objects to Philippine time strings
-    if (value instanceof Date) {
-      const phTime = new Date(value.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
-      acc[key] = phTime.toISOString().slice(0, 19).replace('T', ' ');
-    } else {
-      acc[key] = value === undefined ? null : value;
-    }
-    return acc;
-  }, {});
+  const cleanedData = sanitizeDataForWrite(data);
 
   const columns = Object.keys(cleanedData);
   const values = Object.values(cleanedData);
@@ -89,16 +122,7 @@ export const insert = async (table, data) => {
 // Update a record with proper timezone handling
 export const update = async (table, data, whereClause, whereValues) => {
   // Filter out undefined values and convert them to null
-  const cleanedData = Object.entries(data).reduce((acc, [key, value]) => {
-    // Convert Date objects to Philippine time strings
-    if (value instanceof Date) {
-      const phTime = new Date(value.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
-      acc[key] = phTime.toISOString().slice(0, 19).replace('T', ' ');
-    } else {
-      acc[key] = value === undefined ? null : value;
-    }
-    return acc;
-  }, {});
+  const cleanedData = sanitizeDataForWrite(data);
 
   const columns = Object.keys(cleanedData);
   const values = Object.values(cleanedData);
@@ -235,16 +259,7 @@ export const transactionQuery = async (sql, values = []) => {
  */
 export const transactionInsert = async (table, data) => {
   // Filter out undefined values and convert them to null
-  const cleanedData = Object.entries(data).reduce((acc, [key, value]) => {
-    // Convert Date objects to Philippine time strings
-    if (value instanceof Date) {
-      const phTime = new Date(value.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
-      acc[key] = phTime.toISOString().slice(0, 19).replace('T', ' ');
-    } else {
-      acc[key] = value === undefined ? null : value;
-    }
-    return acc;
-  }, {});
+  const cleanedData = sanitizeDataForWrite(data);
 
   const columns = Object.keys(cleanedData);
   const values = Object.values(cleanedData);
@@ -262,16 +277,7 @@ export const transactionInsert = async (table, data) => {
  */
 export const transactionUpdate = async (table, data, whereClause, whereValues) => {
   // Filter out undefined values and convert them to null
-  const cleanedData = Object.entries(data).reduce((acc, [key, value]) => {
-    // Convert Date objects to Philippine time strings
-    if (value instanceof Date) {
-      const phTime = new Date(value.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
-      acc[key] = phTime.toISOString().slice(0, 19).replace('T', ' ');
-    } else {
-      acc[key] = value === undefined ? null : value;
-    }
-    return acc;
-  }, {});
+  const cleanedData = sanitizeDataForWrite(data);
 
   const columns = Object.keys(cleanedData);
   const values = Object.values(cleanedData);
