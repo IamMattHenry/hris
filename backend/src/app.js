@@ -18,6 +18,7 @@ import leaveRoutes from './routes/leave.js';
 import activityRoutes from './routes/activity.js';
 import ticketRoutes from './routes/tickets.js';
 import fingerprintRoutes from './routes/fingerprint.js';
+import passwordRecoveryRoutes from './routes/passwordRecovery.js';
 
 dotenv.config();
 
@@ -70,6 +71,7 @@ app.use('/api/leave', leaveRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/fingerprint', fingerprintRoutes);
+app.use('/api/password', passwordRecoveryRoutes);
 
 // ============ ERROR HANDLING ============
 
