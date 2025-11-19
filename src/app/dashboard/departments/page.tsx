@@ -153,8 +153,7 @@ export default function DepartmentsPage() {
         </h2>
 
         <div className="flex flex-wrap items-center gap-2">
-          <SearchBar placeholder="Search Department Code, Name, Supervisor" value={searchTerm} onChange={handleSearch} />
-
+         
           <select
             value={departmentFilter}
             onChange={(e) => {
@@ -183,6 +182,9 @@ export default function DepartmentsPage() {
             <option value="asc">Sort: Name A-Z</option>
             <option value="desc">Sort: Name Z-A</option>
           </select>
+          
+           <SearchBar placeholder="Search Department Code, Name, Supervisor" value={searchTerm} onChange={handleSearch} />
+
 
           {!isSupervisor && (
             <ActionButton
