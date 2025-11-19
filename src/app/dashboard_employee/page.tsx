@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Cell, Tooltip, ResponsiveContainer, PieChart, Pie, Legend } from "recharts";
 import { employeeApi, leaveApi, attendanceApi } from "@/lib/api";
-import { Employee } from "@/types/api";
+import { Employee, Dependent } from "@/types/api";
 import FloatingTicketButton from "@/components/dashboard/FloatingTicketButton";
 import { useAuth } from "@/contexts/AuthContext";
 import Image from "next/image";
@@ -25,6 +25,7 @@ export default function Dashboard() {
   const [absenceRecords, setAbsenceRecords] = useState<AbsenceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dependents, setDependents] = useState<Dependent[]>([]);
   const [employeeAttendanceSummary, setEmployeeAttendanceSummary] = useState<{
     present: number;
     absent: number;
@@ -94,6 +95,40 @@ export default function Dashboard() {
       } catch (err) {
         console.error("Error fetching dashboard data:", err);
         setError("Failed to fetch dashboard data");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user]);
+
+  // ---------------- FETCH DASHBOARD DATA ----------------
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user?.employee_id) return;
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const [employeeResult, summaryResult] = await Promise.all([
+          employeeApi.getById(user.employee_id),
+          attendanceApi.getSummary(user.employee_id),
+        ]);
+
+        if (employeeResult.success && employeeResult.data) {
+          const emp = employeeResult.data as Employee;
+          setCurrentEmployee(emp);
+          setDependents(emp.dependents || []);
+        }
+
+        if (summaryResult.success && summaryResult.data) {
+          setEmployeeAttendanceSummary(summaryResult.data);
+        }
+      } catch (err) {
+        console.error(err);
+        setError("Failed to fetch dashboard data.");
       } finally {
         setLoading(false);
       }
@@ -269,14 +304,16 @@ export default function Dashboard() {
         </div>
 
         {/* Attendance Summary */}
+        {/* Attendance Summary + Dependants Side by Side */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          {/* Attendance Summary */}
           <div className="bg-white rounded-xl shadow-sm border border-[#e8dcc8] overflow-hidden">
             <div className="bg-[#281b0d] px-6 py-3 shadow-lg rounded-b-lg">
               <h2 className="text-lg font-semibold text-white">My Attendance Summary</h2>
             </div>
 
             <div className="p-6 h-64">
-
               {!employeeAttendanceSummary ? (
                 <p className="text-gray-500 text-center mt-10">Loading chart...</p>
               ) : (
@@ -299,10 +336,65 @@ export default function Dashboard() {
                   </PieChart>
                 </ResponsiveContainer>
               )}
+            </div>
+          </div>
+
+          {/* Dependants List */}
+          <div className="bg-white rounded-xl shadow-sm border border-[#e8dcc8] overflow-hidden">
+            <div className="bg-[#281b0d] px-6 py-3 shadow-lg rounded-b-lg">
+              <h2 className="text-lg font-semibold text-white">Dependants</h2>
+            </div>
+
+            {/* Scrollable contents */}
+            <div className="p-6 max-h-64 overflow-y-auto p-2">
+
+              {dependents.length === 0 ? (
+                <p className="text-gray-500 text-center py-10">
+                  No dependants found.
+                </p>
+              ) : (
+                <ul className="space-y-3">
+                  {dependents.map((dep) => (
+                    <li
+                      key={dep.dependant_id}
+                      className="p-4 border border-[#e8dcc8] rounded-lg shadow-sm bg-[#fdf9f3]"
+                    >
+                      <p className="text-sm font-semibold text-gray-800">
+                        {dep.firstname} {dep.lastname}
+                      </p>
+
+                      <p className="text-xs text-gray-500">
+                        Relationship: {dep.relationship}
+                      </p>
+
+                      <p className="text-xs text-gray-500">
+                        Contact No: {dep.contact_no}
+                      </p>
+
+                      <p className="text-xs text-gray-500">
+                        Email: {dep.email}
+                      </p>
+
+                      {dep.home_address && (
+                        <p className="text-xs text-gray-500">
+                          Home Address: {dep.home_address}
+                          {dep.city_name && `, ${dep.city_name}`}
+                          {dep.province_name && `, ${dep.province_name}`}
+                          {dep.region_name && `, ${dep.region_name}`}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
 
             </div>
           </div>
+
+
         </div>
+
+
 
         {/* Floating Ticket Button */}
         <FloatingTicketButton />
