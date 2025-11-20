@@ -101,8 +101,30 @@ export default function PasswordRecoveryPage() {
       return;
     }
 
-    if (newPassword.trim().length < 6) {
-      toast.error("Password must be at least 6 characters long.");
+    const trimmedPassword = newPassword.trim();
+
+    if (trimmedPassword.length < 12) {
+      toast.error("Password must be at least 12 characters long.");
+      return;
+    }
+
+    if (!/[a-z]/.test(trimmedPassword)) {
+      toast.error("Password must contain at least one lowercase letter.");
+      return;
+    }
+
+    if (!/[A-Z]/.test(trimmedPassword)) {
+      toast.error("Password must contain at least one uppercase letter.");
+      return;
+    }
+
+    if (!/\d/.test(trimmedPassword)) {
+      toast.error("Password must contain at least one number.");
+      return;
+    }
+
+    if (!/[!@#$%^&*()_+{}\[\]:;<>,.?~\\/-]/.test(trimmedPassword)) {
+      toast.error("Password must contain at least one special character.");
       return;
     }
 
