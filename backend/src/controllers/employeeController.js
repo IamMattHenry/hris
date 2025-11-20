@@ -135,12 +135,17 @@ export const getEmployeeById = async (req, res, next) => {
     d.department_code,
     u.username,
     u.role,
-    ur.sub_role
+    ur.sub_role,
+    ea.home_address,
+    ea.city_name AS city,
+    ea.region_name AS region,
+    ea.province_name AS province
   FROM employees e
   LEFT JOIN job_positions jp ON e.position_id = jp.position_id
   LEFT JOIN departments d ON e.department_id = d.department_id
   LEFT JOIN users u ON e.user_id = u.user_id
   LEFT JOIN user_roles ur ON u.user_id = ur.user_id
+  LEFT JOIN employee_addresses ea ON e.employee_id = ea.employee_id
   WHERE e.employee_id = ?
 `,
       [id]
@@ -235,6 +240,8 @@ export const createEmployee = async (req, res, next) => {
       created_by,
       dependents
     } = req.body;
+
+    const normalizedEmail = email?.trim();
 
     // Validate required fields
     if (!username || !password) {
@@ -342,6 +349,22 @@ export const createEmployee = async (req, res, next) => {
         });
       }
 
+      // Check if employee email already exists
+      if (normalizedEmail) {
+        const existingEmployeeEmail = await db.transactionQuery(
+          "SELECT employee_id FROM employee_emails WHERE email = ?",
+          [normalizedEmail]
+        );
+
+        if (existingEmployeeEmail && existingEmployeeEmail.length > 0) {
+          await db.rollback();
+          return res.status(400).json({
+            success: false,
+            message: `Email '${normalizedEmail}' is already associated with another employee.`,
+          });
+        }
+      }
+
       // Hash password
       const hashedPassword = await bcryptjs.hash(password, 10);
 
@@ -367,10 +390,6 @@ export const createEmployee = async (req, res, next) => {
         birthdate,
         gender,
         civil_status,
-        home_address,
-        city,
-        region,
-        province,
         position_id,
         shift,
         hire_date,
@@ -405,14 +424,25 @@ export const createEmployee = async (req, res, next) => {
       }
 
       // Add email if provided
-      if (email) {
+      if (normalizedEmail) {
         await db.transactionInsert("employee_emails", {
           employee_id: employeeId,
-          email,
+          email: normalizedEmail,
         });
       }
 
-      // Address is now stored in employees table, no separate insert needed
+      // Insert address record if provided
+      if (home_address || city || region || province) {
+        await db.transactionInsert("employee_addresses", {
+          employee_id: employeeId,
+          home_address: home_address || null,
+          city_name: city || null,
+          region_name: region || null,
+          province_name: province || null,
+          created_by,
+          
+        });
+      }
 
       // If role is 'admin' or 'supervisor', create user_role record
       let userRoleId = null;
@@ -552,7 +582,25 @@ export const createEmployee = async (req, res, next) => {
 export const updateEmployee = async (req, res, next) => {
   try {
     let { id } = req.params;
-    const { emails, contact_numbers, dependents, role, sub_role, ...updates } = req.body;
+    const {
+      emails,
+      contact_numbers,
+      dependents,
+      role,
+      sub_role,
+      home_address,
+      city,
+      region,
+      province,
+      ...updates
+    } = req.body;
+
+    const emailsProvided = Array.isArray(emails);
+    const normalizedEmails = emailsProvided
+      ? emails
+          .map((email) => (typeof email === "string" ? email.trim() : ""))
+          .filter((email) => email.length > 0)
+      : [];
 
     // Handle /me endpoint - resolve employee_id from JWT token
     const isSelfUpdate = !id || id === 'me';
@@ -596,6 +644,7 @@ export const updateEmployee = async (req, res, next) => {
 
     // Get user ID from JWT token for audit trail
     const updatedBy = req.user?.user_id;
+    const targetEmployeeId = Number(employee.employee_id);
 
     // Validate role and sub_role if provided
     if (role) {
@@ -655,13 +704,59 @@ export const updateEmployee = async (req, res, next) => {
       }
     }
 
-    // Start transaction for atomic operations
+    if (emailsProvided && normalizedEmails.length > 0) {
+      const seenEmails = new Set();
+      let duplicateEmail = null;
+
+      for (const emailValue of normalizedEmails) {
+        const lowerEmail = emailValue.toLowerCase();
+        if (seenEmails.has(lowerEmail)) {
+          duplicateEmail = emailValue;
+          break;
+        }
+        seenEmails.add(lowerEmail);
+      }
+
+      if (duplicateEmail) {
+        return res.status(400).json({
+          success: false,
+          message: `Duplicate email '${duplicateEmail}' found in the request payload.`,
+        });
+      }
+
+      const lowerEmails = Array.from(seenEmails);
+      const placeholders = lowerEmails.map(() => "?").join(", ");
+
+      if (placeholders.length > 0) {
+        const existingEmails = await db.getAll(
+          `SELECT employee_id, LOWER(email) AS email_lower FROM employee_emails WHERE LOWER(email) IN (${placeholders})`,
+          lowerEmails
+        );
+
+        const conflictingRecord = existingEmails.find(
+          (row) => Number(row.employee_id) !== targetEmployeeId
+        );
+
+        if (conflictingRecord) {
+          const conflictEmail =
+            normalizedEmails.find(
+              (emailValue) =>
+                emailValue.toLowerCase() === conflictingRecord.email_lower
+            ) || normalizedEmails[0];
+
+          return res.status(400).json({
+            success: false,
+            message: `Email '${conflictEmail}' is already associated with another employee.`,
+          });
+        }
+      }
+    }
+
     await db.beginTransaction();
 
     try {
       // Update employee basic info (only valid employee fields)
       if (Object.keys(updates).length > 0) {
-        // Add updated_by to updates
         const updatesWithAudit = {
           ...updates,
           updated_by: updatedBy,
@@ -675,8 +770,52 @@ export const updateEmployee = async (req, res, next) => {
         );
       }
 
-      // Handle emails if provided
-      if (emails && Array.isArray(emails)) {
+      // Handle address updates
+      const addressFieldsProvided = [home_address, city, region, province].some(
+        (value) => value !== undefined
+      );
+
+      if (addressFieldsProvided) {
+        const addressData = {};
+        if (home_address !== undefined) {
+          addressData.home_address = home_address ? home_address : null;
+        }
+        if (city !== undefined) {
+          addressData.city_name = city ? city : null;
+        }
+        if (region !== undefined) {
+          addressData.region_name = region ? region : null;
+        }
+        if (province !== undefined) {
+          addressData.province_name = province ? province : null;
+        }
+
+        if (Object.keys(addressData).length > 0) {
+          addressData.updated_by = updatedBy || null;
+
+          const existingAddress = await db.transactionGetOne(
+            "SELECT address_id FROM employee_addresses WHERE employee_id = ?",
+            [id]
+          );
+
+          if (existingAddress) {
+            await db.transactionUpdate(
+              "employee_addresses",
+              addressData,
+              "employee_id = ?",
+              [id]
+            );
+          } else {
+            await db.transactionInsert("employee_addresses", {
+              employee_id: id,
+              ...addressData,
+              created_by: updatedBy || null,
+            });
+          }
+        }
+      }
+
+      if (emailsProvided) {
         // Delete all existing emails
         await db.transactionQuery(
           "DELETE FROM employee_emails WHERE employee_id = ?",
@@ -684,13 +823,11 @@ export const updateEmployee = async (req, res, next) => {
         );
 
         // Insert new emails
-        for (const email of emails) {
-          if (email && email.trim()) {
-            await db.transactionInsert("employee_emails", {
-              employee_id: id,
-              email: email.trim(),
-            });
-          }
+        for (const emailValue of normalizedEmails) {
+          await db.transactionInsert("employee_emails", {
+            employee_id: id,
+            email: emailValue,
+          });
         }
       }
 
