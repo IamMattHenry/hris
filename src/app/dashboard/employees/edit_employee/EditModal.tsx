@@ -19,6 +19,37 @@ import {
 } from "./validation";
 import { toast } from "react-hot-toast";
 
+const STATUS_OPTIONS = ["Active", "On Leave", "Resigned", "Terminated"] as const;
+
+const formatStatusForDisplay = (status?: string | null) => {
+  if (!status) return "";
+  const normalized = status.toLowerCase().replace(/\s+/g, "_");
+
+  switch (normalized) {
+    case "active":
+      return "Active";
+    case "on_leave":
+      return "On Leave";
+    case "resigned":
+      return "Resigned";
+    case "terminated":
+      return "Terminated";
+    default:
+      return status;
+  }
+};
+
+const normalizeStatusForPayload = (status: string) => {
+  if (!status) return null;
+  const normalized = status.trim().toLowerCase();
+
+  if (normalized === "on leave") {
+    return "on_leave";
+  }
+
+  return normalized.replace(/\s+/g, "_");
+};
+
 /* ---------- Interfaces ---------- */
 interface EditEmployeeModalProps {
   isOpen: boolean;
@@ -46,6 +77,7 @@ interface EmployeeData {
   role?: string;
   sub_role?: string;
   user_id?: number;
+  status?: string;
 }
 
 /* ---------- Component ---------- */
@@ -68,13 +100,13 @@ export default function EditEmployeeModal({
   const [region, setRegion] = useState("");
   const [province, setProvince] = useState("");
   const [civilStatus, setCivilStatus] = useState("");
+  const [employmentStatus, setEmploymentStatus] = useState("");
   const [emails, setEmails] = useState<ContactEmail[]>([]);
   const [contactNumbers, setContactNumbers] = useState<ContactNumber[]>([]);
 
   // Role management state
   const [grantAdminPrivilege, setGrantAdminPrivilege] = useState(false);
-  const [grantSupervisorPrivilege, setGrantSupervisorPrivilege] =
-    useState(false);
+  const [grantSupervisorPrivilege, setGrantSupervisorPrivilege] = useState(false);
   const [subRole, setSubRole] = useState("");
 
   // Dependents state
@@ -84,8 +116,7 @@ export default function EditEmployeeModal({
   const [dependentEmail, setDependentEmail] = useState("");
   const [dependentContactInfo, setDependentContactInfo] = useState("");
   const [dependentRelationship, setDependentRelationship] = useState("");
-  const [dependentRelationshipSpecify, setDependentRelationshipSpecify] =
-    useState("");
+  const [dependentRelationshipSpecify, setDependentRelationshipSpecify] = useState("");
   const [dependentHomeAddress, setDependentHomeAddress] = useState("");
   const [dependentRegion, setDependentRegion] = useState("");
   const [dependentProvince, setDependentProvince] = useState("");
@@ -125,6 +156,7 @@ export default function EditEmployeeModal({
         setRegion(res.data.region || "");
         setProvince(res.data.province || "");
         setCivilStatus(res.data.civil_status || "");
+        setEmploymentStatus(formatStatusForDisplay(res.data.status));
 
         // Set emails from the fetched data - normalize to include client id if missing
         if (res.data.emails && Array.isArray(res.data.emails)) {
@@ -231,7 +263,7 @@ export default function EditEmployeeModal({
         department_id: deptId,
         role: "supervisor",
         status: "active",
-        exclude_employee_id: id,
+        exclude_employee_id: id || "",
       });
       if (result.success && result.data) {
         setSupervisors(result.data);
@@ -282,7 +314,7 @@ export default function EditEmployeeModal({
       const res = await employeeApi.getAll({
         department_id: deptId,
         role: "supervisor",
-        exclude_employee_id: id,
+        exclude_employee_id: id || "",
       });
       if (res.success && res.data) {
         return res.data.length > 0;
@@ -431,8 +463,6 @@ export default function EditEmployeeModal({
     setContactNumbers(updated);
   };
 
-
-
   /* ---------- Submit ---------- */
   const handleSubmit = async () => {
     console.log("Save Changes clicked");
@@ -461,7 +491,6 @@ export default function EditEmployeeModal({
       return;
     }
 
-
     // Validate employee form - NOW INCLUDING PROVINCE
     const formErrors = validateEmployeeForm(
       firstName,
@@ -469,6 +498,7 @@ export default function EditEmployeeModal({
       departmentId,
       positionId,
       shift,
+      employmentStatus,
       homeAddress,
       city,
       region,
@@ -508,6 +538,11 @@ export default function EditEmployeeModal({
           .filter((c) => c && c.trim()),
         dependents: dependents,
       };
+
+      const normalizedStatus = normalizeStatusForPayload(employmentStatus);
+      if (normalizedStatus) {
+        updatedData.status = normalizedStatus;
+      }
 
       // Only include role and sub_role if employee has a user account
       if (employee.user_id) {
@@ -687,6 +722,16 @@ export default function EditEmployeeModal({
                 onChange={(e) => setShift(e.target.value)}
                 options={["Morning", "Night"]}
                 error={errors.shift}
+              />
+              <FormSelect
+                label="Employment Status"
+                value={employmentStatus}
+                onChange={(e) => {
+                  setEmploymentStatus(e.target.value);
+                  setErrors((prev) => ({ ...prev, employmentStatus: "" }));
+                }}
+                options={[...STATUS_OPTIONS]}
+                error={errors.employmentStatus}
               />
               <FormSelect
                 label="Civil Status"

@@ -160,6 +160,15 @@ class FingerprintBridge {
   }
 
   /**
+   * Delete fingerprint template by ID
+   */
+  deleteFingerprint(fingerprintId) {
+    logger.info(`Deleting fingerprint ID: ${fingerprintId}`);
+    console.log(`🗑️ Deleting fingerprint ID ${fingerprintId}...`);
+    this.sendToArduino(`DELETE:${fingerprintId}`);
+  }
+
+  /**
    * Close serial port connection
    */
   disconnect() {

@@ -158,6 +158,7 @@ export const validateEmployeeForm = (
   departmentId: number | null,
   positionId: number | null,
   shift: string,
+  employmentStatus: string,
   homeAddress: string,
   city: string,
   region: string,
@@ -188,6 +189,10 @@ export const validateEmployeeForm = (
 
   if (!shift) {
     errors.shift = "Shift is required";
+  }
+
+  if (!employmentStatus) {
+    errors.employmentStatus = "Employment status is required";
   }
 
   if (!homeAddress.trim()) {

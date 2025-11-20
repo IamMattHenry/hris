@@ -92,6 +92,41 @@ export const startEnrollment = async (req, res, next) => {
   }
 };
 
+export const deleteFingerprintById = async (req, res, next) => {
+  try {
+    const { fingerprint_id } = req.body;
+
+    if (!fingerprint_id || Number.isNaN(Number(fingerprint_id))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid fingerprint ID is required',
+      });
+    }
+
+    const bridgeUrl = process.env.BRIDGE_URL || 'http://localhost:3001';
+
+    try {
+      await axios.post(`${bridgeUrl}/fingerprint/delete`, {
+        fingerprint_id,
+      });
+    } catch (bridgeError) {
+      logger.error('Failed to communicate with bridge service:', bridgeError.message);
+      return res.status(503).json({
+        success: false,
+        message: 'Bridge service not available. Make sure fingerprint bridge is running.',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Delete command sent for fingerprint ID ${fingerprint_id}`,
+    });
+  } catch (error) {
+    logger.error('Delete fingerprint error:', error);
+    next(error);
+  }
+};
+
 /**
  * Confirm fingerprint enrollment
  * Called after Arduino successfully enrolls the fingerprint
@@ -229,4 +264,5 @@ export default {
   confirmEnrollment,
   getNextFingerprintId,
   checkFingerprintId,
+  deleteFingerprintById,
 };

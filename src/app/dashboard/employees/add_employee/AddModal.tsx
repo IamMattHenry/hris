@@ -5,7 +5,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Eye, EyeOff } from "lucide-react";
 import FormInput from "@/components/forms/FormInput";
 import FormSelect from "@/components/forms/FormSelect";
-import { employeeApi, departmentApi, positionApi } from "@/lib/api";
+import {
+  employeeApi,
+  departmentApi,
+  positionApi,
+  fingerprintApi,
+} from "@/lib/api";
 import { Department, Position } from "@/types/api";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -270,6 +275,7 @@ useEffect(() => {
   useEffect(() => {
     if (isOpen) {
       fetchDepartments();
+      loadNextFingerprintId();
     }
   }, [isOpen]);
 
@@ -306,6 +312,17 @@ useEffect(() => {
       }
     } catch (error) {
       console.error("Error fetching departments:", error);
+    }
+  };
+
+  const loadNextFingerprintId = async () => {
+    try {
+      const nextIdResponse = await fingerprintApi.getNextId();
+      if (nextIdResponse.success && nextIdResponse.data?.next_fingerprint_id) {
+        setFingerprintId(nextIdResponse.data.next_fingerprint_id);
+      }
+    } catch (error) {
+      console.error("Error fetching next fingerprint ID:", error);
     }
   };
 
@@ -639,6 +656,7 @@ useEffect(() => {
         email: email,
         contact_number: contactNumber ? contactNumber.replace(/\s/g, "") : null,
         status: "active" as const,
+        fingerprint_id: fingerprintId,
         // Audit fields
         created_by: user?.user_id || null,
         // Dependents
@@ -1335,6 +1353,15 @@ useEffect(() => {
                       {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
                   </div>
+
+                  <FormInput
+                    label="Assigned Fingerprint ID"
+                    type="number"
+                    value={fingerprintId !== null ? String(fingerprintId) : ""}
+                    onChange={() => {}}
+                    placeholder="Auto-assigned"
+                    disabled
+                  />
 
                   <div className="flex flex-col justify-end">
                     <label className="block text-[#3b2b1c] mb-1">

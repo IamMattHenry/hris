@@ -192,6 +192,30 @@ void handleCommand(String command) {
     blinkLED(LED_SUCCESS, 3);
     beep(2, 100);
     
+  } else if (command.startsWith("DELETE:")) {
+    int deleteId = command.substring(7).toInt();
+
+    if (deleteId > 0 && deleteId <= 127) {
+      uint8_t result = deleteFingerprint(deleteId);
+
+      if (result == FINGERPRINT_OK) {
+        Serial.print("DELETE:SUCCESS:");
+        Serial.println(deleteId);
+        blinkLED(LED_SUCCESS, 2);
+        beep(1, 150);
+      } else {
+        Serial.print("DELETE:ERROR:");
+        Serial.print(deleteId);
+        Serial.print(":");
+        Serial.println(result, HEX);
+        blinkLED(LED_ERROR, 2);
+        beep(2, 150);
+      }
+    } else {
+      Serial.println("DELETE:ERROR:INVALID_ID");
+      blinkLED(LED_ERROR, 3);
+    }
+
   } else if (command.startsWith("ERROR:")) {
     String error = command.substring(6);
     Serial.print("✗ Error: ");
@@ -319,4 +343,30 @@ void beep(int times, int duration) {
     digitalWrite(BUZZER, LOW);
     delay(100);
   }
+}
+
+// ========== DELETE FUNCTION ==========
+
+uint8_t deleteFingerprint(uint8_t id) {
+  uint8_t p = finger.deleteModel(id);
+
+  if (p == FINGERPRINT_OK) {
+    Serial.println("✓ Fingerprint deleted");
+  } else if (p == FINGERPRINT_PACKETRECIEVEERR) {
+    Serial.println("DELETE:ERROR:COMMUNICATION");
+  } else if (p == FINGERPRINT_BADLOCATION) {
+    Serial.println("DELETE:ERROR:BAD_LOCATION");
+  } else if (p == FINGERPRINT_FLASHERR) {
+    Serial.println("DELETE:ERROR:FLASH");
+  } else if (p == FINGERPRINT_NOTFOUND) {
+    Serial.println("DELETE:ERROR:NOT_FOUND");
+  } else {
+    Serial.print("DELETE:ERROR:UNKNOWN:0x");
+    Serial.println(p, HEX);
+  }
+
+  // Ensure we stay in attendance mode after deletion attempts
+  currentMode = ATTENDANCE;
+
+  return p;
 }

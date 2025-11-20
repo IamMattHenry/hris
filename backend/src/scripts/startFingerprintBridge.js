@@ -129,6 +129,21 @@ app.post('/enroll/cancel', (req, res) => {
   res.json({ success: true, message: 'Enrollment cancelled' });
 });
 
+// Endpoint to delete fingerprint template
+app.post('/fingerprint/delete', (req, res) => {
+  const { fingerprint_id } = req.body;
+
+  if (!fingerprint_id) {
+    return res.status(400).json({ success: false, message: 'Fingerprint ID required' });
+  }
+
+  sensorModeManager.enableAttendanceMode();
+  broadcastStatus(`Deleting fingerprint ID ${fingerprint_id}...`, 'delete');
+  bridge.deleteFingerprint(fingerprint_id);
+
+  res.json({ success: true, message: `Delete command sent for fingerprint ID ${fingerprint_id}` });
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ 

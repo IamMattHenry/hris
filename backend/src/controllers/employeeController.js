@@ -5,6 +5,7 @@ import {
   generateEmployeeCode,
   generateDependentCode,
 } from "../utils/codeGenerator.js";
+import { deleteFingerprintTemplate } from "../services/fingerprintService.js";
 
 const mapDepartmentToSubRole = (departmentName = "") => {
   const normalized = departmentName.trim().toLowerCase();
@@ -237,11 +238,26 @@ export const createEmployee = async (req, res, next) => {
       hire_date,
       contact_number,
       status,
+      fingerprint_id,
       created_by,
       dependents
     } = req.body;
 
     const normalizedEmail = email?.trim();
+    const fingerprintIdValue =
+      fingerprint_id !== undefined && fingerprint_id !== null
+        ? Number(fingerprint_id)
+        : null;
+
+    if (
+      fingerprintIdValue !== null &&
+      (Number.isNaN(fingerprintIdValue) || fingerprintIdValue <= 0)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Fingerprint ID must be a positive number",
+      });
+    }
 
     // Validate required fields
     if (!username || !password) {
@@ -365,6 +381,21 @@ export const createEmployee = async (req, res, next) => {
         }
       }
 
+      if (fingerprintIdValue !== null) {
+        const existingFingerprint = await db.transactionQuery(
+          "SELECT employee_id FROM employees WHERE fingerprint_id = ?",
+          [fingerprintIdValue]
+        );
+
+        if (existingFingerprint && existingFingerprint.length > 0) {
+          await db.rollback();
+          return res.status(400).json({
+            success: false,
+            message: `Fingerprint ID '${fingerprintIdValue}' is already assigned to another employee.`,
+          });
+        }
+      }
+
       // Hash password
       const hashedPassword = await bcryptjs.hash(password, 10);
 
@@ -398,8 +429,8 @@ export const createEmployee = async (req, res, next) => {
         leave_credit,
         supervisor_id,
         salary,
+        fingerprint_id: fingerprintIdValue,
         created_by,
-        
       });
 
       // Generate employee code based on the ID
@@ -557,6 +588,10 @@ export const createEmployee = async (req, res, next) => {
       if ((userRole === "admin" || userRole === "supervisor") && userRoleId) {
         responseData.user_role_id = userRoleId;
         responseData.sub_role = sub_role;
+      }
+
+      if (fingerprintIdValue !== null) {
+        responseData.fingerprint_id = fingerprintIdValue;
       }
 
       const roleLabel = userRole === "admin" ? "Admin" : userRole === "supervisor" ? "Supervisor" : "Employee";
@@ -1066,6 +1101,17 @@ export const deleteEmployee = async (req, res, next) => {
     logger.info(
       `Employee deleted: ${id}${userDeleted ? ` (linked user ${employee.user_id} removed)` : ""}`
     );
+
+    if (employee.fingerprint_id) {
+      try {
+        await deleteFingerprintTemplate(employee.fingerprint_id);
+      } catch (fingerprintError) {
+        logger.error(
+          `Failed to delete fingerprint ${employee.fingerprint_id} for employee ${id}:`,
+          fingerprintError.message || fingerprintError
+        );
+      }
+    }
 
     // Create activity log entry
     try {

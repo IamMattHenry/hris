@@ -9,6 +9,7 @@ interface FormInputProps {
   error?: string;
   max?: string; // optional max date
   readOnly?: boolean; 
+  disabled?: boolean;
 }
 
 export default function FormInput({
@@ -20,6 +21,7 @@ export default function FormInput({
   error,
   max,
   readOnly = false, // default false
+  disabled = false,
 }: FormInputProps) {
   return (
     <div className="flex flex-col">
@@ -30,11 +32,12 @@ export default function FormInput({
         onChange={onChange}
         placeholder={placeholder}
         readOnly={readOnly} 
+        disabled={disabled}
         max={max} // optional max date
         className={`w-full bg-[#fdf4e3] border ${
           error ? "border-red-400" : "border-[#e6d2b5]"
         } rounded-lg px-3 py-2 shadow-inner focus:outline-none ${
-          readOnly ? "bg-gray-200 cursor-not-allowed text-gray-600" : ""
+          readOnly || disabled ? "bg-gray-200 cursor-not-allowed text-gray-600" : ""
         }`}
       />
       {error && <span className="text-red-500 text-xs mt-1">{error}</span>}

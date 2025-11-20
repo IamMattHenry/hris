@@ -2,10 +2,17 @@
 
 import { useState, useEffect } from "react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { employeeApi, leaveApi } from "@/lib/api";
+import { employeeApi, leaveApi, attendanceApi } from "@/lib/api";
 import { Employee } from "@/types/api";
 import { X, ChevronRight } from "lucide-react";
 import FloatingTicketButton from "@/components/dashboard/FloatingTicketButton";
+
+const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+
+type WeeklyAttendanceDatum = {
+  day: typeof DAYS_OF_WEEK[number];
+  count: number;
+};
 
 interface PendingLeave {
   leave_id: number;
@@ -29,6 +36,13 @@ interface AbsenceRecord {
   date: string;
 }
 
+interface AttendanceRecord {
+  attendance_id: number;
+  employee_id: number;
+  date: string;
+  status: string;
+}
+
 interface DashboardStats {
   total_employees: number;
   on_duty: number;
@@ -40,11 +54,62 @@ interface DashboardStats {
   total_departments: number;
 }
 
+const COUNTED_STATUSES = new Set(["present", "late", "half_day", "work_from_home"]);
+
+const getWeekStart = (date: Date) => {
+  const result = new Date(date);
+  result.setHours(0, 0, 0, 0);
+  const day = result.getDay();
+  result.setDate(result.getDate() - day);
+  return result;
+};
+
+const parseISODate = (value?: string) => {
+  if (!value) return null;
+  const [year, month, day] = value.split("-");
+  if (!year || !month || !day) return null;
+  const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+  parsed.setHours(0, 0, 0, 0);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const computeWeeklyAttendanceData = (
+  records: AttendanceRecord[] = [],
+  referenceDate: Date = new Date()
+): WeeklyAttendanceDatum[] => {
+  const base = DAYS_OF_WEEK.map((day) => ({ day, count: 0 }));
+
+  if (!records.length) {
+    return base;
+  }
+
+  const startOfCurrentWeek = getWeekStart(referenceDate);
+
+  records.forEach((record) => {
+    const recordDate = parseISODate(record.date);
+    if (!recordDate) return;
+
+    const status = record.status?.toLowerCase?.();
+    if (!status || !COUNTED_STATUSES.has(status)) return;
+
+    const recordWeekStart = getWeekStart(recordDate);
+    if (recordWeekStart.getTime() !== startOfCurrentWeek.getTime()) return;
+
+    const dayIndex = recordDate.getDay();
+    base[dayIndex].count += 1;
+  });
+
+  return base;
+};
+
 export default function Dashboard() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [pendingLeaves, setPendingLeaves] = useState<PendingLeave[]>([]);
   const [absenceRecords, setAbsenceRecords] = useState<AbsenceRecord[]>([]);
+  const [weeklyAttendanceData, setWeeklyAttendanceData] = useState<WeeklyAttendanceDatum[]>(() =>
+    DAYS_OF_WEEK.map((day) => ({ day, count: 0 }))
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showPendingLeaves, setShowPendingLeaves] = useState(false);
@@ -56,9 +121,10 @@ export default function Dashboard() {
       setError(null);
 
       try {
-        const [empResult, statsResult] = await Promise.all([
+        const [empResult, statsResult, attendanceResult] = await Promise.all([
           employeeApi.getAll(),
           leaveApi.getDashboardStats(),
+          attendanceApi.getAll(),
         ]);
 
         if (empResult.success && empResult.data) {
@@ -72,6 +138,15 @@ export default function Dashboard() {
         } else {
           setError(statsResult.message || "Failed to fetch dashboard statistics");
         }
+
+        let attendanceRecords: AttendanceRecord[] = [];
+        if (attendanceResult.success && Array.isArray(attendanceResult.data)) {
+          attendanceRecords = attendanceResult.data as AttendanceRecord[];
+        } else if (!attendanceResult.success) {
+          setError((prev) => prev ?? (attendanceResult.message || "Failed to fetch attendance data"));
+        }
+
+        setWeeklyAttendanceData(computeWeeklyAttendanceData(attendanceRecords));
       } catch (err) {
         console.error("Error fetching dashboard data:", err);
         setError("Failed to fetch dashboard data");
@@ -145,17 +220,6 @@ export default function Dashboard() {
       percentage: ((value / totalEmployees) * 100).toFixed(0),
       color: colorPalette[index % colorPalette.length]
     }));
-
-  // Weekly attendance data (mock data for visualization)
-  const weeklyData = [
-    { day: 'Sun', present: 32, pastWeek: 30 },
-    { day: 'Mon', present: 28, pastWeek: 32 },
-    { day: 'Tue', present: 30, pastWeek: 31 },
-    { day: 'Wed', present: 25, pastWeek: 29 },
-    { day: 'Thu', present: 33, pastWeek: 28 },
-    { day: 'Fri', present: 26, pastWeek: 30 },
-    { day: 'Sat', present: 29, pastWeek: 27 },
-  ];
 
   const handleViewPendingLeaves = async () => {
     try {
@@ -347,19 +411,14 @@ export default function Dashboard() {
                     <div className="w-3 h-3 rounded-full bg-[#8b4513] mr-2" />
                     <span>This Week</span>
                   </div>
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 rounded-full bg-[#d3b89c] mr-2" />
-                    <span>Last Week</span>
-                  </div>
                 </div>
               </div>
               <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={weeklyData} barGap={4}>
+                <BarChart data={weeklyAttendanceData} barGap={4}>
                   <XAxis dataKey="day" axisLine={false} tickLine={false} />
                   <YAxis hide />
                   <Tooltip />
-                  <Bar dataKey="present" name="This Week" fill="#8b4513" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="pastWeek" name="Last Week" fill="#d3b89c" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="count" name="This Week" fill="#8b4513" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
