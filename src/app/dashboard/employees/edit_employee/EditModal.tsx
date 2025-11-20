@@ -617,171 +617,202 @@ export default function EditEmployeeModal({
 
         {employee ? (
           <div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <FormInput
-                label="First Name"
-                type="text"
-                value={firstName}
-                onChange={(e) => {
-                  validateName(e.target.value, setFirstName);
-                }}
-                error={errors.firstName}
-              />
-              <FormInput
-                label="Last Name"
-                type="text"
-                value={lastName}
-                onChange={(e) => {
-                  validateName(e.target.value, setLastName);
-                }}
-                error={errors.lastName}
-              />
-              <div>
-                <label className="block text-[#3b2b1c] mb-1">Department</label>
-                <select
-                  value={departmentId || ""}
-                  onChange={(e) => {
-                    const value = e.target.value ? Number(e.target.value) : null;
-                    setDepartmentId(value);
-                    setPositionId(null);
-                    setErrors((prev) => ({ ...prev, department: "" }));
-                  }}
-                  className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c]"
-                >
-                  <option value="">Select Department</option>
-                  {departments.map((dept) => (
-                    <option key={dept.department_id} value={dept.department_id}>
-                      {dept.department_name}
-                    </option>
-                  ))}
-                </select>
-                {errors.department && (
-                  <p className="text-red-500 text-xs mt-1">
-                    {errors.department}
-                  </p>
-                )}
-              </div>
+            <div className="space-y-10">
 
-              <div>
-                <label className="block text-[#3b2b1c] mb-1">Position</label>
-                <select
-                  value={positionId || ""}
-                  onChange={(e) => setPositionId(Number(e.target.value))}
-                  disabled={!departmentId}
-                  className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] disabled:opacity-50"
-                >
-                  <option value="">
-                    {departmentId ? "Select Position" : "Select Department First"}
-                  </option>
-                  {positions.map((pos) => (
-                    <option key={pos.position_id} value={pos.position_id}>
-                      {pos.position_name}
-                    </option>
-                  ))}
-                </select>
-                {errors.position && (
-                  <p className="text-red-500 text-xs mt-1">{errors.position}</p>
-                )}
-              </div>
+              {/* ========================== PERSONAL INFORMATION ========================== */}
+              <section>
+                <h2 className="text-lg font-semibold text-[#3b2b1c] mb-4">
+                  Personal Information
+                </h2>
 
-              {/* Supervisor Dropdown */}
-              <div>
-                <label className="block text-[#3b2b1c] mb-1 font-medium">
-                  Reports To (Supervisor):
-                </label>
-                <select
-                  value={supervisorId || ""}
-                  onChange={(e) => {
-                    const value = e.target.value ? Number(e.target.value) : null;
-                    setSupervisorId(value);
-                    setErrors((prev) => ({ ...prev, supervisor: "" }));
-                  }}
-                  disabled={!departmentId}
-                  className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <option value="">
-                    {departmentId ? "No Supervisor (Optional)" : "Select Department First"}
-                  </option>
-                  {supervisors.map((sup) => (
-                    <option key={sup.employee_id} value={sup.employee_id}>
-                      {sup.employee_code} - {sup.first_name} {sup.last_name}
-                    </option>
-                  ))}
-                </select>
-                {errors.supervisor && (
-                  <p className="text-red-500 text-xs mt-1">{errors.supervisor}</p>
-                )}
-                <p className="text-xs text-[#6b5344] mt-1">
-                  Select who this employee reports to
-                </p>
-              </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <FormInput
+                    label="First Name"
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => validateName(e.target.value, setFirstName)}
+                    error={errors.firstName}
+                  />
 
-              <FormSelect
-                label="Shift"
-                value={shift}
-                onChange={(e) => setShift(e.target.value)}
-                options={["Morning", "Night"]}
-                error={errors.shift}
-              />
-              <FormSelect
-                label="Employment Status"
-                value={employmentStatus}
-                onChange={(e) => {
-                  setEmploymentStatus(e.target.value);
-                  setErrors((prev) => ({ ...prev, employmentStatus: "" }));
-                }}
-                options={[...STATUS_OPTIONS]}
-                error={errors.employmentStatus}
-              />
-              <FormSelect
-                label="Civil Status"
-                value={civilStatus}
-                onChange={(e) => setCivilStatus(e.target.value)}
-                options={["Single", "Married", "Widowed", "Divorced"]}
-                error={errors.civilStatus}
-              />
-              <FormInput
-                label="Home Address"
-                type="text"
-                value={homeAddress}
-                onChange={(e) => {
-                 const value = e.target.value;
-                 if(value.length <= 100){
-                  setHomeAddress(value);
-                 }
-                }}
-                error={errors.homeAddress}
-              />
-              <FormSelect
-                label="Region:"
-                value={region}
-                onChange={(e) => {
-                  setRegion(e.target.value);
-                  setProvince("");
-                  setCity("");
-                }}
-                options={regions}
-                error={errors.region}
-              />
+                  <FormInput
+                    label="Last Name"
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => validateName(e.target.value, setLastName)}
+                    error={errors.lastName}
+                  />
 
-              <FormSelect
-                label="Province:"
-                value={province}
-                onChange={(e) => {
-                  setProvince(e.target.value);
-                  setCity("");
-                }}
-                options={region ? provinces : []}
-                error={errors.province}
-              />
+                  <FormSelect
+                    label="Civil Status"
+                    value={civilStatus}
+                    onChange={(e) => setCivilStatus(e.target.value)}
+                    options={["Single", "Married", "Widowed", "Divorced"]}
+                    error={errors.civilStatus}
+                  />
+                </div>
+              </section>
 
-              <FormSelect
-                label="City:"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                options={province ? cities : []}
-                error={errors.city}
-              />
+              {/* ========================== JOB INFORMATION ========================== */}
+              <section>
+                <h2 className="text-lg font-semibold text-[#3b2b1c] mb-4">
+                  Job Information
+                </h2>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+                  {/* Department */}
+                  <div>
+                    <label className="block text-[#3b2b1c] mb-1">Department</label>
+                    <select
+                      value={departmentId || ""}
+                      onChange={(e) => {
+                        const value = e.target.value ? Number(e.target.value) : null;
+                        setDepartmentId(value);
+                        setPositionId(null);
+                        setErrors((prev) => ({ ...prev, department: "" }));
+                      }}
+                      className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c]"
+                    >
+                      <option value="">Select Department</option>
+                      {departments.map((dept) => (
+                        <option key={dept.department_id} value={dept.department_id}>
+                          {dept.department_name}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.department && (
+                      <p className="text-red-500 text-xs mt-1">{errors.department}</p>
+                    )}
+                  </div>
+
+                  {/* Position */}
+                  <div>
+                    <label className="block text-[#3b2b1c] mb-1">Position</label>
+                    <select
+                      value={positionId || ""}
+                      onChange={(e) => setPositionId(Number(e.target.value))}
+                      disabled={!departmentId}
+                      className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] disabled:opacity-50"
+                    >
+                      <option value="">
+                        {departmentId ? "Select Position" : "Select Department First"}
+                      </option>
+                      {positions.map((pos) => (
+                        <option key={pos.position_id} value={pos.position_id}>
+                          {pos.position_name}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.position && (
+                      <p className="text-red-500 text-xs mt-1">{errors.position}</p>
+                    )}
+                  </div>
+
+                  {/* Supervisor */}
+                  <div>
+                    <label className="block text-[#3b2b1c] mb-1 font-medium">
+                      Reports To (Supervisor):
+                    </label>
+                    <select
+                      value={supervisorId || ""}
+                      onChange={(e) => {
+                        const value = e.target.value ? Number(e.target.value) : null;
+                        setSupervisorId(value);
+                        setErrors((prev) => ({ ...prev, supervisor: "" }));
+                      }}
+                      disabled={!departmentId}
+                      className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] focus:ring-2 focus:ring-[#4b0b14] disabled:opacity-50"
+                    >
+                      <option value="">
+                        {departmentId ? "No Supervisor (Optional)" : "Select Department First"}
+                      </option>
+                      {supervisors.map((sup) => (
+                        <option key={sup.employee_id} value={sup.employee_id}>
+                          {sup.employee_code} - {sup.first_name} {sup.last_name}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.supervisor && (
+                      <p className="text-red-500 text-xs mt-1">{errors.supervisor}</p>
+                    )}
+                    <p className="text-xs text-[#6b5344] mt-1">
+                      Select who this employee reports to
+                    </p>
+                  </div>
+
+                  <FormSelect
+                    label="Shift"
+                    value={shift}
+                    onChange={(e) => setShift(e.target.value)}
+                    options={["Morning", "Night"]}
+                    error={errors.shift}
+                  />
+
+                  <FormSelect
+                    label="Employment Status"
+                    value={employmentStatus}
+                    onChange={(e) => {
+                      setEmploymentStatus(e.target.value);
+                      setErrors((prev) => ({ ...prev, employmentStatus: "" }));
+                    }}
+                    options={[...STATUS_OPTIONS]}
+                    error={errors.employmentStatus}
+                  />
+                </div>
+              </section>
+
+              {/* ========================== ADDRESS INFORMATION ========================== */}
+              <section>
+                <h2 className="text-lg font-semibold text-[#3b2b1c] mb-4">
+                  Address Information
+                </h2>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+                  <FormInput
+                    label="Home Address"
+                    type="text"
+                    value={homeAddress}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value.length <= 100) setHomeAddress(value);
+                    }}
+                    error={errors.homeAddress}
+                  />
+
+                  <FormSelect
+                    label="Region"
+                    value={region}
+                    onChange={(e) => {
+                      setRegion(e.target.value);
+                      setProvince("");
+                      setCity("");
+                    }}
+                    options={regions}
+                    error={errors.region}
+                  />
+
+                  <FormSelect
+                    label="Province"
+                    value={province}
+                    onChange={(e) => {
+                      setProvince(e.target.value);
+                      setCity("");
+                    }}
+                    options={region ? provinces : []}
+                    error={errors.province}
+                  />
+
+                  <FormSelect
+                    label="City"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    options={province ? cities : []}
+                    error={errors.city}
+                  />
+
+                </div>
+              </section>
             </div>
 
             {/* Email Addresses Section */}
