@@ -72,6 +72,7 @@ export default function EditEmailsModal({
       if (result.success) {
         toast.success("Emails updated successfully!");
         onClose();
+        window.location.reload();
       } else {
         toast.error(result.message || "Failed to update emails.");
       }
