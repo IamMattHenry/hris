@@ -96,6 +96,7 @@ export default function EditEmployeeModal({
       if (result.success) {
         toast.success("Profile updated successfully!");
         onClose();
+        window.location.reload();
       } else {
         toast.error(result.message || "Failed to update profile");
       }

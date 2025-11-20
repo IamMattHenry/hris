@@ -15,6 +15,25 @@ const AuthenticationTab = () => {
   const [savingUsername, setSavingUsername] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
 
+  const validatePassword = (password: string) => {
+    const requirements = [
+      { regex: /.{12,}/, message: "Password must be at least 12 characters long." },
+      { regex: /[A-Z]/, message: "Password must contain at least 1 uppercase letter." },
+      { regex: /[a-z]/, message: "Password must contain at least 1 lowercase letter." },
+      { regex: /[0-9]/, message: "Password must contain at least 1 number." },
+      { regex: /[^A-Za-z0-9]/, message: "Password must contain at least 1 special character." }
+    ];
+
+    for (const rule of requirements) {
+      if (!rule.regex.test(password)) {
+        return rule.message;
+      }
+    }
+
+    return null;
+  };
+
+
   // ✅ Username Validation and Save
   const handleSaveUsername = async () => {
     if (!username.trim()) {
@@ -27,7 +46,7 @@ const AuthenticationTab = () => {
 
     try {
       const result = await userApi.updateMe({ username: username.trim() });
-      
+
       if (result.success) {
         alert("Username updated successfully!");
         setUsername("");
@@ -45,10 +64,21 @@ const AuthenticationTab = () => {
   // ✅ Password Validation and Save
   const handleSavePassword = async () => {
     const newErrors: { password?: string } = {};
+
+    // Required fields
     if (!newPassword.trim() || !confirmPassword.trim()) {
       newErrors.password = "Both password fields are required.";
-    } else if (newPassword !== confirmPassword) {
+    }
+
+    // Password match
+    if (!newErrors.password && newPassword !== confirmPassword) {
       newErrors.password = "Passwords do not match.";
+    }
+
+    // NEW: Complexity validation
+    if (!newErrors.password) {
+      const validationMessage = validatePassword(newPassword);
+      if (validationMessage) newErrors.password = validationMessage;
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -56,12 +86,13 @@ const AuthenticationTab = () => {
       return;
     }
 
+    // Good to proceed
     setErrors({});
     setSavingPassword(true);
 
     try {
       const result = await userApi.updateMe({ password: newPassword });
-      
+
       if (result.success) {
         alert("Password updated successfully!");
         setNewPassword("");
@@ -76,6 +107,7 @@ const AuthenticationTab = () => {
       setSavingPassword(false);
     }
   };
+
 
   return (
     <div className="max-w-4xl mx-auto text-[#4B0B14]">
@@ -109,9 +141,8 @@ const AuthenticationTab = () => {
               onClick={handleSaveUsername}
               icon={savingUsername ? undefined : Save}
               disabled={savingUsername}
-              className={`bg-[#4B0B14] hover:opacity-90 transition ${
-                savingUsername ? "opacity-75 cursor-not-allowed" : ""
-              }`}
+              className={`bg-[#4B0B14] hover:opacity-90 transition ${savingUsername ? "opacity-75 cursor-not-allowed" : ""
+                }`}
             />
           </div>
         </div>
@@ -146,9 +177,8 @@ const AuthenticationTab = () => {
               onClick={handleSavePassword}
               icon={savingPassword ? undefined : Save}
               disabled={savingPassword}
-              className={`bg-[#4B0B14] hover:opacity-90 transition ${
-                savingPassword ? "opacity-75 cursor-not-allowed" : ""
-              }`}
+              className={`bg-[#4B0B14] hover:opacity-90 transition ${savingPassword ? "opacity-75 cursor-not-allowed" : ""
+                }`}
             />
           </div>
         </div>

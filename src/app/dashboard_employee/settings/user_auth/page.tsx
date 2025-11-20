@@ -1,11 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect} from "react";
 import { Save, KeyRound, UserCog } from "lucide-react";
 import FormInput from "@/components/forms/FormInput";
 import PasswordBox from "@/components/auth/passwordbox";
 import ActionButton from "@/components/buttons/ActionButton";
-import { userApi } from "@/lib/api";
+import { userApi, employeeApi  } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+
 
 const AuthenticationTab = () => {
   const [username, setUsername] = useState("");
@@ -14,9 +16,11 @@ const AuthenticationTab = () => {
   const [errors, setErrors] = useState<{ username?: string; password?: string }>({});
   const [savingUsername, setSavingUsername] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+  const { user } = useAuth();
 
   const handleSaveUsername = () => {
     const trimmed = username.trim();
+    
 
     if (!trimmed) {
       setErrors({ username: "Username cannot be empty." });
@@ -36,7 +40,7 @@ const AuthenticationTab = () => {
       .then((result) => {
         if (result.success) {
           alert("Username updated successfully!");
-          setUsername("");
+          setUsername(trimmed);
         } else {
           alert(result.message || "Failed to update username");
         }
@@ -112,9 +116,17 @@ const AuthenticationTab = () => {
     alert("Password saved successfully!");
   };
 
+   useEffect(() => {
+      const fetchData = async () => {
+        if (!user?.employee_id) return;
+        setUsername(user.username);
+      };
+      fetchData();
+    }, [user]);
+
   return (
     <div className="max-w-4xl mx-auto text-[#073532] font-poppins">
-      <div className="border border-[#EAD7C4] rounded-2xl p-10 bg-[#FFF2E0]/50 shadow-sm space-y-12">
+      <div className="p-10 space-y-12">
         {/* Header */}
         <div className="text-left mb-4">
           <h4 className="text-3xl font-bold text-[#073532]">Authentication Settings</h4>

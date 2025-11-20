@@ -132,6 +132,7 @@ export default function EditContactsModal({
             if (result.success) {
                 toast.success("Contact numbers updated successfully!");
                 onClose();
+                window.location.reload();
             } else {
                 toast.error(result.message || "Failed to update contacts.");
             }
