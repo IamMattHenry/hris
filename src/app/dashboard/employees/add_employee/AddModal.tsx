@@ -698,7 +698,6 @@ useEffect(() => {
       });
     } finally {
       setIsSubmitting(false);
-      
     }
   
   };
@@ -1362,18 +1361,6 @@ useEffect(() => {
                     placeholder="Auto-assigned"
                     disabled
                   />
-
-                  <div className="flex flex-col justify-end">
-                    <label className="block text-[#3b2b1c] mb-1">
-                      Register Your Fingerprint
-                    </label>
-                    <button
-                      onClick={handleFingerprintScan}
-                      className="bg-[#3b2b1c] text-[#FFF2E0] w-50 cursor-pointer border border-[#e6d2b5] rounded-lg px-3 py-2 shadow-inner hover:bg-[#60101c] transition"
-                    >
-                      Scan Now
-                    </button>
-                  </div>
 
                   {/* Admin Privilege Checkbox */}
                   <div className="col-span-2 flex items-center gap-3 mt-4 p-4 bg-[#FFF2E0] rounded-lg border border-[#e6d2b5]">
