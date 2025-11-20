@@ -172,13 +172,12 @@ export default function Dashboard() {
               <div className="flex items-start space-x-6">
                 {/* Profile Image */}
                 <div className="flex-shrink-0">
-                  <Image
-                    src="/assets/user-img.png"
-                    alt="Employee Profile Picture"
-                    width={100}
-                    height={100}
-                    className="rounded-lg"
-                  />
+                  <div className="w-[100px] h-[100px] rounded-lg bg-gray-300 flex items-center justify-center">
+                    <span className="text-3xl font-semibold text-gray-700">
+                      {currentEmployee?.first_name?.charAt(0)}
+                      {currentEmployee?.last_name?.charAt(0)}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex-1 space-y-2">
