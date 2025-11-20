@@ -57,17 +57,17 @@ export default function Dashboard() {
   };
 
   const formatDateTimeTo12Hour = (dateTimeString: string) => {
-  const date = new Date(dateTimeString);
-  if (isNaN(date.getTime())) return "-";
+    const date = new Date(dateTimeString);
+    if (isNaN(date.getTime())) return "-";
 
-  let hours = date.getHours();
-  const minutes = date.getMinutes().toString().padStart(2, "0");
-  const period = hours >= 12 ? "PM" : "AM";
+    let hours = date.getHours();
+    const minutes = date.getMinutes().toString().padStart(2, "0");
+    const period = hours >= 12 ? "PM" : "AM";
 
-  const displayHours = hours % 12 || 12;
+    const displayHours = hours % 12 || 12;
 
-  return `${displayHours}:${minutes} ${period}`;
-};
+    return `${displayHours}:${minutes} ${period}`;
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -243,7 +243,7 @@ export default function Dashboard() {
           {/* Month Selector */}
           <div className="p-6 border-b border-gray-200">
             <div className="flex items-center justify-between">
-              
+
               <h3 className="text-2xl font-normal text-gray-800">Logs</h3>
               <div className="flex items-center space-x-4">
                 <ActionButton label="Refresh" icon={RefreshCcw} onClick={handleRefresh} />
@@ -291,9 +291,9 @@ export default function Dashboard() {
                           })
                           }
                         </td>
-                        <td className="border border-gray-300 px-4 py-2">      
+                        <td className="border border-gray-300 px-4 py-2">
                           {
-                            record.time_in &&  formatDateTimeTo12Hour(record.time_in) || '--'
+                            record.time_in && formatDateTimeTo12Hour(record.time_in) || '--'
                           }
                         </td>
                         <td className="border border-gray-300 px-4 py-2">

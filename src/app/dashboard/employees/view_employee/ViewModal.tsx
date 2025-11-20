@@ -139,7 +139,7 @@ export default function ViewEmployeeModal({
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.2 }}
-        className="bg-[#fdf3e2] w-full max-w-6xl rounded-2xl shadow-2xl relative text-[#3b2b1c] overflow-hidden flex max-h-[90vh]"
+        className="bg-[#fdf3e2] w-full  max-w-[90rem] rounded-2xl shadow-2xl relative text-[#3b2b1c] overflow-hidden flex max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Sidebar */}
@@ -225,10 +225,22 @@ export default function ViewEmployeeModal({
                 {activeTab === "profile" && (
                   <div className="space-y-6">
                     <div className="grid grid-cols-3 gap-4">
-                      <InfoBox label="Email" value={employee.emails?.[0]?.email} />
+                      <InfoBox
+                        label="Emails"
+                        value={employee.emails
+                          ?.map(e => `${e.email}`)
+                          .join("\n")}
+                        isTextarea={true}
+                      />
                       <InfoBox label="Gender" value={employee.gender} />
                       <InfoBox label="Home Address" value={employee.home_address} isTextarea={true} />
-                      <InfoBox label="Contact" value={employee.contact_numbers?.[0]?.contact_number} />
+                      <InfoBox
+                        label="Contacts"
+                        value={employee.contact_numbers
+                          ?.map(c => c.contact_number)
+                          .join("\n")}
+                        isTextarea={true}
+                      />
                       <InfoBox label="Civil Status" value={employee.civil_status} />
                       <InfoBox label="Region" value={employee.region} />
                       <InfoBox label="Age" value={calculateAge(employee.birthdate)} />
