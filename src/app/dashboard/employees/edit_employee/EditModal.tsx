@@ -231,7 +231,7 @@ export default function EditEmployeeModal({
         department_id: deptId,
         role: "supervisor",
         status: "active",
-        exclude_employee_id: id,
+        exclude_employee_id: id || undefined,
       });
       if (result.success && result.data) {
         setSupervisors(result.data);
@@ -282,7 +282,7 @@ export default function EditEmployeeModal({
       const res = await employeeApi.getAll({
         department_id: deptId,
         role: "supervisor",
-        exclude_employee_id: id,
+        exclude_employee_id: id || undefined,
       });
       if (res.success && res.data) {
         return res.data.length > 0;
