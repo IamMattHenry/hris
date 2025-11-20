@@ -2,36 +2,19 @@
 
 import { useState, useEffect } from "react";
 import { Cell, Tooltip, ResponsiveContainer, PieChart, Pie, Legend } from "recharts";
-import { employeeApi, leaveApi, attendanceApi } from "@/lib/api";
-import { Employee } from "@/types/api";
+import { employeeApi, attendanceApi } from "@/lib/api";
+import { Employee, Dependent } from "@/types/api";
 import FloatingTicketButton from "@/components/dashboard/FloatingTicketButton";
 import { useAuth } from "@/contexts/AuthContext";
 import Image from "next/image";
 
-interface AbsenceRecord {
-  attendance_id: number;
-  attendance_code: string;
-  employee_id: number;
-  first_name: string;
-  last_name: string;
-  employee_code: string;
-  date: string;
-}
-
 export default function Dashboard() {
   const { user } = useAuth();
-  const [employees, setEmployees] = useState<Employee[]>([]);
   const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
-  const [absenceRecords, setAbsenceRecords] = useState<AbsenceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dependents, setDependents] = useState<Dependent[]>([]);
   const [employeeAttendanceSummary, setEmployeeAttendanceSummary] = useState<{
-    present: number;
-    absent: number;
-    leave: number;
-    late: number;
-  } | null>(null);
-  const [overallAttendanceStats, setOverallAttendanceStats] = useState<{
     present: number;
     absent: number;
     leave: number;
@@ -39,61 +22,48 @@ export default function Dashboard() {
   } | null>(null);
   const [currentTime, setCurrentTime] = useState<string>("");
 
-  // Realtime clock updater
   useEffect(() => {
     const updateClock = () => {
       const now = new Date();
-      const formatted = now.toLocaleTimeString("en-US", {
-        timeZone: "Asia/Manila",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: true,
-      });
-      setCurrentTime(formatted);
+      setCurrentTime(
+        now.toLocaleTimeString("en-US", {
+          timeZone: "Asia/Manila",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: true,
+        })
+      );
     };
-
-    updateClock(); // initial call
+    updateClock();
     const interval = setInterval(updateClock, 1000);
     return () => clearInterval(interval);
   }, []);
 
-  // Data fetching
   useEffect(() => {
     const fetchData = async () => {
+      if (!user?.employee_id) return;
       setLoading(true);
       setError(null);
 
       try {
-        const [empResult, statsResult] = await Promise.all([
-          employeeApi.getAll(),
-          leaveApi.getDashboardStats(),
+        const [employeeResult, summaryResult] = await Promise.all([
+          employeeApi.getById(user.employee_id),
+          attendanceApi.getSummary(user.employee_id),
         ]);
 
-        if (empResult.success && empResult.data) {
-          setEmployees(empResult.data as Employee[]);
-        } else {
-          setError(empResult.message || "Failed to fetch employees");
+        if (employeeResult.success && employeeResult.data) {
+          const emp = employeeResult.data as Employee;
+          setCurrentEmployee(emp);
+          setDependents(emp.dependents || []);
         }
 
-        if (statsResult.success && statsResult.data) {
-          setOverallAttendanceStats(statsResult.data);
-        }
-
-        if (user?.employee_id) {
-          const employeeResult = await employeeApi.getById(user.employee_id);
-          if (employeeResult.success && employeeResult.data) {
-            setCurrentEmployee(employeeResult.data as Employee);
-          }
-
-          const attendanceSummaryResult = await attendanceApi.getSummary(user.employee_id);
-          if (attendanceSummaryResult.success && attendanceSummaryResult.data) {
-            setEmployeeAttendanceSummary(attendanceSummaryResult.data);
-          }
+        if (summaryResult.success && summaryResult.data) {
+          setEmployeeAttendanceSummary(summaryResult.data);
         }
       } catch (err) {
-        console.error("Error fetching dashboard data:", err);
-        setError("Failed to fetch dashboard data");
+        console.error(err);
+        setError("Failed to fetch dashboard data.");
       } finally {
         setLoading(false);
       }
@@ -102,7 +72,7 @@ export default function Dashboard() {
     fetchData();
   }, [user]);
 
-  if (loading) {
+  if (loading)
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f5e6d3]">
         <div className="text-center">
@@ -111,9 +81,8 @@ export default function Dashboard() {
         </div>
       </div>
     );
-  }
 
-  if (error) {
+  if (error)
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f5e6d3]">
         <div className="text-center">
@@ -127,179 +96,177 @@ export default function Dashboard() {
         </div>
       </div>
     );
-  }
 
-  // Attendance data
   const attendanceSummaryData = [
-    { name: "Present", value: employeeAttendanceSummary?.present || 0, color: "#ff5149" },
-    { name: "On Leave", value: employeeAttendanceSummary?.leave || 0, color: "#fc94af" },
-    { name: "Absent", value: employeeAttendanceSummary?.absent || 0, color: "#edc001" },
-    { name: "Late", value: employeeAttendanceSummary?.late || 0, color: "#ff6300" },
+    { name: "Present", value: employeeAttendanceSummary?.present || 0, color: "#4caf50" },
+    { name: "On Leave", value: employeeAttendanceSummary?.leave || 0, color: "#ff9800" },
+    { name: "Absent", value: employeeAttendanceSummary?.absent || 0, color: "#f44336" },
+    { name: "Late", value: employeeAttendanceSummary?.late || 0, color: "#2196f3" },
   ];
 
   return (
-    <div className="min-h-screen p-6 font-poppins">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen p-4 md:p-6 font-poppins">
+      <div className="max-w-7xl mx-auto space-y-8">
         {/* Header */}
         {currentEmployee && (
-          <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-normal text-gray-800">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 md:gap-4">
+            <h1 className="text-3xl md:text-4xl font-semibold text-gray-800">
               Welcome, {currentEmployee.first_name} {currentEmployee.last_name}
             </h1>
             <span
-              className={`inline-block px-3 py-1 text-sm font-medium rounded-full ${currentEmployee.status === "active"
-                ? "bg-green-100 text-green-800"
-                : currentEmployee.status === "on_leave"
+              className={`inline-block px-3 py-1 text-sm md:text-base font-medium rounded-full ${
+                currentEmployee.status === "active"
+                  ? "bg-green-100 text-green-800"
+                  : currentEmployee.status === "on_leave"
                   ? "bg-yellow-100 text-yellow-800"
-                  : currentEmployee.status === "resigned" ||
-                    currentEmployee.status === "terminated"
-                    ? "bg-red-100 text-red-800"
-                    : "bg-gray-100 text-gray-800"
-                }`}
+                  : currentEmployee.status === "resigned" || currentEmployee.status === "terminated"
+                  ? "bg-red-100 text-red-800"
+                  : "bg-gray-100 text-gray-800"
+              }`}
             >
               {currentEmployee.status || "Unknown"}
             </span>
           </div>
         )}
 
-        {/* Profile + Shift */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Profile */}
-          <div className="bg-white rounded-xl shadow-sm p-7 border border-[#e8dcc8]">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-4">Profile</h2>
-            {currentEmployee ? (
-              <div className="flex items-start space-x-6">
-                <div className="flex items-center justify-center w-[175px] h-[175px] rounded-lg bg-[#8b4513] text-white text-6xl font-bold select-none">
-                  {currentEmployee.first_name?.[0]?.toUpperCase()}
-                  {currentEmployee.last_name?.[0]?.toUpperCase()}
-                </div>
-                <div className="flex-1 space-y-2">
-                  <p className="text-sm text-gray-600">ID: {currentEmployee.employee_code}</p>
-                  <p className="text-sm text-gray-600">
-                    Name: {currentEmployee.first_name} {currentEmployee.last_name}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    Role: {currentEmployee.position_name || "N/A"}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    Department: {currentEmployee.department_name || "N/A"}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    Hire Date:{" "}
-                    {currentEmployee.hire_date
-                      ? new Date(currentEmployee.hire_date).toLocaleDateString("en-US", {
-                        month: "long",
-                        day: "numeric",
-                        year: "numeric",
-                      })
-                      : "N/A"}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    Gender: {currentEmployee.gender || "N/A"}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <p className="text-gray-500 text-center py-10">Loading profile...</p>
-            )}
+        {/* Profile Section */}
+        <div className="bg-white rounded-xl shadow-md border border-[#e8dcc8] flex flex-col lg:flex-row gap-6 p-6">
+          <div className="flex items-center justify-center w-36 h-36 md:w-44 md:h-44 rounded-lg bg-[#8b4513] text-white text-6xl md:text-7xl font-bold select-none flex-shrink-0">
+            {currentEmployee?.first_name?.[0]?.toUpperCase()}
+            {currentEmployee?.last_name?.[0]?.toUpperCase()}
           </div>
-
-          {/* Shifts with realtime clock */}
-          <div className="bg-white rounded-xl shadow-sm border border-[#e8dcc8] overflow-hidden">
-            <div className="bg-[#281b0d] px-6 py-3 shadow-lg rounded-b-lg">
-              <h2 className="text-lg font-semibold text-white">Shifts</h2>
-            </div>
-            <div className="p-8 h-72 flex flex-col justify-between">
-              <div>
-                <p className="text-2xl font-light text-gray-800">Date Today:</p>
-                <p className="text-2xl font-normal text-gray-800">
-                  {new Date().toLocaleDateString("en-US", {
-                    timeZone: "Asia/Manila",
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700">
+            <p>
+              <span className="font-semibold">ID:</span> {currentEmployee?.employee_code}
+            </p>
+            <p>
+              <span className="font-semibold">Role:</span> {currentEmployee?.position_name || "N/A"}
+            </p>
+            <p>
+              <span className="font-semibold">Name:</span> {currentEmployee?.first_name} {currentEmployee?.last_name}
+            </p>
+            <p>
+              <span className="font-semibold">Department:</span> {currentEmployee?.department_name || "N/A"}
+            </p>
+            <p>
+              <span className="font-semibold">Hire Date:</span>{" "}
+              {currentEmployee?.hire_date
+                ? new Date(currentEmployee.hire_date).toLocaleDateString("en-US", {
                     month: "long",
                     day: "numeric",
                     year: "numeric",
-                  })}{" "}
-                  |{" "}
-                  {new Date().toLocaleDateString("en-US", {
-                    timeZone: "Asia/Manila",
-                    weekday: "long",
-                  })}
+                  })
+                : "N/A"}
+            </p>
+            <p>
+              <span className="font-semibold">Gender:</span> {currentEmployee?.gender || "N/A"}
+            </p>
+          </div>
+        </div>
+
+        {/* Dashboard Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Shifts */}
+          <div className="bg-white rounded-xl shadow-md border border-[#e8dcc8] overflow-hidden flex flex-col">
+            <div className="bg-[#281b0d] px-6 py-3">
+              <h2 className="text-lg font-semibold text-white">Shifts</h2>
+            </div>
+            <div className="p-6 flex flex-col justify-between h-full">
+              <div>
+                <p className="text-md text-gray-800 font-medium">Date Today:</p>
+                <p className="text-md text-gray-700 font-light">
+                  {new Date().toLocaleDateString("en-US", { timeZone: "Asia/Manila", month: "long", day: "numeric", year: "numeric" })} |{" "}
+                  {new Date().toLocaleDateString("en-US", { timeZone: "Asia/Manila", weekday: "long" })}
                 </p>
               </div>
-              {/* Realtime clock */}
+
               <div className="text-left my-4">
-                <p className="text-2xl font-bold text-[#8b4513] tracking-widest">
-                  {currentTime}
-                </p>
+                <p className="text-2xl font-bold text-[#8b4513] tracking-widest">{currentTime}</p>
               </div>
 
               <hr className="border-gray-300 my-2" />
 
-              {/* Shift info */}
-              <div className="flex items-start justify-center gap-8 mt-4">
-
+              <div className="flex items-center justify-center gap-4 mt-4">
                 {currentEmployee?.shift && (
                   <Image
-                    src={
-                      currentEmployee.shift === "morning"
-                        ? "/assets/morning.png"
-                        : "/assets/night.png"
-                    }
+                    src={currentEmployee.shift === "morning" ? "/assets/morning.png" : "/assets/night.png"}
                     alt={`${currentEmployee.shift} shift`}
-                    width={70}
-                    height={70}
+                    width={60}
+                    height={60}
                     className="object-contain"
                   />
                 )}
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-[#8B1A1A] capitalize">
+                  <p className="text-lg font-semibold text-[#8B1A1A] capitalize">
                     {currentEmployee?.shift + " Shift" || "Not Assigned"}
                   </p>
                   {currentEmployee?.shift && (
                     <p className="text-sm text-gray-500 mt-1">
-                      {currentEmployee.shift === "morning"
-                        ? "8:00 AM - 5:00 PM"
-                        : "5:00 PM - 8:00 AM"}
+                      {currentEmployee.shift === "morning" ? "8:00 AM - 5:00 PM" : "5:00 PM - 8:00 AM"}
                     </p>
                   )}
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Attendance Summary */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-xl shadow-sm border border-[#e8dcc8] overflow-hidden">
-            <div className="bg-[#281b0d] px-6 py-3 shadow-lg rounded-b-lg">
-              <h2 className="text-lg font-semibold text-white">My Attendance Summary</h2>
+          {/* Attendance */}
+          <div className="bg-white rounded-xl shadow-md border border-[#e8dcc8] overflow-hidden flex flex-col">
+            <div className="bg-[#281b0d] px-6 py-3">
+              <h2 className="text-lg font-semibold text-white">Attendance Summary</h2>
             </div>
-
-            <div className="p-6 h-64">
-
+            <div className="p-6 flex-1">
               {!employeeAttendanceSummary ? (
                 <p className="text-gray-500 text-center mt-10">Loading chart...</p>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={200}>
                   <PieChart>
-                    <Pie
-                      data={attendanceSummaryData}
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      dataKey="value"
-                      label
-                    >
+                    <Pie data={attendanceSummaryData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label>
                       {attendanceSummaryData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
                     <Tooltip />
-                    <Legend />
+                    <Legend verticalAlign="bottom" height={36} />
                   </PieChart>
                 </ResponsiveContainer>
               )}
+            </div>
+          </div>
 
+          {/* Dependents */}
+          <div className="bg-white rounded-xl shadow-md border border-[#e8dcc8] overflow-hidden flex flex-col">
+            <div className="bg-[#281b0d] px-6 py-3">
+              <h2 className="text-lg font-semibold text-white">Dependents</h2>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1 max-h-64">
+              {dependents.length === 0 ? (
+                <p className="text-gray-500 text-center py-10">No dependents found.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {dependents.map((dep) => (
+                    <li
+                      key={dep.dependant_id}
+                      className="p-4 border border-[#e8dcc8] rounded-lg shadow-sm bg-[#fdf9f3]"
+                    >
+                      <p className="text-sm font-semibold text-gray-800">
+                        {dep.firstname} {dep.lastname}
+                      </p>
+                      <p className="text-xs text-gray-500">Relationship: {dep.relationship}</p>
+                      <p className="text-xs text-gray-500">Contact No: {dep.contact_no}</p>
+                      <p className="text-xs text-gray-500">Email: {dep.email}</p>
+                      {dep.home_address && (
+                        <p className="text-xs text-gray-500">
+                          Address: {dep.home_address}
+                          {dep.city_name && `, ${dep.city_name}`}
+                          {dep.province_name && `, ${dep.province_name}`}
+                          {dep.region_name && `, ${dep.region_name}`}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </div>

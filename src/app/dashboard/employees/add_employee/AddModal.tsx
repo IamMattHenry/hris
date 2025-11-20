@@ -1074,7 +1074,7 @@ useEffect(() => {
                               setDependentErrors((prev) => ({ ...prev, email: "" }));
                             }
                           }}
-                          placeholder="(use gmail)"
+                          placeholder=" use gmail (optional)"
                           error={dependentErrors.email}
                         />
                         <FormInput
@@ -1087,7 +1087,7 @@ useEffect(() => {
                               setDependentErrors((prev) => ({ ...prev, contactInfo: "" }));
                             }
                           }}
-                          placeholder="Phone number (optional)"
+                          placeholder="Phone number (required)"
                           error={dependentErrors.contactInfo}
                         />
                         <FormSelect
