@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 import { motion } from "framer-motion";
 import FormInput from "@/components/forms/FormInput";
 import FormSelect from "@/components/forms/FormSelect";
-import { departmentApi, positionApi, employeeApi } from "@/lib/api";
+import { departmentApi, positionApi, employeeApi, fingerprintApi } from "@/lib/api";
 import {
   validateEmployeeForm,
   validateDependent,
@@ -18,17 +18,19 @@ import {
   type ValidationErrors,
 } from "./validation";
 import { toast } from "react-hot-toast";
+import FingerprintEnrollment from "@/components/FingerprintEnrollment";
 
 const STATUS_OPTIONS = ["Active", "On Leave", "Resigned", "Terminated"] as const;
 
 const formatStatusForDisplay = (status?: string | null) => {
   if (!status) return "";
-  const normalized = status.toLowerCase().replace(/\s+/g, "_");
+  const normalized = status.toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
 
   switch (normalized) {
     case "active":
       return "Active";
     case "on_leave":
+    case "on-leave":
       return "On Leave";
     case "resigned":
       return "Resigned";
@@ -43,11 +45,13 @@ const normalizeStatusForPayload = (status: string) => {
   if (!status) return null;
   const normalized = status.trim().toLowerCase();
 
+  // Database expects 'on-leave' with hyphen, not underscore
   if (normalized === "on leave") {
-    return "on_leave";
+    return "on-leave";
   }
 
-  return normalized.replace(/\s+/g, "_");
+  // For other statuses (active, resigned, terminated), just return lowercase
+  return normalized;
 };
 
 /* ---------- Interfaces ---------- */
@@ -78,6 +82,7 @@ interface EmployeeData {
   sub_role?: string;
   user_id?: number;
   status?: string;
+  fingerprint_id?: number | null;
 }
 
 /* ---------- Component ---------- */
@@ -134,6 +139,10 @@ export default function EditEmployeeModal({
   const [phLocationsData, setPhLocationsData] = useState<any[]>([]);
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Fingerprint enrollment state
+  const [showFingerprintEnrollment, setShowFingerprintEnrollment] = useState(false);
+  const [currentFingerprintId, setCurrentFingerprintId] = useState<number | null>(null);
 
   /* ---------- Fetch employee details ---------- */
   useEffect(() => {
@@ -219,6 +228,9 @@ export default function EditEmployeeModal({
           setGrantSupervisorPrivilege(false);
         }
         setSubRole(res.data.sub_role || "");
+
+        // Set fingerprint ID
+        setCurrentFingerprintId(res.data.fingerprint_id || null);
       }
     } catch (error) {
       console.error("Error fetching employee:", error);
@@ -1277,6 +1289,42 @@ export default function EditEmployeeModal({
                 <p className="text-red-500 text-xs mt-2">{errors.supervisor}</p>
               )}
             </div>
+
+            {/* Fingerprint Registration Section */}
+            <div className="border-t-2 border-[#e6d2b5] pt-6 mt-8">
+              <h3 className="text-[#3b2b1c] font-semibold mb-4">Fingerprint Registration</h3>
+
+              {currentFingerprintId ? (
+                <div className="bg-[#FFF2E0] p-4 rounded-lg border border-[#e6d2b5]">
+                  <p className="text-sm text-[#3b2b1c]">
+                    <span className="font-semibold">Current Fingerprint ID:</span> {currentFingerprintId}
+                  </p>
+                  <p className="text-xs text-[#6b5344] mt-1">
+                    This employee has a registered fingerprint for attendance tracking.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-yellow-800 font-semibold">
+                        No fingerprint registered
+                      </p>
+                      <p className="text-xs text-yellow-700 mt-1">
+                        This employee doesn't have a fingerprint registered yet. Register one to enable fingerprint attendance.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowFingerprintEnrollment(true)}
+                      className="px-4 py-2 bg-[#8b7355] text-white rounded-lg hover:bg-[#6d5a43] transition-colors font-medium text-sm whitespace-nowrap"
+                    >
+                      Register Fingerprint
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           <p className="text-center text-gray-600">Loading employee details...</p>
@@ -1291,6 +1339,34 @@ export default function EditEmployeeModal({
             {isSubmitting ? "Saving..." : "Save Changes"}
           </button>
         </div>
+
+        {/* Fingerprint Enrollment Overlay */}
+        {showFingerprintEnrollment && employee && (
+          <div className="absolute inset-0 bg-white rounded-2xl z-50 p-8 overflow-y-auto">
+            <h2 className="text-2xl font-bold text-[#3b2b1c] mb-4">
+              Register Fingerprint
+            </h2>
+            <p className="text-gray-600 mb-6">
+              Register a fingerprint for this employee to enable fingerprint-based attendance tracking.
+            </p>
+            <FingerprintEnrollment
+              employeeId={employee.employee_id}
+              onEnrollmentComplete={(fpId) => {
+                setCurrentFingerprintId(fpId);
+                setShowFingerprintEnrollment(false);
+                toast.success("Fingerprint registered successfully!");
+
+                // Refresh employee data to get updated fingerprint_id
+                setTimeout(() => {
+                  if (id) fetchEmployee(id);
+                }, 500);
+              }}
+              onSkip={() => {
+                setShowFingerprintEnrollment(false);
+              }}
+            />
+          </div>
+        )}
       </motion.div>
     </div>
   );

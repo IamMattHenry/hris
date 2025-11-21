@@ -198,12 +198,12 @@ export const confirmEnrollment = async (req, res, next) => {
  */
 export const getNextFingerprintId = async (req, res, next) => {
   try {
-    // Get the highest fingerprint_id currently in use
+    // Get the last registered fingerprint_id (most recently updated employee with fingerprint)
     const result = await db.getOne(
-      'SELECT MAX(fingerprint_id) as max_id FROM employees WHERE fingerprint_id IS NOT NULL'
+      'SELECT fingerprint_id FROM employees WHERE fingerprint_id IS NOT NULL ORDER BY updated_at DESC LIMIT 1'
     );
 
-    const nextId = (result?.max_id || 0) + 1;
+    const nextId = (result?.fingerprint_id || 0) + 1;
 
     res.json({
       success: true,

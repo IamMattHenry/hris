@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import InfoBox from "@/components/forms/FormDisplay";
 import { attendanceApi } from "@/lib/api";
 
-type AttendanceStatus = "present" | "absent" | "late" | "half_day" | "on_leave" | "work_from_home" | "others";
+type AttendanceStatus = "present" | "absent" | "late" | "half_day" | "on_leave" | "work_from_home" | "others" | "offline";
 
 interface ViewAttendanceModalProps {
   isOpen: boolean;
@@ -45,6 +45,7 @@ const STATUS_LABELS: Record<AttendanceStatus, string> = {
   on_leave: "On Leave",
   work_from_home: "Work From Home",
   others: "Others",
+  offline: "Offline",
 };
 
 // Utility function to convert time or datetime to 12-hour format with AM/PM (Philippine Time)

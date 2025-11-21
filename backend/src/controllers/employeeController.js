@@ -27,6 +27,123 @@ const mapDepartmentToSubRole = (departmentName = "") => {
   return null;
 };
 
+/**
+ * Get employee availability status
+ * Returns all employees with their current status (available/offline/on_leave/etc.)
+ * based on today's attendance and employee status
+ */
+export const getEmployeeAvailability = async (req, res, next) => {
+  try {
+    const { date } = req.query;
+
+    // Use provided date or today's date in YYYY-MM-DD format
+    const targetDate = date || new Date().toISOString().split('T')[0];
+
+    // Get all active employees with their basic info
+    const employees = await db.getAll(`
+      SELECT
+        e.employee_id,
+        e.employee_code,
+        e.first_name,
+        e.last_name,
+        e.status as employee_status,
+        e.position_id,
+        jp.position_name,
+        e.department_id,
+        d.department_name,
+        e.email,
+        e.phone_number
+      FROM employees e
+      LEFT JOIN job_positions jp ON e.position_id = jp.position_id
+      LEFT JOIN departments d ON e.department_id = d.department_id
+      WHERE e.status IN ('active', 'on-leave')
+      ORDER BY e.employee_code
+    `);
+
+    // Get attendance records for the target date
+    const attendanceRecords = await db.getAll(
+      `SELECT employee_id, status, time_in, time_out
+       FROM attendance
+       WHERE date = ?`,
+      [targetDate]
+    );
+
+    // Create a map of employee_id to attendance record
+    const attendanceMap = new Map();
+    attendanceRecords.forEach(record => {
+      attendanceMap.set(record.employee_id, record);
+    });
+
+    // Build availability list
+    const availabilityList = employees.map(emp => {
+      const attendance = attendanceMap.get(emp.employee_id);
+
+      let availability_status = 'offline';
+      let attendance_status = null;
+      let time_in = null;
+      let time_out = null;
+
+      // Determine availability based on employee status and attendance
+      if (emp.employee_status === 'on-leave') {
+        availability_status = 'on_leave';
+        attendance_status = 'on_leave';
+      } else if (attendance) {
+        // Employee has attendance record for today
+        attendance_status = attendance.status;
+        time_in = attendance.time_in;
+        time_out = attendance.time_out;
+
+        if (attendance.time_out) {
+          // Already timed out - offline
+          availability_status = 'offline';
+        } else if (attendance.time_in) {
+          // Timed in but not out - available
+          availability_status = 'available';
+        }
+      } else {
+        // No attendance record and not on leave - offline
+        availability_status = 'offline';
+      }
+
+      return {
+        employee_id: emp.employee_id,
+        employee_code: emp.employee_code,
+        first_name: emp.first_name,
+        last_name: emp.last_name,
+        full_name: `${emp.first_name} ${emp.last_name}`,
+        position_name: emp.position_name,
+        department_name: emp.department_name,
+        email: emp.email,
+        phone_number: emp.phone_number,
+        employee_status: emp.employee_status,
+        availability_status, // 'available', 'offline', 'on_leave'
+        attendance_status, // 'present', 'late', 'absent', 'on_leave', etc.
+        time_in,
+        time_out,
+        date: targetDate,
+      };
+    });
+
+    // Count by availability status
+    const summary = {
+      total: availabilityList.length,
+      available: availabilityList.filter(e => e.availability_status === 'available').length,
+      offline: availabilityList.filter(e => e.availability_status === 'offline').length,
+      on_leave: availabilityList.filter(e => e.availability_status === 'on_leave').length,
+    };
+
+    res.json({
+      success: true,
+      data: availabilityList,
+      summary,
+      date: targetDate,
+    });
+  } catch (error) {
+    logger.error('Get employee availability error:', error);
+    next(error);
+  }
+};
+
 export const getAllEmployees = async (req, res, next) => {
   try {
     const currentUser = req.user;

@@ -146,6 +146,31 @@ export const employeeApi = {
   },
 
   /**
+   * Get employee availability status
+   * Returns all employees with their current availability (available/offline/on_leave)
+   * @param date - Optional date in YYYY-MM-DD format (defaults to today)
+   */
+  getAvailability: async (date?: string) => {
+    let url = '/employees/availability';
+    if (date) {
+      url += `?date=${date}`;
+    }
+    return apiCall<{
+      success: boolean;
+      data: any[];
+      summary: {
+        total: number;
+        available: number;
+        offline: number;
+        on_leave: number;
+      };
+      date: string;
+    }>(url, {
+      method: 'GET',
+    });
+  },
+
+  /**
    * Get employee by ID
    */
   getById: async (id: number) => {
@@ -435,13 +460,15 @@ export const attendanceApi = {
    * @param employee_id - Optional filter by employee ID
    * @param start_date - Optional filter by start date (YYYY-MM-DD)
    * @param end_date - Optional filter by end date (YYYY-MM-DD)
+   * @param include_offline - Optional flag to include offline employees (default: false)
    */
-  getAll: async (employee_id?: number, start_date?: string, end_date?: string) => {
+  getAll: async (employee_id?: number, start_date?: string, end_date?: string, include_offline?: boolean) => {
     let url = '/attendance';
     const params = new URLSearchParams();
     if (employee_id) params.append('employee_id', employee_id.toString());
     if (start_date) params.append('start_date', start_date);
     if (end_date) params.append('end_date', end_date);
+    if (include_offline) params.append('include_offline', 'true');
     if (params.toString()) url += `?${params.toString()}`;
 
     return apiCall<any[]>(url, {

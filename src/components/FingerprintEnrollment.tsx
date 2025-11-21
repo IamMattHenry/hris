@@ -214,21 +214,21 @@ export default function FingerprintEnrollment({
         </div>
       )}
 
-      {/* Fingerprint ID Input */}
+      {/* Fingerprint ID Input - Auto-generated and Read-only */}
       <div className="mb-4">
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Fingerprint ID
+          Fingerprint ID <span className="text-xs text-gray-500 font-normal">(Auto-generated)</span>
         </label>
         <input
           type="number"
           value={fingerprintId || ""}
-          onChange={(e) => setFingerprintId(parseInt(e.target.value) || null)}
-          disabled={status === "enrolling" || status === "success"}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8b7355] focus:border-transparent disabled:bg-gray-100"
-          placeholder="Enter fingerprint ID"
+          readOnly
+          disabled
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
+          placeholder="Loading..."
         />
         <p className="mt-1 text-xs text-gray-500">
-          This ID will be stored in the fingerprint sensor and linked to this employee.
+          This ID is automatically assigned and will be stored in the fingerprint sensor and linked to this employee.
         </p>
       </div>
 

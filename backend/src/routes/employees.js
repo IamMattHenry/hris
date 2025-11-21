@@ -8,9 +8,13 @@ import {
   createEmployee,
   updateEmployee,
   deleteEmployee,
+  getEmployeeAvailability,
 } from '../controllers/employeeController.js';
 
 const router = express.Router();
+
+// Get employee availability status (protected)
+router.get('/availability', verifyToken, getEmployeeAvailability);
 
 // Get all employees (protected)
 router.get('/', verifyToken, getAllEmployees);

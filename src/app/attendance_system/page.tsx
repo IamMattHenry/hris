@@ -16,7 +16,7 @@ interface EmployeeQRData {
 }
 
 interface AttendanceRemarks {
-  status: "present" | "late" | "absent" | "on_leave";
+  status: "present" | "late" | "absent" | "on_leave" | "offline";
   remarks: string;
   color: string;
 }

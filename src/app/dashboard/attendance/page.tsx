@@ -8,11 +8,11 @@ import ViewAttendanceModal from "./view_attendance/ViewModal";
 import { attendanceApi } from "@/lib/api";
 import { toast } from "react-hot-toast";
 
-type AttendanceStatus = "present" | "absent" | "late" | "half_day" | "on_leave" | "work_from_home" | "others";
+type AttendanceStatus = "present" | "absent" | "late" | "half_day" | "on_leave" | "work_from_home" | "others" | "offline";
 
 interface Attendance {
-  attendance_id: number;
-  attendance_code: string;
+  attendance_id: number | null;
+  attendance_code: string | null;
   employee_id: number;
   employee_code: string;
   first_name: string;
@@ -33,6 +33,7 @@ const STATUS_LABELS: Record<AttendanceStatus, string> = {
   on_leave: "On Leave",
   work_from_home: "Work From Home",
   others: "Others",
+  offline: "Offline",
 };
 
 const getCurrentPHDate = () => {
@@ -66,7 +67,7 @@ export default function AttendanceTable() {
 
   const fetchAttendance = useCallback(async () => {
     setLoading(true);
-    const result = await attendanceApi.getAll(undefined, selectedDate, selectedDate);
+    const result = await attendanceApi.getAll(undefined, selectedDate, selectedDate, true);
     console.log(result);
     if (result.success && result.data) {
       setAttendanceList(result.data as Attendance[]);
@@ -275,24 +276,30 @@ export default function AttendanceTable() {
                   <td className="py-3 px-4">{record.time_in ? formatDateTimeTo12Hour(record.time_in) : "-"}</td>
                   <td className="py-3 px-4">{record.time_out ? formatDateTimeTo12Hour(record.time_out) : "-"}</td>
                   <td className="py-3 px-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${record.status === "present" ? "bg-green-100 text-green-800" :
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      record.status === "present" ? "bg-green-100 text-green-800" :
                       record.status === "absent" ? "bg-red-100 text-red-800" :
-                        record.status === "late" ? "bg-yellow-100 text-yellow-800" :
-                          record.status === "half_day" ? "bg-orange-100 text-orange-800" :
-                            record.status === "on_leave" ? "bg-blue-100 text-blue-800" :
-                              record.status === "work_from_home" ? "bg-purple-100 text-purple-800" :
-                                "bg-gray-100 text-gray-800"
-                      }`}>
+                      record.status === "late" ? "bg-yellow-100 text-yellow-800" :
+                      record.status === "half_day" ? "bg-orange-100 text-orange-800" :
+                      record.status === "on_leave" ? "bg-blue-100 text-blue-800" :
+                      record.status === "work_from_home" ? "bg-purple-100 text-purple-800" :
+                      record.status === "offline" ? "bg-gray-200 text-gray-600" :
+                      "bg-gray-100 text-gray-800"
+                    }`}>
                       {STATUS_LABELS[record.status]}
                     </span>
                   </td>
                   <td className="py-3 px-4 text-center">
-                    <button
-                      onClick={() => handleViewAttendance(record.attendance_id)}
-                      className="p-1 rounded hover:bg-gray-200 cursor-pointer"
-                    >
-                      <Search size={18} className="text-gray-600" />
-                    </button>
+                    {record.status !== "offline" && record.attendance_id ? (
+                      <button
+                        onClick={() => handleViewAttendance(record.attendance_id!)}
+                        className="p-1 rounded hover:bg-gray-200 cursor-pointer"
+                      >
+                        <Search size={18} className="text-gray-600" />
+                      </button>
+                    ) : (
+                      <span className="text-gray-400 text-xs">-</span>
+                    )}
                   </td>
                 </tr>
               ))

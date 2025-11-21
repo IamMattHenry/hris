@@ -32,7 +32,7 @@ export interface User {
   extension_name?: string;
   birthdate?: string;
   hire_date?: string;
-  status?: 'active' | 'resigned' | 'terminated' | 'on_leave';
+  status?: 'active' | 'resigned' | 'terminated' | 'on-leave';
   department_id?: number;
   department_name?: string;
   emails?: string[];
@@ -80,7 +80,7 @@ export interface Employee {
   shift?: 'morning' | 'night';
   salary?: number;
   hire_date: string;
-  status: 'active' | 'resigned' | 'terminated' | 'on_leave';
+  status: 'active' | 'resigned' | 'terminated' | 'on-leave';
   leave_credit: number;
   supervisor_id?: number;
   created_at: string;
@@ -147,7 +147,7 @@ export interface CreateEmployeeRequest {
   city_code?: string;
   barangay?: string;
   street_address?: string;
-  status?: 'active' | 'resigned' | 'terminated' | 'on_leave';
+  status?: 'active' | 'resigned' | 'terminated' | 'on-leave';
 }
 
 /**
@@ -210,21 +210,57 @@ export interface Position {
  * Attendance entity
  */
 export interface Attendance {
-  attendance_id: number;
-  attendance_code: string;
+  attendance_id: number | null;
+  attendance_code: string | null;
   employee_id: number;
   employee_code?: string;
   first_name?: string;
   last_name?: string;
   date: string;
-  time_in?: string;
-  time_out?: string;
-  status: 'present' | 'absent' | 'late' | 'on_leave';
+  time_in?: string | null;
+  time_out?: string | null;
+  status: 'present' | 'absent' | 'late' | 'on_leave' | 'offline';
   overtime_hours: number;
-  created_at: string;
-  updated_at: string;
-  created_by?: number;
-  updated_by?: number;
+  created_at: string | null;
+  updated_at: string | null;
+  created_by?: number | null;
+  updated_by?: number | null;
+}
+
+/**
+ * Employee Availability Status
+ */
+export interface EmployeeAvailability {
+  employee_id: number;
+  employee_code: string;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  position_name?: string;
+  department_name?: string;
+  email?: string;
+  phone_number?: string;
+  employee_status: 'active' | 'resigned' | 'terminated' | 'on-leave';
+  availability_status: 'available' | 'offline' | 'on_leave';
+  attendance_status?: 'present' | 'absent' | 'late' | 'on_leave' | null;
+  time_in?: string | null;
+  time_out?: string | null;
+  date: string;
+}
+
+/**
+ * Employee Availability Response
+ */
+export interface EmployeeAvailabilityResponse {
+  success: boolean;
+  data: EmployeeAvailability[];
+  summary: {
+    total: number;
+    available: number;
+    offline: number;
+    on_leave: number;
+  };
+  date: string;
 }
 
 /**

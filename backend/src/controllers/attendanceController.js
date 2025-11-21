@@ -4,7 +4,7 @@ import { generateAttendanceCode } from '../utils/codeGenerator.js';
 
 export const getAttendanceRecords = async (req, res, next) => {
   try {
-    const { employee_id, start_date, end_date } = req.query;
+    const { employee_id, start_date, end_date, include_offline } = req.query;
 
     let sql = `
       SELECT a.*, e.first_name, e.last_name, e.employee_code
@@ -32,6 +32,61 @@ export const getAttendanceRecords = async (req, res, next) => {
     sql += ' ORDER BY a.date DESC';
 
     const records = await db.getAll(sql, params);
+
+    // If include_offline is true and we have a specific date, add offline employees
+    if (include_offline === 'true' && start_date && start_date === end_date) {
+      const targetDate = start_date;
+
+      // Get all active employees
+      let employeeSql = 'SELECT employee_id, employee_code, first_name, last_name FROM employees WHERE status = ?';
+      const employeeParams = ['active'];
+
+      if (employee_id) {
+        employeeSql += ' AND employee_id = ?';
+        employeeParams.push(employee_id);
+      }
+
+      const allEmployees = await db.getAll(employeeSql, employeeParams);
+
+      // Find employees without attendance records for the target date
+      const employeesWithAttendance = new Set(records.map(r => r.employee_id));
+      const offlineEmployees = allEmployees
+        .filter(emp => !employeesWithAttendance.has(emp.employee_id))
+        .map(emp => ({
+          attendance_id: null,
+          attendance_code: null,
+          employee_id: emp.employee_id,
+          employee_code: emp.employee_code,
+          first_name: emp.first_name,
+          last_name: emp.last_name,
+          date: targetDate,
+          time_in: null,
+          time_out: null,
+          status: 'offline',
+          overtime_hours: 0,
+          created_at: null,
+          updated_at: null,
+          created_by: null,
+          updated_by: null,
+        }));
+
+      // Combine records with offline employees
+      const combinedRecords = [...records, ...offlineEmployees];
+
+      // Sort by employee_code
+      combinedRecords.sort((a, b) => {
+        if (a.employee_code && b.employee_code) {
+          return a.employee_code.localeCompare(b.employee_code);
+        }
+        return 0;
+      });
+
+      return res.json({
+        success: true,
+        data: combinedRecords,
+        count: combinedRecords.length,
+      });
+    }
 
     res.json({
       success: true,
