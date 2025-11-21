@@ -705,7 +705,7 @@ useEffect(() => {
 
   // Reusable name validation function
   const validateNameFormat = (value: string, setValue: (v: string) => void, maxLength: number = 30 ) => {
-    if (/^[A-Za-z\s'-]*$/.test(value) && value.length <= maxLength) {
+    if (/^[A-Za-zñÑ\s'-]*$/.test(value) && value.length <= maxLength) {
       setValue(value);
     }
   };
