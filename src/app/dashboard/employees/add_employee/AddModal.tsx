@@ -701,9 +701,7 @@ useEffect(() => {
     }
   
   };
-
-
-  const validateNameFormat = (value: string, setValue: (v: string) => void, maxLength: number = 30 ) => {
+  const validateNameFormat = (value: string, setValue: (v: string) => void, maxLength: number = 50 ) => {
     if (/^[A-Za-zñÑ\s'-]*$/.test(value) && value.length <= maxLength) {
       setValue(value);
     }
