@@ -117,7 +117,7 @@ export default function Dashboard() {
               className={`inline-block px-3 py-1 text-sm md:text-base font-medium rounded-full ${
                 currentEmployee.status === "active"
                   ? "bg-green-100 text-green-800"
-                  : currentEmployee.status === "on_leave"
+                  : currentEmployee.status === "on-leave"
                   ? "bg-yellow-100 text-yellow-800"
                   : currentEmployee.status === "resigned" || currentEmployee.status === "terminated"
                   ? "bg-red-100 text-red-800"

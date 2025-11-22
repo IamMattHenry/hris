@@ -20,6 +20,8 @@ interface EmployeeData {
   employee_id: number;
   first_name: string;
   last_name: string;
+  middle_name?: string;
+  extension_name?: string;
   gender?: string;
   birthdate?: string;
   user_id?: number;
@@ -36,6 +38,8 @@ export default function EditEmployeeModal({
   // Editable fields
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [middleName, setMiddleName] = useState("");
+  const [extensionName, setExtensionName] = useState("");
   const [gender, setGender] = useState("");
   const [birthdate, setBirthdate] = useState("");
 
@@ -56,6 +60,8 @@ export default function EditEmployeeModal({
         setEmployee(res.data);
         setFirstName(res.data.first_name);
         setLastName(res.data.last_name);
+        setMiddleName(res.data.middle_name || "");
+        setExtensionName(res.data.extension_name || "");
         setGender(res.data.gender || "");
         setBirthdate(res.data.birthdate || "");
       }
@@ -85,6 +91,8 @@ export default function EditEmployeeModal({
       const updatedData: any = {
         first_name: firstName,
         last_name: lastName,
+        middle_name: middleName,
+        extension_name: extensionName,
         gender: gender.toLowerCase(),
         birthdate: birthdate,
       };
@@ -105,6 +113,12 @@ export default function EditEmployeeModal({
       toast.error("An error occurred while updating profile");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+   const validateNameFormat = (value: string, setValue: (v: string) => void, maxLength: number = 50 ) => {
+    if (/^[A-Za-zñÑ\s'-]*$/.test(value) && value.length <= maxLength) {
+      setValue(value);
     }
   };
 
@@ -142,16 +156,32 @@ export default function EditEmployeeModal({
                 label="First Name"
                 type="text"
                 value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
+                onChange={(e) => {validateNameFormat(e.target.value, setFirstName)}}
                 error={errors.firstName}
               />
               <FormInput
                 label="Last Name"
                 type="text"
                 value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
+                onChange={(e) => {validateNameFormat(e.target.value, setLastName)}}
                 error={errors.lastName}
               />
+              <FormInput
+                label="Middle Name"
+                type="text"
+                value={middleName}
+                onChange={(e) => {validateNameFormat(e.target.value, setMiddleName)}}
+                error={errors.middleName}
+              />
+
+              <FormInput
+                label="Extension Name"
+                type="text"
+                value={extensionName}
+                onChange={(e) => {validateNameFormat(e.target.value, setExtensionName, 10)}}
+                error={errors.extensionName}
+              />
+                
               <FormSelect
                 label="Gender"
                 value={gender}
