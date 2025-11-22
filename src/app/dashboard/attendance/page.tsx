@@ -5,7 +5,7 @@ import { Search, Calendar, RotateCw, UserX } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
 import ViewAttendanceModal from "./view_attendance/ViewModal";
-import { attendanceApi } from "@/lib/api";
+import { attendanceApi, departmentApi } from "@/lib/api";
 import { toast } from "react-hot-toast";
 
 type AttendanceStatus = "present" | "absent" | "late" | "half_day" | "on_leave" | "work_from_home" | "others" | "offline";
@@ -52,6 +52,8 @@ export default function AttendanceTable() {
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isMarking, setIsMarking] = useState(false);
+  const [departments, setDepartments] = useState<{ department_id: number, department_name: string }[]>([]);
+  const [selectedDept, setSelectedDept] = useState<string>("all");
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10; // change page size here
@@ -110,12 +112,33 @@ export default function AttendanceTable() {
     }
   };
 
-  const filteredAttendance = attendanceList.filter(
-    (record) =>
+  let filteredAttendance = attendanceList.filter((record) => {
+    const matchSearch =
       `${record.first_name} ${record.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (record.attendance_code?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-      (record.department_name?.toLowerCase() || "").includes(searchTerm.toLowerCase())
-  );
+      (record.department_name?.toLowerCase() || "").includes(searchTerm.toLowerCase());
+
+    const matchDept =
+      selectedDept === "all" ||
+      record.department_name?.toLowerCase() === selectedDept.toLowerCase();
+
+    return matchSearch && matchDept;
+  });
+
+  const fetchDepartments = useCallback(async () => {
+    try {
+      const result = await departmentApi.getAll(); // Make sure this API exists
+      if (result.success && result.data) {
+        setDepartments(result.data);
+      }
+    } catch (e) {
+      console.error("Failed to load departments:", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDepartments();
+  }, [fetchDepartments]);
 
   // Pagination
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -167,76 +190,126 @@ export default function AttendanceTable() {
   return (
     <div className="min-h-screen bg-[#fff7ec] p-8 space-y-6 text-gray-800 font-poppins z-30">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-xl font-bold">
-          Date Today:{" "}
-          <span className="text-[#3b2b1c] font-[500]">{formattedDate}</span>
-        </h1>
+      <div className="flex flex-col gap-4">
 
-        <div className="flex items-center gap-4">
-          {/* Search */}
-          <SearchBar placeholder="Search employee..." value={searchTerm} onChange={setSearchTerm} />
+        {/* ROW 1 — Date Today */}
+        <div>
+          <h1 className="text-xl font-bold">
+            Date Today:{" "}
+            <span className="text-[#3b2b1c] font-[500]">{formattedDate}</span>
+          </h1>
+        </div>
 
-          {/* Refresh Button */}
-          <button
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="p-2 rounded-lg bg-[#3b2b1c] hover:bg-[#3b2b1c]-600 disabled:bg-gray-400 text-white transition flex items-center gap-2"
-            title="Refresh attendance records"
-          >
-            <RotateCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
-          </button>
+        {/* ROW 2 — Controls */}
+        <div className="flex flex-wrap items-center justify-between w-full">
 
-          {/* Mark Absences (No-Shows) */}
-          <button
-            onClick={handleMarkAbsences}
-            disabled={isMarking || selectedDate >= getCurrentPHDate()}
-            className="p-2 rounded-lg bg-red-700 hover:bg-red-800 disabled:bg-gray-400 text-white transition flex items-center gap-2"
-            title="Mark no-shows as Absent for the selected past date"
-          >
-            <UserX className="w-5 h-5" />
-            <span className="hidden sm:inline">Mark Absences</span>
-          </button>
+          {/* LEFT SIDE — Search + Department Filter */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="min-w-[220px]">
+              <SearchBar
+                placeholder="Search employee..."
+                value={searchTerm}
+                onChange={setSearchTerm}
+              />
+            </div>
 
-          {/* Date Selector */}
-          <div className="relative">
-            <ActionButton label={shortDate} onClick={() => setIsDateModalOpen(true)} icon={Calendar} iconPosition="left" className="shadow-md" />
-            {isDateModalOpen && (
-              <div
-                className="fixed inset-0 bg-black/40 flex justify-center items-center z-50"
-                onClick={(e) => {
-                  if (e.target === e.currentTarget) setIsDateModalOpen(false);
-                }}
-              >
-                <div className="bg-white p-6 rounded-lg shadow-lg w-80">
-                  <h2 className="text-lg font-bold mb-4">Select Date</h2>
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    max={getCurrentPHDate()}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="border border-gray-300 rounded px-3 py-2 w-full"
-                  />
-                  <div className="flex justify-end mt-4 gap-2">
-                    <button
-                      onClick={() => setIsDateModalOpen(false)}
-                      className="px-4 py-2 rounded bg-gray-300 hover:bg-gray-400"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() => setIsDateModalOpen(false)}
-                      className="px-4 py-2 rounded bg-[#3b2b1c] text-white hover:opacity-90"
-                    >
-                      Confirm
-                    </button>
+              {/* Refresh Button */}
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="p-2 rounded-lg bg-[#3b2b1c] hover:bg-[#3b2b1c]/80 disabled:bg-gray-400 text-white transition flex items-center"
+              title="Refresh attendance records"
+            >
+              <RotateCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </button>
+
+          
+          </div>
+
+          {/* RIGHT SIDE — Refresh / Mark Absences / Date Selector */}
+          <div className="flex items-center gap-3 flex-wrap">
+
+    
+            {/* Mark Absences */}
+            <button
+              onClick={handleMarkAbsences}
+              disabled={isMarking || selectedDate >= getCurrentPHDate()}
+              className="
+               p-2 rounded-lg border 
+               border-[#3b2b1c] text-[#3b2b1c]
+               hover:bg-[#3b2b1c] hover:text-white
+               disabled:bg-gray-300 disabled:border-gray-300 disabled:text-gray-500
+                transition flex items-center gap-2
+              "
+              title="Mark no-shows as Absent"
+            >
+              <UserX className="w-5 h-5" />
+              <span className="hidden sm:inline">Mark Absences</span>
+            </button>
+              {/* Department Filter */}
+            <select
+              value={selectedDept}
+              onChange={(e) => setSelectedDept(e.target.value)}
+              className="border rounded px-3 py-2 text-sm text-[#3b2b1c] min-w-[150px] cursor-pointer"
+            >
+              <option value="all">All Departments</option>
+              {departments.map((dept) => (
+                <option key={dept.department_id} value={dept.department_name}>
+                  {dept.department_name}
+                </option>
+              ))}
+            </select>
+
+            {/* Date Selector */}
+            <div className="relative">
+              <ActionButton
+                label={shortDate}
+                onClick={() => setIsDateModalOpen(true)}
+                icon={Calendar}
+                iconPosition="left"
+                className="shadow-md"
+              />
+
+              {isDateModalOpen && (
+                <div
+                  className="fixed inset-0 bg-black/40 flex justify-center items-center z-50"
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) setIsDateModalOpen(false);
+                  }}
+                >
+                  <div className="bg-white p-6 rounded-lg shadow-lg w-80">
+                    <h2 className="text-lg font-bold mb-4">Select Date</h2>
+
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      max={getCurrentPHDate()}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="border border-gray-300 rounded px-3 py-2 w-full"
+                    />
+
+                    <div className="flex justify-end mt-4 gap-2">
+                      <button
+                        onClick={() => setIsDateModalOpen(false)}
+                        className="px-4 py-2 rounded bg-gray-300 hover:bg-gray-400"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => setIsDateModalOpen(false)}
+                        className="px-4 py-2 rounded bg-[#3b2b1c] text-white hover:opacity-90"
+                      >
+                        Confirm
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>
+
 
       {/* Attendance Table */}
       <div className="w-full">
@@ -277,16 +350,15 @@ export default function AttendanceTable() {
                   <td className="py-3 px-4">{record.time_in ? formatDateTimeTo12Hour(record.time_in) : "-"}</td>
                   <td className="py-3 px-4">{record.time_out ? formatDateTimeTo12Hour(record.time_out) : "-"}</td>
                   <td className="py-3 px-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      record.status === "present" ? "bg-green-100 text-green-800" :
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${record.status === "present" ? "bg-green-100 text-green-800" :
                       record.status === "absent" ? "bg-red-100 text-red-800" :
-                      record.status === "late" ? "bg-yellow-100 text-yellow-800" :
-                      record.status === "half_day" ? "bg-orange-100 text-orange-800" :
-                      record.status === "on_leave" ? "bg-blue-100 text-blue-800" :
-                      record.status === "work_from_home" ? "bg-purple-100 text-purple-800" :
-                      record.status === "offline" ? "bg-gray-200 text-gray-600" :
-                      "bg-gray-100 text-gray-800"
-                    }`}>
+                        record.status === "late" ? "bg-yellow-100 text-yellow-800" :
+                          record.status === "half_day" ? "bg-orange-100 text-orange-800" :
+                            record.status === "on_leave" ? "bg-blue-100 text-blue-800" :
+                              record.status === "work_from_home" ? "bg-purple-100 text-purple-800" :
+                                record.status === "offline" ? "bg-gray-200 text-gray-600" :
+                                  "bg-gray-100 text-gray-800"
+                      }`}>
                       {STATUS_LABELS[record.status]}
                     </span>
                   </td>
@@ -334,8 +406,8 @@ export default function AttendanceTable() {
                 key={num}
                 onClick={() => goToPage(num)}
                 className={`px-3 py-2 rounded text-sm transition cursor-pointer truncate ${currentPage === num
-                    ? "bg-[#3b2b1c] text-white"
-                    : "text-[#3b2b1c] hover:underline"
+                  ? "bg-[#3b2b1c] text-white"
+                  : "text-[#3b2b1c] hover:underline"
                   }`}
               >
                 {num}

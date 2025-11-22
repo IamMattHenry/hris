@@ -1375,7 +1375,10 @@ export default function EditEmployeeModal({
           </button>
         </div>
 
-        {/* Fingerprint Enrollment Overlay */}
+        
+      </motion.div>
+
+      {/* Fingerprint Enrollment Overlay */}
         {showFingerprintEnrollment && employee && (
           <div className="absolute inset-0 bg-white rounded-2xl z-50 p-8 overflow-y-auto">
             <h2 className="text-2xl font-bold text-[#3b2b1c] mb-4">
@@ -1402,7 +1405,6 @@ export default function EditEmployeeModal({
             />
           </div>
         )}
-      </motion.div>
     </div>
   );
 }
