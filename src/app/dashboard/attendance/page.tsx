@@ -17,6 +17,7 @@ interface Attendance {
   employee_code: string;
   first_name: string;
   last_name: string;
+  department_name?: string | null;
   date: string;
   time_in: string | null;
   time_out: string | null;
@@ -52,10 +53,8 @@ export default function AttendanceTable() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isMarking, setIsMarking] = useState(false);
 
-
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10; // change page size here
-
 
   const currentDate = new Date();
   const formattedDate = currentDate.toLocaleDateString("en-US", {
@@ -114,7 +113,8 @@ export default function AttendanceTable() {
   const filteredAttendance = attendanceList.filter(
     (record) =>
       `${record.first_name} ${record.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.attendance_code.toLowerCase().includes(searchTerm.toLowerCase())
+      (record.attendance_code?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+      (record.department_name?.toLowerCase() || "").includes(searchTerm.toLowerCase())
   );
 
   // Pagination
@@ -163,7 +163,6 @@ export default function AttendanceTable() {
 
     return `${displayHours}:${minutes} ${period}`;
   };
-
 
   return (
     <div className="min-h-screen bg-[#fff7ec] p-8 space-y-6 text-gray-800 font-poppins z-30">
@@ -247,6 +246,7 @@ export default function AttendanceTable() {
             <tr>
               <th className="py-4 px-4">Employee Code</th>
               <th className="py-4 px-4">Employee Name</th>
+              <th className="py-4 px-4">Department</th>
               <th className="py-4 px-4">Date</th>
               <th className="py-4 px-4">Time In</th>
               <th className="py-4 px-4">Time Out</th>
@@ -258,7 +258,7 @@ export default function AttendanceTable() {
             {currentAttendance.length > 0 ? (
               currentAttendance.map((record) => (
                 <tr
-                  key={record.attendance_id}
+                  key={record.attendance_id ?? `offline-${record.employee_id}-${record.date}`}
                   className="border-b border-[#eadfcd] hover:bg-[#fdf4e7] transition"
                 >
                   <td className="py-3 px-4">{record.employee_code}</td>
@@ -272,6 +272,7 @@ export default function AttendanceTable() {
                     </div>
                     <span>{record.first_name} {record.last_name}</span>
                   </td>
+                  <td className="py-3 px-4">{record.department_name || "-"}</td>
                   <td className="py-3 px-4">{new Date(record.date).toLocaleDateString()}</td>
                   <td className="py-3 px-4">{record.time_in ? formatDateTimeTo12Hour(record.time_in) : "-"}</td>
                   <td className="py-3 px-4">{record.time_out ? formatDateTimeTo12Hour(record.time_out) : "-"}</td>
@@ -305,7 +306,7 @@ export default function AttendanceTable() {
               ))
             ) : (
               <tr>
-                <td colSpan={7} className="py-8 text-center text-gray-500">
+                <td colSpan={8} className="py-8 text-center text-gray-500">
                   No attendance records
                 </td>
               </tr>

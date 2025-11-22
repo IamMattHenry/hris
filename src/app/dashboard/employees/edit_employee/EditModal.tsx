@@ -64,7 +64,9 @@ interface EditEmployeeModalProps {
 interface EmployeeData {
   employee_id: number;
   first_name: string;
+  middle_name?: string;
   last_name: string;
+  extension_name?: string;
   home_address: string;
   city: string;
   region: string;
@@ -95,7 +97,9 @@ export default function EditEmployeeModal({
 
   // Editable fields
   const [firstName, setFirstName] = useState("");
+  const [middleName, setMiddleName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [extensionName, setExtensionName] = useState("");
   const [departmentId, setDepartmentId] = useState<number | null>(null);
   const [positionId, setPositionId] = useState<number | null>(null);
   const [supervisorId, setSupervisorId] = useState<number | null>(null);
@@ -155,7 +159,9 @@ export default function EditEmployeeModal({
       if (res.success && res.data) {
         setEmployee(res.data);
         setFirstName(res.data.first_name);
+        setMiddleName(res.data.middle_name || "");
         setLastName(res.data.last_name);
+        setExtensionName(res.data.extension_name || "");
         setDepartmentId(res.data.department_id);
         setPositionId(res.data.position_id);
         setSupervisorId(res.data.supervisor_id || null);
@@ -506,6 +512,7 @@ export default function EditEmployeeModal({
     // Validate employee form - NOW INCLUDING PROVINCE
     const formErrors = validateEmployeeForm(
       firstName,
+      middleName,
       lastName,
       departmentId,
       positionId,
@@ -534,7 +541,9 @@ export default function EditEmployeeModal({
     try {
       const updatedData: any = {
         first_name: firstName,
+        middle_name: middleName.trim() || null,
         last_name: lastName,
+        extension_name: extensionName.trim() || null,
         department_id: departmentId,
         position_id: positionId,
         supervisor_id: supervisorId || null,
@@ -600,6 +609,16 @@ export default function EditEmployeeModal({
     }
   };
 
+  const validateExtension = (
+    value: string,
+    setValue: (v: string) => void,
+    maxLength: number = 10
+  ) => {
+    if (/^[A-Za-z0-9\s.'-]*$/.test(value) && value.length <= maxLength) {
+      setValue(value);
+    }
+  };
+
   if (!isOpen) return null;
 
   /* ---------- JSX ---------- */
@@ -624,7 +643,7 @@ export default function EditEmployeeModal({
 
         <h2 className="text-2xl font-semibold mb-1">Edit Employee</h2>
         <p className="text-sm text-gray-600 mb-6">
-          {firstName} {lastName}
+          {firstName} {middleName} {lastName}
         </p>
 
         {employee ? (
@@ -647,11 +666,27 @@ export default function EditEmployeeModal({
                   />
 
                   <FormInput
+                    label="Middle Name"
+                    type="text"
+                    value={middleName}
+                    onChange={(e) => validateName(e.target.value, setMiddleName)}
+                    placeholder="(optional)"
+                  />
+
+                  <FormInput
                     label="Last Name"
                     type="text"
                     value={lastName}
                     onChange={(e) => validateName(e.target.value, setLastName)}
                     error={errors.lastName}
+                  />
+
+                  <FormInput
+                    label="Extension Name"
+                    type="text"
+                    value={extensionName}
+                    onChange={(e) => validateExtension(e.target.value, setExtensionName)}
+                    placeholder="JR., SR., II, etc. (optional)"
                   />
 
                   <FormSelect

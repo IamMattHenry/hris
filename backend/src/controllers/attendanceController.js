@@ -7,9 +7,10 @@ export const getAttendanceRecords = async (req, res, next) => {
     const { employee_id, start_date, end_date, include_offline } = req.query;
 
     let sql = `
-      SELECT a.*, e.first_name, e.last_name, e.employee_code
+      SELECT a.*, e.first_name, e.last_name, e.employee_code, d.department_name
       FROM attendance a
       LEFT JOIN employees e ON a.employee_id = e.employee_id
+      LEFT JOIN departments d ON e.department_id = d.department_id
       WHERE 1=1
     `;
     const params = [];
@@ -38,11 +39,16 @@ export const getAttendanceRecords = async (req, res, next) => {
       const targetDate = start_date;
 
       // Get all active employees
-      let employeeSql = 'SELECT employee_id, employee_code, first_name, last_name FROM employees WHERE status = ?';
+      let employeeSql = `
+        SELECT e.employee_id, e.employee_code, e.first_name, e.last_name, d.department_name
+        FROM employees e
+        LEFT JOIN departments d ON e.department_id = d.department_id
+        WHERE e.status = ?
+      `;
       const employeeParams = ['active'];
 
       if (employee_id) {
-        employeeSql += ' AND employee_id = ?';
+        employeeSql += ' AND e.employee_id = ?';
         employeeParams.push(employee_id);
       }
 
@@ -59,6 +65,7 @@ export const getAttendanceRecords = async (req, res, next) => {
           employee_code: emp.employee_code,
           first_name: emp.first_name,
           last_name: emp.last_name,
+          department_name: emp.department_name,
           date: targetDate,
           time_in: null,
           time_out: null,
