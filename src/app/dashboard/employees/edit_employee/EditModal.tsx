@@ -1375,18 +1375,33 @@ export default function EditEmployeeModal({
           </button>
         </div>
 
-        
+
       </motion.div>
 
       {/* Fingerprint Enrollment Overlay */}
-        {showFingerprintEnrollment && employee && (
-          <div className="absolute inset-0 bg-white rounded-2xl z-50 p-8 overflow-y-auto">
+      {showFingerprintEnrollment && employee && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40"
+          onClick={() => setShowFingerprintEnrollment(false)} // click background to close
+        >
+          <div
+            className="bg-white rounded-2xl p-8 max-w-lg w-full overflow-y-auto"
+            onClick={(e) => e.stopPropagation()} // prevent click inside content from closing
+          >
+            <button
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-800"
+              onClick={() => setShowFingerprintEnrollment(false)}
+            >
+              ✕
+            </button>
+
             <h2 className="text-2xl font-bold text-[#3b2b1c] mb-4">
               Register Fingerprint
             </h2>
             <p className="text-gray-600 mb-6">
               Register a fingerprint for this employee to enable fingerprint-based attendance tracking.
             </p>
+
             <FingerprintEnrollment
               employeeId={employee.employee_id}
               onEnrollmentComplete={(fpId) => {
@@ -1394,17 +1409,16 @@ export default function EditEmployeeModal({
                 setShowFingerprintEnrollment(false);
                 toast.success("Fingerprint registered successfully!");
 
-                // Refresh employee data to get updated fingerprint_id
                 setTimeout(() => {
                   if (id) fetchEmployee(id);
                 }, 500);
               }}
-              onSkip={() => {
-                setShowFingerprintEnrollment(false);
-              }}
+              onSkip={() => setShowFingerprintEnrollment(false)}
             />
           </div>
-        )}
+        </div>
+      )}
+
     </div>
   );
 }
