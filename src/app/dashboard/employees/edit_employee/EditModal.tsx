@@ -685,7 +685,7 @@ export default function EditEmployeeModal({
                     label="Extension Name"
                     type="text"
                     value={extensionName}
-                    onChange={(e) => validateExtension(e.target.value, setExtensionName)}
+                    onChange={(e) => validateExtension(e.target.value, setExtensionName, 10)}
                     placeholder="JR., SR., II, etc. (optional)"
                   />
 
