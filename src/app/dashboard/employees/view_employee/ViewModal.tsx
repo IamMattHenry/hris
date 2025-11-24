@@ -42,6 +42,7 @@ interface EmployeeData {
   employee_id: number;
   employee_code: string;
   first_name: string;
+  middle_name: string;
   last_name: string;
   birthdate: string;
   gender: string;
@@ -202,7 +203,7 @@ export default function ViewEmployeeModal({
                   {/* Employee Info */}
                   <div className="flex-1">
                     <h2 className="text-2xl font-semibold text-[#3b2b1c] mb-1">
-                      {employee.first_name} {employee.last_name}
+                      {employee.first_name} {employee.middle_name} {employee.last_name}
                     </h2>
                     <p className="text-sm text-[#8b7355] mb-2">{employee.employee_code}</p>
                     <div className="flex items-center gap-2 mt-2">
