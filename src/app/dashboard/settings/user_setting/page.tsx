@@ -34,7 +34,7 @@ const AboutUserTab = () => {
             </div>
 
             {/* Content */}
-            <div className="flex-1">
+            <div className="flex-1 max-h-screen">
                 {activeSection === 'profile' && <ProfileSection />}
                 {activeSection === 'dependants' && <DependantsSection />}
             </div>
