@@ -514,6 +514,7 @@ export default function EditEmployeeModal({
       firstName,
       middleName,
       lastName,
+      extensionName,
       departmentId,
       positionId,
       shift,

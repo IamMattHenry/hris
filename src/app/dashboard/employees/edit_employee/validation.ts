@@ -158,7 +158,9 @@ export const validateContactNumbers = (
  */
 export const validateEmployeeForm = (
   firstName: string,
+  middleName: string,
   lastName: string,
+  extensionName: string,
   departmentId: number | null,
   positionId: number | null,
   shift: string,
@@ -182,7 +184,7 @@ export const validateEmployeeForm = (
   if (!lastName.trim()) {
     errors.lastName = "Last name is required";
   }
-
+  
   if (!departmentId) {
     errors.department = "Department is required";
   }
