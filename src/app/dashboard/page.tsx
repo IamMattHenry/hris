@@ -2,10 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { employeeApi, leaveApi, attendanceApi } from "@/lib/api";
+import { employeeApi, leaveApi, attendanceApi, ticketApi } from "@/lib/api";
 import { Employee } from "@/types/api";
 import { X, ChevronRight } from "lucide-react";
 import FloatingTicketButton from "@/components/dashboard/FloatingTicketButton";
+import FingerprintRegistrationModal from "@/components/dashboard/FingerprintRegistrationModal";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "react-hot-toast";
 
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 
@@ -103,6 +106,7 @@ const computeWeeklyAttendanceData = (
 };
 
 export default function Dashboard() {
+  const { user } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [pendingLeaves, setPendingLeaves] = useState<PendingLeave[]>([]);
@@ -114,6 +118,8 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [showPendingLeaves, setShowPendingLeaves] = useState(false);
   const [showAbsenceRecords, setShowAbsenceRecords] = useState(false);
+  const [showFingerprintModal, setShowFingerprintModal] = useState(false);
+  const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -147,6 +153,26 @@ export default function Dashboard() {
         }
 
         setWeeklyAttendanceData(computeWeeklyAttendanceData(attendanceRecords));
+
+        // Check if current user needs fingerprint registration
+        if (user?.employee_id) {
+          const employeeResult = await employeeApi.getById(user.employee_id);
+          if (employeeResult.success && employeeResult.data) {
+            const emp = employeeResult.data as Employee;
+            setCurrentEmployee(emp);
+
+            // Check if modal should be shown (only once per session)
+            const modalKey = `fingerprint_modal_shown_${user?.user_id ?? 'unknown'}`;
+            // Clean legacy global key so it won't affect other accounts in this session
+            try { sessionStorage.removeItem('fingerprint_modal_shown'); } catch {}
+            const hasShownModal = sessionStorage.getItem(modalKey);
+            const missingFingerprint = emp.fingerprint_id == null || (typeof emp.fingerprint_id === 'number' && emp.fingerprint_id <= 0);
+            if (missingFingerprint && !hasShownModal) {
+              setShowFingerprintModal(true);
+              sessionStorage.setItem(modalKey, 'true');
+            }
+          }
+        }
       } catch (err) {
         console.error("Error fetching dashboard data:", err);
         setError("Failed to fetch dashboard data");
@@ -156,7 +182,7 @@ export default function Dashboard() {
     };
 
     fetchData();
-  }, []);
+  }, [user]);
 
   if (loading) {
     return (
@@ -253,6 +279,32 @@ export default function Dashboard() {
       month: "long",
       day: "numeric",
     });
+  };
+
+  const handleContactSupport = async () => {
+    setShowFingerprintModal(false);
+
+    try {
+      const result = await ticketApi.create({
+        title: "Fingerprint Registration Request",
+        description: `Employee ${currentEmployee?.employee_code} (${currentEmployee?.first_name} ${currentEmployee?.last_name}) needs to register fingerprint for 2FA login.`,
+        priority: "medium",
+        category: "technical_support",
+      });
+
+      if (result.success) {
+        toast.success("Support ticket created successfully!");
+      } else {
+        toast.error(result.message || "Failed to create support ticket");
+      }
+    } catch (error) {
+      console.error("Error creating support ticket:", error);
+      toast.error("Failed to create support ticket");
+    }
+  };
+
+  const handleDismissModal = () => {
+    setShowFingerprintModal(false);
   };
 
   return (
@@ -639,6 +691,15 @@ export default function Dashboard() {
 
       {/* Floating Ticket Button */}
       <FloatingTicketButton />
+
+      {/* Fingerprint Registration Modal */}
+      {showFingerprintModal && currentEmployee && (
+        <FingerprintRegistrationModal
+          employeeCode={currentEmployee.employee_code}
+          onContactSupport={handleContactSupport}
+          onDismiss={handleDismissModal}
+        />
+      )}
     </div>
   );
 }

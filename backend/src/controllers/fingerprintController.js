@@ -218,6 +218,41 @@ export const getNextFingerprintId = async (req, res, next) => {
 };
 
 /**
+ * Start fingerprint scan mode for authentication (2FA)
+ * This signals the Arduino to scan a fingerprint and return the ID
+ */
+export const startFingerprintScan = async (req, res, next) => {
+  try {
+    logger.info('Starting fingerprint scan for authentication');
+
+    // Send scan command to bridge service
+    try {
+      const bridgeUrl = process.env.BRIDGE_URL || 'http://localhost:3001';
+      const response = await axios.post(`${bridgeUrl}/scan/start`, {});
+
+      logger.info('Fingerprint scan command sent to Arduino bridge');
+
+      res.json({
+        success: true,
+        message: 'Ready to scan fingerprint',
+        data: {
+          status: 'scanning',
+        },
+      });
+    } catch (bridgeError) {
+      logger.error('Failed to communicate with bridge service:', bridgeError.message);
+      return res.status(503).json({
+        success: false,
+        message: 'Bridge service not available. Make sure fingerprint bridge is running.',
+      });
+    }
+  } catch (error) {
+    logger.error('Start fingerprint scan error:', error);
+    next(error);
+  }
+};
+
+/**
  * Check if fingerprint ID is available
  */
 export const checkFingerprintId = async (req, res, next) => {

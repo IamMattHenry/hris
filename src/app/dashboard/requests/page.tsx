@@ -11,7 +11,7 @@ import ViewLeaveModal from "./view_request/ViewModal";
 import { toast } from "react-hot-toast";
 
 type TabKey = "Leave Request" | "History";
-type LeaveType = "vacation" | "sick" | "personal" | "parental" | "bereavement" | "emergency" | "others";
+type LeaveType = "vacation" | "sick" | "personal" | "parental" | "bereavement" | "emergency" | "half_day" | "others";
 type LeaveStatus = "pending" | "approved" | "rejected";
 
 interface Leave {
@@ -41,6 +41,7 @@ const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
   parental: "Parental Leave",
   bereavement: "Bereavement Leave",
   emergency: "Emergency Leave",
+  half_day: "Half Day",
   others: "Others",
 };
 

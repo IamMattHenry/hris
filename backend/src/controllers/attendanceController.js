@@ -191,7 +191,7 @@ export const clockIn = async (req, res, next) => {
       });
     }
 
-    const validStatuses = ['present', 'absent', 'late', 'half_day', 'on_leave', 'work_from_home', 'others'];
+    const validStatuses = ['present', 'absent', 'late', 'early_leave', 'half_day', 'on_leave', 'work_from_home', 'others'];
     const finalStatus = validStatuses.includes(status) ? status : 'present';
 
     // Get user ID from JWT token for audit trail
@@ -310,11 +310,40 @@ export const clockOut = async (req, res, next) => {
 
     const durationHours = durationMinutes / 60;
 
-    // Determine status and overtime based on duration
-    let newStatus = durationMinutes < 480 ? 'late' : 'present';
+    // Determine status based on time in and duration
+    // Check if employee arrived late (after 8:15 AM)
+    const [timeInHourStr, timeInMinuteStr] = timeInParts;
+    const timeInHour = parseInt(timeInHourStr, 10);
+    const timeInMinute = parseInt(timeInMinuteStr, 10);
+    const timeInTotalMinutes = timeInHour * 60 + timeInMinute;
+    const lateThreshold = 8 * 60 + 15; // 8:15 AM
+    const arrivedLate = timeInTotalMinutes > lateThreshold;
+
+    let newStatus = attendance.status || 'present';
     let overtimeHours = 0;
-    if (durationMinutes > 480) {
-      overtimeHours = (durationMinutes - 480) / 60;
+
+    const MANUAL_STATUS_OVERRIDE = ['half_day'];
+    const skipAutoStatus = MANUAL_STATUS_OVERRIDE.includes(newStatus);
+
+    if (!skipAutoStatus) {
+      newStatus = 'present';
+
+      if (durationMinutes < 480) {
+        // Worked less than 8 hours
+        if (arrivedLate) {
+          newStatus = 'late'; // Arrived late
+        } else {
+          newStatus = 'early_leave'; // Left early
+        }
+      } else if (durationMinutes > 480) {
+        // Worked more than 8 hours - calculate overtime
+        overtimeHours = (durationMinutes - 480) / 60;
+        newStatus = 'present';
+      }
+    } else {
+      if (durationMinutes > 480) {
+        overtimeHours = (durationMinutes - 480) / 60;
+      }
     }
 
     // Get user ID from JWT token for audit trail
@@ -508,10 +537,24 @@ async function clockOutEmployee(employee_id) {
   const durationMinutes = timeOutMinutes - timeInMinutes;
   const durationHours = durationMinutes / 60;
 
-  let newStatus = durationMinutes < 480 ? 'late' : 'present';
+  // Determine status based on time in and duration
+  const lateThreshold = 8 * 60 + 15; // 8:15 AM
+  const arrivedLate = timeInMinutes > lateThreshold;
+
+  let newStatus = 'present';
   let overtimeHours = 0;
-  if (durationMinutes > 480) {
+
+  if (durationMinutes < 480) {
+    // Worked less than 8 hours
+    if (arrivedLate) {
+      newStatus = 'late'; // Arrived late
+    } else {
+      newStatus = 'early_leave'; // Left early
+    }
+  } else if (durationMinutes > 480) {
+    // Worked more than 8 hours - calculate overtime
     overtimeHours = (durationMinutes - 480) / 60;
+    newStatus = 'present';
   }
 
   const updateData = {
@@ -636,7 +679,7 @@ export const updateAttendanceStatus = async (req, res, next) => {
       });
     }
 
-    const validStatuses = ['present', 'absent', 'late', 'half_day', 'on_leave', 'work_from_home', 'others'];
+    const validStatuses = ['present', 'absent', 'late', 'early_leave', 'half_day', 'on_leave', 'work_from_home', 'others'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,

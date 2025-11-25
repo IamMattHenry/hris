@@ -456,7 +456,7 @@ useEffect(() => {
     setContactNumber(input);
   };
 
-  // handle salary input with comma formattinggi 
+  // handle salary input with comma formatting
   const handleSalaryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // Remove commas and non-numeric characters
     let input = e.target.value.replace(/,/g, "").replace(/\D/g, "");
@@ -701,7 +701,10 @@ useEffect(() => {
     }
   
   };
-  const validateNameFormat = (value: string, setValue: (v: string) => void, maxLength: number = 50 ) => {
+
+
+  // Reusable name validation function
+  const validateNameFormat = (value: string, setValue: (v: string) => void, maxLength: number = 30 ) => {
     if (/^[A-Za-zñÑ\s'-]*$/.test(value) && value.length <= maxLength) {
       setValue(value);
     }
@@ -828,14 +831,12 @@ useEffect(() => {
                       label="Address:"
                       type="text"
                       value={homeAddress}
-                    
                       onChange={(e) => {
                         const value = e.target.value;
                         if (value.length <= 100) {
                           setHomeAddress(value);
                         }
                       }}
-                      
                       error={errors.homeAddress}
                     />
 

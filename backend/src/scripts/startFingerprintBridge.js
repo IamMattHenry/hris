@@ -26,12 +26,37 @@ app.use(express.json());
 const sseClients = [];
 
 // Broadcast status to all connected clients
-function broadcastStatus(message, type = 'info') {
-  const data = JSON.stringify({ message, type, timestamp: new Date().toISOString() });
+function broadcastStatus(message, type = 'info', data = {}) {
+  const payload = JSON.stringify({
+    message,
+    type,
+    timestamp: new Date().toISOString(),
+    ...data
+  });
   sseClients.forEach(client => {
-    client.write(`data: ${data}\n\n`);
+    client.write(`data: ${payload}\n\n`);
   });
 }
+
+// Override bridge's handleSerialData to broadcast fingerprint scans
+const originalHandleSerialData = bridge.handleSerialData.bind(bridge);
+bridge.handleSerialData = function(data) {
+  // Check if it's a fingerprint scan
+  if (data.startsWith('FINGERPRINT:')) {
+    const parts = data.split(':');
+    const fingerprintId = parseInt(parts[1]);
+
+    if (!isNaN(fingerprintId)) {
+      // Broadcast to SSE clients for 2FA
+      broadcastStatus(`Fingerprint detected: ID ${fingerprintId}`, 'fingerprint_scanned', {
+        fingerprint_id: fingerprintId
+      });
+    }
+  }
+
+  // Call original handler
+  return originalHandleSerialData(data);
+};
 
 // Override bridge console output to broadcast to SSE clients
 const originalLog = console.log;
@@ -69,10 +94,20 @@ app.get('/status/stream', (req, res) => {
   });
 });
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    status: 'running',
+    service: 'fingerprint-bridge',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Endpoint to get current mode
 app.get('/mode', (req, res) => {
-  res.json({ 
-    success: true, 
+  res.json({
+    success: true,
     mode: sensorModeManager.getMode(),
     isEnrollmentMode: sensorModeManager.isEnrollmentMode(),
     isAttendanceMode: sensorModeManager.isAttendanceMode()
@@ -121,12 +156,27 @@ app.post('/enroll/start', (req, res) => {
 app.post('/enroll/cancel', (req, res) => {
   bridge.cancelEnrollment();
   broadcastStatus('Enrollment cancelled', 'cancelled');
-  
+
   // Switch back to attendance mode
   sensorModeManager.enableAttendanceMode();
   broadcastStatus('Switched to ATTENDANCE mode', 'mode_change');
-  
+
   res.json({ success: true, message: 'Enrollment cancelled' });
+});
+
+// Endpoint to start fingerprint scan for authentication (2FA)
+app.post('/scan/start', (req, res) => {
+  // Ensure we're in attendance mode for scanning
+  sensorModeManager.enableAttendanceMode();
+  broadcastStatus('Ready to scan fingerprint for authentication', 'scan');
+
+  // The Arduino is already in attendance mode and will automatically
+  // detect and send fingerprint IDs. No special command needed.
+  res.json({
+    success: true,
+    message: 'Ready to scan fingerprint',
+    mode: 'ATTENDANCE'
+  });
 });
 
 // Endpoint to delete fingerprint template

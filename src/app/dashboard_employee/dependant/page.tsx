@@ -10,7 +10,6 @@ import EditDependantModal from "./edit_employee-dependant/EditDependantModal";
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const [employees, setEmployees] = useState<Employee[]>([]);
   const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,29 +39,26 @@ export default function Dashboard() {
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!user?.employee_id) return;
+
       setLoading(true);
       setError(null);
 
       try {
-        const [empResult] = await Promise.all([employeeApi.getAll(), leaveApi.getDashboardStats()]);
+        const employeeResult = await employeeApi.getById(user.employee_id);
 
-        if (empResult.success && empResult.data) {
-          setEmployees(empResult.data as Employee[]);
+        if (employeeResult.success && employeeResult.data) {
+          const employee = employeeResult.data as Employee;
+          setCurrentEmployee(employee);
+          setDependents(employee.dependents || []);
+          console.log("Fetched employee data:", employee);
+          console.log("Dependents:", employee.dependents);
         } else {
-          setError(empResult.message || "Failed to fetch employees");
-        }
-
-        if (user?.employee_id) {
-          const employeeResult = await employeeApi.getById(user.employee_id);
-          if (employeeResult.success && employeeResult.data) {
-            const employee = employeeResult.data as Employee;
-            setCurrentEmployee(employee);
-            setDependents(employee.dependents || []);
-          }
+          setError(employeeResult.message || "Failed to fetch employee data");
         }
       } catch (err) {
-        console.error("Error fetching dashboard data:", err);
-        setError("Failed to fetch dashboard data");
+        console.error("Error fetching employee data:", err);
+        setError("Failed to fetch employee data");
       } finally {
         setLoading(false);
       }

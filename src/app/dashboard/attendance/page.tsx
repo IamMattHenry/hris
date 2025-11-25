@@ -8,7 +8,7 @@ import ViewAttendanceModal from "./view_attendance/ViewModal";
 import { attendanceApi, departmentApi } from "@/lib/api";
 import { toast } from "react-hot-toast";
 
-type AttendanceStatus = "present" | "absent" | "late" | "half_day" | "on_leave" | "work_from_home" | "others" | "offline";
+type AttendanceStatus = "present" | "absent" | "late" | "early_leave" | "half_day" | "on_leave" | "work_from_home" | "others" | "offline";
 
 interface Attendance {
   attendance_id: number | null;
@@ -30,6 +30,7 @@ const STATUS_LABELS: Record<AttendanceStatus, string> = {
   present: "Present",
   absent: "Absent",
   late: "Late",
+  early_leave: "Early Leave",
   half_day: "Half-Day",
   on_leave: "On Leave",
   work_from_home: "Work From Home",
@@ -371,11 +372,12 @@ export default function AttendanceTable() {
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold ${record.status === "present" ? "bg-green-100 text-green-800" :
                       record.status === "absent" ? "bg-red-100 text-red-800" :
                         record.status === "late" ? "bg-yellow-100 text-yellow-800" :
-                          record.status === "half_day" ? "bg-orange-100 text-orange-800" :
-                            record.status === "on_leave" ? "bg-blue-100 text-blue-800" :
-                              record.status === "work_from_home" ? "bg-purple-100 text-purple-800" :
-                                record.status === "offline" ? "bg-gray-200 text-gray-600" :
-                                  "bg-gray-100 text-gray-800"
+                          record.status === "early_leave" ? "bg-orange-100 text-orange-800" :
+                            record.status === "half_day" ? "bg-amber-100 text-amber-800" :
+                              record.status === "on_leave" ? "bg-blue-100 text-blue-800" :
+                                record.status === "work_from_home" ? "bg-purple-100 text-purple-800" :
+                                  record.status === "offline" ? "bg-gray-200 text-gray-600" :
+                                    "bg-gray-100 text-gray-800"
                       }`}>
                       {STATUS_LABELS[record.status]}
                     </span>

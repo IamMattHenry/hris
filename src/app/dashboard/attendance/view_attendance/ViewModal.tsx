@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import InfoBox from "@/components/forms/FormDisplay";
 import { attendanceApi } from "@/lib/api";
 
-type AttendanceStatus = "present" | "absent" | "late" | "half_day" | "on_leave" | "work_from_home" | "others" | "offline";
+type AttendanceStatus = "present" | "absent" | "late" | "early_leave" | "half_day" | "on_leave" | "work_from_home" | "others" | "offline";
 
 interface ViewAttendanceModalProps {
   isOpen: boolean;
@@ -41,6 +41,7 @@ const STATUS_LABELS: Record<AttendanceStatus, string> = {
   present: "Present",
   absent: "Absent",
   late: "Late",
+  early_leave: "Early Leave",
   half_day: "Half-Day",
   on_leave: "On Leave",
   work_from_home: "Work From Home",
@@ -211,6 +212,23 @@ export default function ViewAttendanceModal({ isOpen, onClose, attendanceId }: V
     }
   };
 
+  const handleHalfDay = async () => {
+    if (!confirm("Are you sure you want to mark this as half day?")) return;
+
+    setActionLoading(true);
+    const result = await attendanceApi.updateStatus(attendance.attendance_id, "half_day");
+    setActionLoading(false);
+
+    if (result.success) {
+      setMessage({ type: "success", text: "Status updated to Half Day" });
+      setAttendance({ ...attendance, status: "half_day" });
+      await fetchSummary(attendance.employee_id);
+      setTimeout(() => setMessage(null), 3000);
+    } else {
+      setMessage({ type: "error", text: result.message || "Failed to update status" });
+    }
+  };
+
   return (
     <>
       <div
@@ -323,6 +341,15 @@ export default function ViewAttendanceModal({ isOpen, onClose, attendanceId }: V
               }`}
             >
               Mark As Leave
+            </button>
+
+            {/* Mark As Half Day Button */}
+            <button
+              onClick={handleHalfDay}
+              disabled={actionLoading}
+              className="flex items-center justify-center px-6 py-3 rounded-full shadow-md transition bg-[#3b2b1c] text-white cursor-pointer hover:opacity-90 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Mark As Half Day
             </button>
           </div>
         </motion.div>

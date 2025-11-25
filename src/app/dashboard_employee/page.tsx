@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { Cell, Tooltip, ResponsiveContainer, PieChart, Pie, Legend } from "recharts";
-import { employeeApi, attendanceApi } from "@/lib/api";
+import { employeeApi, attendanceApi, ticketApi } from "@/lib/api";
 import { Employee, Dependent } from "@/types/api";
 import FloatingTicketButton from "@/components/dashboard/FloatingTicketButton";
+import FingerprintRegistrationModal from "@/components/dashboard/FingerprintRegistrationModal";
 import { useAuth } from "@/contexts/AuthContext";
 import Image from "next/image";
+import { toast } from "react-hot-toast";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -21,6 +23,7 @@ export default function Dashboard() {
     late: number;
   } | null>(null);
   const [currentTime, setCurrentTime] = useState<string>("");
+  const [showFingerprintModal, setShowFingerprintModal] = useState(false);
 
   useEffect(() => {
     const updateClock = () => {
@@ -56,6 +59,17 @@ export default function Dashboard() {
           const emp = employeeResult.data as Employee;
           setCurrentEmployee(emp);
           setDependents(emp.dependents || []);
+
+          // Check if modal should be shown (only once per session)
+          const modalKey = `fingerprint_modal_shown_${user?.user_id ?? 'unknown'}`;
+          // Clean legacy global key so it won't affect other accounts in this session
+          try { sessionStorage.removeItem('fingerprint_modal_shown'); } catch {}
+          const hasShownModal = sessionStorage.getItem(modalKey);
+          const missingFingerprint = emp.fingerprint_id == null || (typeof emp.fingerprint_id === 'number' && emp.fingerprint_id <= 0);
+          if (missingFingerprint && !hasShownModal) {
+            setShowFingerprintModal(true);
+            sessionStorage.setItem(modalKey, 'true');
+          }
         }
 
         if (summaryResult.success && summaryResult.data) {
@@ -71,6 +85,32 @@ export default function Dashboard() {
 
     fetchData();
   }, [user]);
+
+  const handleContactSupport = async () => {
+    setShowFingerprintModal(false);
+
+    try {
+      const result = await ticketApi.create({
+        title: "Fingerprint Registration Request",
+        description: `Employee ${currentEmployee?.employee_code} (${currentEmployee?.first_name} ${currentEmployee?.last_name}) needs to register fingerprint for 2FA login.`,
+        priority: "medium",
+        category: "technical_support",
+      });
+
+      if (result.success) {
+        toast.success("Support ticket created successfully!");
+      } else {
+        toast.error(result.message || "Failed to create support ticket");
+      }
+    } catch (error) {
+      console.error("Error creating support ticket:", error);
+      toast.error("Failed to create support ticket");
+    }
+  };
+
+  const handleDismissModal = () => {
+    setShowFingerprintModal(false);
+  };
 
   if (loading)
     return (
@@ -273,6 +313,15 @@ export default function Dashboard() {
 
         {/* Floating Ticket Button */}
         <FloatingTicketButton />
+
+        {/* Fingerprint Registration Modal */}
+        {showFingerprintModal && currentEmployee && (
+          <FingerprintRegistrationModal
+            employeeCode={currentEmployee.employee_code}
+            onContactSupport={handleContactSupport}
+            onDismiss={handleDismissModal}
+          />
+        )}
       </div>
     </div>
   );

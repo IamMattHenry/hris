@@ -4,10 +4,11 @@ import { useState, useEffect } from "react";
 import InputBox from "@/components/auth/inputbox";
 import PasswordBox from "@/components/auth/passwordbox";
 import { useRouter } from "next/navigation";
-import { authApi } from "@/lib/api";
+import { authApi, fingerprintApi } from "@/lib/api";
 import Link from "next/link";
 import { toast } from "react-hot-toast";
 import { ticketApi } from "@/lib/api";
+import FingerprintAuth2FA from "@/components/auth/FingerprintAuth2FA";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -21,6 +22,12 @@ export default function LoginForm() {
   const [ticketDescription, setTicketDescription] = useState("");
   const [isTicketSubmitting, setIsTicketSubmitting] = useState(false);
   const [ticketType, setTicketType] = useState<"forgot_password" | "contact_support">("contact_support");
+
+  // 2FA states
+  const [show2FA, setShow2FA] = useState(false);
+  const [tempToken, setTempToken] = useState("");
+  const [fingerprintId, setFingerprintId] = useState<number>(0);
+  const [employeeCode, setEmployeeCode] = useState("");
 
   useEffect(() => {
     if (!errorMessage) return;
@@ -39,8 +46,35 @@ export default function LoginForm() {
       console.log("Result:", result);
 
       if (result.success) {
-        localStorage.setItem("token", result.data!.token);
-        router.push("/dashboard");
+        // Check if fingerprint 2FA is required
+        if ((result as any).requires_fingerprint) {
+          // User has fingerprint registered - check if bridge service is available
+          const bridgeHealth = await fingerprintApi.checkBridgeHealth();
+
+          if (!bridgeHealth.available) {
+            // Bridge service not available - show notification and allow login without 2FA
+            console.warn('Fingerprint bridge service not available:', bridgeHealth.error);
+            toast.error(
+              'Fingerprint service is currently unavailable. Logging in without 2FA verification.',
+              { duration: 5000 }
+            );
+
+            // Complete login without 2FA (fallback)
+            localStorage.setItem("token", (result.data as any).temp_token);
+            router.push("/dashboard");
+            return;
+          }
+
+          // Bridge is available - show 2FA fingerprint prompt
+          setTempToken((result.data as any).temp_token);
+          setFingerprintId((result.data as any).user.fingerprint_id);
+          setEmployeeCode((result.data as any).user.employee_code);
+          setShow2FA(true);
+        } else {
+          // No fingerprint required - complete login
+          localStorage.setItem("token", result.data!.token);
+          router.push("/dashboard");
+        }
       } else {
         if (result.message === "Invalid credentials") {
           setErrorMessage("Incorrect username or password.");
@@ -59,6 +93,28 @@ export default function LoginForm() {
 
     setIsLoading(false);
   };
+
+  const handle2FASuccess = (token: string, user: any) => {
+    localStorage.setItem("token", token);
+    toast.success("Login successful!");
+    router.push("/dashboard");
+  };
+
+  const handle2FACancel = () => {
+    setShow2FA(false);
+    setTempToken("");
+    setFingerprintId(0);
+    setEmployeeCode("");
+  };
+
+  const handle2FASkip = () => {
+    // Allow skip but log it
+    toast.success("Fingerprint authentication skipped. Logging in...");
+    // For now, we'll just cancel - you can implement skip logic if needed
+    handle2FACancel();
+  };
+
+
 
   const handleTicketSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,6 +153,20 @@ export default function LoginForm() {
       setIsTicketSubmitting(false);
     }
   };
+
+  // Show 2FA component if required
+  if (show2FA) {
+    return (
+      <FingerprintAuth2FA
+        tempToken={tempToken}
+        expectedFingerprintId={fingerprintId}
+        employeeCode={employeeCode}
+        onSuccess={handle2FASuccess}
+        onCancel={handle2FACancel}
+        onSkip={handle2FASkip}
+      />
+    );
+  }
 
   return (
     <>

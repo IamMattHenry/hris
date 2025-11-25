@@ -283,6 +283,18 @@ export const authApi = {
   },
 
   /**
+   * Verify fingerprint for 2FA login
+   * @param temp_token - Temporary token from password verification step
+   * @param scanned_fingerprint_id - The fingerprint ID scanned by the sensor
+   */
+  verifyFingerprint: async (temp_token: string, scanned_fingerprint_id: number) => {
+    return apiCall<{ token: string; user: any }>('/auth/verify-fingerprint', {
+      method: 'POST',
+      body: JSON.stringify({ temp_token, scanned_fingerprint_id }),
+    });
+  },
+
+  /**
    * Logout (client-side only)
    */
   logout: () => {
@@ -825,6 +837,51 @@ export const fingerprintApi = {
   checkId: async (fingerprintId: number) => {
     return apiCall<any>(`/fingerprint/check/${fingerprintId}`, {
       method: 'GET',
+    });
+  },
+
+  /**
+   * Check if fingerprint bridge service is available
+   */
+  checkBridgeHealth: async (): Promise<{ available: boolean; error?: string }> => {
+    const bridgeUrl = process.env.NEXT_PUBLIC_BRIDGE_URL || 'http://localhost:3001';
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+    try {
+      const response = await fetch(`${bridgeUrl}/health`, {
+        method: 'GET',
+        signal: controller.signal,
+      });
+
+      if (response.ok) {
+        return { available: true };
+      }
+
+      const errorText = await response.text().catch(() => null);
+      return {
+        available: false,
+        error: errorText || `Bridge service returned status ${response.status}`,
+      };
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        console.error('Bridge health check timed out');
+        return { available: false, error: 'Bridge health check timed out' };
+      }
+
+      console.error('Bridge health check failed:', error);
+      return { available: false, error: error?.message || 'Bridge service not available' };
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  },
+
+  /**
+   * Start fingerprint scan for authentication (2FA)
+   */
+  startScan: async () => {
+    return apiCall<any>('/fingerprint/scan/start', {
+      method: 'POST',
     });
   },
 

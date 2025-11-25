@@ -63,6 +63,7 @@ export interface Employee {
   employee_id: number;
   employee_code: string;
   user_id: number;
+  fingerprint_id?: number | null;
   first_name: string;
   last_name: string;
   middle_name?: string;
@@ -242,7 +243,7 @@ export interface EmployeeAvailability {
   phone_number?: string;
   employee_status: 'active' | 'resigned' | 'terminated' | 'on-leave';
   availability_status: 'available' | 'offline' | 'on_leave';
-  attendance_status?: 'present' | 'absent' | 'late' | 'on_leave' | null;
+  attendance_status?: 'present' | 'absent' | 'late' | 'early_leave' | 'half_day' | 'on_leave' | 'offline' | null;
   time_in?: string | null;
   time_out?: string | null;
   date: string;

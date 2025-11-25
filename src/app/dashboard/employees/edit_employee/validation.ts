@@ -105,8 +105,12 @@ export const validateDependent = (
 /**
  * Validates email addresses
  */
-export const validateEmails = (emails: ContactEmail[]): string | null => {
-  const validEmails = emails.filter((e) => e.email && e.email.trim());
+export const validateEmails = (emails: ContactEmail[] | null | undefined): string | null => {
+  if (!Array.isArray(emails)) {
+    return "At least one email is required";
+  }
+
+  const validEmails = emails.filter((e) => e?.email && e.email.trim());
 
   if (validEmails.length === 0) {
     return "At least one email is required";
@@ -154,7 +158,6 @@ export const validateContactNumbers = (
  */
 export const validateEmployeeForm = (
   firstName: string,
-  middleName: string,
   lastName: string,
   departmentId: number | null,
   positionId: number | null,
@@ -176,12 +179,9 @@ export const validateEmployeeForm = (
     errors.firstName = "First name is required";
   }
 
-  
   if (!lastName.trim()) {
     errors.lastName = "Last name is required";
   }
-
-
 
   if (!departmentId) {
     errors.department = "Department is required";

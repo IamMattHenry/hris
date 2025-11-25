@@ -7,6 +7,7 @@ import {
   confirmEnrollment,
   getNextFingerprintId,
   checkFingerprintId,
+  startFingerprintScan,
 } from '../controllers/fingerprintController.js';
 
 const router = express.Router();
@@ -16,6 +17,9 @@ router.get('/next-id', verifyToken, getNextFingerprintId);
 
 // Check if fingerprint ID is available (protected)
 router.get('/check/:fingerprint_id', verifyToken, checkFingerprintId);
+
+// Start fingerprint scan for authentication (no auth required - used during login)
+router.post('/scan/start', startFingerprintScan);
 
 // Start fingerprint enrollment (protected)
 router.post(

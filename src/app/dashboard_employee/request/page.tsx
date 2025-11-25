@@ -5,7 +5,7 @@ import { leaveApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "react-hot-toast";
 
-type LeaveType = "vacation" | "sick" | "emergency" | "others";
+type LeaveType = "vacation" | "sick" | "emergency" | "half_day" | "others";
 type LeaveStatus = "pending" | "approved" | "rejected";
 
 interface Leave {
@@ -30,6 +30,7 @@ const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
   vacation: "Vacation Leave",
   sick: "Sick Leave",
   emergency: "Emergency Leave",
+  half_day: "Half Day",
   others: "Others",
 };
 

@@ -14,6 +14,7 @@ type LeaveType =
   | "parental"
   | "bereavement"
   | "emergency"
+  | "half_day"
   | "others";
 
 const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
@@ -23,6 +24,7 @@ const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
   parental: "Parental Leave",
   bereavement: "Bereavement Leave",
   emergency: "Emergency Leave",
+  half_day: "Half Day",
   others: "Others",
 };
 
