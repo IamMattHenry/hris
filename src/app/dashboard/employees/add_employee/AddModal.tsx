@@ -124,24 +124,17 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
 useEffect(() => {
   const base = makeUsernameFromFirst(firstName || "");
-  
+
   // --- Username generation ---
   let generatedUsername = base;
-  if (generatedUsername.length < 5) {
-    // pad with random 3-digit number
-    const randomNumber = Math.floor(100 + Math.random() * 900); // 100-999
-    generatedUsername += randomNumber.toString();
-  } else {
-    // still append random 3-digit number
-    const randomNumber = Math.floor(100 + Math.random() * 900);
-    generatedUsername += randomNumber.toString();
-  }
+  const randomNumber = Math.floor(100 + Math.random() * 900);
+  generatedUsername += randomNumber.toString();
 
   // --- Password generation ---
-  let generatedPassword = firstName ? `@${firstName.trim()}` : "";
-  let suffixNumber = 12345; // starting number to append if needed
+  const cleanedFirstName = firstName ? firstName.replace(/\s+/g, "") : "";
+  let generatedPassword = cleanedFirstName ? `@${cleanedFirstName}` : "";
+  let suffixNumber = 12345;
 
-  // Keep adding numbers until password reaches at least 12 characters
   while (generatedPassword.length < 12) {
     generatedPassword = `${generatedPassword}${suffixNumber}`;
     suffixNumber++;
@@ -152,8 +145,8 @@ useEffect(() => {
     setPassword(generatedPassword);
     setConfirmPassword(generatedPassword);
   }
-
 }, [firstName, usernameEdited, passwordEdited]);
+
 
   useEffect(() => {
     if (hireDate) {
