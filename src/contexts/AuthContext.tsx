@@ -87,6 +87,8 @@ export function AuthProvider({
   const logout = () => {
     setUser(null);
     authApi.logout();
+    sessionStorage.clear();
+    localStorage.clear();
   };
 
   useEffect(() => {

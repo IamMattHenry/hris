@@ -90,11 +90,14 @@ export default function Dashboard() {
     setShowFingerprintModal(false);
 
     try {
+      if (!user?.user_id) {
+        toast.error("Unable to submit ticket: missing user id");
+        return;
+      }
       const result = await ticketApi.create({
+        user_id: user.user_id,
         title: "Fingerprint Registration Request",
         description: `Employee ${currentEmployee?.employee_code} (${currentEmployee?.first_name} ${currentEmployee?.last_name}) needs to register fingerprint for 2FA login.`,
-        priority: "medium",
-        category: "technical_support",
       });
 
       if (result.success) {
