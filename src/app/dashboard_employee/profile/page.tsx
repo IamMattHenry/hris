@@ -184,7 +184,7 @@ export default function Dashboard() {
                   </div>
                   <hr className="w-80 border-[#e3b983]" />
                   <div className="text-left">
-                    <p className="text-sm text-[#412f23d4]">
+                    <p className="text-sm text-[#412f23d4] flex flex-col">
                       {user?.contact_numbers && user.contact_numbers.length > 0 ? (
                         user.contact_numbers.map((contact, index) => (
                           <span key={index}>{contact}</span>
