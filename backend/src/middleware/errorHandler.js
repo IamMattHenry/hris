@@ -26,7 +26,7 @@ export const errorHandler = (err, req, res, next) => {
     message = 'Duplicate entry';
   }
 
-  if (err.code === 'ER_NO_REFERENCED_ROW') {
+  if (err.code === 'ER_NO_REFERENCED_ROW' || err.code === 'ER_NO_REFERENCED_ROW_2' || err.code === 'ER_ROW_IS_REFERENCED_2') {
     statusCode = 400;
     message = 'Invalid reference';
   }

@@ -3,7 +3,7 @@
 import { Loader2, Fingerprint } from "lucide-react";
 import { useState, useEffect } from "react";
 import QRCodeScanner from "./Scanner/QRCodeScanner";
-import { attendanceApi } from "@/lib/api";
+import { attendanceApi, employeeApi } from "@/lib/api";
 
 interface EmployeeQRData {
   employee_id: number;
@@ -86,12 +86,39 @@ export default function AttendanceSystemPage() {
 
     try {
       const data = JSON.parse(qrValue) as EmployeeQRData;
-      setEmployeeData(data);
-      const remarks = calculateAttendanceRemarks(data);
-      setAttendanceRemarks(remarks);
-      saveAttendance(data, remarks);
+      // Basic validation
+      if (!data || typeof data.employee_id !== "number") {
+        setError("QR code not recognized. Please scan a valid employee QR code.");
+        setEmployeeData(null);
+        return;
+      }
+
+      // Verify employee exists before saving to prevent FK errors
+      (async () => {
+        const res = await employeeApi.getById(data.employee_id);
+        if (!res?.success || !res.data) {
+          setError("QR code is not associated with any employee");
+          setEmployeeData(null);
+          return;
+        }
+
+        // Prefer server-sourced employee fields; fallback to QR data when needed
+        const normalized: EmployeeQRData = {
+          employee_id: res.data.employee_id,
+          employee_code: res.data.employee_code,
+          first_name: res.data.first_name,
+          last_name: res.data.last_name,
+          position_name: res.data.position_name,
+          shift: res.data.shift || data.shift,
+          schedule_time: data.schedule_time,
+        };
+        setEmployeeData(normalized);
+        const remarks = calculateAttendanceRemarks(normalized);
+        setAttendanceRemarks(remarks);
+        await saveAttendance(normalized, remarks);
+      })();
     } catch (err) {
-      setError("Invalid QR code format. Please scan a valid employee QR code.");
+      setError("QR code not recognized. Please scan a valid employee QR code.");
       console.error("QR parsing error:", err);
     }
   }, [qrValue, activeTab]);

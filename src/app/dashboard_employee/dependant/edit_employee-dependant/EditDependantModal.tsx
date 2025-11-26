@@ -3,6 +3,8 @@
 import React, { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { motion } from "framer-motion";
+import { employeeApi } from "@/lib/api";
+import { toast } from "react-hot-toast";
 
 /* ---------- Interfaces ---------- */
 interface EditDependantModalProps {
@@ -56,7 +58,7 @@ const FormSelect = ({ label, value, onChange, options, error }: any) => (
       <option value="">Select {label}</option>
       {options.map((opt: string) => (
         <option key={opt} value={opt}>
-          {opt}
+          {opt.charAt(0).toUpperCase() + opt.slice(1)}
         </option>
       ))}
     </select>
@@ -98,7 +100,7 @@ export default function EditDependantModal({
   const formatContactNumber = (value: string) => {
     // Remove all non-digit characters
     const digits = value.replace(/\D/g, "");
-    
+
     // Format as: 09XX XXX XXXX
     if (digits.length <= 2) return digits;
     if (digits.length <= 4) return `${digits.slice(0, 4)}`;
@@ -109,62 +111,50 @@ export default function EditDependantModal({
   /* ---------- Fetch dependant details ---------- */
   useEffect(() => {
     if (isOpen && dependantId && employeeId) {
-      // Mock fetch - replace with actual API call
-      // fetchDependant(employeeId, dependantId);
-      
-      // Mock data for demonstration
-      const mockDependant: Dependent = {
-        dependant_id: dependantId,
-        firstname: "Juan",
-        lastname: "Dela Cruz",
-        relationship: "Child",
-        email: "juan@gmail.com",
-        contact_no: "09171234567",
-        home_address: "123 Main St",
-        region_name: "NCR",
-        province_name: "Metro Manila",
-        city_name: "Quezon City"
-      };
-      
-      setDependant(mockDependant);
-      setFirstName(mockDependant.firstname);
-      setLastName(mockDependant.lastname);
-      setRelationship(mockDependant.relationship);
-      setEmail(mockDependant.email || "");
-      setContactNumber(formatContactNumber(mockDependant.contact_no || ""));
-      setHomeAddress(mockDependant.home_address || "");
-      setRegion(mockDependant.region_name || "");
-      setProvince(mockDependant.province_name || "");
-      setCity(mockDependant.city_name || "");
+      (async () => {
+        try {
+          const res = await employeeApi.getById(employeeId);
+          const deps = res?.data?.dependents || [];
+          const dep = deps.find((d: any) => d.dependant_id === dependantId);
+          if (!res?.success || !dep) {
+            toast.error(res?.message || "Dependent not found");
+            onClose();
+            return;
+          }
+          setDependant(dep);
+          setFirstName(dep.firstname || "");
+          setLastName(dep.lastname || "");
+          setRelationship((dep.relationship || "").toLowerCase());
+          setEmail(dep.email || "");
+          setContactNumber(formatContactNumber(dep.contact_no || ""));
+          setHomeAddress(dep.home_address || "");
+          setRegion(dep.region_name || "");
+          setProvince(dep.province_name || "");
+          setCity(dep.city_name || "");
+        } catch (err) {
+          console.error("Failed to load dependant:", err);
+          toast.error("Failed to load dependent");
+          onClose();
+        }
+      })();
     }
   }, [isOpen, dependantId, employeeId]);
 
   // Load Philippine locations data
   useEffect(() => {
-    // Mock data for demonstration
-    const mockPhData = [
-      {
-        region: "NCR",
-        provinces: [
-          {
-            province: "Metro Manila",
-            cities: ["Quezon City", "Manila", "Makati", "Pasig"]
-          }
-        ]
-      },
-      {
-        region: "Region III",
-        provinces: [
-          {
-            province: "Bulacan",
-            cities: ["Malolos", "Meycauayan", "San Jose del Monte"]
-          }
-        ]
+    async function loadPhLocationsData() {
+      try {
+        const res = await fetch("/data/ph_locations.json");
+        if (!res.ok) throw new Error(`Failed to fetch PH locations: ${res.status}`);
+        const data = await res.json();
+        setPhLocationsData(data);
+        setRegions(data.map((r: any) => r.region));
+      } catch (err) {
+        console.error(err);
+        setRegions([]);
       }
-    ];
-    
-    setPhLocationsData(mockPhData);
-    setRegions(mockPhData.map((r: any) => r.region));
+    }
+    loadPhLocationsData();
   }, []);
 
   // Update provinces when region changes
@@ -174,7 +164,7 @@ export default function EditDependantModal({
       if (selectedRegion) {
         const provinceNames = selectedRegion.provinces.map((p: any) => p.province);
         setProvinces(provinceNames);
-        
+
         // Only clear city if the current province is not in the new list
         if (!provinceNames.includes(province)) {
           setProvince("");
@@ -200,7 +190,7 @@ export default function EditDependantModal({
         const selectedProvince = selectedRegion.provinces.find((p: any) => p.province === province);
         if (selectedProvince) {
           setCities(selectedProvince.cities);
-          
+
           // Only clear city if it's not in the new list
           if (!selectedProvince.cities.includes(city)) {
             setCity("");
@@ -227,7 +217,7 @@ export default function EditDependantModal({
     if (!lastName.trim()) {
       newErrors.lastName = "Last name is required.";
     }
-    
+
     if (!relationship) {
       newErrors.relationship = "Relationship is required.";
     }
@@ -277,30 +267,48 @@ export default function EditDependantModal({
 
     setIsSubmitting(true);
     try {
-      // Mock API call - replace with actual implementation
-      console.log("Updating dependant:", {
-        employeeId,
-        dependantId,
-        firstName,
-        lastName,
-        relationship,
-        email: email.trim() || null,
-        contactNumber: contactNumber.replace(/\D/g, ""),
-        homeAddress,
-        region,
-        province,
-        city
-      });
+      const res = await employeeApi.getById(employeeId);
+      if (!res?.success || !res.data) {
+        throw new Error(res?.message || 'Failed to fetch employee');
+      }
+      const currentDeps = (res.data.dependents || []) as any[];
+      const updatedDeps = currentDeps.map((d: any) => (
+        d.dependant_id === dependantId
+          ? {
+              firstName: firstName,
+              lastName: lastName,
+              relationship: relationship,
+              email: email.trim() || null,
+              contactInfo: contactNumber.replace(/\D/g, ""),
+              homeAddress: homeAddress,
+              region: region,
+              province: province,
+              city: city,
+            }
+          : {
+              firstName: d.firstname,
+              lastName: d.lastname,
+              relationship: d.relationship,
+              email: d.email,
+              contactInfo: d.contact_no,
+              homeAddress: d.home_address,
+              region: d.region_name,
+              province: d.province_name,
+              city: d.city_name,
+            }
+      ));
 
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      alert("Dependant updated successfully!");
-      onUpdate();
-      onClose();
+      const updateRes = await employeeApi.update(employeeId, { dependents: updatedDeps });
+      if (updateRes?.success) {
+        toast.success('Dependent updated successfully!');
+        onUpdate();
+        onClose();
+      } else {
+        toast.error(updateRes?.message || 'Failed to update dependent');
+      }
     } catch (err) {
-      console.error("Update error:", err);
-      alert("An error occurred while updating dependant");
+      console.error('Update error:', err);
+      toast.error('An error occurred while updating dependent');
     } finally {
       setIsSubmitting(false);
     }
@@ -329,7 +337,7 @@ export default function EditDependantModal({
         transition={{ duration: 0.2 }}
         className="bg-[#fdf3e2] w-full max-w-4xl p-8 md:p-10 rounded-2xl shadow-lg relative text-[#3b2b1c] overflow-y-auto max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
-      >2
+      >
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-[#3b2b1c] hover:opacity-70 transition-opacity"
@@ -373,7 +381,7 @@ export default function EditDependantModal({
                   setRelationship(e.target.value);
                   if (errors.relationship) setErrors(prev => ({ ...prev, relationship: "" }));
                 }}
-                options={["Spouse", "Child", "Parent", "Sibling", "Other"]}
+                options={["spouse", "child", "parent", "sibling", "other"]}
                 error={errors.relationship}
               />
               <FormInput
@@ -436,7 +444,7 @@ export default function EditDependantModal({
                 error={errors.city}
               />
             </div>
-            
+
             <p className="text-xs text-gray-500 mt-4">* Required fields</p>
           </div>
         ) : (

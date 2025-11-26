@@ -28,7 +28,7 @@ export const getAttendanceRecords = async (req, res, next) => {
     if (end_date) {
       sql += ' AND a.date <= ?';
       params.push(end_date);
-    }
+     }
 
     sql += ' ORDER BY a.date DESC';
 
@@ -175,6 +175,18 @@ export const clockIn = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: 'Employee ID is required',
+      });
+    }
+
+    // Verify employee exists to avoid foreign key errors (e.g., invalid QR)
+    const employee = await db.getOne(
+      'SELECT employee_id FROM employees WHERE employee_id = ?',
+      [employee_id]
+    );
+    if (!employee) {
+      return res.status(404).json({
+        success: false,
+        message: 'QR code is not associated with any employee',
       });
     }
 
@@ -338,7 +350,7 @@ export const clockOut = async (req, res, next) => {
       } else if (durationMinutes > 480) {
         // Worked more than 8 hours - calculate overtime
         overtimeHours = (durationMinutes - 480) / 60;
-        newStatus = 'present';
+        newStatus = 'overtime';
       }
     } else {
       if (durationMinutes > 480) {
@@ -554,7 +566,7 @@ async function clockOutEmployee(employee_id) {
   } else if (durationMinutes > 480) {
     // Worked more than 8 hours - calculate overtime
     overtimeHours = (durationMinutes - 480) / 60;
-    newStatus = 'present';
+    newStatus = 'overtime';
   }
 
   const updateData = {
@@ -679,7 +691,7 @@ export const updateAttendanceStatus = async (req, res, next) => {
       });
     }
 
-    const validStatuses = ['present', 'absent', 'late', 'early_leave', 'half_day', 'on_leave', 'work_from_home', 'others'];
+    const validStatuses = ['present', 'absent', 'late', 'early_leave', 'half_day', 'on_leave', 'work_from_home', 'overtime', 'others'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
