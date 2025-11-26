@@ -184,7 +184,7 @@ export default function Dashboard() {
                   </div>
                   <hr className="w-80 border-[#e3b983]" />
                   <div className="text-left">
-                    <p className="text-sm text-[#412f23d4]">
+                    <p className="text-sm text-[#412f23d4] flex flex-col">
                       {user?.contact_numbers && user.contact_numbers.length > 0 ? (
                         user.contact_numbers.map((contact, index) => (
                           <span key={index}>{contact}</span>
@@ -236,12 +236,12 @@ export default function Dashboard() {
                   {/* Title Box */}
                   <div className="bg-[#281b0d] px-6 py-3 shadow-lg rounded-b-lg flex justify-between items-center">
                     <h2 className="text-lg font-semibold text-white">Employee Information</h2>
-                    <button
+                    {/* <button
                       onClick={() => setIsEditEmployeeModalOpen(true)}
                       className="bg-white text-[#281b0d] px-3 py-1 rounded-lg text-sm font-medium hover:bg-gray-100 transition"
                     >
                       Edit
-                    </button>
+                    </button> */}
                   </div>
                   {/* Information Content */}
                   <div className="p-6">

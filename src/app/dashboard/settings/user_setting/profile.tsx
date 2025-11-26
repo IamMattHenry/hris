@@ -248,7 +248,7 @@ const ProfileSection = () => {
             setGender(e.target.value);
             if (errors.gender) setErrors((prev) => ({ ...prev, gender: "" }));
           }}
-          options={["Male", "Female", "Other"]}
+          options={["Male", "Female", "Others"]}
           error={errors.gender}
         />
 
