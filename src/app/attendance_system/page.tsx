@@ -4,6 +4,7 @@ import { Loader2, Fingerprint } from "lucide-react";
 import { useState, useEffect } from "react";
 import QRCodeScanner from "./Scanner/QRCodeScanner";
 import { attendanceApi, employeeApi } from "@/lib/api";
+import ConfirmModal from "@/components/modals/ConfirmModal";
 
 interface EmployeeQRData {
   employee_id: number;
@@ -31,6 +32,8 @@ export default function AttendanceSystemPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [statusLog, setStatusLog] = useState<Array<{ message: string; type: string; timestamp: string }>>([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [showClockOutConfirm, setShowClockOutConfirm] = useState(false);
+  const [pendingClockOutEmployeeId, setPendingClockOutEmployeeId] = useState<number | null>(null);
 
   const currentDate = new Date().toLocaleString("en-US", {
     weekday: "short",
@@ -123,17 +126,44 @@ export default function AttendanceSystemPage() {
     }
   }, [qrValue, activeTab]);
 
-  /** Save attendance record */
+  /** Save attendance record (auto-detect clock-in vs clock-out) */
   const saveAttendance = async (data: EmployeeQRData, remarks: AttendanceRemarks) => {
     setIsSaving(true);
     try {
-      const result = await attendanceApi.clockIn(data.employee_id, remarks.status);
-      if (result.success) {
-        setSuccessMessage("Attendance recorded successfully!");
-        setTimeout(() => setSuccessMessage(null), 5000);
-      } else {
-        setError(result.message || "Failed to save attendance");
+      // Compute today's date in Philippine timezone (YYYY-MM-DD)
+      const todayPH = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit'
+      }).format(new Date());
+
+      // Check if there is an attendance record for today
+      const existingRes = await attendanceApi.getAll(data.employee_id, todayPH, todayPH);
+      const existing = (existingRes?.success && Array.isArray(existingRes.data) && existingRes.data.length > 0)
+        ? existingRes.data[0]
+        : null;
+
+
+      if (!existing) {
+        // No record yet → Clock in
+        const result = await attendanceApi.clockIn(data.employee_id, remarks.status);
+        if (result.success) {
+          setSuccessMessage("Clocked in successfully!");
+          setTimeout(() => setSuccessMessage(null), 5000);
+        } else {
+          setError(result.message || "Failed to clock in");
+        }
+        return;
       }
+
+      if (!existing.time_out) {
+        // Already clocked-in but not clocked-out → ask for confirmation before clocking out
+        setPendingClockOutEmployeeId(data.employee_id);
+        setShowClockOutConfirm(true);
+        setIsSaving(false);
+        return;
+      }
+
+      // Already clocked in and out
+      setError("Already clocked out today");
     } catch (err) {
       console.error("Error saving attendance:", err);
       setError("Failed to save attendance record");
@@ -167,6 +197,28 @@ export default function AttendanceSystemPage() {
     return `${displayHours}:${minutes.toString().padStart(2, "0")} ${period}`;
   };
 
+  /** Perform confirmed clock-out */
+  const performClockOut = async () => {
+    if (!pendingClockOutEmployeeId) return;
+    setIsSaving(true);
+    try {
+      const result = await attendanceApi.clockOut(pendingClockOutEmployeeId);
+      if (result.success) {
+        setSuccessMessage("Clocked out successfully!");
+        setError(null);
+        setTimeout(() => setSuccessMessage(null), 5000);
+      } else {
+        setError(result.message || "Failed to clock out");
+      }
+    } catch (err) {
+      console.error("Error clocking out:", err);
+      setError("Failed to clock out");
+    } finally {
+      setIsSaving(false);
+      setPendingClockOutEmployeeId(null);
+    }
+  };
+
   return (
     <section className="bg-[#fff7ec] rounded-2xl shadow-2xl w-full font-poppins max-w-4xl px-10 py-8 mx-auto">
       {/* Tabs Header */}
@@ -188,6 +240,7 @@ export default function AttendanceSystemPage() {
           </button>
           <button
             onClick={() => setActiveTab("QR")}
+
             className={`px-5 py-2 font-semibold transition ${activeTab === "QR" ? "bg-[#8b7355] text-white" : "text-[#3b2b1c] hover:bg-[#e7d5b9]"}`}
           >
             QR Code
@@ -230,11 +283,12 @@ export default function AttendanceSystemPage() {
             ) : (
               statusLog.map((log, i) => (
                 <div key={i} className="mb-1">
-                  <span className="text-gray-500 text-xs mr-2">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                  <span>{log.message}</span>
-                </div>
-              ))
-            )}
+
+			          <span className="text-gray-500 text-xs mr-2">{new Date(log.timestamp).toLocaleTimeString()}</span>
+			          <span>{log.message}</span>
+			        </div>
+			      ))
+			    )}
           </div>
 
           <div className="w-80 bg-gradient-to-br from-[#8b7355] to-[#b97a5b] rounded-xl shadow-2xl p-8 text-white text-center">
@@ -247,7 +301,7 @@ export default function AttendanceSystemPage() {
         // QR Tab
         <div className="flex gap-8 items-start">
           <div className="flex flex-col items-center justify-center bg-[#f4eadb] rounded-xl shadow-inner p-4 min-h-[300px]">
-            <QRCodeScanner key="qr-scanner" onScan={(value) => setQrValue(value)} isActive={activeTab === "QR"} />
+            <QRCodeScanner key="qr-scanner" onScan={(value) => setQrValue(value)} isActive={activeTab === "QR" && !showClockOutConfirm} />
           </div>
 
           <div className="flex-1 space-y-5">
@@ -281,6 +335,18 @@ export default function AttendanceSystemPage() {
           </div>
         </div>
       )}
+
+      {/* Clock-out confirmation modal */}
+      <ConfirmModal
+        isOpen={showClockOutConfirm}
+        onClose={() => setShowClockOutConfirm(false)}
+        onConfirm={performClockOut}
+        title="Confirm Clock Out"
+        message={`Detected a prior clock-in today for ${employeeData ? employeeData.first_name + ' ' + employeeData.last_name : 'this employee'}${employeeData?.employee_code ? ` (Code: ${employeeData.employee_code})` : ''}. Proceed to clock out?`}
+        confirmText="Clock Out"
+        cancelText="Cancel"
+      />
+
     </section>
   );
 }
