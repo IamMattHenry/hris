@@ -37,9 +37,8 @@ const FormInput = ({ label, type, value, onChange, error }: any) => (
       type={type}
       value={value}
       onChange={onChange}
-      className={`px-4 py-2 rounded-lg border ${
-        error ? "border-red-500" : "border-gray-300"
-      } focus:outline-none focus:ring-2 focus:ring-[#073532]`}
+      className={`px-4 py-2 rounded-lg border ${error ? "border-red-500" : "border-gray-300"
+        } focus:outline-none focus:ring-2 focus:ring-[#073532]`}
     />
     {error && <span className="text-red-500 text-xs mt-1">{error}</span>}
   </div>
@@ -51,9 +50,8 @@ const FormSelect = ({ label, value, onChange, options, error }: any) => (
     <select
       value={value}
       onChange={onChange}
-      className={`px-4 py-2 rounded-lg border ${
-        error ? "border-red-500" : "border-gray-300"
-      } focus:outline-none focus:ring-2 focus:ring-[#073532]`}
+      className={`px-4 py-2 rounded-lg border ${error ? "border-red-500" : "border-gray-300"
+        } focus:outline-none focus:ring-2 focus:ring-[#073532]`}
     >
       <option value="">Select {label}</option>
       {options.map((opt: string) => (
@@ -86,6 +84,7 @@ export default function EditDependantModal({
   const [region, setRegion] = useState("");
   const [province, setProvince] = useState("");
   const [city, setCity] = useState("");
+  const [otherRelationship, setOtherRelationship] = useState("");
 
   // Location data
   const [regions, setRegions] = useState<string[]>([]);
@@ -252,6 +251,10 @@ export default function EditDependantModal({
       newErrors.city = "City is required.";
     }
 
+    if (relationship === "other" && !otherRelationship.trim()) {
+      newErrors.otherRelationship = "Please specify the relationship.";
+    }
+
     return newErrors;
   };
 
@@ -275,27 +278,27 @@ export default function EditDependantModal({
       const updatedDeps = currentDeps.map((d: any) => (
         d.dependant_id === dependantId
           ? {
-              firstName: firstName,
-              lastName: lastName,
-              relationship: relationship,
-              email: email.trim() || null,
-              contactInfo: contactNumber.replace(/\D/g, ""),
-              homeAddress: homeAddress,
-              region: region,
-              province: province,
-              city: city,
-            }
+            firstName: firstName,
+            lastName: lastName,
+            relationship: relationship === "other" ? otherRelationship : relationship,
+            email: email.trim() || null,
+            contactInfo: contactNumber.replace(/\D/g, ""),
+            homeAddress: homeAddress,
+            region: region,
+            province: province,
+            city: city,
+          }
           : {
-              firstName: d.firstname,
-              lastName: d.lastname,
-              relationship: d.relationship,
-              email: d.email,
-              contactInfo: d.contact_no,
-              homeAddress: d.home_address,
-              region: d.region_name,
-              province: d.province_name,
-              city: d.city_name,
-            }
+            firstName: d.firstname,
+            lastName: d.lastname,
+            relationship: d.relationship,
+            email: d.email,
+            contactInfo: d.contact_no,
+            homeAddress: d.home_address,
+            region: d.region_name,
+            province: d.province_name,
+            city: d.city_name,
+          }
       ));
 
       const updateRes = await employeeApi.update(employeeId, { dependents: updatedDeps });
@@ -378,12 +381,30 @@ export default function EditDependantModal({
                 label="Relationship *"
                 value={relationship}
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                  setRelationship(e.target.value);
+                  const value = e.target.value;
+                  setRelationship(value);
+
+                  if (value !== "other") {
+                    setOtherRelationship(""); // clear field if not needed
+                  }
+
                   if (errors.relationship) setErrors(prev => ({ ...prev, relationship: "" }));
                 }}
                 options={["spouse", "child", "parent", "sibling", "other"]}
                 error={errors.relationship}
               />
+              {relationship === "other" && (
+                <FormInput
+                  label="Other Relationship"
+                  type="text"
+                  value={otherRelationship}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                    setOtherRelationship(e.target.value);
+                    if (errors.otherRelationship) setErrors(prev => ({ ...prev, otherRelationship: "" }));
+                  }}
+                  error={errors.otherRelationship}
+                />
+              )}
               <FormInput
                 label="Email (Optional)"
                 type="email"
