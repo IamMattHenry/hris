@@ -595,18 +595,41 @@ useEffect(() => {
   };
 
   const handleNext = async () => {
-    if (await validateStep()) setStep((prev) => prev + 1);
-  };
+    const isValid = await validateStep();
+    if (!isValid) return; // stop moving forward
 
-  const handleBack = () => {
+    setStep(step + 1);
+  };
+  const handleBack = async () => {
+
+    const isValid = await validateStep();
+    if (!isValid) return;
+
     setErrors({});
-    if (step > 1) setStep((prev) => prev - 1);
+
+    if (step > 1) setStep(step - 1);
     else onClose();
   };
+const handleStepClick = async (targetStep: number) => {
+  
+  if (targetStep > step) return;
 
-  const handleStepClick = async (newStep: number) => {
-    if (newStep <= step || (await validateStep())) setStep(newStep);
+  const isValid = await validateStep();
+  if (!isValid) return;
+
+  // Allowed steps based on current step
+  const allowedSteps: { [key: number]: number[] } = {
+    1: [],
+    2: [1],
+    3: [1, 2, 3],
+    4: [1, 2, 3, 4],
   };
+
+  if (!allowedSteps[step].includes(targetStep)) return;
+
+  setStep(targetStep);
+};
+
 
   const handleFingerprintScan = () => {
     setMessage({
