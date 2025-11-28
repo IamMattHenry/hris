@@ -88,6 +88,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [subRole, setSubRole] = useState("");
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [finishedSteps, setFinishedSteps] = useState<number[]>([]);
   const [regions, setRegions] = useState<string[]>([]);
   const [provinces, setProvinces] = useState<string[]>([]);
   const [cities, setCities] = useState<string[]>([]);
@@ -594,50 +595,29 @@ useEffect(() => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleNext = async () => {
-    const isValid = await validateStep();
-    if (!isValid) return; // stop moving forward
 
-    setStep(step + 1);
-  };
-  const handleBack = async () => {
-
-    const isValid = await validateStep();
-    if (!isValid) return;
-
-    setErrors({});
-
-    if (step > 1) setStep(step - 1);
-    else onClose();
-  };
-const handleStepClick = async (targetStep: number) => {
-  
-  if (targetStep > step) return;
-
+const handleNext = async () => {
   const isValid = await validateStep();
   if (!isValid) return;
 
-  // Allowed steps based on current step
-  const allowedSteps: { [key: number]: number[] } = {
-    1: [],
-    2: [1],
-    3: [1, 2, 3],
-    4: [1, 2, 3, 4],
-  };
+  setFinishedSteps((prev) => [...new Set([...prev, step])]);
 
-  if (!allowedSteps[step].includes(targetStep)) return;
+  setStep(step + 1);
+};
 
-  setStep(targetStep);
+const handleBack = () => {
+  setErrors({});
+  if (step > 1) setStep(step - 1);
+  else onClose();
+};
+
+const handleStepClick = (targetStep: number) => {
+  if (targetStep === step || finishedSteps.includes(targetStep) || targetStep < step) {
+    setStep(targetStep);
+  }
 };
 
 
-  const handleFingerprintScan = () => {
-    setMessage({
-      type: "success",
-      text: "🔒 Fingerprint scanner initialized...",
-    });
-    setTimeout(() => setMessage(null), 2000);
-  };
 
   const handleSubmit = async () => {
     if (!await validateStep()) return;
