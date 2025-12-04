@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Abril_Fatface } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
+import NetworkStatusBanner from "@/components/NetworkStatusBanner";
 
 export const metadata: Metadata = {
   title: "Welcome to Celestia Hotel HRIS",
@@ -31,6 +32,7 @@ export default function RootLayout({
         />
       </head>
       <body className={` ${abrilFatface.variable} antialiased`}>
+        <NetworkStatusBanner />
         {children}
         <Toaster />
       </body>

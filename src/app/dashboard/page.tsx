@@ -136,20 +136,26 @@ export default function Dashboard() {
         if (empResult.success && empResult.data) {
           setEmployees(empResult.data as Employee[]);
         } else {
-          setError(empResult.message || "Failed to fetch employees");
+          const msg = empResult.message || "Failed to load employees.";
+          setError(msg);
+          toast.error(msg);
         }
 
         if (statsResult.success && statsResult.data) {
           setStats(statsResult.data as DashboardStats);
         } else {
-          setError(statsResult.message || "Failed to fetch dashboard statistics");
+          const msg = statsResult.message || "Failed to load dashboard statistics.";
+          setError((prev) => prev ?? msg);
+          toast.error(msg);
         }
 
         let attendanceRecords: AttendanceRecord[] = [];
         if (attendanceResult.success && Array.isArray(attendanceResult.data)) {
           attendanceRecords = attendanceResult.data as AttendanceRecord[];
         } else if (!attendanceResult.success) {
-          setError((prev) => prev ?? (attendanceResult.message || "Failed to fetch attendance data"));
+          const msg = attendanceResult.message || "Failed to load attendance data.";
+          setError((prev) => prev ?? msg);
+          toast.error(msg);
         }
 
         setWeeklyAttendanceData(computeWeeklyAttendanceData(attendanceRecords));
@@ -175,7 +181,9 @@ export default function Dashboard() {
         }
       } catch (err) {
         console.error("Error fetching dashboard data:", err);
-        setError("Failed to fetch dashboard data");
+        const msg = "Unable to load dashboard. Please try again.";
+        setError(msg);
+        toast.error(msg);
       } finally {
         setLoading(false);
       }
@@ -253,9 +261,12 @@ export default function Dashboard() {
       if (result.success && result.data) {
         setPendingLeaves(result.data as PendingLeave[]);
         setShowPendingLeaves(true);
+      } else {
+        toast.error(result.message || 'Failed to load pending leave requests.');
       }
     } catch (err) {
       console.error("Error fetching pending leaves:", err);
+      toast.error('Failed to load pending leave requests.');
     }
   };
 
@@ -265,9 +276,12 @@ export default function Dashboard() {
       if (result.success && result.data) {
         setAbsenceRecords(result.data as AbsenceRecord[]);
         setShowAbsenceRecords(true);
+      } else {
+        toast.error(result.message || 'Failed to load absence records.');
       }
     } catch (err) {
       console.error("Error fetching absence records:", err);
+      toast.error('Failed to load absence records.');
     }
   };
 

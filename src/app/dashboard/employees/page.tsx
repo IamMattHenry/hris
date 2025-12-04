@@ -74,16 +74,22 @@ export default function EmployeeTable() {
   const fetchEmployees = async () => {
     setLoading(true);
     setError(null);
-
-    const result = await employeeApi.getAll();
-
-    if (result.success && result.data) {
-      setEmployees(result.data as Employee[]);
-    } else {
-      setError(result.message || "Failed to fetch employees");
+    try {
+      const result = await employeeApi.getAll();
+      if (result.success && result.data) {
+        setEmployees(result.data as Employee[]);
+      } else {
+        const msg = result.message || "Failed to fetch employees.";
+        setError(msg);
+        toast.error(msg);
+      }
+    } catch (e: any) {
+      const msg = e?.message || "Failed to fetch employees.";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   // 🔹 Sort employees

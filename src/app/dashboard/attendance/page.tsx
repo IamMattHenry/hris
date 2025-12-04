@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Search, Calendar, RotateCw } from "lucide-react";
+import toast from "react-hot-toast";
 import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
 import ViewAttendanceModal from "./view_attendance/ViewModal";
@@ -50,6 +51,7 @@ export default function AttendanceTable() {
   const [isDateModalOpen, setIsDateModalOpen] = useState<boolean>(false);
   const [attendanceList, setAttendanceList] = useState<Attendance[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [departments, setDepartments] = useState<{ department_id: number, department_name: string }[]>([]);
   const [selectedDept, setSelectedDept] = useState<string>("all");
@@ -67,12 +69,23 @@ export default function AttendanceTable() {
 
   const fetchAttendance = useCallback(async () => {
     setLoading(true);
-    const result = await attendanceApi.getAll(undefined, selectedDate, selectedDate, true);
-    console.log(result);
-    if (result.success && result.data) {
-      setAttendanceList(result.data as Attendance[]);
-    };
-    setLoading(false);
+    setError(null);
+    try {
+      const result = await attendanceApi.getAll(undefined, selectedDate, selectedDate, true);
+      if (result.success && result.data) {
+        setAttendanceList(result.data as Attendance[]);
+      } else {
+        const msg = result.message || "Failed to load attendance records.";
+        setError(msg);
+        toast.error(msg);
+      }
+    } catch (e: any) {
+      const msg = e?.message || "Failed to load attendance records.";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
   }, [selectedDate]);
 
   // Auto-mark absences for past dates up to yesterday (respect Sundays), then load records
@@ -93,9 +106,13 @@ export default function AttendanceTable() {
     if (!selectedDate || selectedDate >= todayPH) return;
     const endDate = getYesterdayPHDate();
     try {
-      await attendanceApi.markAbsences({ start_date: selectedDate, end_date: endDate, respect_sundays: true });
-    } catch (e) {
+      const res = await attendanceApi.markAbsences({ start_date: selectedDate, end_date: endDate, respect_sundays: true });
+      if (!res.success) {
+        toast.error(res.message || 'Could not auto-mark absences.');
+      }
+    } catch (e: any) {
       console.error('Auto-mark absences failed:', e);
+      toast.error('Could not auto-mark absences.');
     }
   }, [selectedDate]);
 
@@ -109,9 +126,13 @@ export default function AttendanceTable() {
     const d = String(start.getDate()).padStart(2, '0');
     const startDate = `${y}-${m}-${d}`;
     try {
-      await attendanceApi.markAbsences({ start_date: startDate, end_date: endDate, respect_sundays: true });
+      const res = await attendanceApi.markAbsences({ start_date: startDate, end_date: endDate, respect_sundays: true });
+      if (!res.success) {
+        toast.error(res.message || 'Could not auto-mark recent absences.');
+      }
     } catch (e) {
       console.error('Auto-mark recent absences failed:', e);
+      toast.error('Could not auto-mark recent absences.');
     }
   }, []);
 
@@ -313,6 +334,7 @@ export default function AttendanceTable() {
                       className="border border-gray-300 rounded px-3 py-2 w-full"
                     />
 
+
                     <div className="flex justify-end mt-4 gap-2">
                       <button
                         onClick={() => setIsDateModalOpen(false)}
@@ -334,6 +356,14 @@ export default function AttendanceTable() {
           </div>
         </div>
       </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="mb-2 p-3 rounded bg-red-50 text-red-700 border border-red-200">
+          {error}
+        </div>
+      )}
+
 
 
       {/* Attendance Table */}

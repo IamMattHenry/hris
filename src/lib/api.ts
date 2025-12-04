@@ -14,13 +14,57 @@ function getToken(): string | null {
   return null;
 }
 
+// Network/timeout and error handling helpers
+const DEFAULT_TIMEOUT_MS = 10000; // 10s
+const RETRY_STATUS_CODES = new Set([502, 503, 504]);
+
+function sleep(ms: number) {
+  return new Promise((res) => setTimeout(res, ms));
+}
+
+function friendlyMessageFromStatus(status?: number) {
+  switch (status) {
+    case 401:
+      return 'Your session has expired. Please log in again.';
+    case 403:
+      return 'You do not have permission to perform this action.';
+    case 404:
+      return 'Requested resource was not found.';
+    case 408:
+      return 'Request timed out. Please try again.';
+    case 500:
+      return 'A server error occurred. Please try again later.';
+    case 502:
+    case 503:
+    case 504:
+      return 'The server is temporarily unavailable. Please try again in a moment.';
+    default:
+      return 'Something went wrong. Please try again.';
+  }
+}
+
+function friendlyNetworkErrorMessage(err: any): string {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return 'You appear to be offline. Please check your internet connection.';
+  }
+  const msg = (err?.message || '').toLowerCase();
+  if (msg.includes('aborted') || msg.includes('timeout')) {
+    return 'Request timed out. Please try again.';
+  }
+  if (msg.includes('econnrefused') || msg.includes('failed to fetch') || msg.includes('network')) {
+    return 'Unable to connect to server. Please check your internet connection.';
+  }
+  return 'Connection error. Please try again.';
+}
+
+
 /**
- * Generic API call function with authentication
+ * Generic API call function with authentication, timeout, retries, and friendly errors
  */
 async function apiCall<T>(
   endpoint: string,
   options: RequestInit = {}
-): Promise<{ success: boolean; data?: T; message?: string; error?: string; count?: number }> {
+): Promise<{ success: boolean; data?: T; message?: string; error?: string; count?: number; status?: number }> {
   const token = getToken();
 
   const headers: Record<string, string> = {
@@ -34,34 +78,93 @@ async function apiCall<T>(
 
   // Merge with any additional headers from options
   if (options.headers) {
-    Object.assign(headers, options.headers);
+    Object.assign(headers, options.headers as Record<string, string>);
   }
 
-  try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      ...options,
-      headers,
-    });
+  const method = (options.method || 'GET').toString().toUpperCase();
+  const isGet = method === 'GET';
+  const maxRetries = isGet ? 2 : 0; // retry GETs only
 
-    const data = await response.json();
+  let attempt = 0;
+  let lastError: any = null;
 
-    // Handle authentication errors
-    if (response.status === 401) {
-      // Token expired or invalid - redirect to landing page
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('token');
-        window.location.href = '/';
+  while (attempt <= maxRetries) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        ...options,
+        method,
+        headers,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      let responseData: any = null;
+      let rawText: string | null = null;
+      try {
+        rawText = await response.text();
+      } catch {}
+      if (rawText) {
+        try {
+          responseData = JSON.parse(rawText);
+        } catch {
+          responseData = rawText; // non-JSON response
+        }
       }
-    }
 
-    return data;
-  } catch (error) {
-    console.error('API call error:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Network error',
-    };
+      // Handle authentication errors
+      if (response.status === 401) {
+        if (typeof window !== 'undefined') {
+          try { localStorage.removeItem('token'); } catch {}
+          window.location.href = '/';
+        }
+        return { success: false, message: friendlyMessageFromStatus(401), error: 'Unauthorized', status: 401 };
+      }
+
+      // Non-OK responses
+      if (!response.ok) {
+        const message =
+          (responseData && typeof responseData === 'object' && (responseData.message || responseData.error)) ||
+          friendlyMessageFromStatus(response.status);
+
+        // Retry on transient server errors for GET
+        if (isGet && RETRY_STATUS_CODES.has(response.status) && attempt < maxRetries) {
+          attempt++;
+          await sleep(300 * attempt);
+          continue;
+        }
+
+        return { success: false, message, error: typeof responseData === 'string' ? responseData : undefined, status: response.status };
+      }
+
+      // OK responses — pass through if backend already returns our envelope
+      if (responseData && typeof responseData === 'object' && 'success' in responseData) {
+        return responseData;
+      }
+
+      // Otherwise, wrap the value as data
+      return { success: true, data: (responseData as T) };
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      lastError = err;
+
+      // Retry for GETs on network/timeout errors
+      if (isGet && attempt < maxRetries) {
+        attempt++;
+        await sleep(300 * attempt);
+        continue;
+      }
+
+      const message = friendlyNetworkErrorMessage(err);
+      return { success: false, message, error: err?.message || 'Network error' };
+    }
   }
+
+  const message = friendlyNetworkErrorMessage(lastError);
+  return { success: false, message, error: lastError?.message || 'Network error' };
 }
 
 // ============ USER API FUNCTIONS ============
@@ -815,7 +918,7 @@ export const ticketApi = {
     if (params?.status) queryParams.append('status', params.status);
 
     const url = `/tickets/report${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-    
+
     return apiCall<any>(url, {
       method: 'GET',
     });

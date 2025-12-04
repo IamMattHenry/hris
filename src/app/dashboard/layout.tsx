@@ -4,6 +4,7 @@ import Head from "next/head";
 import Sidebar from "@/components/dashboard/Sidebar";
 import Header from "@/components/dashboard/Header";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -83,7 +84,7 @@ if (currentPage === "tech_support") {
   }
 
   return (
-    <>
+    <ErrorBoundary>
       <div className="flex min-h-screen">
         <Sidebar />
         <div className="flex-1 flex flex-col">
@@ -91,7 +92,7 @@ if (currentPage === "tech_support") {
           <main className="p-6 bg-[#FDF6EC]">{children}</main>
         </div>
       </div>
-    </>
+    </ErrorBoundary>
   );
 }
 
