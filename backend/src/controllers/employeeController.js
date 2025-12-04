@@ -361,10 +361,9 @@ export const createEmployee = async (req, res, next) => {
     } = req.body;
 
     const normalizedEmail = email?.trim();
-    const fingerprintIdValue =
-      fingerprint_id !== undefined && fingerprint_id !== null
-        ? Number(fingerprint_id)
-        : null;
+    // Fingerprint is assigned only via the dedicated enrollment flow.
+    // Ignore any fingerprint_id provided during employee creation.
+    const fingerprintIdValue = null;
 
     if (
       fingerprintIdValue !== null &&
@@ -746,6 +745,11 @@ export const updateEmployee = async (req, res, next) => {
       province,
       ...updates
     } = req.body;
+
+    // Disallow fingerprint updates via generic update endpoint
+    if (Object.prototype.hasOwnProperty.call(updates, 'fingerprint_id')) {
+      delete updates.fingerprint_id;
+    }
 
     const emailsProvided = Array.isArray(emails);
     const normalizedEmails = emailsProvided

@@ -9,7 +9,6 @@ import {
   employeeApi,
   departmentApi,
   positionApi,
-  fingerprintApi,
 } from "@/lib/api";
 import { Department, Position } from "@/types/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -21,7 +20,7 @@ import {
   validateDependent,
   validateBirthDate,
 } from "./validations";
-import FingerprintEnrollment from "@/components/FingerprintEnrollment";
+
 import { b, s } from "framer-motion/client";
 
 interface EmployeeModalProps {
@@ -51,7 +50,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   // Fingerprint enrollment
   const [showFingerprintEnrollment, setShowFingerprintEnrollment] = useState(false);
   const [newEmployeeId, setNewEmployeeId] = useState<number | null>(null);
-  const [fingerprintId, setFingerprintId] = useState<number | null>(null);
+
 
   // Step data states
   const [firstName, setFirstName] = useState("");
@@ -330,7 +329,6 @@ useEffect(() => {
   useEffect(() => {
     if (isOpen) {
       fetchDepartments();
-      loadNextFingerprintId();
     }
   }, [isOpen]);
 
@@ -370,16 +368,7 @@ useEffect(() => {
     }
   };
 
-  const loadNextFingerprintId = async () => {
-    try {
-      const nextIdResponse = await fingerprintApi.getNextId();
-      if (nextIdResponse.success && nextIdResponse.data?.next_fingerprint_id) {
-        setFingerprintId(nextIdResponse.data.next_fingerprint_id);
-      }
-    } catch (error) {
-      console.error("Error fetching next fingerprint ID:", error);
-    }
-  };
+
 
   const fetchPositions = async (deptId: number) => {
     try {
@@ -595,7 +584,6 @@ useEffect(() => {
     setMessage(null);
     setShowFingerprintEnrollment(false);
     setNewEmployeeId(null);
-    setFingerprintId(null);
   };
 
   // ─── Validation ───────────────────────────────
@@ -715,7 +703,6 @@ useEffect(() => {
         email: email,
         contact_number: contactNumber ? contactNumber.replace(/\s/g, "") : null,
         status: "active" as const,
-        fingerprint_id: fingerprintId,
         // Audit fields
         created_by: user?.user_id || null,
         // Dependents

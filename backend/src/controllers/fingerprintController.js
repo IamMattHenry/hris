@@ -51,7 +51,7 @@ export const startEnrollment = async (req, res, next) => {
       await axios.post(`${bridgeUrl}/enroll/start`, {
         fingerprint_id: fingerprint_id,
       });
-      
+
       logger.info('Enrollment command sent to Arduino bridge');
     } catch (bridgeError) {
       logger.error('Failed to communicate with bridge service:', bridgeError.message);
@@ -154,6 +154,30 @@ export const confirmEnrollment = async (req, res, next) => {
         message: 'Employee not found',
       });
     }
+    // Prevent re-registration: employee must not already have a fingerprint
+    const currentFp = await db.getOne(
+      'SELECT fingerprint_id FROM employees WHERE employee_id = ?',
+      [employee_id]
+    );
+    if (currentFp && currentFp.fingerprint_id !== null) {
+      return res.status(400).json({
+        success: false,
+        message: 'This employee already has a registered fingerprint and cannot re-register.',
+      });
+    }
+
+    // Ensure the fingerprint ID is not assigned to another employee
+    const existing = await db.getOne(
+      'SELECT employee_id FROM employees WHERE fingerprint_id = ? AND employee_id != ?',
+      [fingerprint_id, employee_id]
+    );
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        message: `Fingerprint ID ${fingerprint_id} is already assigned to another employee`,
+      });
+    }
+
 
     // Update employee with fingerprint_id
     const updatedBy = req.user?.user_id || employee_id;
