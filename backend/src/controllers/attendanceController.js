@@ -784,64 +784,113 @@ export const getAttendanceSummary = async (req, res, next) => {
 };
 export const markAbsences = async (req, res, next) => {
   try {
-    // Determine target date (default: yesterday PH time)
-    let { date: targetDate } = req.body || {};
-    if (!targetDate) {
-      const now = new Date();
-      const ph = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
-      ph.setDate(ph.getDate() - 1);
-      const y = ph.getFullYear();
-      const m = String(ph.getMonth() + 1).padStart(2, '0');
-      const d = String(ph.getDate()).padStart(2, '0');
-      targetDate = `${y}-${m}-${d}`;
+    // Accept single date or range. Default: yesterday (PH time)
+    let { date, start_date, end_date, respect_sundays = true, holiday_dates } = req.body || {};
+
+    const now = new Date();
+    const phNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+    const phTodayStr = `${phNow.getFullYear()}-${String(phNow.getMonth() + 1).padStart(2, '0')}-${String(phNow.getDate()).padStart(2, '0')}`;
+
+    const phYesterday = new Date(phNow);
+    phYesterday.setDate(phYesterday.getDate() - 1);
+    const phYStr = `${phYesterday.getFullYear()}-${String(phYesterday.getMonth() + 1).padStart(2, '0')}-${String(phYesterday.getDate()).padStart(2, '0')}`;
+
+    // Normalize range
+    if (date && !start_date && !end_date) {
+      start_date = date;
+      end_date = date;
+    }
+    if (!start_date) start_date = phYStr;
+    if (!end_date) end_date = start_date;
+
+    // Ensure start_date <= end_date
+    const toDate = (s) => new Date(`${s}T00:00:00`);
+    let start = toDate(start_date);
+    let end = toDate(end_date);
+    if (start > end) {
+      const tmp = start;
+      start = end;
+      end = tmp;
     }
 
-    // Exclude employees who have approved leave on target date
+    // Build list of PH dates in range, strictly before today, and respecting Sundays/holidays
+    const dates = [];
+    const toStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const holidays = Array.isArray(holiday_dates) ? new Set(holiday_dates) : new Set();
+
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const local = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+      const dateStr = toStr(local);
+      // Skip today or future
+      if (dateStr >= phTodayStr) continue;
+      // Skip Sundays if requested
+      if (respect_sundays) {
+        const dow = local.getDay(); // 0 = Sunday
+        if (dow === 0) continue;
+      }
+      // Skip holidays if provided
+      if (holidays.has(dateStr)) continue;
+      dates.push(dateStr);
+    }
+
+    if (dates.length === 0) {
+      return res.json({ success: true, message: 'No eligible past dates to process', data: { processed: [] } });
+    }
+
+    // Only active employees
     const employees = await db.getAll(
       `SELECT e.employee_id
        FROM employees e
        WHERE e.status = 'active'`
     );
 
-    const actingUserId = req.user?.user_id;
+    const actingUserId = req.user?.user_id || null;
 
-    let inserted = 0;
-    for (const emp of employees) {
-      // Skip if attendance exists for target date
-      const existing = await db.getOne(
-        'SELECT attendance_id FROM attendance WHERE employee_id = ? AND date = ?',
-        [emp.employee_id, targetDate]
-      );
-      if (existing) continue;
+    const perDateCounts = [];
+    let totalInserted = 0;
 
-      // Skip if employee is on approved leave for target date
-      const onLeave = await db.getOne(
-        `SELECT leave_id FROM leaves
-         WHERE employee_id = ?
-           AND status = 'approved'
-           AND ? BETWEEN start_date AND end_date
-         LIMIT 1`,
-        [emp.employee_id, targetDate]
-      );
-      if (onLeave) continue;
+    for (const targetDate of dates) {
+      let inserted = 0;
+      for (const emp of employees) {
+        // Skip if attendance exists for target date
+        const existing = await db.getOne(
+          'SELECT attendance_id FROM attendance WHERE employee_id = ? AND date = ?',
+          [emp.employee_id, targetDate]
+        );
+        if (existing) continue;
 
-      const attendanceId = await db.insert('attendance', {
-        employee_id: emp.employee_id,
-        date: targetDate,
-        status: 'absent',
-        created_by: actingUserId || emp.employee_id,
-      });
-      const code = generateAttendanceCode(attendanceId);
-      await db.update('attendance', { attendance_code: code }, 'attendance_id = ?', [attendanceId]);
-      inserted += 1;
+        // Skip if employee is on approved leave for target date
+        const onLeave = await db.getOne(
+          `SELECT leave_id FROM leaves
+           WHERE employee_id = ?
+             AND status = 'approved'
+             AND ? BETWEEN start_date AND end_date
+           LIMIT 1`,
+          [emp.employee_id, targetDate]
+        );
+        if (onLeave) continue;
+
+        const attendanceId = await db.insert('attendance', {
+          employee_id: emp.employee_id,
+          date: targetDate,
+          status: 'absent',
+          created_by: null, // System-created
+        });
+        const code = generateAttendanceCode(attendanceId);
+        await db.update('attendance', { attendance_code: code }, 'attendance_id = ?', [attendanceId]);
+        inserted += 1;
+      }
+      perDateCounts.push({ date: targetDate, inserted });
+      totalInserted += inserted;
     }
 
     try {
+      const rangeLabel = dates.length === 1 ? dates[0] : `${dates[0]} to ${dates[dates.length - 1]}`;
       await db.insert('activity_logs', {
         user_id: actingUserId || 1,
         action: 'CREATE',
         module: 'attendance',
-        description: `Auto-marked ${inserted} employees absent for ${targetDate}`,
+        description: `Auto-marked ${totalInserted} employees absent for ${rangeLabel}`,
         created_by: actingUserId || 1,
       });
     } catch (logError) {
@@ -850,8 +899,8 @@ export const markAbsences = async (req, res, next) => {
 
     res.json({
       success: true,
-      message: `Auto-marked ${inserted} employees as absent for ${targetDate}`,
-      data: { date: targetDate, count: inserted },
+      message: `Auto-marked ${totalInserted} employees as absent for ${dates.length === 1 ? dates[0] : 'selected range'}`,
+      data: { processed: perDateCounts, total: totalInserted },
     });
   } catch (error) {
     logger.error('Mark absences error:', error);

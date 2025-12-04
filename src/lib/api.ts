@@ -549,12 +549,15 @@ export const attendanceApi = {
   },
 
   /**
-   * Mark absences for a date (admin/superadmin)
+   * Mark absences for a date or range (admin/superadmin)
+   * Accepts either a single date or a range payload.
    */
-  markAbsences: async (date?: string) => {
+  markAbsences: async (
+    params?: { date?: string; start_date?: string; end_date?: string; respect_sundays?: boolean; holiday_dates?: string[] }
+  ) => {
     return apiCall<any>('/attendance/mark-absences', {
       method: 'POST',
-      body: JSON.stringify(date ? { date } : {}),
+      body: JSON.stringify(params || {}),
     });
   },
 

@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Search, Calendar, RotateCw, UserX } from "lucide-react";
+import { Search, Calendar, RotateCw } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
 import ViewAttendanceModal from "./view_attendance/ViewModal";
 import { attendanceApi, departmentApi } from "@/lib/api";
-import { toast } from "react-hot-toast";
 
 type AttendanceStatus = "present" | "absent" | "late" | "early_leave" | "half_day" | "on_leave" | "work_from_home" | "others" | "offline";
 
@@ -52,7 +51,6 @@ export default function AttendanceTable() {
   const [attendanceList, setAttendanceList] = useState<Attendance[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isMarking, setIsMarking] = useState(false);
   const [departments, setDepartments] = useState<{ department_id: number, department_name: string }[]>([]);
   const [selectedDept, setSelectedDept] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
@@ -77,41 +75,64 @@ export default function AttendanceTable() {
     setLoading(false);
   }, [selectedDate]);
 
+  // Auto-mark absences for past dates up to yesterday (respect Sundays), then load records
+  const getYesterdayPHDate = () => {
+    const now = new Date();
+    const ph = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+    ph.setDate(ph.getDate() - 1);
+    const y = ph.getFullYear();
+    const m = String(ph.getMonth() + 1).padStart(2, '0');
+    const d = String(ph.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const AUTO_RANGE_DAYS = 14;
+
+  const autoMarkAbsences = useCallback(async () => {
+    const todayPH = getCurrentPHDate();
+    if (!selectedDate || selectedDate >= todayPH) return;
+    const endDate = getYesterdayPHDate();
+    try {
+      await attendanceApi.markAbsences({ start_date: selectedDate, end_date: endDate, respect_sundays: true });
+    } catch (e) {
+      console.error('Auto-mark absences failed:', e);
+    }
+  }, [selectedDate]);
+
+  const autoMarkRecentAbsences = useCallback(async () => {
+    // On page load/refresh, scan back multiple days regardless of selected date
+    const endDate = getYesterdayPHDate();
+    const start = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+    start.setDate(start.getDate() - AUTO_RANGE_DAYS);
+    const y = start.getFullYear();
+    const m = String(start.getMonth() + 1).padStart(2, '0');
+    const d = String(start.getDate()).padStart(2, '0');
+    const startDate = `${y}-${m}-${d}`;
+    try {
+      await attendanceApi.markAbsences({ start_date: startDate, end_date: endDate, respect_sundays: true });
+    } catch (e) {
+      console.error('Auto-mark recent absences failed:', e);
+    }
+  }, []);
+
+  // Run on mount and when selectedDate changes
   useEffect(() => {
-    fetchAttendance();
-  }, [fetchAttendance]);
+    (async () => {
+      await autoMarkRecentAbsences();
+      await autoMarkAbsences();
+      await fetchAttendance();
+    })();
+  }, [autoMarkRecentAbsences, autoMarkAbsences, fetchAttendance]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
+    await autoMarkRecentAbsences();
+    await autoMarkAbsences();
     await fetchAttendance();
     setIsRefreshing(false);
   };
 
-  const handleMarkAbsences = async () => {
-    const todayPH = getCurrentPHDate();
-    if (!selectedDate || selectedDate >= todayPH) {
-      toast.error("You can only mark absences for past dates.");
-      return;
-    }
-    const confirmed = window.confirm(`Mark absences (no-shows) for ${selectedDate}?`);
-    if (!confirmed) return;
-
-    setIsMarking(true);
-    try {
-      const result = await attendanceApi.markAbsences(selectedDate);
-      if (result.success) {
-        toast.success(result.message || `Marked absences for ${selectedDate}`);
-        await fetchAttendance();
-      } else {
-        toast.error(result.message || "Failed to mark absences");
-      }
-    } catch (e) {
-      console.error(e);
-      toast.error("An error occurred while marking absences.");
-    } finally {
-      setIsMarking(false);
-    }
-  };
+  // Manual mark absences removed (auto-marking implemented)
 
   let filteredAttendance = attendanceList.filter((record) => {
     const matchSearch =
@@ -203,22 +224,7 @@ export default function AttendanceTable() {
             Date Today:{" "}
             <span className="text-[#3b2b1c] font-[500]">{formattedDate}</span>
           </h1>
-          {/* Mark Absences */}
-          <button
-            onClick={handleMarkAbsences}
-            disabled={isMarking || selectedDate >= getCurrentPHDate()}
-            className="
-               p-2 rounded-lg border 
-               border-[#3b2b1c] text-[#3b2b1c]
-               hover:bg-[#3b2b1c] hover:text-white
-               disabled:bg-gray-300 disabled:border-gray-300 disabled:text-gray-500
-                transition flex items-center gap-2
-              "
-            title="Mark no-shows as Absent"
-          >
-            <UserX className="w-5 h-5" />
-            <span className="hidden sm:inline">Mark Absences</span>
-          </button>
+          {/* Auto-marking enabled; manual button removed */}
         </div>
 
         {/* ROW 2 — Controls */}
