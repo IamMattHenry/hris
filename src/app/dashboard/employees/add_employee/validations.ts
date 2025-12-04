@@ -2,31 +2,38 @@ export interface ValidationErrors {
   [key: string]: string;
 }
 
-export const validateStep1 = (
+export function validateStep1(
   firstName: string,
   lastName: string,
   birthDate: string,
   gender: string,
   civilStatus: string,
   homeAddress: string,
+  barangay: string,
   city: string,
   region: string,
   province: string
-): ValidationErrors => {
-  const errors: ValidationErrors = {};
+) {
+  let errors: any = {};
 
-  if (!firstName.trim()) errors.firstName = "First name is required";
-  if (!lastName.trim()) errors.lastName = "Last name is required";
-  if (!birthDate) errors.birthDate = "Birth date is required";
-  if (!gender) errors.gender = "Gender is required";
-  if (!civilStatus) errors.civilStatus = "Civil status is required";
-  if (!homeAddress.trim()) errors.homeAddress = "Home address is required";
-  if (!city) errors.city = "City is required";
-  if (!region) errors.region = "Region is required";
-  if (!province) errors.province = "Province is required";
+  if (!firstName.trim()) errors.firstName = "First name is required.";
+  if (!lastName.trim()) errors.lastName = "Last name is required.";
+  if (!birthDate) errors.birthDate = "Birthdate is required.";
+  if (!gender) errors.gender = "Gender is required.";
+  if (!civilStatus) errors.civilStatus = "Civil status is required.";
+
+  if (!homeAddress.trim()) errors.homeAddress = "Home address is required.";
+  if (!region) errors.region = "Region is required.";
+  if (!province) errors.province = "Province is required.";
+  if (!city) errors.city = "City is required.";
+
+  // ✅ Add this
+  if (!barangay || barangay.trim() === "") {
+    errors.barangay = "Barangay is required.";
+  }
 
   return errors;
-};
+}
 
 /**
  * Validates Step 2 - Job Information
@@ -183,40 +190,51 @@ export const validateDependent = (
   contactInfo: string,
   relationshipSpecify: string,
   homeAddress: string,
+  barangay: string,
   region: string,
   province: string,
   city: string
 ): ValidationErrors => {
   const errors: ValidationErrors = {};
 
+  // Names
   if (!firstName.trim()) errors.firstName = "First name is required";
   if (!lastName.trim()) errors.lastName = "Last name is required";
+
+  // Relationship
   if (!relationship) errors.relationship = "Relationship is required";
-  if (!homeAddress.trim()) errors.homeAddress = "Home address is required";
-  if (!region) errors.region = "Region is required";
-  if (!province) errors.province = "Province is required";
-  if (!city) errors.city = "City is required";
-  
-  // Contact number is required
-  if (!contactInfo.trim()) {
-    errors.contactInfo = "Contact number is required";
-  } else if (!/^(\+639|09)\d{9}$/.test(contactInfo.replace(/\s/g, ""))) {
-    errors.contactInfo =
-      "Invalid contact number format (must be 09XXXXXXXXX or +639XXXXXXXXX)";
-  }
-
-  // Email optional but validate if entered
-  if (email && !/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(email.trim())) {
-    errors.email = "Must be a valid Gmail address";
-  }
-
-  // If relationship is "Other", require specify text
   if (relationship === "Other" && !relationshipSpecify.trim()) {
     errors.relationshipSpecify = "Please specify the relationship";
   }
 
+  // Address
+  if (!homeAddress.trim()) errors.homeAddress = "Home address is required";
+
+  // 🔥 Fixed: must match your UI state (dependentBarangay)
+  if (!barangay || barangay.trim() === "") {
+    errors.barangay = "Barangay is required";
+  }
+
+  if (!region) errors.region = "Region is required";
+  if (!province) errors.province = "Province is required";
+  if (!city) errors.city = "City is required";
+
+  // Contact number validation
+  if (!contactInfo.trim()) {
+    errors.contactInfo = "Contact number is required";
+  } else if (!/^(\+639|09)\d{9}$/.test(contactInfo.replace(/\s/g, ""))) {
+    errors.contactInfo =
+      "Invalid contact number (must be 09XXXXXXXXX or +639XXXXXXXXX)";
+  }
+
+  // Email (optional but must be valid if provided)
+  if (email && !/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(email.trim())) {
+    errors.email = "Must be a valid Gmail address";
+  }
+
   return errors;
 };
+
 
 /**
  * Validates birth date - must be at least 20 years old

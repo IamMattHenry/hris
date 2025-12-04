@@ -273,7 +273,7 @@ export default function AttendanceTable() {
             >
               <option value="all">All Departments</option>
               {departments.map((dept) => (
-                <option key={dept.department_id} value={dept.department_name}>
+                <option key={dept.department_id} value={dept.department_id}>
                   {dept.department_name}
                 </option>
               ))}

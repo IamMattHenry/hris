@@ -22,6 +22,7 @@ import {
   validateBirthDate,
 } from "./validations";
 import FingerprintEnrollment from "@/components/FingerprintEnrollment";
+import { b, s } from "framer-motion/client";
 
 interface EmployeeModalProps {
   isOpen: boolean;
@@ -37,6 +38,7 @@ interface Dependent {
   relationship: string;
   relationshipSpecify?: string;
   homeAddress: string;
+  barangay: string;
   region: string;
   province: string;
   city: string;
@@ -61,6 +63,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [civilStatus, setCivilStatus] = useState("");
 
   // Address fields
+  const [barangay, setBarangay] = useState("");
   const [homeAddress, setHomeAddress] = useState("");
   const [city, setCity] = useState("");
   const [region, setRegion] = useState("");
@@ -92,6 +95,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [regions, setRegions] = useState<string[]>([]);
   const [provinces, setProvinces] = useState<string[]>([]);
   const [cities, setCities] = useState<string[]>([]);
+  const [barangays, setBarangays] = useState<string[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
   const [supervisors, setSupervisors] = useState<any[]>([]);
@@ -108,6 +112,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [dependentRelationship, setDependentRelationship] = useState("");
   const [dependentRelationshipSpecify, setDependentRelationshipSpecify] = useState("");
   const [dependentHomeAddress, setDependentHomeAddress] = useState("");
+  const [dependentBarangay, setDependentBarangay] = useState("");
   const [dependentRegion, setDependentRegion] = useState("");
   const [dependentProvince, setDependentProvince] = useState("");
   const [dependentCity, setDependentCity] = useState("");
@@ -121,32 +126,32 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
   // Helper to normalize first name into a safe username
   const makeUsernameFromFirst = (fn: string) =>
-  fn.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+    fn.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 
-useEffect(() => {
-  const base = makeUsernameFromFirst(firstName || "");
+  useEffect(() => {
+    const base = makeUsernameFromFirst(firstName || "");
 
-  // --- Username generation ---
-  let generatedUsername = base;
-  const randomNumber = Math.floor(100 + Math.random() * 900);
-  generatedUsername += randomNumber.toString();
+    // --- Username generation ---
+    let generatedUsername = base;
+    const randomNumber = Math.floor(100 + Math.random() * 900);
+    generatedUsername += randomNumber.toString();
 
-  // --- Password generation ---
-  const cleanedFirstName = firstName ? firstName.replace(/\s+/g, "") : "";
-  let generatedPassword = cleanedFirstName ? `@${cleanedFirstName}` : "";
-  let suffixNumber = 12345;
+    // --- Password generation ---
+    const cleanedFirstName = firstName ? firstName.replace(/\s+/g, "") : "";
+    let generatedPassword = cleanedFirstName ? `@${cleanedFirstName}` : "";
+    let suffixNumber = 12345;
 
-  while (generatedPassword.length < 12) {
-    generatedPassword = `${generatedPassword}${suffixNumber}`;
-    suffixNumber++;
-  }
+    while (generatedPassword.length < 12) {
+      generatedPassword = `${generatedPassword}${suffixNumber}`;
+      suffixNumber++;
+    }
 
-  if (!usernameEdited) setUsername(generatedUsername);
-  if (!passwordEdited) {
-    setPassword(generatedPassword);
-    setConfirmPassword(generatedPassword);
-  }
-}, [firstName, usernameEdited, passwordEdited]);
+    if (!usernameEdited) setUsername(generatedUsername);
+    if (!passwordEdited) {
+      setPassword(generatedPassword);
+      setConfirmPassword(generatedPassword);
+    }
+  }, [firstName, usernameEdited, passwordEdited]);
 
 
   useEffect(() => {
@@ -264,6 +269,62 @@ useEffect(() => {
       setDependentCities([]);
     }
   }, [dependentRegion, dependentProvince, phLocationsData]);
+
+function normalizeName(name: string) {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/city of /g, "")
+    .replace(/city /g, "")
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+useEffect(() => {
+  async function loadBarangays() {
+    if (!city) {
+      setBarangays([]);
+      return;
+    }
+
+    try {
+      const resCities = await fetch("https://psgc.gitlab.io/api/cities-municipalities/");
+      const allCities = await resCities.json();
+
+      const normCity = normalizeName(city);
+
+      // Multi-pass fuzzy matching
+      const selectedCity =
+        allCities.find((c: any) => normalizeName(c.name) === normCity) ||
+        allCities.find((c: any) => normalizeName(c.name).includes(normCity)) ||
+        allCities.find((c: any) => normCity.includes(normalizeName(c.name)));
+
+      if (!selectedCity) {
+        console.warn("City not found in PSGC:", city);
+        setBarangays([]);
+        return;
+      }
+
+      const cityCode = selectedCity.code;
+
+      const resBrgy = await fetch(
+        `https://psgc.gitlab.io/api/cities-municipalities/${cityCode}/barangays`
+      );
+      const barangayList = await resBrgy.json();
+
+      setBarangays(barangayList.map((b: any) => b.name));
+    } catch (error) {
+      console.error("Error loading barangays:", error);
+      setBarangays([]);
+    }
+  }
+
+  loadBarangays();
+}, [city]);
+
+
 
   // Fetch departments when modal opens
   useEffect(() => {
@@ -499,6 +560,7 @@ useEffect(() => {
     setGender("");
     setCivilStatus("");
     setHomeAddress("");
+    setBarangay("");
     setCity("");
     setRegion("");
     setProvince("");
@@ -549,6 +611,7 @@ useEffect(() => {
         gender,
         civilStatus,
         homeAddress,
+        barangay,
         city,
         region,
         province
@@ -596,26 +659,26 @@ useEffect(() => {
   };
 
 
-const handleNext = async () => {
-  const isValid = await validateStep();
-  if (!isValid) return;
+  const handleNext = async () => {
+    const isValid = await validateStep();
+    if (!isValid) return;
 
-  setFinishedSteps((prev) => [...new Set([...prev, step])]);
+    setFinishedSteps((prev) => [...new Set([...prev, step])]);
 
-  setStep(step + 1);
-};
+    setStep(step + 1);
+  };
 
-const handleBack = () => {
-  setErrors({});
-  if (step > 1) setStep(step - 1);
-  else onClose();
-};
+  const handleBack = () => {
+    setErrors({});
+    if (step > 1) setStep(step - 1);
+    else onClose();
+  };
 
-const handleStepClick = (targetStep: number) => {
-  if (targetStep === step || finishedSteps.includes(targetStep) || targetStep < step) {
-    setStep(targetStep);
-  }
-};
+  const handleStepClick = (targetStep: number) => {
+    if (targetStep === step || finishedSteps.includes(targetStep) || targetStep < step) {
+      setStep(targetStep);
+    }
+  };
 
 
 
@@ -675,17 +738,19 @@ const handleStepClick = (targetStep: number) => {
         // Show fingerprint enrollment after 1 second
         setTimeout(() => {
           setMessage(null);
-          setShowFingerprintEnrollment(true);
+          resetForm();
+        //setShowFingerprintEnrollment(true);
+          onClose();
         }, 1000);
 
-       
+
       } else {
         setMessage({
           type: "error",
           text: result.message || "Failed to create employee",
         });
       }
-     
+
     } catch (error) {
       console.error("Error creating employee:", error);
       setMessage({
@@ -695,13 +760,13 @@ const handleStepClick = (targetStep: number) => {
     } finally {
       setIsSubmitting(false);
     }
-  
+
   };
 
 
   // Reusable name validation function
-  const validateNameFormat = (value: string, setValue: (v: string) => void, maxLength: number = 30 ) => {
-    if (/^[A-Za-zñÑ\s'-]*$/.test(value) && value.length <= maxLength) {
+  const validateNameFormat = (value: string, setValue: (v: string) => void, maxLength: number = 30) => {
+    if (/^[A-Za-zñÑ\s'-.]*$/.test(value) && value.length <= maxLength) {
       setValue(value);
     }
   };
@@ -760,7 +825,7 @@ const handleStepClick = (targetStep: number) => {
                     type="text"
                     value={firstName}
                     onChange={(e) => {
-                     validateNameFormat(e.target.value, setFirstName);
+                      validateNameFormat(e.target.value, setFirstName);
                     }}
                     error={errors.firstName}
                   />
@@ -769,7 +834,7 @@ const handleStepClick = (targetStep: number) => {
                     type="text"
                     value={lastName}
                     onChange={(e) => {
-                     validateNameFormat(e.target.value, setLastName);
+                      validateNameFormat(e.target.value, setLastName);
                     }}
                     error={errors.lastName}
                   />
@@ -823,6 +888,8 @@ const handleStepClick = (targetStep: number) => {
                   </div>
 
                   <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-4 gap-6">
+
+                    {/* Address */}
                     <FormInput
                       label="Address:"
                       type="text"
@@ -836,6 +903,7 @@ const handleStepClick = (targetStep: number) => {
                       error={errors.homeAddress}
                     />
 
+                    {/* Region */}
                     <FormSelect
                       label="Region:"
                       value={region}
@@ -843,29 +911,47 @@ const handleStepClick = (targetStep: number) => {
                         setRegion(e.target.value);
                         setProvince("");
                         setCity("");
+                        setBarangay(""); // reset barangay
                       }}
                       options={regions}
                       error={errors.region}
                     />
 
+                    {/* Province */}
                     <FormSelect
                       label="Province:"
                       value={province}
                       onChange={(e) => {
                         setProvince(e.target.value);
                         setCity("");
+                        setBarangay(""); // reset barangay
                       }}
                       options={region ? provinces : []}
                       error={errors.province}
                     />
 
+                    {/* City */}
                     <FormSelect
                       label="City:"
                       value={city}
-                      onChange={(e) => setCity(e.target.value)}
+                      onChange={(e) => {
+                        setCity(e.target.value);
+                        setBarangay(""); // reset barangay
+                      }}
                       options={province ? cities : []}
                       error={errors.city}
                     />
+
+                    {/* Barangay */}
+                    <FormSelect
+                      label="Barangay:"
+                      value={barangay}
+                      onChange={(e) => setBarangay(e.target.value)}
+                      options={barangays}
+                      error={errors.barangay}
+                    />
+
+
                   </div>
 
                 </div>
@@ -964,7 +1050,7 @@ const handleStepClick = (targetStep: number) => {
                   <FormInput label="Pay Period End:" type="date" value={payEnd} onChange={(e) => setPayEnd(e.target.value)} readOnly={true} />
 
                   <div>
-                    <label className="block text-[#3b2b1c] mb-1">Salary:</label>
+                    <label className="block text-[#3b2b1c] mb-1">Salary (Hourly Rate):</label>
                     <div className="flex items-center border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] overflow-hidden">
                       <span className="px-3 py-2 text-[#3b2b1c] font-semibold">₱</span>
                       <input
@@ -1027,9 +1113,9 @@ const handleStepClick = (targetStep: number) => {
                   {/* Contact Information Section */}
                   <div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-                      <FormInput label="Email:" type="email" value={email} onChange={(e) =>{
+                      <FormInput label="Email:" type="email" value={email} onChange={(e) => {
                         const value = e.target.value;
-                        if(value.length < 100) setEmail(value);
+                        if (value.length < 100) setEmail(value);
                       }} error={errors.email} placeholder="(use gmail)" />
                       {/*
                       
@@ -1191,6 +1277,13 @@ const handleStepClick = (targetStep: number) => {
                           options={dependentProvince ? dependentCities : []}
                           error={dependentErrors.city}
                         />
+                        <FormSelect
+                          label="Barangay:"
+                          value={dependentBarangay}
+                          onChange={(e) => setDependentBarangay(e.target.value)}
+                          options={dependentCity ? barangays : []}
+                          error={dependentErrors.barangay}
+                        />
                       </div>
                       <button
                         type="button"
@@ -1204,6 +1297,7 @@ const handleStepClick = (targetStep: number) => {
                             dependentContactInfo,
                             dependentRelationshipSpecify,
                             dependentHomeAddress,
+                            dependentBarangay,
                             dependentRegion,
                             dependentProvince,
                             dependentCity
@@ -1227,6 +1321,7 @@ const handleStepClick = (targetStep: number) => {
                             relationship: dependentRelationship,
                             relationshipSpecify: dependentRelationshipSpecify || undefined,
                             homeAddress: dependentHomeAddress,
+                            barangay: dependentBarangay,
                             region: dependentRegion,
                             province: dependentProvince,
                             city: dependentCity,
@@ -1239,6 +1334,7 @@ const handleStepClick = (targetStep: number) => {
                           setDependentRelationship("");
                           setDependentRelationshipSpecify("");
                           setDependentHomeAddress("");
+                          setDependentBarangay("");
                           setDependentRegion("");
                           setDependentProvince("");
                           setDependentCity("");
@@ -1274,9 +1370,9 @@ const handleStepClick = (targetStep: number) => {
                             {dependent.email && <p className="text-xs text-[#6b5344]">Email: {dependent.email}</p>}
                             {dependent.contactInfo && <p className="text-xs text-[#6b5344]">Contact: {dependent.contactInfo}</p>}
                             {dependent.homeAddress && <p className="text-xs text-[#6b5344]">Address: {dependent.homeAddress}</p>}
-                            {(dependent.city || dependent.province || dependent.region) && (
+                            {(dependent.barangay || dependent.city || dependent.province || dependent.region) && (
                               <p className="text-xs text-[#6b5344]">
-                                Location: {[dependent.city, dependent.province, dependent.region].filter(Boolean).join(", ")}
+                                Location: {[ dependent.barangay, dependent.city, dependent.province, dependent.region].filter(Boolean).join(", ")}
                               </p>
                             )}
                           </div>
@@ -1348,94 +1444,6 @@ const handleStepClick = (targetStep: number) => {
                       {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
                   </div>
-
-                  <FormInput
-                    label="Assigned Fingerprint ID"
-                    type="number"
-                    value={fingerprintId !== null ? String(fingerprintId) : ""}
-                    onChange={() => {}}
-                    placeholder="Auto-assigned"
-                    disabled
-                  />
-
-                  {/* Admin Privilege Checkbox */}
-                  <div className="col-span-2 flex items-center gap-3 mt-4 p-4 bg-[#FFF2E0] rounded-lg border border-[#e6d2b5]">
-                    <input
-                      type="checkbox"
-                      id="grantAdminPrivilege"
-                      checked={grantAdminPrivilege}
-                      onChange={(e) => {
-                        setGrantAdminPrivilege(e.target.checked);
-                        if (e.target.checked) {
-                          setGrantSupervisorPrivilege(false);
-                        }
-                        if (!e.target.checked) {
-                          setSubRole("");
-                          setErrors((prev) => ({ ...prev, subRole: "" }));
-                        }
-                      }}
-                      className="w-5 h-5 text-[#4b0b14] bg-white border-[#3b2b1c] rounded focus:ring-[#4b0b14] focus:ring-2 cursor-pointer"
-                    />
-                    <label
-                      htmlFor="grantAdminPrivilege"
-                      className="text-[#3b2b1c] font-semibold cursor-pointer select-none"
-                    >
-                      Grant Admin Privilege
-                    </label>
-                  </div>
-
-                  {/* Supervisor Privilege Checkbox */}
-                  <div className="col-span-2 flex items-center gap-3 mt-2 p-4 bg-[#E8F5E9] rounded-lg border border-[#c8e6c9]">
-                    <input
-                      type="checkbox"
-                      id="grantSupervisorPrivilege"
-                      checked={grantSupervisorPrivilege}
-                      onChange={(e) => {
-                        setGrantSupervisorPrivilege(e.target.checked);
-                        if (e.target.checked) {
-                          setGrantAdminPrivilege(false);
-                        }
-                        if (!e.target.checked) {
-                          setSubRole("");
-                          setErrors((prev) => ({ ...prev, subRole: "" }));
-                        }
-                      }}
-                      className="w-5 h-5 text-[#2e7d32] bg-white border-[#1b5e20] rounded focus:ring-[#2e7d32] focus:ring-2 cursor-pointer"
-                    />
-                    <label
-                      htmlFor="grantSupervisorPrivilege"
-                      className="text-[#1b5e20] font-semibold cursor-pointer select-none"
-                    >
-                      Grant Supervisor Privilege
-                    </label>
-                  </div>
-
-                  {(grantAdminPrivilege || grantSupervisorPrivilege) && (
-                    <div className="col-span-2">
-                      {!departmentId ? (
-                        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                          <p className="text-sm text-yellow-800">
-                            ⚠️ Please select a department first to choose the sub-role
-                          </p>
-                        </div>
-                      ) : subRole ? (
-                        <div className="p-3 bg-[#FFF2E0] border border-[#e6d2b5] rounded-lg">
-                          <p className="text-sm text-[#3b2b1c]">
-                            Auto-assigned sub-role: <span className="font-semibold uppercase">{subRole}</span>
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                          <p className="text-sm text-red-700">
-                            ⚠️ The selected department does not have an associated HR/IT sub-role. Choose another department or disable the privilege.
-                          </p>
-                        </div>
-                      )}
-                      {errors.subRole && (
-                        <p className="text-red-500 text-xs mt-2">{errors.subRole}</p>
-                      )}
-                    </div>
-                  )}
                 </div>
               </motion.div>
             )}
@@ -1499,38 +1507,6 @@ const handleStepClick = (targetStep: number) => {
             )}
           </div>
         </div>
-        {showFingerprintEnrollment && newEmployeeId && (
-          <div className="absolute inset-0 bg-white rounded-2xl z-10 p-8 overflow-y-auto">
-            <h2 className="text-2xl font-bold text-[#3b2b1c] mb-4">
-              Enroll Fingerprint (Optional)
-            </h2>
-            <p className="text-gray-600 mb-6">
-              You can enroll a fingerprint for this employee now, or skip and do it later.
-            </p>
-            <FingerprintEnrollment
-              employeeId={newEmployeeId}
-              onEnrollmentComplete={(fpId) => {
-                setFingerprintId(fpId);
-                setShowFingerprintEnrollment(false);
-
-                // Reset and close modal
-                setTimeout(() => {
-                  resetForm();
-                  onClose();
-                }, 1500);
-              }}
-              onSkip={() => {
-                setShowFingerprintEnrollment(false);
-
-                // Reset and close modal
-                setTimeout(() => {
-                  resetForm();
-                  onClose();
-                }, 500);
-              }}
-            />
-          </div>
-        )}
       </motion.div>
     </div>
   );
