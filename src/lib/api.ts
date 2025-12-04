@@ -89,12 +89,14 @@ async function apiCall<T>(
   let lastError: any = null;
 
   while (attempt <= maxRetries) {
+    const { timeoutMs, ...restOptions } = (options as any) || {};
+    const timeout = typeof timeoutMs === 'number' ? timeoutMs : DEFAULT_TIMEOUT_MS;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        ...options,
+        ...restOptions,
         method,
         headers,
         signal: controller.signal,
@@ -661,6 +663,8 @@ export const attendanceApi = {
     return apiCall<any>('/attendance/mark-absences', {
       method: 'POST',
       body: JSON.stringify(params || {}),
+      // allow heavier batch processing to complete without client abort
+      timeoutMs: 60000,
     });
   },
 

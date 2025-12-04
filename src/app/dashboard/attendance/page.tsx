@@ -46,6 +46,7 @@ const getCurrentPHDate = () => {
 
 export default function AttendanceTable() {
   const [selectedDate, setSelectedDate] = useState<string>(getCurrentPHDate());
+  const [pendingDate, setPendingDate] = useState<string>(getCurrentPHDate());
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [attendanceToView, setAttendanceToView] = useState<number | null>(null);
   const [isDateModalOpen, setIsDateModalOpen] = useState<boolean>(false);
@@ -73,7 +74,23 @@ export default function AttendanceTable() {
     try {
       const result = await attendanceApi.getAll(undefined, selectedDate, selectedDate, true);
       if (result.success && result.data) {
-        setAttendanceList(result.data as Attendance[]);
+        const list = result.data as Attendance[];
+        const byKey = new Map<string, Attendance>();
+        for (const rec of list) {
+          const key = `${rec.employee_id}-${rec.date}`;
+          const existing = byKey.get(key);
+          if (!existing) {
+            byKey.set(key, rec);
+          } else {
+            // Prefer real records over offline placeholders
+            const existingIsOffline = String(existing.status).toLowerCase() === 'offline';
+            const currentIsOffline = String(rec.status).toLowerCase() === 'offline';
+            if (existingIsOffline && !currentIsOffline) {
+              byKey.set(key, rec);
+            }
+          }
+        }
+        setAttendanceList(Array.from(byKey.values()));
       } else {
         const msg = result.message || "Failed to load attendance records.";
         setError(msg);
@@ -128,26 +145,30 @@ export default function AttendanceTable() {
     try {
       const res = await attendanceApi.markAbsences({ start_date: startDate, end_date: endDate, respect_sundays: true });
       if (!res.success) {
-        toast.error(res.message || 'Could not auto-mark recent absences.');
+        // background run: do not interrupt users with toasts
+        console.warn(res.message || 'Auto-mark recent absences did not complete.');
       }
     } catch (e) {
       console.error('Auto-mark recent absences failed:', e);
-      toast.error('Could not auto-mark recent absences.');
+      // silent failure for background run
     }
   }, []);
 
-  // Run on mount and when selectedDate changes
+  // Run once on mount: fire-and-forget recent auto-mark (background)
+  useEffect(() => {
+    autoMarkRecentAbsences();
+  }, [autoMarkRecentAbsences]);
+
+  // When selectedDate changes: auto-mark that day (if past), then load records
   useEffect(() => {
     (async () => {
-      await autoMarkRecentAbsences();
       await autoMarkAbsences();
       await fetchAttendance();
     })();
-  }, [autoMarkRecentAbsences, autoMarkAbsences, fetchAttendance]);
+  }, [autoMarkAbsences, fetchAttendance]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await autoMarkRecentAbsences();
     await autoMarkAbsences();
     await fetchAttendance();
     setIsRefreshing(false);
@@ -198,7 +219,7 @@ export default function AttendanceTable() {
   const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1);
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm]);
+  }, [searchTerm, selectedDept, selectedStatus, selectedDate]);
 
   const handleViewAttendance = (id: number) => {
     setAttendanceToView(id);
@@ -300,7 +321,7 @@ export default function AttendanceTable() {
             >
               <option value="all">All Departments</option>
               {departments.map((dept) => (
-                <option key={dept.department_id} value={dept.department_id}>
+                <option key={dept.department_id} value={dept.department_name}>
                   {dept.department_name}
                 </option>
               ))}
@@ -310,7 +331,7 @@ export default function AttendanceTable() {
             <div className="relative">
               <ActionButton
                 label={shortDate}
-                onClick={() => setIsDateModalOpen(true)}
+                onClick={() => { setPendingDate(selectedDate); setIsDateModalOpen(true); }}
                 icon={Calendar}
                 iconPosition="left"
                 className="shadow-md"
@@ -328,9 +349,9 @@ export default function AttendanceTable() {
 
                     <input
                       type="date"
-                      value={selectedDate}
+                      value={pendingDate}
                       max={getCurrentPHDate()}
-                      onChange={(e) => setSelectedDate(e.target.value)}
+                      onChange={(e) => setPendingDate(e.target.value)}
                       className="border border-gray-300 rounded px-3 py-2 w-full"
                     />
 
@@ -343,7 +364,7 @@ export default function AttendanceTable() {
                         Cancel
                       </button>
                       <button
-                        onClick={() => setIsDateModalOpen(false)}
+                        onClick={() => { setIsDateModalOpen(false); if (pendingDate !== selectedDate) setSelectedDate(pendingDate); }}
                         className="px-4 py-2 rounded bg-[#3b2b1c] text-white hover:opacity-90"
                       >
                         Confirm
