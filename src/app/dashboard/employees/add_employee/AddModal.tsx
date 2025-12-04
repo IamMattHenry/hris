@@ -21,8 +21,6 @@ import {
   validateDependent,
   validateBirthDate,
 } from "./validations";
-import FingerprintEnrollment from "@/components/FingerprintEnrollment";
-import { b, s } from "framer-motion/client";
 
 interface EmployeeModalProps {
   isOpen: boolean;

@@ -166,6 +166,7 @@ export const validateEmployeeForm = (
   shift: string,
   employmentStatus: string,
   homeAddress: string,
+  barangay: string,
   city: string,
   region: string,
   province: string,
@@ -203,6 +204,10 @@ export const validateEmployeeForm = (
 
   if (!homeAddress.trim()) {
     errors.homeAddress = "Home address is required";
+  }
+
+  if (!barangay.trim()) {
+    errors.barangay = "Barangay is required";
   }
 
   if (!region) {
