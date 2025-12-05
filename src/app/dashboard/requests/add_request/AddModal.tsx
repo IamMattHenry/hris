@@ -38,8 +38,7 @@ export default function AddLeaveModal({
   onSuccess: () => void;
 }) {
   const { user } = useAuth();
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [loadingEmployees, setLoadingEmployees] = useState(true);
+
   const [formData, setFormData] = useState({
     employee_id: 0,
     leave_type: "vacation" as LeaveType,
@@ -49,48 +48,24 @@ export default function AddLeaveModal({
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedLeaveCredit, setSelectedLeaveCredit] = useState<number | null>(null);
+  const [nonPaidReason, setNonPaidReason] = useState("");
 
   // Get today's date (YYYY-MM-DD) to set as minimum selectable date
   const today = new Date().toISOString().split("T")[0];
 
-  // Fetch employees filtered by department for admins
+  // Always derive employee_id from the logged-in user; no employee selection
   useEffect(() => {
-    const fetchEmployees = async () => {
-      setLoadingEmployees(true);
-      const result = await employeeApi.getAll();
-      if (result.success && result.data) {
-        let filteredEmployees = result.data as any[];
-
-        // If admin, filter employees by their department
-        if (user?.role === "admin" && user?.department_id) {
-          filteredEmployees = filteredEmployees.filter(
-            (emp: any) => emp.department_id === user.department_id
-          );
-        }
-
-        setEmployees(filteredEmployees);
-
-        // Set default employee_id (current user or first available)
-        if (filteredEmployees.length > 0) {
-          const defaultEmployeeId =
-            user?.employee_id || filteredEmployees[0].employee_id;
-          setFormData((prev) => ({
-            ...prev,
-            employee_id: defaultEmployeeId,
-          }));
-        }
-      }
-      setLoadingEmployees(false);
+    const run = () => {
+      if (!isOpen) return;
+      const id = user?.employee_id ?? 0;
+      setFormData((prev) => ({ ...prev, employee_id: id }));
     };
-
-    if (isOpen) {
-      fetchEmployees();
-    }
+    run();
   }, [isOpen, user]);
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
-    if (!formData.employee_id) newErrors.employee_id = "Employee is required";
     if (!formData.start_date) newErrors.start_date = "Start date is required";
     if (!formData.end_date) newErrors.end_date = "End date is required";
     if (
@@ -100,14 +75,48 @@ export default function AddLeaveModal({
     ) {
       newErrors.end_date = "End date must be after start date";
     }
+
+    const isNonSickZeroCredit = formData.leave_type !== "sick" && selectedLeaveCredit === 0;
+    if (isNonSickZeroCredit && !nonPaidReason.trim()) {
+      newErrors.nonPaidReason = "Reason for non-paid leave is required";
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
+
+  // Load selected employee's leave credit
+  useEffect(() => {
+    if (!isOpen) return;
+    const id = formData.employee_id;
+    if (!id || id <= 0) {
+      setSelectedLeaveCredit(null);
+      return;
+    }
+    (async () => {
+      const resp = await employeeApi.getById(id);
+      if ((resp as any)?.success && (resp as any)?.data) {
+        setSelectedLeaveCredit((resp as any).data.leave_credit ?? null);
+      } else {
+        setSelectedLeaveCredit(null);
+      }
+    })();
+  }, [isOpen, formData.employee_id]);
   const handleSubmit = async () => {
     if (!validate()) return;
+    if (!formData.employee_id) {
+      toast.error("Your account is not linked to an employee record. Please contact admin.");
+      return;
+    }
     setIsSubmitting(true);
-    const result = await leaveApi.create(formData);
+
+    const isNonSickZeroCredit = formData.leave_type !== "sick" && selectedLeaveCredit === 0;
+    const combinedRemarks = isNonSickZeroCredit && nonPaidReason.trim()
+      ? `[NON-PAID] ${nonPaidReason.trim()}${formData.remarks ? ` — ${formData.remarks}` : ''}`
+      : formData.remarks;
+
+    const result = await leaveApi.create({ ...formData, remarks: combinedRemarks });
     if (result.success) {
       toast.success("Leave request submitted successfully");
       onSuccess();
@@ -138,40 +147,6 @@ export default function AddLeaveModal({
         <h2 className="text-2xl font-semibold mb-6">Leave Request</h2>
 
         <div className="space-y-4">
-          {/* Employee Selector */}
-          <div>
-            <label className="block text-sm font-semibold mb-2">
-              Employee <span className="text-red-600">*</span>
-            </label>
-            {loadingEmployees ? (
-              <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500">
-                Loading employees...
-              </div>
-            ) : (
-              <select
-                value={formData.employee_id}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    employee_id: Number(e.target.value),
-                  })
-                }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-              >
-                <option value={0}>Select Employee</option>
-                {employees.map((emp) => (
-                  <option key={emp.employee_id} value={emp.employee_id}>
-                    {emp.employee_code} - {emp.first_name} {emp.last_name} (
-                    {emp.department_name || "No Dept"})
-                  </option>
-                ))}
-              </select>
-            )}
-            {errors.employee_id && (
-              <p className="text-red-600 text-xs mt-1">{errors.employee_id}</p>
-            )}
-          </div>
-
           {/* Leave Type */}
           <div>
             <label className="block text-sm font-semibold mb-2">
@@ -200,6 +175,37 @@ export default function AddLeaveModal({
             <label className="block text-sm font-semibold mb-2">
               Start Date
             </label>
+
+          {/* Current Leave Credits (selected employee) */}
+          {selectedLeaveCredit !== null && (
+            <div className="text-sm">
+              Current Leave Credits: <b>{selectedLeaveCredit}</b>
+            </div>
+          )}
+
+          {/* Non-paid warning and reason when no credits for non-sick leaves */}
+          {formData.leave_type !== "sick" && selectedLeaveCredit === 0 && (
+            <>
+              <div className="rounded-md border border-amber-300 bg-amber-50 text-amber-800 p-3">
+                This request will be filed as <b>NON-PAID LEAVE</b>. Please provide a reason.
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2">
+                  Reason for Non-paid Leave <span className="text-red-600">*</span>
+                </label>
+                <textarea
+                  value={nonPaidReason}
+                  onChange={(e) => setNonPaidReason(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                  rows={2}
+                />
+                {errors.nonPaidReason && (
+                  <p className="text-red-600 text-xs mt-1">{errors.nonPaidReason}</p>
+                )}
+              </div>
+            </>
+          )}
+
             <input
               type="date"
               min={today}

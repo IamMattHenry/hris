@@ -75,7 +75,7 @@ router.put(
   '/:id/status',
   verifyToken,
   [
-    body('status').isIn(['present', 'absent', 'late', 'half_day', 'on_leave', 'work_from_home', 'others']).withMessage('Invalid status'),
+    body('status').isIn(['present', 'absent', 'late', 'early_leave', 'half_day', 'on_leave', 'work_from_home', 'overtime', 'others']).withMessage('Invalid status'),
   ],
   handleValidationErrors,
   updateAttendanceStatus

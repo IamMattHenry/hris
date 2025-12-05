@@ -26,7 +26,7 @@ router.post(
   '/apply',
   verifyToken,
   [
-    body('employee_id').isInt().withMessage('Employee ID must be an integer'),
+    body('employee_id').optional().isInt().withMessage('Employee ID must be an integer'),
     body('leave_type').isIn(['vacation', 'sick', 'emergency', 'personal', 'parental', 'bereavement', 'half_day', 'others']).withMessage('Invalid leave type'),
     body('start_date').isISO8601().withMessage('Invalid start date format'),
     body('end_date').isISO8601().withMessage('Invalid end date format'),

@@ -14,6 +14,8 @@ interface Leave {
   employee_id: number;
   first_name: string;
   last_name: string;
+  department_id?: number;
+  department_name?: string;
   leave_type: LeaveType;
   start_date: string;
   end_date: string;
@@ -72,6 +74,7 @@ export default function ViewLeaveModal({
         <div className="space-y-4 mb-6">
           <InfoBox label="Code" value={leave.leave_code} />
           <InfoBox label="Employee" value={`${leave.first_name} ${leave.last_name}`} />
+          <InfoBox label="Department" value={leave.department_name || (leave.department_id ? `Department #${leave.department_id}` : 'N/A')} />
           <InfoBox label="Leave Type" value={LEAVE_TYPE_LABELS[leave.leave_type]} />
           <InfoBox label="Start Date" value={new Date(leave.start_date).toLocaleDateString()} />
           <InfoBox label="End Date" value={new Date(leave.end_date).toLocaleDateString()} />

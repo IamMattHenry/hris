@@ -18,6 +18,10 @@ function getToken(): string | null {
 const DEFAULT_TIMEOUT_MS = 10000; // 10s
 const RETRY_STATUS_CODES = new Set([502, 503, 504]);
 
+
+// Extend RequestInit with optional timeoutMs for our API helper
+type ApiRequestInit = RequestInit & { timeoutMs?: number };
+
 function sleep(ms: number) {
   return new Promise((res) => setTimeout(res, ms));
 }
@@ -25,7 +29,7 @@ function sleep(ms: number) {
 function friendlyMessageFromStatus(status?: number) {
   switch (status) {
     case 401:
-      return 'Your session has expired. Please log in again.';
+      return 'Invalid credentials. Please try again..';
     case 403:
       return 'You do not have permission to perform this action.';
     case 404:
@@ -47,11 +51,22 @@ function friendlyNetworkErrorMessage(err: any): string {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     return 'You appear to be offline. Please check your internet connection.';
   }
+  const code = (err?.code || '').toString().toUpperCase();
   const msg = (err?.message || '').toLowerCase();
-  if (msg.includes('aborted') || msg.includes('timeout')) {
+
+  // Explicitly handle ECONNRESET to show a friendly message
+  if (code === 'ECONNRESET' || msg.includes('econnreset')) {
+    return 'Connection lost. Please check your internet connection and try again.';
+  }
+
+  if (msg.includes('aborted') || msg.includes('timeout') || err?.name === 'AbortError') {
     return 'Request timed out. Please try again.';
   }
-  if (msg.includes('econnrefused') || msg.includes('failed to fetch') || msg.includes('network')) {
+  if (
+    msg.includes('econnrefused') ||
+    msg.includes('failed to fetch') ||
+    msg.includes('network')
+  ) {
     return 'Unable to connect to server. Please check your internet connection.';
   }
   return 'Connection error. Please try again.';
@@ -63,7 +78,7 @@ function friendlyNetworkErrorMessage(err: any): string {
  */
 async function apiCall<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: ApiRequestInit = {}
 ): Promise<{ success: boolean; data?: T; message?: string; error?: string; count?: number; status?: number }> {
   const token = getToken();
 
@@ -124,6 +139,15 @@ async function apiCall<T>(
           window.location.href = '/';
         }
         return { success: false, message: friendlyMessageFromStatus(401), error: 'Unauthorized', status: 401 };
+      }
+
+      // Handle 500 status
+      if (response.status === 500) {
+        if (typeof window !== 'undefined') {
+          try { localStorage.removeItem('token'); } catch {}
+          window.location.href = '/';
+        }
+        return { success: false, message: friendlyMessageFromStatus(500), error: 'Unauthorized', status: 401 };
       }
 
       // Non-OK responses

@@ -35,6 +35,23 @@ export const getLeaveRequests = async (req, res, next) => {
       params.push(status);
     }
 
+    // Department-based filtering for supervisors: show only requests from their department
+    if (req.user?.role === 'supervisor') {
+      const userDept = await db.getOne(
+        `SELECT department_id FROM employees WHERE user_id = ?`,
+        [req.user.user_id]
+      );
+      const userDepartment = userDept?.department_id || null;
+      if (userDepartment) {
+        sql += ' AND e.department_id = ?';
+        params.push(userDepartment);
+      } else {
+        // If supervisor has no department assigned, only show their own requests
+        sql += ' AND e.user_id = ?';
+        params.push(req.user.user_id);
+      }
+    }
+
     sql += ' ORDER BY l.start_date DESC';
 
     const requests = await db.getAll(sql, params);
@@ -73,10 +90,27 @@ export const getLeaveByEmployee = async (req, res, next) => {
 
 export const applyLeave = async (req, res, next) => {
   try {
-    const { employee_id, leave_type, start_date, end_date, remarks } = req.body;
+    const { employee_id: bodyEmployeeId, leave_type, start_date, end_date, remarks } = req.body;
 
-    // Validate required fields
-    if (!employee_id || !leave_type || !start_date || !end_date) {
+    const requesterRole = req.user?.role;
+    const requesterUserId = req.user?.user_id;
+
+    // Determine the effective employee_id
+    let targetEmployeeId = bodyEmployeeId;
+    if (requesterRole === 'employee') {
+      // For employees, force the employee_id to be the authenticated user's employee record
+      const selfEmp = await db.getOne(
+        'SELECT employee_id, leave_credit FROM employees WHERE user_id = ? LIMIT 1',
+        [requesterUserId]
+      );
+      if (!selfEmp) {
+        return res.status(404).json({ success: false, message: 'Employee profile not found for current user' });
+      }
+      targetEmployeeId = selfEmp.employee_id;
+    }
+
+    // Validate required fields (employee_id required only for non-employee requesters)
+    if (!leave_type || !start_date || !end_date || (!targetEmployeeId && requesterRole !== 'employee')) {
       return res.status(400).json({
         success: false,
         message: 'Missing required fields',
@@ -94,7 +128,7 @@ export const applyLeave = async (req, res, next) => {
     // Check if employee has a pending leave request
     const pendingLeave = await db.getOne(
       'SELECT * FROM leaves WHERE employee_id = ? AND status = ?',
-      [employee_id, 'pending']
+      [targetEmployeeId, 'pending']
     );
 
     if (pendingLeave) {
@@ -105,10 +139,10 @@ export const applyLeave = async (req, res, next) => {
     }
 
     // Get user ID from JWT token for audit trail
-    const createdBy = req.user?.user_id;
+    const createdBy = requesterUserId;
 
     const leaveId = await db.insert('leaves', {
-      employee_id,
+      employee_id: targetEmployeeId,
       leave_type,
       start_date,
       end_date,
@@ -121,16 +155,16 @@ export const applyLeave = async (req, res, next) => {
     const leaveCode = generateLeaveCode(leaveId);
     await db.update('leaves', { leave_code: leaveCode }, 'leave_id = ?', [leaveId]);
 
-    logger.info(`Leave request submitted by employee ${employee_id}`);
+    logger.info(`Leave request submitted by employee ${targetEmployeeId}`);
 
     // Create activity log entry
     try {
       await db.insert("activity_logs", {
-        user_id: createdBy || employee_id,
+        user_id: createdBy || targetEmployeeId,
         action: "CREATE",
         module: "leaves",
-        description: `Leave request submitted by employee ID ${employee_id} (${leaveCode})`,
-        created_by: createdBy || employee_id,
+        description: `Leave request submitted by employee ID ${targetEmployeeId} (${leaveCode})`,
+        created_by: createdBy || targetEmployeeId,
       });
     } catch (logError) {
       logger.error("Failed to create activity log:", logError);
@@ -241,31 +275,30 @@ export const approveLeave = async (req, res, next) => {
 
     // Check available leave credits (only for non-sick leaves)
     const availableCredits = Number(leave.emp_leave_credit ?? 0);
-    if (!isSickLeave && availableCredits < 1) {
-      return res.status(400).json({
-        success: false,
-        message: `Insufficient leave credits. Required: 1, Available: ${availableCredits}`,
-      });
-    }
+    const isNonPaid = !isSickLeave && availableCredits < 1;
 
     // Start transaction for atomic operations
     await db.beginTransaction();
 
     try {
-      // Update leave status to approved
+      // Update leave status to approved (append non-paid note if applicable)
+      const newRemarks = isNonPaid
+        ? (leave.remarks ? `${leave.remarks} [NON-PAID]` : '[NON-PAID]')
+        : leave.remarks;
       await db.transactionUpdate(
         'leaves',
         {
           status: 'approved',
           approved_by: approverUserId,
           updated_by: approverUserId,
+          remarks: newRemarks,
         },
         'leave_id = ?',
         [id]
       );
 
       // Deduct leave credits per policy and set employee status to on-leave
-      const employeeUpdate = isSickLeave
+      const employeeUpdate = (isSickLeave || isNonPaid)
         ? { status: 'on-leave' }
         : { status: 'on-leave', leave_credit: availableCredits - 1 };
       await db.transactionUpdate(
@@ -278,7 +311,7 @@ export const approveLeave = async (req, res, next) => {
       await db.commit();
 
       logger.info(
-        `Leave request approved: ${id}, Employee ${leave.emp_id} set to on-leave, ${isSickLeave ? 'no credit deducted (sick leave)' : 'deducted 1 credit'}`
+        `Leave request approved: ${id}, Employee ${leave.emp_id} set to on-leave, ${isSickLeave ? 'no credit deducted (sick leave)' : isNonPaid ? 'approved as non-paid (0 credits)' : 'deducted 1 credit'}`
       );
 
       // Create activity log entry (outside transaction)
@@ -287,7 +320,7 @@ export const approveLeave = async (req, res, next) => {
           user_id: approverUserId || 1,
           action: 'UPDATE',
           module: 'leaves',
-          description: `Approved leave request ${leave.leave_code} for employee ID ${leave.emp_id}; ${isSickLeave ? 'no credit deducted (sick leave)' : 'deducted 1 credit'}`,
+          description: `Approved leave request ${leave.leave_code} for employee ID ${leave.emp_id}; ${isSickLeave ? 'no credit deducted (sick leave)' : isNonPaid ? 'approved as non-paid (0 credits)' : 'deducted 1 credit'}`,
           created_by: approverUserId || 1,
         });
       } catch (logError) {
@@ -296,8 +329,8 @@ export const approveLeave = async (req, res, next) => {
 
       res.json({
         success: true,
-        message: `Leave request approved; ${isSickLeave ? 'no credit deducted (sick leave)' : 'deducted 1 credit'}`,
-        data: { leave_id: id, employee_id: leave.emp_id, deducted_credits: isSickLeave ? 0 : 1 },
+        message: `Leave request approved; ${isSickLeave ? 'no credit deducted (sick leave)' : isNonPaid ? 'approved as non-paid (0 credits)' : 'deducted 1 credit'}`,
+        data: { leave_id: id, employee_id: leave.emp_id, deducted_credits: (isSickLeave || isNonPaid) ? 0 : 1 },
       });
     } catch (error) {
       await db.rollback();

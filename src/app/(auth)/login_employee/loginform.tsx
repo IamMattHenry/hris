@@ -92,8 +92,8 @@ export default function LoginForm() {
             );
             break;
           default:
-            setErrorMessage(result.message || "Login failed. Please try again.");
-            alert(result.message || "Login failed. Please try again.");
+            setErrorMessage("Login failed. Please try again.");
+            alert("Login failed. Please try again.");
         }
       }
     } catch (error) {

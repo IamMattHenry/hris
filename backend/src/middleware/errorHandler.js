@@ -31,6 +31,27 @@ export const errorHandler = (err, req, res, next) => {
     message = 'Invalid reference';
   }
 
+  // Handle common MySQL truncation/format errors more clearly
+  if (err.code === 'ER_TRUNCATED_WRONG_VALUE' || err.code === 'WARN_DATA_TRUNCATED') {
+    statusCode = 400;
+    const raw = err.sqlMessage || err.message || '';
+    // Try to identify which column failed
+    const colMatch = raw.match(/column '([^']+)'/i);
+    const column = colMatch ? colMatch[1] : undefined;
+
+    if (/Incorrect datetime value/i.test(raw)) {
+      message = column
+        ? `Invalid date/time format for field '${column}'.`
+        : 'Invalid date/time format.';
+    } else if (/Data truncated/i.test(raw)) {
+      message = column
+        ? `Invalid value for field '${column}'.`
+        : 'Invalid value provided.';
+    } else {
+      message = 'Invalid data provided.';
+    }
+  }
+
   res.status(statusCode).json({
     success: false,
     message,

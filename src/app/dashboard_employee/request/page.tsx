@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { leaveApi } from "@/lib/api";
+import { leaveApi, employeeApi, authApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "react-hot-toast";
 
@@ -39,6 +39,8 @@ export default function RequestsPage() {
   const [leaves, setLeaves] = useState<Leave[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [leaveCredit, setLeaveCredit] = useState<number | null>(null);
+  const [nonPaidReason, setNonPaidReason] = useState<string>("");
 
   const [formData, setFormData] = useState({
     leave_type: "" as LeaveType | "",
@@ -66,6 +68,17 @@ export default function RequestsPage() {
 
   useEffect(() => {
     fetchLeaves();
+    // also load current leave credits for this employee
+    (async () => {
+      try {
+        const me = await authApi.getCurrentUser();
+        if ((me as any)?.success && (me as any)?.data) {
+          setLeaveCredit((me as any).data.leave_credit ?? null);
+        }
+      } catch {
+        // ignore; credit banner just won't show
+      }
+    })();
   }, []);
 
   const handleInputChange = (field: string, value: string) => {
@@ -82,6 +95,10 @@ export default function RequestsPage() {
     // Validation
     if (!formData.leave_type || !formData.start_date || !formData.end_date || !formData.remarks) {
       toast.error("Please fill out all required fields.");
+      return;
+    }
+    if (leaveCredit === 0 && !nonPaidReason.trim()) {
+      toast.error("Please provide a reason for your non-paid leave.");
       return;
     }
 
@@ -101,12 +118,16 @@ export default function RequestsPage() {
 
     setIsSubmitting(true);
     try {
+      const combinedRemarks = leaveCredit === 0 && nonPaidReason.trim()
+        ? `[NON-PAID] ${nonPaidReason.trim()}${formData.remarks ? ` — ${formData.remarks}` : ''}`
+        : formData.remarks;
+
       const result = await leaveApi.create({
         employee_id: user.employee_id,
         leave_type: formData.leave_type,
         start_date: formData.start_date,
         end_date: formData.end_date,
-        remarks: formData.remarks,
+        remarks: combinedRemarks,
       });
 
       if (result.success) {
@@ -147,6 +168,17 @@ export default function RequestsPage() {
         {/* Leave Request Form */}
         <div className="bg-white rounded-xl shadow-sm border border-[#e8dcc8] p-6">
           <h2 className="text-xl font-semibold mb-4">Submit New Leave Request</h2>
+          {leaveCredit !== null && (
+            <div className="mb-3 text-sm text-gray-600">
+              Current Leave Credits: <span className="font-semibold">{leaveCredit}</span>
+            </div>
+          )}
+          {leaveCredit === 0 && (
+            <div className="mb-4 bg-yellow-50 border border-yellow-200 text-yellow-900 rounded p-3">
+              You have 0 leave credits. This request will be filed as <span className="font-semibold">NON-PAID LEAVE</span>.
+              Please provide a reason below.
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Leave Type */}
@@ -179,6 +211,7 @@ export default function RequestsPage() {
                   min={today}
                   value={formData.start_date}
                   onChange={(e) => {
+
                     const newStart = e.target.value;
                     handleInputChange("start_date", newStart);
 
@@ -210,6 +243,23 @@ export default function RequestsPage() {
                 />
               </div>
             </div>
+            {/* Non-paid reason (visible when no credits) */}
+            {leaveCredit === 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason for Non-paid Leave <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={nonPaidReason}
+                  onChange={(e) => setNonPaidReason(e.target.value)}
+                  rows={2}
+                  required={leaveCredit === 0}
+                  placeholder="Explain why you need a non-paid leave..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#073532]"
+                />
+              </div>
+            )}
+
 
             {/* Remarks */}
             <div>
