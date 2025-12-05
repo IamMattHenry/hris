@@ -44,6 +44,7 @@ export const validateDependent = (
   contactInfo: string,
   relationshipSpecify: string,
   homeAddress: string,
+  barangay: string,
   region: string,
   province: string,
   city: string
@@ -80,6 +81,11 @@ export const validateDependent = (
   // --- Email (optional but must be valid if filled) ---
   if (email.trim() && !/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(email.trim())) {
     errors.email = "Must be a valid Gmail address";
+  }
+
+  // --- Barangay (required) ---
+  if (!barangay.trim()) {
+    errors.barangay = "Barangay is required";
   }
 
   // --- Address Section (required) ---

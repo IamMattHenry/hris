@@ -1755,33 +1755,33 @@
       }
     ]
   },
-  {
-    "region": "National Capital Region (NCR)",
-    "provinces": [
-      {
-        "province": "NCR",
-        "cities": [
-          "Caloocan City",
-          "Las Piñas City",
-          "Makati City",
-          "Malabon City",
-          "Mandaluyong City",
-          "Manila",
-          "Marikina City",
-          "Muntinlupa City",
-          "Navotas City",
-          "Parañaque City",
-          "Pasay City",
-          "Pasig City",
-          "Quezon City",
-          "San Juan City",
-          "Taguig City",
-          "Valenzuela City",
-          "Pateros"
-        ]
-      }
-    ]
-  },
+{
+  "region": "National Capital Region (NCR)",
+  "provinces": [
+    {
+      "province": "NCR",
+      "cities": [
+        "Caloocan City",
+        "City of Las Piñas",
+        "City of Makati",
+        "City of Malabon",
+        "City of Mandaluyong",
+        "City of Manila",
+        "City of Marikina",
+        "City of Muntinlupa",
+        "City of Navotas",
+        "City of Parañaque",
+        "City of Pasay",
+        "City of Pasig",
+        "Quezon City",
+        "City of San Juan",
+        "City of Taguig",
+        "City of Valenzuela",
+        "Municipality of Pateros"
+      ]
+    }
+  ]
+},
   {
     "region": "Cordillera Administrative Region (CAR)",
     "provinces": [

@@ -156,11 +156,13 @@ export default function EditEmployeeModal({
   const [departments, setDepartments] = useState<any[]>([]);
   const [positions, setPositions] = useState<any[]>([]);
   const [supervisors, setSupervisors] = useState<any[]>([]);
-  const [barangays, setBarangays] = useState<string[]>([]);
-  const [cities, setCities] = useState<string[]>([]);
-  const [regions, setRegions] = useState<any[]>([]);
-  const [provinces, setProvinces] = useState<string[]>([]);
+  const [regions, setRegions] = useState<any[]>([]);            // objects (PSGC)
+  const [provinces, setProvinces] = useState<any[]>([]);        // objects
+  const [cities, setCities] = useState<any[]>([]);              // objects
+  const [barangays, setBarangays] = useState<any[]>([]);        // objects
+
   const [dependentProvinces, setDependentProvinces] = useState<string[]>([]);
+  const [dependantBarangays, setDependantBarangays] = useState<string[]>([]);
   const [dependentCities, setDependentCities] = useState<string[]>([]);
   const [phLocationsData, setPhLocationsData] = useState<any[]>([]);
   const [errors, setErrors] = useState<ValidationErrors>({});
@@ -170,12 +172,18 @@ export default function EditEmployeeModal({
   const [showFingerprintEnrollment, setShowFingerprintEnrollment] = useState(false);
   const [currentFingerprintId, setCurrentFingerprintId] = useState<number | null>(null);
 
+  // psgc contexts
+  const [regionCode, setRegionCode] = useState("");
+const [provinceCode, setProvinceCode] = useState("");
+const [cityCode, setCityCode] = useState("");
+
   //active tab
   const [activeTab, setActiveTab] = useState("personal");
 
   /* ---------- Fetch employee details ---------- */
   useEffect(() => {
     if (isOpen && id) fetchEmployee(id);
+    setActiveTab("personal");
   }, [isOpen, id]);
 
   const fetchEmployee = async (empId: number) => {
@@ -371,60 +379,175 @@ export default function EditEmployeeModal({
   };
 
 
-  /* ----- Fetch PH Locations ----- */
-  useEffect(() => {
-    async function loadPhLocationsData() {
-      try {
-        const res = await fetch("/data/ph_locations.json");
-        if (!res.ok) {
-          throw new Error(
-            `Failed to fetch PH locations data: ${res.status} ${res.statusText}`
-          );
-        }
-        const data = await res.json();
-        setPhLocationsData(data);
-        const regionNames = data.map((r: any) => r.region);
-        setRegions(regionNames);
-      } catch (error) {
-        console.error("Error loading PH locations data:", error);
-        setRegions([]);
-      }
-    }
-    loadPhLocationsData();
-  }, []);
 
-  useEffect(() => {
-    if (region) {
-      const selectedRegion = phLocationsData.find((r: any) => r.region === region);
-      if (selectedRegion) {
-        const provinceNames = selectedRegion.provinces.map((p: any) => p.province);
-        setProvinces(provinceNames);
-        setCities([]);
-      } else {
-        setProvinces([]);
-        setCities([]);
+/* ---------- PH locations ---------- */
+/* ---------- PH locations ---------- */
+useEffect(() => {
+  async function loadPhLocationsData() {
+    try {
+      const res = await fetch("/data/ph_locations.json");
+      if (!res.ok) {
+        throw new Error(
+          `Failed to fetch PH locations data: ${res.status} ${res.statusText}`
+        );
       }
+      const data = await res.json();
+      setPhLocationsData(data);
+      const regionNames = data.map((r: any) => r.region);
+      setRegions(regionNames);
+    } catch (error) {
+      console.error("Error loading PH locations data:", error);
+      setRegions([]);
+    }
+  }
+  loadPhLocationsData();
+}, []);
+
+// When region changes
+useEffect(() => {
+  if (region) {
+    const selectedRegion = phLocationsData.find((r: any) => r.region === region);
+    if (selectedRegion) {
+      setRegionCode(selectedRegion.regionCode);
+      const provinceNames = selectedRegion.provinces.map((p: any) => p.province);
+      setProvinces(provinceNames);
+      setCities([]);
+      // Reset codes when region changes
+      setProvinceCode("");
+      setCityCode("");
     } else {
       setProvinces([]);
       setCities([]);
+      setRegionCode("");
+      setProvinceCode("");
+      setCityCode("");
     }
-  }, [region, phLocationsData]);
+  } else {
+    setProvinces([]);
+    setCities([]);
+    setRegionCode("");
+    setProvinceCode("");
+    setCityCode("");
+  }
+}, [region, phLocationsData]);
 
-  useEffect(() => {
-    if (region && province) {
-      const selectedRegion = phLocationsData.find((r: any) => r.region === region);
-      if (selectedRegion) {
-        const selectedProvince = selectedRegion.provinces.find((p: any) => p.province === province);
-        if (selectedProvince) {
-          setCities(selectedProvince.cities);
-        } else {
-          setCities([]);
+// When province changes
+useEffect(() => {
+  if (region && province) {
+    const selectedRegion = phLocationsData.find((r: any) => r.region === region);
+    if (selectedRegion) {
+      const selectedProvince = selectedRegion.provinces.find((p: any) => p.province === province);
+      if (selectedProvince) {
+        setProvinceCode(selectedProvince.provinceCode);
+        setCities(selectedProvince.cities);
+        // Reset city code when province changes
+        setCityCode("");
+      } else {
+        setCities([]);
+        setProvinceCode("");
+        setCityCode("");
+      }
+    }
+  } else {
+    setCities([]);
+    setProvinceCode("");
+    setCityCode("");
+  }
+}, [region, province, phLocationsData]);
+
+// When city changes - store the code
+const handleCityChange = (selectedCity: string) => {
+  setCity(selectedCity);
+  const selectedRegion = phLocationsData.find((r: any) => r.region === region);
+  const selectedProvince = selectedRegion?.provinces.find((p: any) => p.province === province);
+  const selectedCityObj = selectedProvince?.cities.find((c: any) => c.city === selectedCity);
+  if (selectedCityObj) {
+    setCityCode(selectedCityObj.cityCode);
+  } else {
+    setCityCode("");
+  }
+};
+
+useEffect(() => {
+  async function loadBarangays() {
+    if (!city) {
+      setBarangays([]);
+      return;
+    }
+
+    try {
+      const allCitiesRes = await fetch(
+        "https://psgc.gitlab.io/api/cities-municipalities.json"
+      );
+      const allCities = await allCitiesRes.json();
+
+      const normalize = (name: string) =>
+        name
+          .toLowerCase()
+          .replace(/^city of\s*/i, "")
+          .replace(/\s*city$/i, "")
+          .replace(/-/g, " ")
+          .trim();
+
+      const normalizedCity = normalize(city);
+
+      // First try: strict normalize match
+      let selectedCity = allCities.find(
+        (c: any) => normalize(c.name) === normalizedCity
+      );
+
+      // 🔥 Special corrections for NCR inconsistent naming
+      if (!selectedCity) {
+        const ncrCityMap: Record<string, string> = {
+          "manila": "City of Manila",
+          "quezon city": "Quezon City",
+          "makati": "City of Makati",
+          "pasay": "City of Pasay",
+          "pasig": "City of Pasig",
+          "parañaque": "City of Parañaque",
+          "marikina": "City of Marikina",
+          "mandaluyong": "City of Mandaluyong",
+          "taguig": "Taguig City",
+          "caloocan": "Caloocan City",
+        };
+
+        const mapped = ncrCityMap[normalizedCity];
+        if (mapped) {
+          selectedCity = allCities.find(
+            (c: any) => normalize(c.name) === normalize(mapped)
+          );
         }
       }
-    } else {
-      setCities([]);
+
+      if (!selectedCity) {
+        console.warn("City not found in PSGC:", city);
+        setBarangays([]);
+        return;
+      }
+
+      const barangayRes = await fetch(
+        `https://psgc.gitlab.io/api/cities-municipalities/${selectedCity.code}/barangays.json`
+      );
+      const barangays = await barangayRes.json();
+
+      setBarangays(barangays.map((b: any) => b.name));
+    } catch (err) {
+      console.error("Error loading barangays:", err);
+      setBarangays([]);
     }
-  }, [region, province, phLocationsData]);
+  }
+
+  loadBarangays();
+}, [city]);
+
+
+
+
+
+
+
+
+/* ----- Dependent PH Locations ----- */
 
   useEffect(() => {
     if (dependentRegion) {
@@ -467,63 +590,79 @@ export default function EditEmployeeModal({
     }
   }, [dependentRegion, dependentProvince, phLocationsData]);
 
-function normalizeName(name: string) {
-  return name
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/city of /g, "")
-    .replace(/city /g, "")
-    .replace(/[^a-z0-9\s]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 useEffect(() => {
-  async function loadBarangays() {
-    if (!city) {
-      setBarangays([]);
+  async function loadDependentBarangays() {
+    if (!dependentCity) {
+      setDependantBarangays([]);
       return;
     }
 
     try {
+      // Fetch all cities/municipalities from PSGC
       const resCities = await fetch("https://psgc.gitlab.io/api/cities-municipalities/");
-      const allCities = await resCities.json();
+      if (!resCities.ok) throw new Error("Failed to fetch cities");
+      const allCities: Array<{ code: string | number; name: string }> = await resCities.json();
 
-      const normCity = normalizeName(city);
+      const normalizedCity = dependentCity.toLowerCase().trim();
 
-      // Multi-pass fuzzy matching
-      const selectedCity =
-        allCities.find((c: any) => normalizeName(c.name) === normCity) ||
-        allCities.find((c: any) => normalizeName(c.name).includes(normCity)) ||
-        allCities.find((c: any) => normCity.includes(normalizeName(c.name)));
+      // ⭐ Special case for Manila
+      if (normalizedCity === "manila") {
+        // Get all Manila districts
+        const manilaDistricts = allCities.filter((c) =>
+          c.name.toLowerCase().includes("manila")
+        );
 
-      if (!selectedCity) {
-        console.warn("City not found in PSGC:", city);
-        setBarangays([]);
+        // Fetch barangays for all districts in parallel
+        const barangaysArrays = await Promise.all(
+          manilaDistricts.map(async (district) => {
+            const res = await fetch(
+              `https://psgc.gitlab.io/api/cities-municipalities/${district.code}/barangays`
+            );
+            if (!res.ok) return [];
+            const list: Array<{ name: string }> = await res.json();
+            return list.map((b) => b.name);
+          })
+        );
+
+        // Merge, remove duplicates, and sort
+        const uniqueBarangays = [...new Set(barangaysArrays.flat())].sort();
+        setDependantBarangays(uniqueBarangays);
         return;
       }
 
-      const cityCode = selectedCity.code;
+      // ⭐ Normal cities
+      const match =
+        allCities.find((c) => c.name.toLowerCase() === normalizedCity) ||
+        allCities.find((c) => c.name.toLowerCase().includes(normalizedCity)) ||
+        allCities.find((c) => normalizedCity.includes(c.name.toLowerCase()));
+
+      if (!match) {
+        console.warn("City not found in PSGC for dependentCity:", dependentCity);
+        setDependantBarangays([]);
+        return;
+      }
+
+      const cityCode = String(match.code);
 
       const resBrgy = await fetch(
         `https://psgc.gitlab.io/api/cities-municipalities/${cityCode}/barangays`
       );
-      const barangayList = await resBrgy.json();
+      if (!resBrgy.ok) throw new Error("Failed to fetch barangays");
 
-      setBarangays(barangayList.map((b: any) => b.name));
-    } catch (error) {
-      console.error("Error loading barangays:", error);
-      setBarangays([]);
+      const barangayList: Array<{ name: string }> = await resBrgy.json();
+      setDependantBarangays(barangayList.map((b) => b.name));
+    } catch (err) {
+      console.error("Error loading dependent barangays:", err);
+      setDependantBarangays([]);
     }
   }
 
-  loadBarangays();
-}, [city]);
+  loadDependentBarangays();
+}, [dependentCity]);
 
 
-  
-  
+
+
 
   /* ---------- Dependent formatting ---------- */
   const handleDependentContactInfoChange = (
@@ -948,41 +1087,40 @@ useEffect(() => {
 
                     <FormSelect
                       label="Region"
-                      value={region}
+                      value={region}       // region = CODE only ("010000000")
                       onChange={(e) => {
                         setRegion(e.target.value);
                         setProvince("");
                         setCity("");
                       }}
-                      options={regions}
+                      options={regions}    // [{code, name}, ...]
                       error={errors.region}
                     />
 
                     <FormSelect
                       label="Province"
-                      value={province}
+                      value={province}     // province = CODE only
                       onChange={(e) => {
                         setProvince(e.target.value);
                         setCity("");
                       }}
-                      options={region ? provinces : []}
+                      options={provinces}  // [{code, name}, ...]
                       error={errors.province}
                     />
+
 
                     <FormSelect
                       label="City"
                       value={city}
                       onChange={(e) => setCity(e.target.value)}
-                      options={province ? cities : []}
+                      options={cities}     // [{code, name}, ...]
                       error={errors.city}
                     />
-
-
                     <FormSelect
                       label="Barangay"
                       value={barangay}
                       onChange={(e) => setBarangay(e.target.value)}
-                      options={barangays}
+                      options={barangays}  // [{code, name}]
                       error={errors.barangay}
                     />
 
@@ -1261,7 +1399,21 @@ useEffect(() => {
                       options={dependentProvince ? dependentCities : []}
                       error={dependentErrors.city}
                     />
+
+                    <FormSelect
+                      label="Barangay:"
+                      value={dependentBarangay}
+                      onChange={(e) => {
+                        setDependentBarangay(e.target.value);
+                        if (dependentErrors.barangay) {
+                          setDependentErrors((prev) => ({ ...prev, barangay: "" }));
+                        }
+                      }}
+                      options={dependantBarangays}
+                      error={dependentErrors.barangay}
+                    />
                   </div>
+
                   <button
                     type="button"
                     onClick={() => {
@@ -1273,6 +1425,7 @@ useEffect(() => {
                         dependentContactInfo,
                         dependentRelationshipSpecify,
                         dependentHomeAddress,
+                        dependentBarangay,
                         dependentRegion,
                         dependentProvince,
                         dependentCity

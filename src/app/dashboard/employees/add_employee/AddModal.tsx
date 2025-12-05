@@ -268,6 +268,9 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     }
   }, [dependentRegion, dependentProvince, phLocationsData]);
 
+
+
+  
 function normalizeName(name: string) {
   return name
     .toLowerCase()
