@@ -26,6 +26,31 @@ interface EmployeeData {
   user_id?: number;
 }
 
+const formatCivilStatusForDisplay = (value?: string | null) => {
+  if (!value) return "";
+  const v = value.toLowerCase();
+  const map: Record<string, string> = {
+    single: "Single",
+    married: "Married",
+    divorced: "Divorced",
+    widowed: "Widowed",
+  };
+  return map[v] || value;
+};
+
+function normalizeName(name: string) {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/city of /g, "")
+    .replace(/city /g, "")
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+
 /* ---------- Component ---------- */
 export default function EditEmployeeModal({
   isOpen,
@@ -46,6 +71,8 @@ export default function EditEmployeeModal({
   const [phLocationsData, setPhLocationsData] = useState<any[]>([]);
 
   // PH locations data for address fields
+  const [barangay, setBarangay] = useState("");
+  const [barangays, setBarangays] = useState<string[]>([]);
   useEffect(() => {
     async function loadPhLocationsData() {
       try {
@@ -72,6 +99,8 @@ export default function EditEmployeeModal({
       const selectedRegion = phLocationsData.find((r: any) => r.region === region);
       if (selectedRegion) {
         const provinceNames = selectedRegion.provinces.map((p: any) => p.province);
+
+
         setProvinces(provinceNames);
         setCities([]);
       } else {
@@ -100,6 +129,41 @@ export default function EditEmployeeModal({
     }
   }, [region, province, phLocationsData]);
 
+  // Load barangays when city changes (via PSGC API)
+  useEffect(() => {
+    async function loadBarangays() {
+      if (!city) {
+        setBarangays([]);
+        return;
+      }
+      try {
+        const resCities = await fetch("https://psgc.gitlab.io/api/cities-municipalities/");
+        const allCities = await resCities.json();
+        const normCity = normalizeName(city);
+        const selectedCity =
+          allCities.find((c: any) => normalizeName(c.name) === normCity) ||
+          allCities.find((c: any) => normalizeName(c.name).includes(normCity)) ||
+          allCities.find((c: any) => normCity.includes(normalizeName(c.name)));
+        if (!selectedCity) {
+          console.warn("City not found in PSGC:", city);
+          setBarangays([]);
+          return;
+        }
+        const cityCode = selectedCity.code;
+        const resBrgy = await fetch(
+          `https://psgc.gitlab.io/api/cities-municipalities/${cityCode}/barangays`
+        );
+        const barangayList = await resBrgy.json();
+        setBarangays(barangayList.map((b: any) => b.name));
+      } catch (err) {
+        console.error("Error loading barangays:", err);
+        setBarangays([]);
+      }
+    }
+    loadBarangays();
+  }, [city]);
+
+
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -117,7 +181,8 @@ export default function EditEmployeeModal({
         setCity(res.data.city || "");
         setRegion(res.data.region || "");
         setProvince(res.data.province || "");
-        setCivilStatus(res.data.civil_status || "");
+        setBarangay(res.data.barangay || "");
+        setCivilStatus(formatCivilStatusForDisplay(res.data.civil_status));
       }
     } catch (error) {
       console.error("Error fetching employee:", error);
@@ -132,6 +197,10 @@ export default function EditEmployeeModal({
     const formErrors: ValidationErrors = {};
     if (!homeAddress.trim()) formErrors.homeAddress = "Home address is required.";
     if (!region) formErrors.region = "Region is required.";
+
+
+
+
     if (!province) formErrors.province = "Province is required.";
     if (!city) formErrors.city = "City is required.";
     if (!civilStatus) formErrors.civilStatus = "Civil status is required.";
@@ -146,10 +215,11 @@ export default function EditEmployeeModal({
     try {
       const updatedData: any = {
         home_address: homeAddress,
+        barangay: barangay || null,
         city: city,
         region: region,
         province: province,
-        civil_status: civilStatus.toLowerCase(),
+        civil_status: civilStatus ? civilStatus.toLowerCase() : null,
       };
 
       console.log("Submitting update:", updatedData);
@@ -214,6 +284,7 @@ export default function EditEmployeeModal({
                   setRegion(e.target.value);
                   setProvince("");
                   setCity("");
+                  setBarangay("");
                 }}
                 options={regions}
                 error={errors.region}
@@ -224,6 +295,7 @@ export default function EditEmployeeModal({
                 onChange={(e) => {
                   setProvince(e.target.value);
                   setCity("");
+                  setBarangay("");
                 }}
                 options={region ? provinces : []}
                 error={errors.province}
@@ -231,10 +303,21 @@ export default function EditEmployeeModal({
               <FormSelect
                 label="City"
                 value={city}
-                onChange={(e) => setCity(e.target.value)}
+                onChange={(e) => {
+                  setCity(e.target.value);
+                  setBarangay("");
+                }}
                 options={province ? cities : []}
                 error={errors.city}
               />
+              <FormSelect
+                label="Barangay"
+                value={barangay}
+                onChange={(e) => setBarangay(e.target.value)}
+                options={city ? barangays : []}
+                error={errors.barangay}
+              />
+
               <FormSelect
                 label="Civil Status"
                 value={civilStatus}

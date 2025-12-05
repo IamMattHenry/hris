@@ -255,6 +255,7 @@ export const getEmployeeById = async (req, res, next) => {
     u.role,
     ur.sub_role,
     ea.home_address,
+    ea.barangay_name AS barangay,
     ea.city_name AS city,
     ea.region_name AS region,
     ea.province_name AS province
@@ -343,6 +344,7 @@ export const createEmployee = async (req, res, next) => {
       gender,
       civil_status,
       home_address,
+      barangay,
       city,
       region,
       province,
@@ -579,15 +581,16 @@ export const createEmployee = async (req, res, next) => {
       }
 
       // Insert address record if provided
-      if (home_address || city || region || province) {
+      if (home_address || barangay || city || region || province) {
         await db.transactionInsert("employee_addresses", {
           employee_id: employeeId,
           home_address: home_address || null,
+          barangay_name: barangay || null,
           city_name: city || null,
           region_name: region || null,
           province_name: province || null,
           created_by,
-          
+
         });
       }
 
@@ -740,6 +743,7 @@ export const updateEmployee = async (req, res, next) => {
       role,
       sub_role,
       home_address,
+      barangay,
       city,
       region,
       province,
@@ -927,7 +931,7 @@ export const updateEmployee = async (req, res, next) => {
       }
 
       // Handle address updates
-      const addressFieldsProvided = [home_address, city, region, province].some(
+      const addressFieldsProvided = [home_address, barangay, city, region, province].some(
         (value) => value !== undefined
       );
 
@@ -935,6 +939,9 @@ export const updateEmployee = async (req, res, next) => {
         const addressData = {};
         if (home_address !== undefined) {
           addressData.home_address = home_address ? home_address : null;
+        }
+        if (barangay !== undefined) {
+          addressData.barangay_name = barangay ? barangay : null;
         }
         if (city !== undefined) {
           addressData.city_name = city ? city : null;
