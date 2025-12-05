@@ -51,6 +51,15 @@ app.use(morgan('combined', {
 
 // ============ ROUTES ============
 
+// Simple root route so Render root URL shows a friendly message
+app.get('/', (req, res) => {
+	res.json({
+		success: true,
+		message: 'HRIS backend is running',
+		timestamp: new Date().toISOString(),
+	});
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({

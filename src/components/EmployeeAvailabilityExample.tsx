@@ -25,20 +25,20 @@ export default function EmployeeAvailabilityExample() {
     fetchAvailability();
   }, [selectedDate]);
 
-  const fetchAvailability = async () => {
-    setLoading(true);
-    try {
-      const result = await employeeApi.getAvailability(selectedDate);
-      if (result.success) {
-        setEmployees(result.data);
-        setSummary(result.summary);
-      }
-    } catch (error) {
-      console.error("Failed to fetch employee availability:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+	  const fetchAvailability = async () => {
+	    setLoading(true);
+	    try {
+	      const result: any = await employeeApi.getAvailability(selectedDate);
+	      if (result?.success) {
+	        setEmployees(result.data ?? []);
+	        setSummary(result.summary);
+	      }
+	    } catch (error) {
+	      console.error("Failed to fetch employee availability:", error);
+	    } finally {
+	      setLoading(false);
+	    }
+	  };
 
   // Filter functions for easy access
   const availableEmployees = employees.filter(
