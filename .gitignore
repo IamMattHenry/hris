@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# vs code settings
+/.vscode
+
 # production
 /build
 
@@ -39,3 +42,19 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# documentation
+START_HERE.md
+ANSWERS_TO_YOUR_QUESTIONS.md
+BACKEND_SETUP_SUMMARY.md
+IMPLEMENTATION_COMPLETE.md
+NEXT_STEPS.md
+PROJECT_COMPLETION_REPORT.md
+ROLE_AND_USER_MANAGEMENT.md
+CREATE_USERS_QUICK_START.md
+USER_SETUP_SUMMARY.md
+FILES_CREATED.md
+EMPLOYEE_CREATION_GUIDE.md
+USER_MANAGEMENT_API_GUIDE.md
+FRONTEND_API_INTEGRATION_GUIDE.md
+CODE_UPDATE_GUIDE.md

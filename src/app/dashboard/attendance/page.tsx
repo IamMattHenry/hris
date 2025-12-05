@@ -1,0 +1,515 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { Search, Calendar, RotateCw } from "lucide-react";
+import toast from "react-hot-toast";
+import ActionButton from "@/components/buttons/ActionButton";
+import SearchBar from "@/components/forms/FormSearch";
+import ViewAttendanceModal from "./view_attendance/ViewModal";
+import { attendanceApi, departmentApi } from "@/lib/api";
+
+type AttendanceStatus = "present" | "absent" | "late" | "early_leave" | "half_day" | "on_leave" | "work_from_home" | "others" | "offline";
+
+interface Attendance {
+  attendance_id: number | null;
+  attendance_code: string | null;
+  employee_id: number;
+  employee_code: string;
+  first_name: string;
+  last_name: string;
+  department_name?: string | null;
+  date: string;
+  time_in: string | null;
+  time_out: string | null;
+  status: AttendanceStatus;
+  overtime_hours: number;
+  remarks?: string;
+}
+
+const STATUS_LABELS: Record<AttendanceStatus, string> = {
+  present: "Present",
+  absent: "Absent",
+  late: "Late",
+  early_leave: "Early Leave",
+  half_day: "Half-Day",
+  on_leave: "On Leave",
+  work_from_home: "Work From Home",
+  others: "Others",
+  offline: "Offline",
+};
+
+const getCurrentPHDate = () => {
+  return new Date().toLocaleDateString("sv-SE", {
+    timeZone: "Asia/Manila",
+  }); // YYYY-MM-DD
+};
+
+export default function AttendanceTable() {
+  const [selectedDate, setSelectedDate] = useState<string>(getCurrentPHDate());
+  const [pendingDate, setPendingDate] = useState<string>(getCurrentPHDate());
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [attendanceToView, setAttendanceToView] = useState<number | null>(null);
+  const [isDateModalOpen, setIsDateModalOpen] = useState<boolean>(false);
+  const [attendanceList, setAttendanceList] = useState<Attendance[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [departments, setDepartments] = useState<{ department_id: number, department_name: string }[]>([]);
+  const [selectedDept, setSelectedDept] = useState<string>("all");
+  const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10; // change page size here
+
+  const currentDate = new Date();
+  const formattedDate = currentDate.toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const fetchAttendance = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await attendanceApi.getAll(undefined, selectedDate, selectedDate, true);
+      if (result.success && result.data) {
+        const list = result.data as Attendance[];
+        const byKey = new Map<string, Attendance>();
+        for (const rec of list) {
+          const key = `${rec.employee_id}-${rec.date}`;
+          const existing = byKey.get(key);
+          if (!existing) {
+            byKey.set(key, rec);
+          } else {
+            // Prefer real records over offline placeholders
+            const existingIsOffline = String(existing.status).toLowerCase() === 'offline';
+            const currentIsOffline = String(rec.status).toLowerCase() === 'offline';
+            if (existingIsOffline && !currentIsOffline) {
+              byKey.set(key, rec);
+            }
+          }
+        }
+        setAttendanceList(Array.from(byKey.values()));
+      } else {
+        const msg = result.message || "Failed to load attendance records.";
+        setError(msg);
+        toast.error(msg);
+      }
+    } catch (e: any) {
+      const msg = e?.message || "Failed to load attendance records.";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedDate]);
+
+  // Auto-mark absences for past dates up to yesterday (respect Sundays), then load records
+  const getYesterdayPHDate = () => {
+    const now = new Date();
+    const ph = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+    ph.setDate(ph.getDate() - 1);
+    const y = ph.getFullYear();
+    const m = String(ph.getMonth() + 1).padStart(2, '0');
+    const d = String(ph.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const AUTO_RANGE_DAYS = 14;
+
+  const autoMarkAbsences = useCallback(async () => {
+    const todayPH = getCurrentPHDate();
+    if (!selectedDate || selectedDate >= todayPH) return;
+    const endDate = getYesterdayPHDate();
+    try {
+      const res = await attendanceApi.markAbsences({ start_date: selectedDate, end_date: endDate, respect_sundays: true });
+      if (!res.success) {
+        toast.error(res.message || 'Could not auto-mark absences.');
+      }
+    } catch (e: any) {
+      console.error('Auto-mark absences failed:', e);
+      toast.error('Could not auto-mark absences.');
+    }
+  }, [selectedDate]);
+
+  const autoMarkRecentAbsences = useCallback(async () => {
+    // On page load/refresh, scan back multiple days regardless of selected date
+    const endDate = getYesterdayPHDate();
+    const start = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+    start.setDate(start.getDate() - AUTO_RANGE_DAYS);
+    const y = start.getFullYear();
+    const m = String(start.getMonth() + 1).padStart(2, '0');
+    const d = String(start.getDate()).padStart(2, '0');
+    const startDate = `${y}-${m}-${d}`;
+    try {
+      const res = await attendanceApi.markAbsences({ start_date: startDate, end_date: endDate, respect_sundays: true });
+      if (!res.success) {
+        // background run: do not interrupt users with toasts
+        console.warn(res.message || 'Auto-mark recent absences did not complete.');
+      }
+    } catch (e) {
+      console.error('Auto-mark recent absences failed:', e);
+      // silent failure for background run
+    }
+  }, []);
+
+  // Run once on mount: fire-and-forget recent auto-mark (background)
+  useEffect(() => {
+    autoMarkRecentAbsences();
+  }, [autoMarkRecentAbsences]);
+
+  // When selectedDate changes: auto-mark that day (if past), then load records
+  useEffect(() => {
+    (async () => {
+      await autoMarkAbsences();
+      await fetchAttendance();
+    })();
+  }, [autoMarkAbsences, fetchAttendance]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await autoMarkAbsences();
+    await fetchAttendance();
+    setIsRefreshing(false);
+  };
+
+  // Manual mark absences removed (auto-marking implemented)
+
+  let filteredAttendance = attendanceList.filter((record) => {
+    const matchSearch =
+      `${record.first_name} ${record.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (record.attendance_code?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+      (record.department_name?.toLowerCase() || "").includes(searchTerm.toLowerCase());
+
+    const matchDept =
+      selectedDept === "all" ||
+      record.department_name?.toLowerCase() === selectedDept.toLowerCase();
+
+    const matchStatus =
+      selectedStatus === "all" ||
+      record.status.toLowerCase() === selectedStatus.toLowerCase();
+
+    return matchSearch && matchDept && matchStatus;
+  });
+
+  const fetchDepartments = useCallback(async () => {
+    try {
+      const result = await departmentApi.getAll(); // Make sure this API exists
+      if (result.success && result.data) {
+        setDepartments(result.data);
+      }
+    } catch (e) {
+      console.error("Failed to load departments:", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDepartments();
+  }, [fetchDepartments]);
+
+  // Pagination
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentAttendance = filteredAttendance.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredAttendance.length / itemsPerPage);
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) setCurrentPage(page);
+  };
+  const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedDept, selectedStatus, selectedDate]);
+
+  const handleViewAttendance = (id: number) => {
+    setAttendanceToView(id);
+  };
+
+  const shortDate = new Date(selectedDate).toLocaleString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#fff7ec] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#3b2b1c] mx-auto mb-4"></div>
+          <p className="text-lg text-gray-600">Loading attendance records...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const formatDateTimeTo12Hour = (dateTimeString: string = "") => {
+    const date = new Date(dateTimeString);
+    if (isNaN(date.getTime())) return "-";
+
+    let hours = date.getHours();
+    const minutes = date.getMinutes().toString().padStart(2, "0");
+    const period = hours >= 12 ? "PM" : "AM";
+
+    const displayHours = hours % 12 || 12;
+
+    return `${displayHours}:${minutes} ${period}`;
+  };
+
+  return (
+    <div className="min-h-screen bg-[#fff7ec] p-8 space-y-6 text-gray-800 font-poppins z-30">
+      {/* Header */}
+      <div className="flex flex-col gap-4">
+
+        {/* ROW 1 — Date Today */}
+        <div className="flex flex-wrap items-center justify-between">
+          <h1 className="text-xl font-bold">
+            Date Today:{" "}
+            <span className="text-[#3b2b1c] font-[500]">{formattedDate}</span>
+          </h1>
+          {/* Auto-marking enabled; manual button removed */}
+        </div>
+
+        {/* ROW 2 — Controls */}
+        <div className="flex flex-wrap items-center justify-between w-full">
+
+          {/* LEFT SIDE — Search + Department Filter */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="min-w-[220px]">
+              <SearchBar
+                placeholder="Search employee..."
+                value={searchTerm}
+                onChange={setSearchTerm}
+              />
+            </div>
+
+            {/* Refresh Button */}
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="p-2 rounded-lg bg-[#3b2b1c] hover:bg-[#3b2b1c]/80 disabled:bg-gray-400 text-white transition flex items-center"
+              title="Refresh attendance records"
+            >
+              <RotateCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </button>
+
+
+          </div>
+
+          {/* RIGHT SIDE — Refresh / Mark Absences / Date Selector */}
+          <div className="flex items-center gap-3 flex-wrap">
+
+            {/* Status Filter */}
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="border rounded px-3 py-2 text-sm text-[#3b2b1c] min-w-[80px] cursor-pointer"
+            >
+              <option value="all">All Status</option>
+              {Object.entries(STATUS_LABELS).map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </select>
+
+
+            {/* Department Filter */}
+            <select
+              value={selectedDept}
+              onChange={(e) => setSelectedDept(e.target.value)}
+              className="border rounded px-3 py-2 text-sm text-[#3b2b1c] min-w-[80px] cursor-pointer"
+            >
+              <option value="all">All Departments</option>
+              {departments.map((dept) => (
+                <option key={dept.department_id} value={dept.department_name}>
+                  {dept.department_name}
+                </option>
+              ))}
+            </select>
+
+            {/* Date Selector */}
+            <div className="relative">
+              <ActionButton
+                label={shortDate}
+                onClick={() => { setPendingDate(selectedDate); setIsDateModalOpen(true); }}
+                icon={Calendar}
+                iconPosition="left"
+                className="shadow-md"
+              />
+
+              {isDateModalOpen && (
+                <div
+                  className="fixed inset-0 bg-black/40 flex justify-center items-center z-50"
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) setIsDateModalOpen(false);
+                  }}
+                >
+                  <div className="bg-white p-6 rounded-lg shadow-lg w-80">
+                    <h2 className="text-lg font-bold mb-4">Select Date</h2>
+
+                    <input
+                      type="date"
+                      value={pendingDate}
+                      max={getCurrentPHDate()}
+                      onChange={(e) => setPendingDate(e.target.value)}
+                      className="border border-gray-300 rounded px-3 py-2 w-full"
+                    />
+
+
+                    <div className="flex justify-end mt-4 gap-2">
+                      <button
+                        onClick={() => setIsDateModalOpen(false)}
+                        className="px-4 py-2 rounded bg-gray-300 hover:bg-gray-400"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => { setIsDateModalOpen(false); if (pendingDate !== selectedDate) setSelectedDate(pendingDate); }}
+                        className="px-4 py-2 rounded bg-[#3b2b1c] text-white hover:opacity-90"
+                      >
+                        Confirm
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="mb-2 p-3 rounded bg-red-50 text-red-700 border border-red-200">
+          {error}
+        </div>
+      )}
+
+
+
+      {/* Attendance Table */}
+      <div className="w-full">
+        <h2 className="text-lg font-semibold mb-2">Attendance Records</h2>
+        <table className="w-full text-sm">
+          <thead className="bg-[#3b2b1c] text-white text-left sticky top-0 z-20">
+            <tr>
+              <th className="py-4 px-4">Employee Code</th>
+              <th className="py-4 px-4">Employee Name</th>
+              <th className="py-4 px-4">Department</th>
+              <th className="py-4 px-4">Date</th>
+              <th className="py-4 px-4">Time In</th>
+              <th className="py-4 px-4">Time Out</th>
+              <th className="py-4 px-4">Status</th>
+              <th className="py-4 px-4 text-center">View</th>
+            </tr>
+          </thead>
+          <tbody>
+            {currentAttendance.length > 0 ? (
+              currentAttendance.map((record) => (
+                <tr
+                  key={record.attendance_id ?? `offline-${record.employee_id}-${record.date}`}
+                  className="border-b border-[#eadfcd] hover:bg-[#fdf4e7] transition"
+                >
+                  <td className="py-3 px-4">{record.employee_code}</td>
+                  <td className="py-3 px-4 flex items-center space-x-3">
+                    <div className="w-8 h-8 rounded-full bg-[#800000] flex items-center justify-center text-white text-sm font-semibold">
+                      {`${record.first_name} ${record.last_name}`
+                        .split(" ")
+                        .map((n: string) => n[0])
+                        .join("")
+                        .toUpperCase()}
+                    </div>
+                    <span>{record.first_name} {record.last_name}</span>
+                  </td>
+                  <td className="py-3 px-4">{record.department_name || "-"}</td>
+                  <td className="py-3 px-4">{new Date(record.date).toLocaleDateString()}</td>
+                  <td className="py-3 px-4">{record.time_in ? formatDateTimeTo12Hour(record.time_in) : "-"}</td>
+                  <td className="py-3 px-4">{record.time_out ? formatDateTimeTo12Hour(record.time_out) : "-"}</td>
+                  <td className="py-3 px-4">
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${record.status === "present" ? "bg-green-100 text-green-800" :
+                      record.status === "absent" ? "bg-red-100 text-red-800" :
+                        record.status === "late" ? "bg-yellow-100 text-yellow-800" :
+                          record.status === "early_leave" ? "bg-orange-100 text-orange-800" :
+                            record.status === "half_day" ? "bg-amber-100 text-amber-800" :
+                              record.status === "on_leave" ? "bg-blue-100 text-blue-800" :
+                                record.status === "work_from_home" ? "bg-purple-100 text-purple-800" :
+                                  record.status === "offline" ? "bg-gray-200 text-gray-600" :
+                                    "bg-gray-100 text-gray-800"
+                      }`}>
+                      {STATUS_LABELS[record.status]}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    {record.status !== "offline" && record.attendance_id ? (
+                      <button
+                        onClick={() => handleViewAttendance(record.attendance_id!)}
+                        className="p-1 rounded hover:bg-gray-200 cursor-pointer"
+                      >
+                        <Search size={18} className="text-gray-600" />
+                      </button>
+                    ) : (
+                      <span className="text-gray-400 text-xs">-</span>
+                    )}
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={8} className="py-8 text-center text-gray-500">
+                  No attendance records
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {/* pagination */}
+      <div className="flex justify-center items-center gap-4 mt-4 select-none">
+        <button
+          onClick={() => goToPage(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="px-4 py-3 rounded bg-[#3b2b1c] cursor-pointer text-white text-sm disabled:opacity-40"
+        >
+          Prev
+        </button>
+        <div className="flex items-center gap-1 overflow-hidden truncate">
+          {Array.from({ length: totalPages }, (_, i) => i + 1)
+            .slice(
+              Math.max(currentPage - 2, 0),
+              Math.min(currentPage + 1, totalPages)
+            )
+            .map((num) => (
+              <button
+                key={num}
+                onClick={() => goToPage(num)}
+                className={`px-3 py-2 rounded text-sm transition cursor-pointer truncate ${currentPage === num
+                  ? "bg-[#3b2b1c] text-white"
+                  : "text-[#3b2b1c] hover:underline"
+                  }`}
+              >
+                {num}
+              </button>
+            ))}
+
+          {/* Ellipsis if many pages */}
+          {totalPages > 5 && currentPage < totalPages - 2 && (
+            <span className="px-1 text-[#3b2b1c] truncate">...</span>
+          )}
+        </div>
+        <button
+          onClick={() => goToPage(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="px-4 py-3 rounded bg-[#3b2b1c] cursor-pointer text-white text-sm disabled:opacity-40"
+        >
+          Next
+        </button>
+      </div>
+      {/* Modal */}
+      <ViewAttendanceModal
+        isOpen={attendanceToView !== null}
+        onClose={() => setAttendanceToView(null)}
+        attendanceId={attendanceToView}
+      />
+    </div>
+  );
+}
