@@ -1,8 +1,9 @@
 // src/lib/api.ts
-
-import { User } from '@/types/api';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+	
+	import { User } from '@/types/api';
+	import { toast } from 'react-hot-toast';
+	
+	const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 /**
  * Get the authentication token from localStorage
@@ -15,12 +16,21 @@ function getToken(): string | null {
 }
 
 // Network/timeout and error handling helpers
-const DEFAULT_TIMEOUT_MS = 10000; // 10s
+const DEFAULT_TIMEOUT_MS = 20000
 const RETRY_STATUS_CODES = new Set([502, 503, 504]);
 
 
-// Extend RequestInit with optional timeoutMs for our API helper
-type ApiRequestInit = RequestInit & { timeoutMs?: number };
+	// Extend RequestInit with optional timeoutMs for our API helper
+	type ApiRequestInit = RequestInit & { timeoutMs?: number };
+
+	type ApiResult<T> = {
+	  success: boolean;
+	  data?: T;
+	  message?: string;
+	  error?: string;
+	  count?: number;
+	  status?: number;
+	};
 
 function sleep(ms: number) {
   return new Promise((res) => setTimeout(res, ms));
@@ -29,19 +39,19 @@ function sleep(ms: number) {
 function friendlyMessageFromStatus(status?: number) {
   switch (status) {
     case 401:
-      return 'Invalid credentials. Please try again..';
+      return 'Incorrect login details. Please try again.';
     case 403:
-      return 'You do not have permission to perform this action.';
+      return 'You don’t have permission to perform this action.';
     case 404:
-      return 'Requested resource was not found.';
+      return 'The requested resource could not be found.';
     case 408:
-      return 'Request timed out. Please try again.';
+      return 'The server is taking too long to respond. Please try again later.';
     case 500:
-      return 'A server error occurred. Please try again later.';
+      return 'An unexpected server error occurred. Please try again later.';
     case 502:
     case 503:
     case 504:
-      return 'The server is temporarily unavailable. Please try again in a moment.';
+      return 'The server is temporarily unavailable. Please try again shortly.';
     default:
       return 'Something went wrong. Please try again.';
   }
@@ -60,7 +70,7 @@ function friendlyNetworkErrorMessage(err: any): string {
   }
 
   if (msg.includes('aborted') || msg.includes('timeout') || err?.name === 'AbortError') {
-    return 'Request timed out. Please try again.';
+    return 'The server is not responding. Please try again later.';
   }
   if (
     msg.includes('econnrefused') ||
@@ -73,37 +83,76 @@ function friendlyNetworkErrorMessage(err: any): string {
 }
 
 
-/**
- * Generic API call function with authentication, timeout, retries, and friendly errors
- */
-async function apiCall<T>(
-  endpoint: string,
-  options: ApiRequestInit = {}
-): Promise<{ success: boolean; data?: T; message?: string; error?: string; count?: number; status?: number }> {
-  const token = getToken();
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-
-  // Add authentication header if token exists
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  // Merge with any additional headers from options
-  if (options.headers) {
-    Object.assign(headers, options.headers as Record<string, string>);
-  }
-
-  const method = (options.method || 'GET').toString().toUpperCase();
-  const isGet = method === 'GET';
-  const maxRetries = isGet ? 2 : 0; // retry GETs only
-
-  let attempt = 0;
-  let lastError: any = null;
-
-  while (attempt <= maxRetries) {
+	/**
+	 * Generic API call function with authentication, timeout, retries, and friendly errors
+	 */
+	async function apiCall<T>(
+	  endpoint: string,
+	  options: ApiRequestInit = {}
+	): Promise<ApiResult<T>> {
+	  const token = getToken();
+	
+	  const headers: Record<string, string> = {
+	    'Content-Type': 'application/json',
+	  };
+	
+	  // Add authentication header if token exists
+	  if (token) {
+	    headers['Authorization'] = `Bearer ${token}`;
+	  }
+	
+	  // Merge with any additional headers from options
+	  if (options.headers) {
+	    Object.assign(headers, options.headers as Record<string, string>);
+	  }
+	
+	  const method = (options.method || 'GET').toString().toUpperCase();
+	  const isGet = method === 'GET';
+	  const maxRetries = isGet ? 2 : 0; // retry GETs only
+	
+	  const isBrowser = typeof window !== 'undefined';
+	  let loadingToastId: string | undefined;
+	
+	  // Show a loading toast while we are talking to the server
+	  if (isBrowser) {
+	    loadingToastId = toast.loading('Connecting to server...', {
+	      duration: Infinity,
+	    });
+	  }
+	
+	  const finish = (result: ApiResult<T>): ApiResult<T> => {
+	    if (isBrowser && loadingToastId) {
+	      toast.dismiss(loadingToastId);
+	      loadingToastId = undefined;
+	    }
+	
+	    if (isBrowser) {
+	      if (result.success) {
+	        // Avoid spamming success toasts for simple data fetches
+	        if (!isGet) {
+	          const successMessage =
+	            result.message ||
+	            (method === 'POST'
+	              ? 'Request completed successfully.'
+	              : 'Changes saved successfully.');
+	          toast.success(successMessage);
+	        }
+	      } else {
+	        const errorMessage =
+	          result.message ||
+	          result.error ||
+	          'Something went wrong. Please try again.';
+	        toast.error(errorMessage);
+	      }
+	    }
+	
+	    return result;
+	  };
+	
+	  let attempt = 0;
+	  let lastError: any = null;
+	
+	  while (attempt <= maxRetries) {
     const { timeoutMs, ...restOptions } = (options as any) || {};
     const timeout = typeof timeoutMs === 'number' ? timeoutMs : DEFAULT_TIMEOUT_MS;
     const controller = new AbortController();
@@ -132,29 +181,34 @@ async function apiCall<T>(
         }
       }
 
-      // Handle authentication errors
-      if (response.status === 401) {
-        if (typeof window !== 'undefined') {
-          try { localStorage.removeItem('token'); } catch {}
-          window.location.href = '/';
-        }
-        return { success: false, message: friendlyMessageFromStatus(401), error: 'Unauthorized', status: 401 };
-      }
-
-      // Handle 500 status
-      if (response.status === 500) {
-        if (typeof window !== 'undefined') {
-          try { localStorage.removeItem('token'); } catch {}
-          window.location.href = '/';
-        }
-        return { success: false, message: friendlyMessageFromStatus(500), error: 'Unauthorized', status: 401 };
-      }
+	      // Handle authentication errors
+	      if (response.status === 401) {
+	        const authMessage =
+	          (responseData && typeof responseData === 'object' && (responseData.message || responseData.error)) ||
+	          friendlyMessageFromStatus(401);
+	
+	        if (typeof window !== 'undefined') {
+	          try { localStorage.removeItem('token'); } catch {}
+	          window.location.href = '/';
+	        }
+	        return finish({ success: false, message: authMessage, error: 'Unauthorized', status: 401 });
+	      }
+	
+	      // Handle 500 status
+	      if (response.status === 500) {
+	        const serverMessage = friendlyMessageFromStatus(500);
+	        if (typeof window !== 'undefined') {
+	          try { localStorage.removeItem('token'); } catch {}
+	          window.location.href = '/';
+	        }
+	        return finish({ success: false, message: serverMessage, error: 'Unauthorized', status: 401 });
+	      }
 
       // Non-OK responses
       if (!response.ok) {
-        const message =
-          (responseData && typeof responseData === 'object' && (responseData.message || responseData.error)) ||
-          friendlyMessageFromStatus(response.status);
+	        const message =
+	          (responseData && typeof responseData === 'object' && (responseData.message || responseData.error)) ||
+	          friendlyMessageFromStatus(response.status);
 
         // Retry on transient server errors for GET
         if (isGet && RETRY_STATUS_CODES.has(response.status) && attempt < maxRetries) {
@@ -163,16 +217,21 @@ async function apiCall<T>(
           continue;
         }
 
-        return { success: false, message, error: typeof responseData === 'string' ? responseData : undefined, status: response.status };
+	        return finish({
+	          success: false,
+	          message,
+	          error: typeof responseData === 'string' ? responseData : undefined,
+	          status: response.status,
+	        });
       }
 
       // OK responses — pass through if backend already returns our envelope
-      if (responseData && typeof responseData === 'object' && 'success' in responseData) {
-        return responseData;
-      }
-
-      // Otherwise, wrap the value as data
-      return { success: true, data: (responseData as T) };
+	      if (responseData && typeof responseData === 'object' && 'success' in responseData) {
+	        return finish(responseData as ApiResult<T>);
+	      }
+	  
+	      // Otherwise, wrap the value as data
+	      return finish({ success: true, data: (responseData as T) });
     } catch (err: any) {
       clearTimeout(timeoutId);
       lastError = err;
@@ -184,13 +243,13 @@ async function apiCall<T>(
         continue;
       }
 
-      const message = friendlyNetworkErrorMessage(err);
-      return { success: false, message, error: err?.message || 'Network error' };
+	      const message = friendlyNetworkErrorMessage(err);
+	      return finish({ success: false, message, error: err?.message || 'Network error' });
     }
   }
-
-  const message = friendlyNetworkErrorMessage(lastError);
-  return { success: false, message, error: lastError?.message || 'Network error' };
+	
+	  const message = friendlyNetworkErrorMessage(lastError);
+	  return finish({ success: false, message, error: lastError?.message || 'Network error' });
 }
 
 // ============ USER API FUNCTIONS ============
