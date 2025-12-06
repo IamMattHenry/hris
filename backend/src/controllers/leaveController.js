@@ -239,8 +239,8 @@ export const approveLeave = async (req, res, next) => {
       }
     } else if (requesterRole === 'supervisor') {
       // Only admin or superadmin can approve
-      if (!(approverRole === 'admin' || approverRole === 'superadmin')) {
-        return res.status(403).json({ success: false, message: 'Only admin or superadmin can approve supervisor leave requests' });
+      if (!(approverRole === 'superadmin')) {
+        return res.status(403).json({ success: false, message: 'Only HR Manager can approve supervisor leave requests' });
       }
       if (approver && approver.employee_id === leave.emp_id) {
         return res.status(403).json({ success: false, message: 'You cannot approve your own leave request' });
@@ -248,7 +248,7 @@ export const approveLeave = async (req, res, next) => {
     } else if (requesterRole === 'admin') {
       // Only superadmin can approve
       if (approverRole !== 'superadmin') {
-        return res.status(403).json({ success: false, message: 'Only superadmin can approve admin leave requests' });
+        return res.status(403).json({ success: false, message: 'Only HR Director can approve HR Manager leave requests' });
       }
       if (approver && approver.employee_id === leave.emp_id) {
         return res.status(403).json({ success: false, message: 'You cannot approve your own leave request' });
