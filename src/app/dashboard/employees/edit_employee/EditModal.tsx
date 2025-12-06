@@ -162,7 +162,7 @@ export default function EditEmployeeModal({
   const [region, setRegion] = useState("");
   const [province, setProvince] = useState("");
   const [civilStatus, setCivilStatus] = useState("");
-  const [barangay, setBarangay] = useState("");
+ // const [barangay, setBarangay] = useState("");
   const [barangays, setBarangays] = useState<string[]>([]);
   const [employmentStatus, setEmploymentStatus] = useState("");
   const [emails, setEmails] = useState<ContactEmail[]>([]);
@@ -196,7 +196,7 @@ export default function EditEmployeeModal({
   const [regions, setRegions] = useState<any[]>([]);            // objects (PSGC)
   const [provinces, setProvinces] = useState<any[]>([]);        // objects
   const [cities, setCities] = useState<any[]>([]);              // objects
-  const [barangays, setBarangays] = useState<any[]>([]);        // objects
+  ///const [barangays, setBarangays] = useState<any[]>([]);        // objects
 
   const [dependentProvinces, setDependentProvinces] = useState<string[]>([]);
   const [dependantBarangays, setDependantBarangays] = useState<string[]>([]);
@@ -237,7 +237,7 @@ const [cityCode, setCityCode] = useState("");
         setSupervisorId(res.data.supervisor_id || null);
         setShift(formatShiftForDisplay(res.data.shift));
         setHomeAddress(res.data.home_address || "");
-        // setBarangay(res.data.barangay || ""); 
+        setBarangay(res.data.barangay || ""); 
         setCity(res.data.city || "");
         setRegion(res.data.region || "");
         setProvince(res.data.province || "");
@@ -417,8 +417,6 @@ const [cityCode, setCityCode] = useState("");
   };
 
 
-
-/* ---------- PH locations ---------- */
 /* ---------- PH locations ---------- */
 useEffect(() => {
   async function loadPhLocationsData() {
@@ -506,6 +504,19 @@ const handleCityChange = (selectedCity: string) => {
   }
 };
 
+/* ----- Load Barangays ----- */
+function normalizeName(name: string) {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/city of /g, "")
+    .replace(/city /g, "")
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 useEffect(() => {
   async function loadBarangays() {
     if (!city) {
@@ -514,48 +525,16 @@ useEffect(() => {
     }
 
     try {
-      const allCitiesRes = await fetch(
-        "https://psgc.gitlab.io/api/cities-municipalities.json"
-      );
-      const allCities = await allCitiesRes.json();
+      const resCities = await fetch("https://psgc.gitlab.io/api/cities-municipalities/");
+      const allCities = await resCities.json();
 
-      const normalize = (name: string) =>
-        name
-          .toLowerCase()
-          .replace(/^city of\s*/i, "")
-          .replace(/\s*city$/i, "")
-          .replace(/-/g, " ")
-          .trim();
+      const normCity = normalizeName(city);
 
-      const normalizedCity = normalize(city);
-
-      // First try: strict normalize match
-      let selectedCity = allCities.find(
-        (c: any) => normalize(c.name) === normalizedCity
-      );
-
-      // 🔥 Special corrections for NCR inconsistent naming
-      if (!selectedCity) {
-        const ncrCityMap: Record<string, string> = {
-          "manila": "City of Manila",
-          "quezon city": "Quezon City",
-          "makati": "City of Makati",
-          "pasay": "City of Pasay",
-          "pasig": "City of Pasig",
-          "parañaque": "City of Parañaque",
-          "marikina": "City of Marikina",
-          "mandaluyong": "City of Mandaluyong",
-          "taguig": "Taguig City",
-          "caloocan": "Caloocan City",
-        };
-
-        const mapped = ncrCityMap[normalizedCity];
-        if (mapped) {
-          selectedCity = allCities.find(
-            (c: any) => normalize(c.name) === normalize(mapped)
-          );
-        }
-      }
+      // Multi-pass fuzzy matching
+      const selectedCity =
+        allCities.find((c: any) => normalizeName(c.name) === normCity) ||
+        allCities.find((c: any) => normalizeName(c.name).includes(normCity)) ||
+        allCities.find((c: any) => normCity.includes(normalizeName(c.name)));
 
       if (!selectedCity) {
         console.warn("City not found in PSGC:", city);
@@ -563,25 +542,22 @@ useEffect(() => {
         return;
       }
 
-      const barangayRes = await fetch(
-        `https://psgc.gitlab.io/api/cities-municipalities/${selectedCity.code}/barangays.json`
-      );
-      const barangays = await barangayRes.json();
+      const cityCode = selectedCity.code;
 
-      setBarangays(barangays.map((b: any) => b.name));
-    } catch (err) {
-      console.error("Error loading barangays:", err);
+      const resBrgy = await fetch(
+        `https://psgc.gitlab.io/api/cities-municipalities/${cityCode}/barangays`
+      );
+      const barangayList = await resBrgy.json();
+
+      setBarangays(barangayList.map((b: any) => b.name));
+    } catch (error) {
+      console.error("Error loading barangays:", error);
       setBarangays([]);
     }
   }
 
   loadBarangays();
 }, [city]);
-
-
-
-
-
 
 
 
@@ -1145,8 +1121,7 @@ useEffect(() => {
                       options={provinces}  // [{code, name}, ...]
                       error={errors.province}
                     />
-
-
+                    
                     <FormSelect
                       label="City"
                       value={city}
