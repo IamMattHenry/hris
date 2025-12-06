@@ -103,6 +103,7 @@ interface EmployeeData {
   last_name: string;
   extension_name?: string;
   home_address: string;
+  barangay: string;
   city: string;
   region: string;
   department_id: number;
@@ -122,6 +123,22 @@ interface EmployeeData {
   fingerprint_id?: number | null;
 }
 
+interface CityData {
+  city: string;
+  barangays: string[];
+}
+
+interface ProvinceData {
+  province: string;
+  cities: CityData[];
+}
+
+interface RegionData {
+  region: string;
+  provinces: ProvinceData[];
+}
+
+
 /* ---------- Component ---------- */
 export default function EditEmployeeModal({
   isOpen,
@@ -140,6 +157,7 @@ export default function EditEmployeeModal({
   const [supervisorId, setSupervisorId] = useState<number | null>(null);
   const [shift, setShift] = useState("");
   const [homeAddress, setHomeAddress] = useState("");
+  const [barangay, setBarangay] = useState("");
   const [city, setCity] = useState("");
   const [region, setRegion] = useState("");
   const [province, setProvince] = useState("");
@@ -164,18 +182,24 @@ export default function EditEmployeeModal({
   const [dependentRelationship, setDependentRelationship] = useState("");
   const [dependentRelationshipSpecify, setDependentRelationshipSpecify] = useState("");
   const [dependentHomeAddress, setDependentHomeAddress] = useState("");
+  const [dependentBarangay, setDependentBarangay] = useState("");
   const [dependentRegion, setDependentRegion] = useState("");
   const [dependentProvince, setDependentProvince] = useState("");
   const [dependentCity, setDependentCity] = useState("");
   const [dependentErrors, setDependentErrors] = useState<ValidationErrors>({});
 
+
+  // Dropdown options
   const [departments, setDepartments] = useState<any[]>([]);
   const [positions, setPositions] = useState<any[]>([]);
   const [supervisors, setSupervisors] = useState<any[]>([]);
-  const [cities, setCities] = useState<string[]>([]);
-  const [regions, setRegions] = useState<any[]>([]);
-  const [provinces, setProvinces] = useState<string[]>([]);
+  const [regions, setRegions] = useState<any[]>([]);            // objects (PSGC)
+  const [provinces, setProvinces] = useState<any[]>([]);        // objects
+  const [cities, setCities] = useState<any[]>([]);              // objects
+  const [barangays, setBarangays] = useState<any[]>([]);        // objects
+
   const [dependentProvinces, setDependentProvinces] = useState<string[]>([]);
+  const [dependantBarangays, setDependantBarangays] = useState<string[]>([]);
   const [dependentCities, setDependentCities] = useState<string[]>([]);
   const [phLocationsData, setPhLocationsData] = useState<any[]>([]);
   const [errors, setErrors] = useState<ValidationErrors>({});
@@ -185,9 +209,18 @@ export default function EditEmployeeModal({
   const [showFingerprintEnrollment, setShowFingerprintEnrollment] = useState(false);
   const [currentFingerprintId, setCurrentFingerprintId] = useState<number | null>(null);
 
+  // psgc contexts
+  const [regionCode, setRegionCode] = useState("");
+const [provinceCode, setProvinceCode] = useState("");
+const [cityCode, setCityCode] = useState("");
+
+  //active tab
+  const [activeTab, setActiveTab] = useState("personal");
+
   /* ---------- Fetch employee details ---------- */
   useEffect(() => {
     if (isOpen && id) fetchEmployee(id);
+    setActiveTab("personal");
   }, [isOpen, id]);
 
   const fetchEmployee = async (empId: number) => {
@@ -204,6 +237,7 @@ export default function EditEmployeeModal({
         setSupervisorId(res.data.supervisor_id || null);
         setShift(formatShiftForDisplay(res.data.shift));
         setHomeAddress(res.data.home_address || "");
+        // setBarangay(res.data.barangay || ""); 
         setCity(res.data.city || "");
         setRegion(res.data.region || "");
         setProvince(res.data.province || "");
@@ -382,95 +416,176 @@ export default function EditEmployeeModal({
     }
   };
 
-  /* ---------- PH locations JSON ---------- */
-  useEffect(() => {
-    async function loadPhLocationsData() {
-      try {
-        const res = await fetch("/data/ph_locations.json");
-        if (!res.ok) {
-          throw new Error(
-            `Failed to fetch PH locations data: ${res.status} ${res.statusText}`
-          );
-        }
-        const data = await res.json();
-        setPhLocationsData(data);
-        const regionNames = data.map((r: any) => r.region);
-        setRegions(regionNames);
-      } catch (error) {
-        console.error("Error loading PH locations data:", error);
-        setRegions([]);
-      }
-    }
-    loadPhLocationsData();
-  }, []);
 
-  useEffect(() => {
-    if (region) {
-      const selectedRegion = phLocationsData.find((r: any) => r.region === region);
-      if (selectedRegion) {
-        const provinceNames = selectedRegion.provinces.map((p: any) => p.province);
-        setProvinces(provinceNames);
-        setCities([]);
-      } else {
-        setProvinces([]);
-        setCities([]);
+
+/* ---------- PH locations ---------- */
+/* ---------- PH locations ---------- */
+useEffect(() => {
+  async function loadPhLocationsData() {
+    try {
+      const res = await fetch("/data/ph_locations.json");
+      if (!res.ok) {
+        throw new Error(
+          `Failed to fetch PH locations data: ${res.status} ${res.statusText}`
+        );
       }
+      const data = await res.json();
+      setPhLocationsData(data);
+      const regionNames = data.map((r: any) => r.region);
+      setRegions(regionNames);
+    } catch (error) {
+      console.error("Error loading PH locations data:", error);
+      setRegions([]);
+    }
+  }
+  loadPhLocationsData();
+}, []);
+
+// When region changes
+useEffect(() => {
+  if (region) {
+    const selectedRegion = phLocationsData.find((r: any) => r.region === region);
+    if (selectedRegion) {
+      setRegionCode(selectedRegion.regionCode);
+      const provinceNames = selectedRegion.provinces.map((p: any) => p.province);
+      setProvinces(provinceNames);
+      setCities([]);
+      // Reset codes when region changes
+      setProvinceCode("");
+      setCityCode("");
     } else {
       setProvinces([]);
       setCities([]);
+      setRegionCode("");
+      setProvinceCode("");
+      setCityCode("");
     }
-  }, [region, phLocationsData]);
+  } else {
+    setProvinces([]);
+    setCities([]);
+    setRegionCode("");
+    setProvinceCode("");
+    setCityCode("");
+  }
+}, [region, phLocationsData]);
 
-  useEffect(() => {
-    if (region && province) {
-      const selectedRegion = phLocationsData.find((r: any) => r.region === region);
-      if (selectedRegion) {
-        const selectedProvince = selectedRegion.provinces.find((p: any) => p.province === province);
-        if (selectedProvince) {
-          setCities(selectedProvince.cities);
-        } else {
-          setCities([]);
+// When province changes
+useEffect(() => {
+  if (region && province) {
+    const selectedRegion = phLocationsData.find((r: any) => r.region === region);
+    if (selectedRegion) {
+      const selectedProvince = selectedRegion.provinces.find((p: any) => p.province === province);
+      if (selectedProvince) {
+        setProvinceCode(selectedProvince.provinceCode);
+        setCities(selectedProvince.cities);
+        // Reset city code when province changes
+        setCityCode("");
+      } else {
+        setCities([]);
+        setProvinceCode("");
+        setCityCode("");
+      }
+    }
+  } else {
+    setCities([]);
+    setProvinceCode("");
+    setCityCode("");
+  }
+}, [region, province, phLocationsData]);
+
+// When city changes - store the code
+const handleCityChange = (selectedCity: string) => {
+  setCity(selectedCity);
+  const selectedRegion = phLocationsData.find((r: any) => r.region === region);
+  const selectedProvince = selectedRegion?.provinces.find((p: any) => p.province === province);
+  const selectedCityObj = selectedProvince?.cities.find((c: any) => c.city === selectedCity);
+  if (selectedCityObj) {
+    setCityCode(selectedCityObj.cityCode);
+  } else {
+    setCityCode("");
+  }
+};
+
+useEffect(() => {
+  async function loadBarangays() {
+    if (!city) {
+      setBarangays([]);
+      return;
+    }
+
+    try {
+      const allCitiesRes = await fetch(
+        "https://psgc.gitlab.io/api/cities-municipalities.json"
+      );
+      const allCities = await allCitiesRes.json();
+
+      const normalize = (name: string) =>
+        name
+          .toLowerCase()
+          .replace(/^city of\s*/i, "")
+          .replace(/\s*city$/i, "")
+          .replace(/-/g, " ")
+          .trim();
+
+      const normalizedCity = normalize(city);
+
+      // First try: strict normalize match
+      let selectedCity = allCities.find(
+        (c: any) => normalize(c.name) === normalizedCity
+      );
+
+      // 🔥 Special corrections for NCR inconsistent naming
+      if (!selectedCity) {
+        const ncrCityMap: Record<string, string> = {
+          "manila": "City of Manila",
+          "quezon city": "Quezon City",
+          "makati": "City of Makati",
+          "pasay": "City of Pasay",
+          "pasig": "City of Pasig",
+          "parañaque": "City of Parañaque",
+          "marikina": "City of Marikina",
+          "mandaluyong": "City of Mandaluyong",
+          "taguig": "Taguig City",
+          "caloocan": "Caloocan City",
+        };
+
+        const mapped = ncrCityMap[normalizedCity];
+        if (mapped) {
+          selectedCity = allCities.find(
+            (c: any) => normalize(c.name) === normalize(mapped)
+          );
         }
       }
-    } else {
-      setCities([]);
-    }
-  }, [region, province, phLocationsData]);
 
-  // Load barangays when city changes (via PSGC API)
-  useEffect(() => {
-    async function loadBarangays() {
-      if (!city) {
+      if (!selectedCity) {
+        console.warn("City not found in PSGC:", city);
         setBarangays([]);
         return;
       }
-      try {
-        const resCities = await fetch("https://psgc.gitlab.io/api/cities-municipalities/");
-        const allCities = await resCities.json();
-        const normCity = normalizeName(city);
-        const selectedCity =
-          allCities.find((c: any) => normalizeName(c.name) === normCity) ||
-          allCities.find((c: any) => normalizeName(c.name).includes(normCity)) ||
-          allCities.find((c: any) => normCity.includes(normalizeName(c.name)));
-        if (!selectedCity) {
-          console.warn("City not found in PSGC:", city);
-          setBarangays([]);
-          return;
-        }
-        const cityCode = selectedCity.code;
-        const resBrgy = await fetch(
-          `https://psgc.gitlab.io/api/cities-municipalities/${cityCode}/barangays`
-        );
-        const barangayList = await resBrgy.json();
-        setBarangays(barangayList.map((b: any) => b.name));
-      } catch (err) {
-        console.error("Error loading barangays:", err);
-        setBarangays([]);
-      }
-    }
-    loadBarangays();
-  }, [city]);
 
+      const barangayRes = await fetch(
+        `https://psgc.gitlab.io/api/cities-municipalities/${selectedCity.code}/barangays.json`
+      );
+      const barangays = await barangayRes.json();
+
+      setBarangays(barangays.map((b: any) => b.name));
+    } catch (err) {
+      console.error("Error loading barangays:", err);
+      setBarangays([]);
+    }
+  }
+
+  loadBarangays();
+}, [city]);
+
+
+
+
+
+
+
+
+/* ----- Dependent PH Locations ----- */
 
   useEffect(() => {
     if (dependentRegion) {
@@ -512,6 +627,80 @@ export default function EditEmployeeModal({
       setDependentCities([]);
     }
   }, [dependentRegion, dependentProvince, phLocationsData]);
+
+useEffect(() => {
+  async function loadDependentBarangays() {
+    if (!dependentCity) {
+      setDependantBarangays([]);
+      return;
+    }
+
+    try {
+      // Fetch all cities/municipalities from PSGC
+      const resCities = await fetch("https://psgc.gitlab.io/api/cities-municipalities/");
+      if (!resCities.ok) throw new Error("Failed to fetch cities");
+      const allCities: Array<{ code: string | number; name: string }> = await resCities.json();
+
+      const normalizedCity = dependentCity.toLowerCase().trim();
+
+      // ⭐ Special case for Manila
+      if (normalizedCity === "manila") {
+        // Get all Manila districts
+        const manilaDistricts = allCities.filter((c) =>
+          c.name.toLowerCase().includes("manila")
+        );
+
+        // Fetch barangays for all districts in parallel
+        const barangaysArrays = await Promise.all(
+          manilaDistricts.map(async (district) => {
+            const res = await fetch(
+              `https://psgc.gitlab.io/api/cities-municipalities/${district.code}/barangays`
+            );
+            if (!res.ok) return [];
+            const list: Array<{ name: string }> = await res.json();
+            return list.map((b) => b.name);
+          })
+        );
+
+        // Merge, remove duplicates, and sort
+        const uniqueBarangays = [...new Set(barangaysArrays.flat())].sort();
+        setDependantBarangays(uniqueBarangays);
+        return;
+      }
+
+      // ⭐ Normal cities
+      const match =
+        allCities.find((c) => c.name.toLowerCase() === normalizedCity) ||
+        allCities.find((c) => c.name.toLowerCase().includes(normalizedCity)) ||
+        allCities.find((c) => normalizedCity.includes(c.name.toLowerCase()));
+
+      if (!match) {
+        console.warn("City not found in PSGC for dependentCity:", dependentCity);
+        setDependantBarangays([]);
+        return;
+      }
+
+      const cityCode = String(match.code);
+
+      const resBrgy = await fetch(
+        `https://psgc.gitlab.io/api/cities-municipalities/${cityCode}/barangays`
+      );
+      if (!resBrgy.ok) throw new Error("Failed to fetch barangays");
+
+      const barangayList: Array<{ name: string }> = await resBrgy.json();
+      setDependantBarangays(barangayList.map((b) => b.name));
+    } catch (err) {
+      console.error("Error loading dependent barangays:", err);
+      setDependantBarangays([]);
+    }
+  }
+
+  loadDependentBarangays();
+}, [dependentCity]);
+
+
+
+
 
   /* ---------- Dependent formatting ---------- */
   const handleDependentContactInfoChange = (
@@ -593,6 +782,7 @@ export default function EditEmployeeModal({
       shift,
       employmentStatus,
       homeAddress,
+      barangay,
       city,
       region,
       province,
@@ -706,9 +896,10 @@ export default function EditEmployeeModal({
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.2 }}
-        className="bg-[#fdf3e2] w-full max-w-5xl p-10 rounded-2xl shadow-lg relative text-[#3b2b1c] overflow-y-auto max-h-[90vh]"
+        className="bg-[#fdf3e2] w-full max-w-7xl p-10 rounded-2xl shadow-lg relative text-[#3b2b1c] overflow-y-auto max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
+
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-[#3b2b1c] hover:opacity-70"
@@ -721,733 +912,792 @@ export default function EditEmployeeModal({
           {firstName} {middleName} {lastName}
         </p>
 
+        {/* INSERT TABS HERE */}
+        <div className="flex flex-wrap gap-2 border-b border-gray-300 mb-6 ">
+          {[
+            { id: "personal", label: "Personal Information" },
+            { id: "job", label: "Job Information" },
+            { id: "address", label: "Address Information" },
+            { id: "contact", label: "Contact Information" },
+            { id: "dependent", label: "Dependent Information" },
+            { id: "roles", label: "User Roles" },
+            { id: "fingerprint", label: "Fingerprint Registration" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 cursor-pointer transition-all whitespace-nowrap
+          ${activeTab === tab.id
+                  ? "border-[#4b0b14] text-[#4b0b14]"
+                  : "border-transparent text-gray-500 hover:text-[#4b0b14]"
+                }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
         {employee ? (
           <div>
             <div className="space-y-10">
 
               {/* ========================== PERSONAL INFORMATION ========================== */}
-              <section>
-                <h2 className="text-lg font-semibold text-[#3b2b1c] mb-4">
-                  Personal Information
-                </h2>
+              {activeTab === "personal" && (
+                <section>
+                  <h2 className="text-lg font-semibold text-[#3b2b1c] mb-4">
+                    Personal Information
+                  </h2>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <FormInput
-                    label="First Name"
-                    type="text"
-                    value={firstName}
-                    onChange={(e) => validateName(e.target.value, setFirstName)}
-                    error={errors.firstName}
-                  />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <FormInput
+                      label="First Name"
+                      type="text"
+                      value={firstName}
+                      onChange={(e) => validateName(e.target.value, setFirstName)}
+                      error={errors.firstName}
+                    />
 
-                  <FormInput
-                    label="Middle Name"
-                    type="text"
-                    value={middleName}
-                    onChange={(e) => validateName(e.target.value, setMiddleName)}
-                    placeholder="(optional)"
-                  />
+                    <FormInput
+                      label="Middle Name"
+                      type="text"
+                      value={middleName}
+                      onChange={(e) => validateName(e.target.value, setMiddleName)}
+                      placeholder="(optional)"
+                    />
 
-                  <FormInput
-                    label="Last Name"
-                    type="text"
-                    value={lastName}
-                    onChange={(e) => validateName(e.target.value, setLastName)}
-                    error={errors.lastName}
-                  />
+                    <FormInput
+                      label="Last Name"
+                      type="text"
+                      value={lastName}
+                      onChange={(e) => validateName(e.target.value, setLastName)}
+                      error={errors.lastName}
+                    />
 
-                  <FormInput
-                    label="Extension Name"
-                    type="text"
-                    value={extensionName}
-                    onChange={(e) => validateExtension(e.target.value, setExtensionName)}
-                    placeholder="JR., SR., II, etc. (optional)"
-                  />
+                    <FormInput
+                      label="Extension Name"
+                      type="text"
+                      value={extensionName}
+                      onChange={(e) => validateExtension(e.target.value, setExtensionName)}
+                      placeholder="JR., SR., II, etc. (optional)"
+                    />
 
-                  <FormSelect
-                    label="Civil Status"
-                    value={civilStatus}
-                    onChange={(e) => setCivilStatus(e.target.value)}
-                    options={["Single", "Married", "Widowed", "Divorced"]}
-                    error={errors.civilStatus}
-                  />
-                </div>
-              </section>
+                    <FormSelect
+                      label="Civil Status"
+                      value={civilStatus}
+                      onChange={(e) => setCivilStatus(e.target.value)}
+                      options={["Single", "Married", "Widowed", "Divorced"]}
+                      error={errors.civilStatus}
+                    />
+                  </div>
+                </section>
+              )}
 
               {/* ========================== JOB INFORMATION ========================== */}
-              <section>
-                <h2 className="text-lg font-semibold text-[#3b2b1c] mb-4">
-                  Job Information
-                </h2>
+              {activeTab === "job" && (
+                <section>
+                  <h2 className="text-lg font-semibold text-[#3b2b1c] mb-4">
+                    Job Information
+                  </h2>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
-                  {/* Department */}
-                  <div>
-                    <label className="block text-[#3b2b1c] mb-1">Department</label>
-                    <select
-                      value={departmentId || ""}
+                    {/* Department */}
+                    <div>
+                      <label className="block text-[#3b2b1c] mb-1">Department</label>
+                      <select
+                        value={departmentId || ""}
+                        onChange={(e) => {
+                          const value = e.target.value ? Number(e.target.value) : null;
+                          setDepartmentId(value);
+                          setPositionId(null);
+                          setErrors((prev) => ({ ...prev, department: "" }));
+                        }}
+                        className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c]"
+                      >
+                        <option value="">Select Department</option>
+                        {departments.map((dept) => (
+                          <option key={dept.department_id} value={dept.department_id}>
+                            {dept.department_name}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.department && (
+                        <p className="text-red-500 text-xs mt-1">{errors.department}</p>
+                      )}
+                    </div>
+
+                    {/* Position */}
+                    <div>
+                      <label className="block text-[#3b2b1c] mb-1">Position</label>
+                      <select
+                        value={positionId || ""}
+                        onChange={(e) => setPositionId(Number(e.target.value))}
+                        disabled={!departmentId}
+                        className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] disabled:opacity-50"
+                      >
+                        <option value="">
+                          {departmentId ? "Select Position" : "Select Department First"}
+                        </option>
+                        {positions.map((pos) => (
+                          <option key={pos.position_id} value={pos.position_id}>
+                            {pos.position_name}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.position && (
+                        <p className="text-red-500 text-xs mt-1">{errors.position}</p>
+                      )}
+                    </div>
+
+                    {/* Supervisor */}
+                    <div>
+                      <label className="block text-[#3b2b1c] mb-1 font-medium">
+                        Reports To (Supervisor):
+                      </label>
+                      <select
+                        value={supervisorId || ""}
+                        onChange={(e) => {
+                          const value = e.target.value ? Number(e.target.value) : null;
+                          setSupervisorId(value);
+                          setErrors((prev) => ({ ...prev, supervisor: "" }));
+                        }}
+                        disabled={!departmentId}
+                        className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] focus:ring-2 focus:ring-[#4b0b14] disabled:opacity-50"
+                      >
+                        <option value="">
+                          {departmentId ? "No Supervisor (Optional)" : "Select Department First"}
+                        </option>
+                        {supervisors.map((sup) => (
+                          <option key={sup.employee_id} value={sup.employee_id}>
+                            {sup.employee_code} - {sup.first_name} {sup.last_name}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.supervisor && (
+                        <p className="text-red-500 text-xs mt-1">{errors.supervisor}</p>
+                      )}
+                      <p className="text-xs text-[#6b5344] mt-1">
+                        Select who this employee reports to
+                      </p>
+                    </div>
+
+                    <FormSelect
+                      label="Shift"
+                      value={shift}
+                      onChange={(e) => setShift(e.target.value)}
+                      options={["Morning", "Night"]}
+                      error={errors.shift}
+                    />
+
+                    <FormSelect
+                      label="Employment Status"
+                      value={employmentStatus}
                       onChange={(e) => {
-                        const value = e.target.value ? Number(e.target.value) : null;
-                        setDepartmentId(value);
-                        setPositionId(null);
-                        setErrors((prev) => ({ ...prev, department: "" }));
+                        setEmploymentStatus(e.target.value);
+                        setErrors((prev) => ({ ...prev, employmentStatus: "" }));
                       }}
-                      className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c]"
-                    >
-                      <option value="">Select Department</option>
-                      {departments.map((dept) => (
-                        <option key={dept.department_id} value={dept.department_id}>
-                          {dept.department_name}
-                        </option>
-                      ))}
-                    </select>
-                    {errors.department && (
-                      <p className="text-red-500 text-xs mt-1">{errors.department}</p>
-                    )}
+                      options={[...STATUS_OPTIONS]}
+                      error={errors.employmentStatus}
+                    />
                   </div>
-
-                  {/* Position */}
-                  <div>
-                    <label className="block text-[#3b2b1c] mb-1">Position</label>
-                    <select
-                      value={positionId || ""}
-                      onChange={(e) => setPositionId(Number(e.target.value))}
-                      disabled={!departmentId}
-                      className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] disabled:opacity-50"
-                    >
-                      <option value="">
-                        {departmentId ? "Select Position" : "Select Department First"}
-                      </option>
-                      {positions.map((pos) => (
-                        <option key={pos.position_id} value={pos.position_id}>
-                          {pos.position_name}
-                        </option>
-                      ))}
-                    </select>
-                    {errors.position && (
-                      <p className="text-red-500 text-xs mt-1">{errors.position}</p>
-                    )}
-                  </div>
-
-                  {/* Supervisor */}
-                  <div>
-                    <label className="block text-[#3b2b1c] mb-1 font-medium">
-                      Reports To (Supervisor):
-                    </label>
-                    <select
-                      value={supervisorId || ""}
-                      onChange={(e) => {
-                        const value = e.target.value ? Number(e.target.value) : null;
-                        setSupervisorId(value);
-                        setErrors((prev) => ({ ...prev, supervisor: "" }));
-                      }}
-                      disabled={!departmentId}
-                      className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] focus:ring-2 focus:ring-[#4b0b14] disabled:opacity-50"
-                    >
-                      <option value="">
-                        {departmentId ? "No Supervisor (Optional)" : "Select Department First"}
-                      </option>
-                      {supervisors.map((sup) => (
-                        <option key={sup.employee_id} value={sup.employee_id}>
-                          {sup.employee_code} - {sup.first_name} {sup.last_name}
-                        </option>
-                      ))}
-                    </select>
-                    {errors.supervisor && (
-                      <p className="text-red-500 text-xs mt-1">{errors.supervisor}</p>
-                    )}
-                    <p className="text-xs text-[#6b5344] mt-1">
-                      Select who this employee reports to
-                    </p>
-                  </div>
-
-                  <FormSelect
-                    label="Shift"
-                    value={shift}
-                    onChange={(e) => setShift(e.target.value)}
-                    options={["Morning", "Night"]}
-                    error={errors.shift}
-                  />
-
-                  <FormSelect
-                    label="Employment Status"
-                    value={employmentStatus}
-                    onChange={(e) => {
-                      setEmploymentStatus(e.target.value);
-                      setErrors((prev) => ({ ...prev, employmentStatus: "" }));
-                    }}
-                    options={[...STATUS_OPTIONS]}
-                    error={errors.employmentStatus}
-                  />
-                </div>
-              </section>
+                </section>
+              )}
 
               {/* ========================== ADDRESS INFORMATION ========================== */}
-              <section>
+              {activeTab === "address" && (
+                <section>
+                  <h2 className="text-lg font-semibold text-[#3b2b1c] mb-4">
+                    Address Information
+                  </h2>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+                    <FormInput
+                      label="Home Address"
+                      type="text"
+                      value={homeAddress}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value.length <= 100) setHomeAddress(value);
+                      }}
+                      error={errors.homeAddress}
+                    />
+
+                    <FormSelect
+                      label="Region"
+                      value={region}       // region = CODE only ("010000000")
+                      onChange={(e) => {
+                        setRegion(e.target.value);
+                        setProvince("");
+                        setCity("");
+                      }}
+                      options={regions}    // [{code, name}, ...]
+                      error={errors.region}
+                    />
+
+                    <FormSelect
+                      label="Province"
+                      value={province}     // province = CODE only
+                      onChange={(e) => {
+                        setProvince(e.target.value);
+                        setCity("");
+                      }}
+                      options={provinces}  // [{code, name}, ...]
+                      error={errors.province}
+                    />
+
+
+                    <FormSelect
+                      label="City"
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      options={cities}     // [{code, name}, ...]
+                      error={errors.city}
+                    />
+                    <FormSelect
+                      label="Barangay"
+                      value={barangay}
+                      onChange={(e) => setBarangay(e.target.value)}
+                      options={barangays}  // [{code, name}]
+                      error={errors.barangay}
+                    />
+
+
+                  </div>
+                </section>
+              )}
+            </div>
+
+            {/*============ Contact Tab ============== */}
+            {activeTab === "contact" && (
+              <div className="mt-8">
                 <h2 className="text-lg font-semibold text-[#3b2b1c] mb-4">
-                  Address Information
+                  Contact Information
                 </h2>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-                  <FormInput
-                    label="Home Address"
-                    type="text"
-                    value={homeAddress}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      if (value.length <= 100) setHomeAddress(value);
-                    }}
-                    error={errors.homeAddress}
-                  />
-
-                  <FormSelect
-                    label="Region"
-                    value={region}
-                    onChange={(e) => {
-                      setRegion(e.target.value);
-                      setProvince("");
-                      setCity("");
-                      setBarangay("");
-                    }}
-                    options={regions}
-                    error={errors.region}
-                  />
-
-                  <FormSelect
-                    label="Province"
-                    value={province}
-                    onChange={(e) => {
-                      setProvince(e.target.value);
-                      setCity("");
-                      setBarangay("");
-                    }}
-                    options={region ? provinces : []}
-                    error={errors.province}
-                  />
-
-                  <FormSelect
-                    label="City"
-                    value={city}
-                    onChange={(e) => {
-                      setCity(e.target.value);
-                      setBarangay("");
-                    }}
-                    options={province ? cities : []}
-                    error={errors.city}
-                  />
-
-                  <FormSelect
-                    label="Barangay"
-                    value={barangay}
-                    onChange={(e) => setBarangay(e.target.value)}
-                    options={city ? barangays : []}
-                    error={errors.barangay}
-                  />
-
-                </div>
-              </section>
-            </div>
-
-            {/* Email Addresses Section */}
-            <div className="mt-8 pt-6 border-t border-[#e6d2b5]">
-              <h3 className="text-lg font-semibold mb-4 text-[#3b2b1c]">
-                Email Addresses
-              </h3>
-              {errors.emails && (
-                <p className="text-red-500 text-sm mb-3">{errors.emails}</p>
-              )}
-              <div className="space-y-3">
-                {emails.map((emailItem, index) => (
-                  <div
-                    key={emailItem.email_id ?? emailItem.id ?? `email-${index}`}
-                    className="flex gap-2 items-end"
-                  >
-                    <div className="flex-1">
-                      <input
-                        type="email"
-                        value={emailItem.email}
-                        onChange={(e) => {
-                          const newEmails = [...emails];
-                          newEmails[index].email = e.target.value;
-                          setEmails(newEmails);
-                        }}
-                        placeholder="Enter email address"
-                        className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c]"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setEmails((prev) => prev.filter((_, i) => i !== index))}
-                      className="px-3 py-2 bg-red-500 text-white rounded-lg hover:opacity-80"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={() =>
-                  setEmails((prev) => [...prev, { id: generateClientId(), email: "", isNew: true }])
-                }
-                className="mt-3 px-4 py-2 bg-[#3b2b1c] text-white rounded-lg hover:opacity-80"
-              >
-                + Add Another Email
-              </button>
-            </div>
-
-            {/* Contact Numbers Section */}
-            <div className="mt-8 pt-6 border-t border-[#e6d2b5]">
-              <h3 className="text-lg font-semibold mb-4 text-[#3b2b1c]">Contact Numbers</h3>
-
-              {errors.contactNumbers && (
-                <p className="text-red-500 text-sm mb-3">{errors.contactNumbers}</p>
-              )}
-
-              <div className="space-y-3">
-                {contactNumbers.map((contactItem, index) => (
-                  <div
-                    key={contactItem.contact_id ?? contactItem.id ?? `contact-${index}`}
-                    className="flex gap-2 items-end"
-                  >
-                    <div className="flex-1">
-                      <input
-                        type="text"
-                        value={contactItem.contact_number}
-                        onChange={(e) => {
-                          handleContactNumberChange(e, index, contactNumbers, setContactNumbers);
-                        }}
-                        placeholder="Enter contact number"
-                        className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c]"
-                      />
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setContactNumbers((prev) => prev.filter((_, i) => i !== index))
-                      }
-                      className="px-3 py-2 bg-red-500 text-white rounded-lg hover:opacity-80"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setContactNumbers((prev) => [
-                    ...prev,
-                    { id: generateClientId(), contact_number: "", isNew: true },
-                  ])
-                }
-                className="mt-3 px-4 py-2 bg-[#3b2b1c] text-white rounded-lg hover:opacity-80"
-              >
-                + Add Another Contact Number
-              </button>
-            </div>
-
-
-            {/* Dependents Section */}
-            <div className="border-t-2 border-[#e6d2b5] pt-6 mt-8">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-[#3b2b1c] font-semibold">
-                  Employee Dependent Information{" "}
-                  <span className="text-red-500">*</span>
-                </h3>
-                <span className="text-xs text-[#6b5344]">({dependents.length} added)</span>
-              </div>
-              {errors.dependents && (
-                <p className="text-red-500 text-xs mb-4">{errors.dependents}</p>
-              )}
-
-              {/* Add Dependent Form */}
-              <div className="bg-[#FFF2E0] p-4 rounded-lg mb-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
-                  <FormInput
-                    label="First Name:"
-                    type="text"
-                    value={dependentFirstName}
-                    onChange={(e) => {
-                      setDependentFirstName(e.target.value);
-                      if (dependentErrors.firstName) {
-                        setDependentErrors((prev) => ({ ...prev, firstName: "" }));
-                      }
-                    }}
-                    placeholder="Enter first name"
-                    error={dependentErrors.firstName}
-                  />
-                  <FormInput
-                    label="Last Name:"
-                    type="text"
-                    value={dependentLastName}
-                    onChange={(e) => {
-                      setDependentLastName(e.target.value);
-                      if (dependentErrors.lastName) {
-                        setDependentErrors((prev) => ({ ...prev, lastName: "" }));
-                      }
-                    }}
-                    placeholder="Enter last name"
-                    error={dependentErrors.lastName}
-                  />
-                  <FormInput
-                    label="Email:"
-                    type="email"
-                    value={dependentEmail}
-                    onChange={(e) => {
-                      setDependentEmail(e.target.value);
-                      if (dependentErrors.email) {
-                        setDependentErrors((prev) => ({ ...prev, email: "" }));
-                      }
-                    }}
-                    placeholder="(use gmail)"
-                    error={dependentErrors.email}
-                  />
-                  <FormInput
-                    label="Contact Info:"
-                    type="text"
-                    value={dependentContactInfo}
-                    onChange={(e) => {
-                      handleDependentContactInfoChange(e);
-                      if (dependentErrors.contactInfo) {
-                        setDependentErrors((prev) => ({ ...prev, contactInfo: "" }));
-                      }
-                    }}
-                    placeholder="Phone number (optional)"
-                    error={dependentErrors.contactInfo}
-                  />
-                  <FormSelect
-                    label="Relationship:"
-                    value={dependentRelationship}
-                    onChange={(e) => {
-                      setDependentRelationship(e.target.value);
-                      if (e.target.value !== "Other") {
-                        setDependentRelationshipSpecify("");
-                      }
-                      if (dependentErrors.relationship) {
-                        setDependentErrors((prev) => ({ ...prev, relationship: "" }));
-                      }
-                    }}
-                    options={["Spouse", "Child", "Parent", "Sibling", "Other"]}
-                    error={dependentErrors.relationship}
-                  />
-                  {dependentRelationship === "Other" && (
-                    <FormInput
-                      label="Specify Relationship:"
-                      type="text"
-                      value={dependentRelationshipSpecify}
-                      onChange={(e) => {
-                        setDependentRelationshipSpecify(e.target.value);
-                        if (dependentErrors.relationshipSpecify) {
-                          setDependentErrors((prev) => ({ ...prev, relationshipSpecify: "" }));
-                        }
-                      }}
-                      placeholder="Please specify the relationship"
-                      error={dependentErrors.relationshipSpecify}
-                    />
+                {/* Email Addresses Section */}
+                <div className="pt-6">
+                  <h3 className="text-lg font-semibold mb-4 text-[#3b2b1c]">
+                    Email Addresses
+                  </h3>
+                  {errors.emails && (
+                    <p className="text-red-500 text-sm mb-3">{errors.emails}</p>
                   )}
-                </div>
-
-                {/* Home Address Section with Y-axis padding */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm py-4">
-                  <div className="md:col-span-2">
-                    <FormInput
-                      label="Home Address:"
-                      type="text"
-                      value={dependentHomeAddress}
-                      onChange={(e) => {
-                        setDependentHomeAddress(e.target.value);
-                        if (dependentErrors.homeAddress) {
-                          setDependentErrors((prev) => ({ ...prev, homeAddress: "" }));
-                        }
-                      }}
-                      placeholder="Enter home address"
-                      error={dependentErrors.homeAddress}
-                    />
-                  </div>
-                  <FormSelect
-                    label="Region:"
-                    value={dependentRegion}
-                    onChange={(e) => {
-                      setDependentRegion(e.target.value);
-                      setDependentProvince("");
-                      setDependentCity("");
-                      if (dependentErrors.region) {
-                        setDependentErrors((prev) => ({ ...prev, region: "" }));
-                      }
-                    }}
-                    options={regions}
-                    error={dependentErrors.region}
-                  />
-                  <FormSelect
-                    label="Province:"
-                    value={dependentProvince}
-                    onChange={(e) => {
-                      setDependentProvince(e.target.value);
-                      setDependentCity("");
-                      if (dependentErrors.province) {
-                        setDependentErrors((prev) => ({ ...prev, province: "" }));
-                      }
-                    }}
-                    options={dependentRegion ? dependentProvinces : []}
-                    error={dependentErrors.province}
-                  />
-                  <FormSelect
-                    label="City:"
-                    value={dependentCity}
-                    onChange={(e) => {
-                      setDependentCity(e.target.value);
-                      if (dependentErrors.city) {
-                        setDependentErrors((prev) => ({ ...prev, city: "" }));
-                      }
-                    }}
-                    options={dependentProvince ? dependentCities : []}
-                    error={dependentErrors.city}
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const newErrors = validateDependent(
-                      dependentFirstName,
-                      dependentLastName,
-                      dependentRelationship,
-                      dependentEmail,
-                      dependentContactInfo,
-                      dependentRelationshipSpecify,
-                      dependentHomeAddress,
-                      dependentRegion,
-                      dependentProvince,
-                      dependentCity
-                    );
-
-                    if (Object.keys(newErrors).length > 0) {
-                      setDependentErrors(newErrors);
-                      return;
-                    }
-
-                    setDependentErrors({});
-
-                    const newDependent: Dependent = {
-                      id: generateClientId(),
-                      firstName: dependentFirstName,
-                      lastName: dependentLastName,
-                      email: dependentEmail,
-                      contactInfo: dependentContactInfo,
-                      relationship: dependentRelationship,
-                      relationshipSpecify:
-                        dependentRelationshipSpecify || undefined,
-                      homeAddress: dependentHomeAddress,
-                      region: dependentRegion,
-                      province: dependentProvince,
-                      city: dependentCity,
-                    };
-                    setDependents([...dependents, newDependent]);
-                    setDependentFirstName("");
-                    setDependentLastName("");
-                    setDependentEmail("");
-                    setDependentContactInfo("");
-                    setDependentRelationship("");
-                    setDependentRelationshipSpecify("");
-                    setDependentHomeAddress("");
-                    setDependentRegion("");
-                    setDependentProvince("");
-                    setDependentCity("");
-                  }}
-                  className="w-full px-4 py-2 bg-[#4b0b14] text-white rounded-lg hover:bg-[#6b0b1f] transition-colors font-semibold"
-                >
-                  Add Dependent
-                </button>
-              </div>
-
-              {/* Dependents List */}
-              {dependents.length > 0 && (
-                <div className="space-y-3">
-                  <h4 className="text-[#3b2b1c] font-semibold">Added Dependents:</h4>
-                  {dependents.map((dependent) => (
-                    <div
-                      key={dependent.id}
-                      className="bg-[#f5e6d3] p-4 rounded-lg border border-[#e6d2b5]"
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <p className="font-semibold text-[#3b2b1c]">
-                            {dependent.firstName} {dependent.lastName}
-                          </p>
-                          <p className="text-xs text-[#6b5344]">
-                            Relationship: {dependent.relationship}
-                            {dependent.relationshipSpecify &&
-                              ` (${dependent.relationshipSpecify})`}
-                          </p>
+                  <div className="space-y-3">
+                    {emails.map((emailItem, index) => (
+                      <div
+                        key={emailItem.id ?? `email-${index}`}
+                        className="flex gap-2 items-end"
+                      >
+                        <div className="flex-1">
+                          <input
+                            type="email"
+                            value={emailItem.email}
+                            onChange={(e) => {
+                              const newEmails = [...emails];
+                              newEmails[index].email = e.target.value;
+                              setEmails(newEmails);
+                            }}
+                            placeholder="Enter email address"
+                            className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c]"
+                          />
                         </div>
                         <button
                           type="button"
                           onClick={() =>
-                            setDependents(dependents.filter((d) => d.id !== dependent.id))
+                            setEmails((prev) => prev.filter((_, i) => i !== index))
                           }
-                          className="text-red-500 hover:text-red-700 font-semibold text-sm"
+                          className="px-3 py-2 bg-red-500 text-white rounded-lg hover:opacity-80"
                         >
                           Remove
                         </button>
                       </div>
-                      {dependent.email && (
-                        <p className="text-xs text-[#6b5344]">Email: {dependent.email}</p>
-                      )}
-                      {dependent.contactInfo && (
-                        <p className="text-xs text-[#6b5344]">Contact: {dependent.contactInfo}</p>
-                      )}
-                      {dependent.homeAddress && (
-                        <p className="text-xs text-[#6b5344]">Address: {dependent.homeAddress}</p>
-                      )}
-                      {(dependent.city || dependent.province || dependent.region) && (
-                        <p className="text-xs text-[#6b5344]">
-                          Location:{" "}
-                          {[dependent.city, dependent.province, dependent.region]
-                            .filter(Boolean)
-                            .join(", ")}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Role Management Section */}
-            <div className="border-t-2 border-[#e6d2b5] pt-6 mt-8">
-              <h3 className="text-[#3b2b1c] font-semibold mb-4">Role Management</h3>
-
-              {/* Admin Privilege Checkbox */}
-              <div className="col-span-2 flex items-center gap-3 mt-4 p-4 bg-[#FFF2E0] rounded-lg border border-[#e6d2b5]">
-                <input
-                  type="checkbox"
-                  id="grantAdminPrivilege"
-                  checked={grantAdminPrivilege}
-                  onChange={(e) => {
-                    setGrantAdminPrivilege(e.target.checked);
-                    if (e.target.checked) {
-                      setGrantSupervisorPrivilege(false);
-                    }
-                    if (!e.target.checked) {
-                      setSubRole("");
-                      setErrors((prev) => ({
-                        ...prev,
-                        subRole: "",
-                        supervisor: "",
-                      }));
-                    }
-                  }}
-                  className="w-5 h-5 text-[#4b0b14] bg-white border-[#3b2b1c] rounded focus:ring-[#4b0b14] focus:ring-2 cursor-pointer"
-                />
-                <label
-                  htmlFor="grantAdminPrivilege"
-                  className="text-[#3b2b1c] font-semibold cursor-pointer select-none"
-                >
-                  Grant Admin Privilege
-                </label>
-              </div>
-
-              {/* Supervisor Privilege Checkbox */}
-              <div className="col-span-2 flex items-center gap-3 mt-2 p-4 bg-[#E8F5E9] rounded-lg border border-[#c8e6c9]">
-                <input
-                  type="checkbox"
-                  id="grantSupervisorPrivilege"
-                  checked={grantSupervisorPrivilege}
-                  onChange={(e) => {
-                    setGrantSupervisorPrivilege(e.target.checked);
-                    if (e.target.checked) {
-                      setGrantAdminPrivilege(false);
-                    }
-                    if (!e.target.checked) {
-                      setSubRole("");
-                      setErrors((prev) => ({
-                        ...prev,
-                        subRole: "",
-                        supervisor: "",
-                      }));
-                    }
-                  }}
-                  className="w-5 h-5 text-[#2e7d32] bg-white border-[#1b5e20] rounded focus:ring-[#2e7d32] focus:ring-2 cursor-pointer"
-                />
-                <label
-                  htmlFor="grantSupervisorPrivilege"
-                  className="text-[#1b5e20] font-semibold cursor-pointer select-none"
-                >
-                  Grant Supervisor Privilege
-                </label>
-              </div>
-
-              {(grantAdminPrivilege || grantSupervisorPrivilege) && (
-                <div className="mt-4">
-                  {!departmentId ? (
-                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                      <p className="text-sm text-yellow-800">
-                        ⚠️ Please select a department first to choose the sub-role
-                      </p>
-                    </div>
-                  ) : subRole ? (
-                    <div className="p-3 bg-[#FFF2E0] border border-[#e6d2b5] rounded-lg">
-                      <p className="text-sm text-[#3b2b1c]">
-                        Auto-assigned sub-role: <span className="font-semibold uppercase">{subRole}</span>
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                      <p className="text-sm text-red-700">
-                        ⚠️ The selected department does not have an associated HR/IT sub-role. Choose another department or disable the privilege.
-                      </p>
-                    </div>
-                  )}
-                  {errors.subRole && (
-                    <p className="text-red-500 text-xs mt-2">{errors.subRole}</p>
-                  )}
-                </div>
-              )}
-
-              {errors.supervisor && (
-                <p className="text-red-500 text-xs mt-2">{errors.supervisor}</p>
-              )}
-            </div>
-
-            {/* Fingerprint Registration Section */}
-            <div className="border-t-2 border-[#e6d2b5] pt-6 mt-8">
-              <h3 className="text-[#3b2b1c] font-semibold mb-4">Fingerprint Registration</h3>
-
-              {currentFingerprintId ? (
-                <div className="bg-[#FFF2E0] p-4 rounded-lg border border-[#e6d2b5]">
-                  <p className="text-sm text-[#3b2b1c]">
-                    <span className="font-semibold">Current Fingerprint ID:</span> {currentFingerprintId}
-                  </p>
-                  <p className="text-xs text-[#6b5344] mt-1">
-                    This employee has a registered fingerprint for attendance tracking.
-                  </p>
-                </div>
-              ) : (
-                <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-yellow-800 font-semibold">
-                        No fingerprint registered
-                      </p>
-                      <p className="text-xs text-yellow-700 mt-1">
-                        This employee doesn't have a fingerprint registered yet. Register one to enable fingerprint attendance.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowFingerprintEnrollment(true)}
-                      className="px-4 py-2 bg-[#8b7355] text-white rounded-lg hover:bg-[#6d5a43] transition-colors font-medium text-sm whitespace-nowrap"
-                    >
-                      Register Fingerprint
-                    </button>
+                    ))}
                   </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEmails((prev) => [...prev, { id: generateClientId(), email: "", isNew: true }])
+                    }
+                    className="mt-3 px-4 py-2 bg-[#3b2b1c] text-white rounded-lg hover:opacity-80"
+                  >
+                    + Add Another Email
+                  </button>
                 </div>
-              )}
-            </div>
+
+                {/* Contact Numbers Section */}
+                <div className="mt-8 pt-6 border-t border-[#e6d2b5]">
+                  <h3 className="text-lg font-semibold mb-4 text-[#3b2b1c]">Contact Numbers</h3>
+
+                  {errors.contactNumbers && (
+                    <p className="text-red-500 text-sm mb-3">{errors.contactNumbers}</p>
+                  )}
+
+                  <div className="space-y-3">
+                    {contactNumbers.map((contactItem, index) => (
+                      <div
+                        key={contactItem.id ?? `contact-${index}`}
+                        className="flex gap-2 items-end"
+                      >
+                        <div className="flex-1">
+                          <input
+                            type="text"
+                            value={contactItem.contact_number}
+                            onChange={(e) =>
+                              handleContactNumberChange(e, index, contactNumbers, setContactNumbers)
+                            }
+                            placeholder="Enter contact number"
+                            className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c]"
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setContactNumbers((prev) => prev.filter((_, i) => i !== index))
+                          }
+                          className="px-3 py-2 bg-red-500 text-white rounded-lg hover:opacity-80"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setContactNumbers((prev) => [
+                        ...prev,
+                        { id: generateClientId(), contact_number: "", isNew: true },
+                      ])
+                    }
+                    className="mt-3 px-4 py-2 bg-[#3b2b1c] text-white rounded-lg hover:opacity-80"
+                  >
+                    + Add Another Contact Number
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ============= Dependents Section ============= */}
+            {activeTab === "dependent" && (
+              <div className="pt-6 mt-8">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-[#3b2b1c] font-semibold">
+                    Employee Dependent Information{" "}
+                    <span className="text-red-500">*</span>
+                  </h3>
+                  <span className="text-xs text-[#6b5344]">({dependents.length} added)</span>
+                </div>
+                {errors.dependents && (
+                  <p className="text-red-500 text-xs mb-4">{errors.dependents}</p>
+                )}
+
+                {/* Add Dependent Form */}
+                <div className="bg-[#FFF2E0] p-4 rounded-lg mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
+                    <FormInput
+                      label="First Name:"
+                      type="text"
+                      value={dependentFirstName}
+                      onChange={(e) => {
+                        setDependentFirstName(e.target.value);
+                        if (dependentErrors.firstName) {
+                          setDependentErrors((prev) => ({ ...prev, firstName: "" }));
+                        }
+                      }}
+                      placeholder="Enter first name"
+                      error={dependentErrors.firstName}
+                    />
+                    <FormInput
+                      label="Last Name:"
+                      type="text"
+                      value={dependentLastName}
+                      onChange={(e) => {
+                        setDependentLastName(e.target.value);
+                        if (dependentErrors.lastName) {
+                          setDependentErrors((prev) => ({ ...prev, lastName: "" }));
+                        }
+                      }}
+                      placeholder="Enter last name"
+                      error={dependentErrors.lastName}
+                    />
+                    <FormInput
+                      label="Email:"
+                      type="email"
+                      value={dependentEmail}
+                      onChange={(e) => {
+                        setDependentEmail(e.target.value);
+                        if (dependentErrors.email) {
+                          setDependentErrors((prev) => ({ ...prev, email: "" }));
+                        }
+                      }}
+                      placeholder="(use gmail)"
+                      error={dependentErrors.email}
+                    />
+                    <FormInput
+                      label="Contact Info:"
+                      type="text"
+                      value={dependentContactInfo}
+                      onChange={(e) => {
+                        handleDependentContactInfoChange(e);
+                        if (dependentErrors.contactInfo) {
+                          setDependentErrors((prev) => ({ ...prev, contactInfo: "" }));
+                        }
+                      }}
+                      placeholder="Phone number (optional)"
+                      error={dependentErrors.contactInfo}
+                    />
+                    <FormSelect
+                      label="Relationship:"
+                      value={dependentRelationship}
+                      onChange={(e) => {
+                        setDependentRelationship(e.target.value);
+                        if (e.target.value !== "Other") {
+                          setDependentRelationshipSpecify("");
+                        }
+                        if (dependentErrors.relationship) {
+                          setDependentErrors((prev) => ({ ...prev, relationship: "" }));
+                        }
+                      }}
+                      options={["Spouse", "Child", "Parent", "Sibling", "Other"]}
+                      error={dependentErrors.relationship}
+                    />
+                    {dependentRelationship === "Other" && (
+                      <FormInput
+                        label="Specify Relationship:"
+                        type="text"
+                        value={dependentRelationshipSpecify}
+                        onChange={(e) => {
+                          setDependentRelationshipSpecify(e.target.value);
+                          if (dependentErrors.relationshipSpecify) {
+                            setDependentErrors((prev) => ({ ...prev, relationshipSpecify: "" }));
+                          }
+                        }}
+                        placeholder="Please specify the relationship"
+                        error={dependentErrors.relationshipSpecify}
+                      />
+                    )}
+                  </div>
+
+                  {/* Home Address Section with Y-axis padding */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm py-4">
+                    <div className="md:col-span-2">
+                      <FormInput
+                        label="Home Address:"
+                        type="text"
+                        value={dependentHomeAddress}
+                        onChange={(e) => {
+                          setDependentHomeAddress(e.target.value);
+                          if (dependentErrors.homeAddress) {
+                            setDependentErrors((prev) => ({ ...prev, homeAddress: "" }));
+                          }
+                        }}
+                        placeholder="Enter home address"
+                        error={dependentErrors.homeAddress}
+                      />
+                    </div>
+                    <FormSelect
+                      label="Region:"
+                      value={dependentRegion}
+                      onChange={(e) => {
+                        setDependentRegion(e.target.value);
+                        setDependentProvince("");
+                        setDependentCity("");
+                        if (dependentErrors.region) {
+                          setDependentErrors((prev) => ({ ...prev, region: "" }));
+                        }
+                      }}
+                      options={regions}
+                      error={dependentErrors.region}
+                    />
+                    <FormSelect
+                      label="Province:"
+                      value={dependentProvince}
+                      onChange={(e) => {
+                        setDependentProvince(e.target.value);
+                        setDependentCity("");
+                        if (dependentErrors.province) {
+                          setDependentErrors((prev) => ({ ...prev, province: "" }));
+                        }
+                      }}
+                      options={dependentRegion ? dependentProvinces : []}
+                      error={dependentErrors.province}
+                    />
+                    <FormSelect
+                      label="City:"
+                      value={dependentCity}
+                      onChange={(e) => {
+                        setDependentCity(e.target.value);
+                        if (dependentErrors.city) {
+                          setDependentErrors((prev) => ({ ...prev, city: "" }));
+                        }
+                      }}
+                      options={dependentProvince ? dependentCities : []}
+                      error={dependentErrors.city}
+                    />
+
+                    <FormSelect
+                      label="Barangay:"
+                      value={dependentBarangay}
+                      onChange={(e) => {
+                        setDependentBarangay(e.target.value);
+                        if (dependentErrors.barangay) {
+                          setDependentErrors((prev) => ({ ...prev, barangay: "" }));
+                        }
+                      }}
+                      options={dependantBarangays}
+                      error={dependentErrors.barangay}
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newErrors = validateDependent(
+                        dependentFirstName,
+                        dependentLastName,
+                        dependentRelationship,
+                        dependentEmail,
+                        dependentContactInfo,
+                        dependentRelationshipSpecify,
+                        dependentHomeAddress,
+                        dependentBarangay,
+                        dependentRegion,
+                        dependentProvince,
+                        dependentCity
+                      );
+
+                      if (Object.keys(newErrors).length > 0) {
+                        setDependentErrors(newErrors);
+                        return;
+                      }
+
+                      setDependentErrors({});
+
+                      const newDependent: Dependent = {
+                        id: generateClientId(),
+                        firstName: dependentFirstName,
+                        lastName: dependentLastName,
+                        email: dependentEmail,
+                        contactInfo: dependentContactInfo,
+                        relationship: dependentRelationship,
+                        relationshipSpecify:
+                          dependentRelationshipSpecify || undefined,
+                        homeAddress: dependentHomeAddress,
+                        region: dependentRegion,
+                        province: dependentProvince,
+                        city: dependentCity,
+                      };
+                      setDependents([...dependents, newDependent]);
+                      setDependentFirstName("");
+                      setDependentLastName("");
+                      setDependentEmail("");
+                      setDependentContactInfo("");
+                      setDependentRelationship("");
+                      setDependentRelationshipSpecify("");
+                      setDependentHomeAddress("");
+                      setDependentRegion("");
+                      setDependentProvince("");
+                      setDependentCity("");
+                    }}
+                    className="w-full px-4 py-2 bg-[#4b0b14] text-white rounded-lg hover:bg-[#6b0b1f] transition-colors font-semibold"
+                  >
+                    Add Dependent
+                  </button>
+                </div>
+
+                {/* Dependents List */}
+                {dependents.length > 0 && (
+                  <div className="space-y-3">
+                    <h4 className="text-[#3b2b1c] font-semibold">Added Dependents:</h4>
+                    {dependents.map((dependent) => (
+                      <div
+                        key={dependent.id}
+                        className="bg-[#f5e6d3] p-4 rounded-lg border border-[#e6d2b5]"
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <p className="font-semibold text-[#3b2b1c]">
+                              {dependent.firstName} {dependent.lastName}
+                            </p>
+                            <p className="text-xs text-[#6b5344]">
+                              Relationship: {dependent.relationship}
+                              {dependent.relationshipSpecify &&
+                                ` (${dependent.relationshipSpecify})`}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDependents(dependents.filter((d) => d.id !== dependent.id))
+                            }
+                            className="text-red-500 hover:text-red-700 font-semibold text-sm"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        {dependent.email && (
+                          <p className="text-xs text-[#6b5344]">Email: {dependent.email}</p>
+                        )}
+                        {dependent.contactInfo && (
+                          <p className="text-xs text-[#6b5344]">Contact: {dependent.contactInfo}</p>
+                        )}
+                        {dependent.homeAddress && (
+                          <p className="text-xs text-[#6b5344]">Address: {dependent.homeAddress}</p>
+                        )}
+                        {(dependent.city || dependent.province || dependent.region) && (
+                          <p className="text-xs text-[#6b5344]">
+                            Location:{" "}
+                            {[dependent.city, dependent.province, dependent.region]
+                              .filter(Boolean)
+                              .join(", ")}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/*================= Role Management Section ================= */}
+            {activeTab === "roles" && (
+              <div className="pt-6 mt-8">
+                <h3 className="text-[#3b2b1c] font-semibold mb-4">Role Management</h3>
+
+                {/* Admin Privilege Checkbox */}
+                <div className="col-span-2 flex items-center gap-3 mt-4 p-4 bg-[#FFF2E0] rounded-lg border border-[#e6d2b5]">
+                  <input
+                    type="checkbox"
+                    id="grantAdminPrivilege"
+                    checked={grantAdminPrivilege}
+                    onChange={(e) => {
+                      setGrantAdminPrivilege(e.target.checked);
+                      if (e.target.checked) {
+                        setGrantSupervisorPrivilege(false);
+                      }
+                      if (!e.target.checked) {
+                        setSubRole("");
+                        setErrors((prev) => ({
+                          ...prev,
+                          subRole: "",
+                          supervisor: "",
+                        }));
+                      }
+                    }}
+                    className="w-5 h-5 text-[#4b0b14] bg-white border-[#3b2b1c] rounded focus:ring-[#4b0b14] focus:ring-2 cursor-pointer"
+                  />
+                  <label
+                    htmlFor="grantAdminPrivilege"
+                    className="text-[#3b2b1c] font-semibold cursor-pointer select-none"
+                  >
+                    Grant Admin Privilege
+                  </label>
+                </div>
+
+                {/* Supervisor Privilege Checkbox */}
+                <div className="col-span-2 flex items-center gap-3 mt-2 p-4 bg-[#E8F5E9] rounded-lg border border-[#c8e6c9]">
+                  <input
+                    type="checkbox"
+                    id="grantSupervisorPrivilege"
+                    checked={grantSupervisorPrivilege}
+                    onChange={(e) => {
+                      setGrantSupervisorPrivilege(e.target.checked);
+                      if (e.target.checked) {
+                        setGrantAdminPrivilege(false);
+                      }
+                      if (!e.target.checked) {
+                        setSubRole("");
+                        setErrors((prev) => ({
+                          ...prev,
+                          subRole: "",
+                          supervisor: "",
+                        }));
+                      }
+                    }}
+                    className="w-5 h-5 text-[#2e7d32] bg-white border-[#1b5e20] rounded focus:ring-[#2e7d32] focus:ring-2 cursor-pointer"
+                  />
+                  <label
+                    htmlFor="grantSupervisorPrivilege"
+                    className="text-[#1b5e20] font-semibold cursor-pointer select-none"
+                  >
+                    Grant Supervisor Privilege
+                  </label>
+                </div>
+
+                {(grantAdminPrivilege || grantSupervisorPrivilege) && (
+                  <div className="mt-4">
+                    {!departmentId ? (
+                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <p className="text-sm text-yellow-800">
+                          ⚠️ Please select a department first to choose the sub-role
+                        </p>
+                      </div>
+                    ) : subRole ? (
+                      <div className="p-3 bg-[#FFF2E0] border border-[#e6d2b5] rounded-lg">
+                        <p className="text-sm text-[#3b2b1c]">
+                          Auto-assigned sub-role: <span className="font-semibold uppercase">{subRole}</span>
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <p className="text-sm text-red-700">
+                          ⚠️ The selected department does not have an associated HR/IT sub-role. Choose another department or disable the privilege.
+                        </p>
+                      </div>
+                    )}
+                    {errors.subRole && (
+                      <p className="text-red-500 text-xs mt-2">{errors.subRole}</p>
+                    )}
+                  </div>
+                )}
+
+                {errors.supervisor && (
+                  <p className="text-red-500 text-xs mt-2">{errors.supervisor}</p>
+                )}
+              </div>
+            )}
+
+            {/*================ Fingerprint Registration Section ================*/}
+            {activeTab === "fingerprint" && (
+              <div className="pt-6 mt-8">
+                <h3 className="text-[#3b2b1c] font-semibold mb-4">Fingerprint Registration</h3>
+
+                {currentFingerprintId ? (
+                  <div className="bg-[#FFF2E0] p-4 rounded-lg border border-[#e6d2b5]">
+                    <p className="text-sm text-[#3b2b1c]">
+                      <span className="font-semibold">Current Fingerprint ID:</span> {currentFingerprintId}
+                    </p>
+                    <p className="text-xs text-[#6b5344] mt-1">
+                      This employee has a registered fingerprint for attendance tracking.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-yellow-800 font-semibold">
+                          No fingerprint registered
+                        </p>
+                        <p className="text-xs text-yellow-700 mt-1">
+                          This employee doesn't have a fingerprint registered yet. Register one to enable fingerprint attendance.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowFingerprintEnrollment(true)}
+                        className="px-4 py-2 bg-[#8b7355] text-white rounded-lg hover:bg-[#6d5a43] transition-colors font-medium text-sm whitespace-nowrap"
+                      >
+                        Register Fingerprint
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
           </div>
         ) : (
           <p className="text-center text-gray-600">Loading employee details...</p>
@@ -1506,7 +1756,5 @@ export default function EditEmployeeModal({
 
 
     </div>
-
-
   );
 }
