@@ -77,6 +77,13 @@ router.put(
       .isIn(['open', 'in_progress', 'resolved', 'closed'])
       .withMessage('Invalid status'),
     body('fixed_by').optional().isInt().withMessage('Fixed by must be an integer'),
+    body('resolution_description')
+      .if(body('status').equals('resolved'))
+      .notEmpty()
+      .withMessage('Resolution description is required when status is resolved')
+      .trim()
+      .isLength({ min: 10, max: 1000 })
+      .withMessage('Resolution description must be between 10 and 1000 characters'),
   ],
   handleValidationErrors,
   updateTicketStatus

@@ -1,7 +1,7 @@
 // src/lib/api.ts
 	
 	import { User } from '@/types/api';
-	import { toast } from 'react-hot-toast';
+  import showToast, { toast } from '@/utils/toast';
 	
 	const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
@@ -110,41 +110,28 @@ function friendlyNetworkErrorMessage(err: any): string {
 	  const isGet = method === 'GET';
 	  const maxRetries = isGet ? 2 : 0; // retry GETs only
 	
-	  const isBrowser = typeof window !== 'undefined';
-	  let loadingToastId: string | undefined;
-	
-	  // Show a loading toast while we are talking to the server
-	  if (isBrowser) {
-	    loadingToastId = toast.loading('Connecting to server...', {
-	      duration: Infinity,
-	    });
-	  }
+    const isBrowser = typeof window !== 'undefined';
 	
 	  const finish = (result: ApiResult<T>): ApiResult<T> => {
-	    if (isBrowser && loadingToastId) {
-	      toast.dismiss(loadingToastId);
-	      loadingToastId = undefined;
-	    }
-	
-	    if (isBrowser) {
-	      if (result.success) {
-	        // Avoid spamming success toasts for simple data fetches
-	        if (!isGet) {
-	          const successMessage =
-	            result.message ||
-	            (method === 'POST'
-	              ? 'Request completed successfully.'
-	              : 'Changes saved successfully.');
-	          toast.success(successMessage);
-	        }
-	      } else {
-	        const errorMessage =
-	          result.message ||
-	          result.error ||
-	          'Something went wrong. Please try again.';
-	        toast.error(errorMessage);
-	      }
-	    }
+      if (isBrowser) {
+        if (result.success) {
+          // Avoid spamming success toasts for simple data fetches
+          if (!isGet) {
+            const successMessage =
+              result.message ||
+              (method === 'POST'
+                ? 'Request completed successfully.'
+                : 'Changes saved successfully.');
+            showToast.success(successMessage);
+          }
+        } else {
+          const errorMessage =
+            result.message ||
+            result.error ||
+            'Something went wrong. Please try again.';
+          showToast.error(errorMessage);
+        }
+      }
 	
 	    return result;
 	  };
@@ -194,15 +181,11 @@ function friendlyNetworkErrorMessage(err: any): string {
 	        return finish({ success: false, message: authMessage, error: 'Unauthorized', status: 401 });
 	      }
 	
-	      // Handle 500 status
-	      if (response.status === 500) {
-	        const serverMessage = friendlyMessageFromStatus(500);
-	        if (typeof window !== 'undefined') {
-	          try { localStorage.removeItem('token'); } catch {}
-	          window.location.href = '/';
-	        }
-	        return finish({ success: false, message: serverMessage, error: 'Unauthorized', status: 401 });
-	      }
+        // Handle 500 status (server error) — do NOT remove token or redirect automatically
+        if (response.status === 500) {
+          const serverMessage = friendlyMessageFromStatus(500);
+          return finish({ success: false, message: serverMessage, error: 'ServerError', status: 500 });
+        }
 
       // Non-OK responses
       if (!response.ok) {
@@ -960,10 +943,10 @@ export const ticketApi = {
   /**
    * Update ticket status
    */
-  updateStatus: async (id: number, status: 'open' | 'in_progress' | 'resolved' | 'closed', fixed_by?: number) => {
+  updateStatus: async (id: number, status: 'open' | 'in_progress' | 'resolved' | 'closed', fixed_by?: number, resolution_description?: string) => {
     return apiCall<any>(`/tickets/${id}/status`, {
       method: 'PUT',
-      body: JSON.stringify({ status, fixed_by }),
+      body: JSON.stringify({ status, fixed_by, resolution_description }),
     });
   },
 

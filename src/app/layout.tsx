@@ -34,7 +34,40 @@ export default function RootLayout({
       <body className={` ${abrilFatface.variable} antialiased`}>
         <NetworkStatusBanner />
         {children}
-        <Toaster />
+        <Toaster 
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: '#363636',
+              color: '#fff',
+              borderRadius: '8px',
+              fontSize: '14px',
+            },
+            success: {
+              duration: 3000,
+              iconTheme: {
+                primary: '#4ade80',
+                secondary: '#fff',
+              },
+            },
+            error: {
+              duration: 5000,
+              iconTheme: {
+                primary: '#ef4444',
+                secondary: '#fff',
+              },
+            },
+          }}
+          gutter={8}
+          containerStyle={{
+            top: 20,
+            left: 20,
+            bottom: 20,
+            right: 20,
+          }}
+          reverseOrder={false}
+        />
       </body>
     </html>
   );

@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
 import { ticketApi } from "@/lib/api";
-import { toast } from "react-hot-toast";
+import { showToast } from "@/utils/toast";
 
 // Define proper types
 interface ApiResponse<T> {
@@ -29,6 +29,7 @@ interface Ticket {
   fixed_by: number | null;
   title: string;
   description: string | null;
+  resolution_description?: string | null;
   status: "open" | "in_progress" | "resolved" | "closed";
   created_at: string;
   updated_at: string;
@@ -80,6 +81,9 @@ const TechnicalSupportTab = () => {
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [resolving, setResolving] = useState(false);
+  const [showResolveModal, setShowResolveModal] = useState(false);
+  const [resolutionText, setResolutionText] = useState("");
+  const [resolutionError, setResolutionError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
   const itemsPerPage = 7;
@@ -102,7 +106,7 @@ const TechnicalSupportTab = () => {
     } catch (error: unknown) {
       const apiError = error as ApiError;
       console.error("Error fetching tickets:", error);
-      toast.error(apiError.message || "Failed to fetch tickets");
+      showToast.error(apiError.message || "Failed to fetch tickets");
     } finally {
       setLoading(false);
     }
@@ -129,40 +133,55 @@ const TechnicalSupportTab = () => {
     setSelectedTicket(null);
   }, []);
 
-  const handleResolve = useCallback(async () => {
+  // Open the resolution modal to collect a resolution_description before resolving
+  const handleResolve = useCallback(() => {
     if (!selectedTicket || resolving) return;
+    setResolutionText("");
+    setResolutionError("");
+    setShowResolveModal(true);
+  }, [selectedTicket, resolving]);
+
+  // Confirm and submit resolution
+  const confirmResolve = useCallback(async () => {
+    if (!selectedTicket || resolving) return;
+
+    const desc = resolutionText.trim();
+    if (desc.length < 10) {
+      setResolutionError('Resolution description must be at least 10 characters.');
+      return;
+    }
 
     try {
       setResolving(true);
       const response: ApiResponse<unknown> = await ticketApi.updateStatus(
         selectedTicket.ticket_id,
-        "resolved",
-        undefined
+        'resolved',
+        undefined,
+        desc
       );
 
       if (response.success) {
-        toast.success("Ticket marked as resolved");
+        showToast.success('Ticket marked as resolved');
 
         setTickets((prev) =>
           prev.map((t) =>
-            t.ticket_id === selectedTicket.ticket_id
-              ? { ...t, status: "resolved" }
-              : t
+            t.ticket_id === selectedTicket.ticket_id ? { ...t, status: 'resolved' } : t
           )
         );
 
-        setSelectedTicket({ ...selectedTicket, status: "resolved" });
+        setSelectedTicket({ ...selectedTicket, status: 'resolved', resolution_description: desc } as any);
+        setShowResolveModal(false);
       } else {
-        throw new Error(response.message || "Failed to resolve ticket");
+        throw new Error(response.message || 'Failed to resolve ticket');
       }
     } catch (error: unknown) {
       const apiError = error as ApiError;
-      console.error("Error resolving ticket:", error);
-      toast.error(apiError.message || "Failed to resolve ticket");
+      console.error('Error resolving ticket:', error);
+      showToast.error(apiError.message || 'Failed to resolve ticket');
     } finally {
       setResolving(false);
     }
-  }, [selectedTicket, resolving]);
+  }, [selectedTicket, resolving, resolutionText]);
 
   const handleSearch = (searchTerm: string) => {
     setSearchTerm(searchTerm);
@@ -358,6 +377,7 @@ const TechnicalSupportTab = () => {
       <AnimatePresence>
         {showModal && selectedTicket && (
           <motion.div
+            key={`ticket-details-${selectedTicket.ticket_id}`}
             className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -410,6 +430,14 @@ const TechnicalSupportTab = () => {
                     {selectedTicket.description || "No description provided"}
                   </div>
                 </div>
+                {selectedTicket.status === 'resolved' && selectedTicket.resolution_description && (
+                  <div>
+                    <span className="font-semibold">Resolution:</span>
+                    <div className="mt-1 p-3 bg-[#EEF6EE]/30 rounded-lg whitespace-pre-wrap text-sm text-[#1f4723]">
+                      {selectedTicket.resolution_description}
+                    </div>
+                  </div>
+                )}
                 <p>
                   <span className="font-semibold">Status:</span>{" "}
                   <span
@@ -466,6 +494,59 @@ const TechnicalSupportTab = () => {
             </motion.div>
           </motion.div>
         )}
+          {showResolveModal && selectedTicket && (
+            <motion.div
+              key={`ticket-resolve-${selectedTicket.ticket_id}`}
+              className="fixed inset-0 bg-black/60 flex items-center justify-center z-60"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="resolve-title"
+            >
+              <motion.div
+                className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4 relative border border-[#EAD7C4]"
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                role="document"
+              >
+                <h3 id="resolve-title" className="text-lg font-semibold text-[#3D1A0B] mb-3">
+                  Resolve Ticket — {selectedTicket.ticket_code}
+                </h3>
+
+                <p className="text-sm text-[#3b2b1c] mb-3">Please enter a resolution description (min 10 characters).</p>
+
+                <textarea
+                  value={resolutionText}
+                  onChange={(e) => setResolutionText(e.target.value)}
+                  className="w-full min-h-[120px] p-3 border rounded-md resize-none text-sm"
+                  placeholder="Describe the resolution performed, steps taken, and any notes for the requester..."
+                  aria-label="Resolution description"
+                />
+                {resolutionError && (
+                  <div className="text-sm text-red-600 mt-2">{resolutionError}</div>
+                )}
+
+                <div className="flex justify-end gap-3 mt-6">
+                  <button
+                    onClick={() => { setShowResolveModal(false); setResolutionError(''); }}
+                    className="px-4 py-2 bg-[#E5E7EB] text-[#111827] rounded-md hover:bg-[#d6d8da]"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmResolve}
+                    disabled={resolving}
+                    className={`px-4 py-2 rounded-md text-white ${resolving ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
+                  >
+                    {resolving ? 'Resolving...' : 'Confirm Resolve'}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
       </AnimatePresence>
     </div>
   );

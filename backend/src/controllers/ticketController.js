@@ -1,6 +1,7 @@
 import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
 import { generateTicketCode } from '../utils/codeGenerator.js';
+import { sendTicketResolutionEmail } from '../utils/emailService.js';
 
 /**
  * Get all tickets with user/employee information
@@ -321,7 +322,7 @@ export const createPublicTicket = async (req, res, next) => {
 export const updateTicketStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { status, fixed_by } = req.body;
+    const { status, fixed_by, resolution_description } = req.body;
 
     // Get user ID from JWT token for audit trail
     const updatedBy = req.user?.user_id;
@@ -332,6 +333,14 @@ export const updateTicketStatus = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: 'Invalid status. Must be one of: open, in_progress, resolved, closed',
+      });
+    }
+
+    // If status is resolved, resolution_description is required
+    if (status === 'resolved' && !resolution_description?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Resolution description is required when marking a ticket as resolved',
       });
     }
 
@@ -370,14 +379,58 @@ export const updateTicketStatus = async (req, res, next) => {
       updated_by: updatedBy,
     };
 
-    // If status is resolved or closed, set fixed_by
+    // If status is resolved or closed, set fixed_by and resolution_description
     if ((status === 'resolved' || status === 'closed') && fixed_by) {
       updateData.fixed_by = fixed_by;
+    }
+
+    // Add resolution_description if status is resolved
+    if (status === 'resolved' && resolution_description) {
+      updateData.resolution_description = resolution_description.trim();
     }
 
     await db.update('tickets', updateData, 'ticket_id = ?', [id]);
 
     logger.info(`Ticket ${id} status updated to ${status}`);
+
+    // Send email notification if ticket is resolved
+    if (status === 'resolved') {
+      try {
+        // Get ticket details with user information
+        const ticketDetails = await db.getOne(`
+          SELECT 
+            t.ticket_code,
+            t.title,
+            t.resolution_description,
+            COALESCE(ee.email, pte.email) as user_email,
+            CONCAT(fixer.first_name, ' ', fixer.last_name) as resolver_name
+          FROM tickets t
+          LEFT JOIN users u ON t.user_id = u.user_id
+          LEFT JOIN employees e ON u.user_id = e.user_id
+          LEFT JOIN employee_emails ee ON e.employee_id = ee.employee_id
+          LEFT JOIN public_ticket_emails pte ON t.ticket_id = pte.ticket_id
+          LEFT JOIN users fixer_user ON t.fixed_by = fixer_user.user_id
+          LEFT JOIN employees fixer ON fixer_user.user_id = fixer.user_id
+          WHERE t.ticket_id = ?
+        `, [id]);
+
+        if (ticketDetails && ticketDetails.user_email) {
+          await sendTicketResolutionEmail({
+            to: ticketDetails.user_email,
+            ticketCode: ticketDetails.ticket_code,
+            title: ticketDetails.title,
+            resolutionDescription: ticketDetails.resolution_description,
+            resolverName: ticketDetails.resolver_name || 'HRIS Support Team'
+          });
+          logger.info(`Resolution notification sent for ticket ${ticketDetails.ticket_code}`);
+        } else {
+          logger.warn(`Could not send email notification for ticket ${id}: No email found`);
+        }
+      } catch (emailError) {
+        logger.error('Failed to send resolution email notification:', emailError);
+        // Don't fail the request if email fails
+      }
+    }
 
     // Create activity log entry
     try {
