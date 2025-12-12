@@ -20,6 +20,7 @@ import {
   validateDependent,
   validateBirthDate,
 } from "./validations";
+import { toast } from "react-hot-toast";
 
 import { b, s } from "framer-motion/client";
 
@@ -117,6 +118,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [dependentCity, setDependentCity] = useState("");
   const [dependentProvinces, setDependentProvinces] = useState<string[]>([]);
   const [dependentCities, setDependentCities] = useState<string[]>([]);
+  const [dependentBarangays, setDependentBarangays] = useState<string[]>([]);
   const [dependentErrors, setDependentErrors] = useState<{ [key: string]: string }>({});
   const today = new Date().toISOString().split("T")[0];
 
@@ -224,7 +226,9 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       if (selectedRegion) {
         const selectedProvince = selectedRegion.provinces.find((p: any) => p.province === province);
         if (selectedProvince) {
-          setCities(selectedProvince.cities);
+          setCities(selectedProvince.cities.map((c: any) => 
+            typeof c === 'string' ? c : c.city
+          ));
         } else {
           setCities([]);
         }
@@ -259,7 +263,9 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       if (selectedRegion) {
         const selectedProvince = selectedRegion.provinces.find((p: any) => p.province === dependentProvince);
         if (selectedProvince) {
-          setDependentCities(selectedProvince.cities);
+          setDependentCities(selectedProvince.cities.map((c: any) => 
+            typeof c === 'string' ? c : c.city
+          ));
         } else {
           setDependentCities([]);
         }
@@ -270,61 +276,39 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   }, [dependentRegion, dependentProvince, phLocationsData]);
 
 
-
-  
-function normalizeName(name: string) {
-  return name
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/city of /g, "")
-    .replace(/city /g, "")
-    .replace(/[^a-z0-9\s]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-useEffect(() => {
-  async function loadBarangays() {
-    if (!city) {
-      setBarangays([]);
-      return;
-    }
-
-    try {
-      const resCities = await fetch("https://psgc.gitlab.io/api/cities-municipalities/");
-      const allCities = await resCities.json();
-
-      const normCity = normalizeName(city);
-
-      // Multi-pass fuzzy matching
-      const selectedCity =
-        allCities.find((c: any) => normalizeName(c.name) === normCity) ||
-        allCities.find((c: any) => normalizeName(c.name).includes(normCity)) ||
-        allCities.find((c: any) => normCity.includes(normalizeName(c.name)));
-
-      if (!selectedCity) {
-        console.warn("City not found in PSGC:", city);
+  // Load Barangays (Home)
+  useEffect(() => {
+    if (region && province && city && phLocationsData.length > 0) {
+      const r = phLocationsData.find((x: any) => x.region === region);
+      const p = r?.provinces.find((x: any) => x.province === province);
+      const c = p?.cities.find((x: any) => (typeof x === 'string' ? x : x.city) === city);
+      
+      if (c && c.barangays) {
+        setBarangays(c.barangays);
+      } else {
         setBarangays([]);
-        return;
       }
-
-      const cityCode = selectedCity.code;
-
-      const resBrgy = await fetch(
-        `https://psgc.gitlab.io/api/cities-municipalities/${cityCode}/barangays`
-      );
-      const barangayList = await resBrgy.json();
-
-      setBarangays(barangayList.map((b: any) => b.name));
-    } catch (error) {
-      console.error("Error loading barangays:", error);
+    } else {
       setBarangays([]);
     }
-  }
+  }, [region, province, city, phLocationsData]);
 
-  loadBarangays();
-}, [city]);
+  // Load Barangays (Dependent)
+  useEffect(() => {
+    if (dependentRegion && dependentProvince && dependentCity && phLocationsData.length > 0) {
+      const r = phLocationsData.find((x: any) => x.region === dependentRegion);
+      const p = r?.provinces.find((x: any) => x.province === dependentProvince);
+      const c = p?.cities.find((x: any) => (typeof x === 'string' ? x : x.city) === dependentCity);
+      
+      if (c && c.barangays) {
+        setDependentBarangays(c.barangays);
+      } else {
+        setDependentBarangays([]);
+      }
+    } else {
+      setDependentBarangays([]);
+    }
+  }, [dependentRegion, dependentProvince, dependentCity, phLocationsData]);
 
 
 
@@ -739,6 +723,7 @@ useEffect(() => {
           type: "error",
           text: result.message || "Failed to create employee",
         });
+        toast.error(result.message || "Failed to create employee");
       }
 
     } catch (error) {
@@ -747,6 +732,7 @@ useEffect(() => {
         type: "error",
         text: "An error occurred while creating the employee",
       });
+      toast.error("An error occurred while creating the employee");
     } finally {
       setIsSubmitting(false);
     }
@@ -1271,7 +1257,7 @@ useEffect(() => {
                           label="Barangay:"
                           value={dependentBarangay}
                           onChange={(e) => setDependentBarangay(e.target.value)}
-                          options={dependentCity ? barangays : []}
+                          options={dependentBarangays}
                           error={dependentErrors.barangay}
                         />
                       </div>

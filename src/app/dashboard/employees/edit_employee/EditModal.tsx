@@ -491,73 +491,24 @@ useEffect(() => {
   }
 }, [region, province, phLocationsData]);
 
-// When city changes - store the code
-const handleCityChange = (selectedCity: string) => {
-  setCity(selectedCity);
-  const selectedRegion = phLocationsData.find((r: any) => r.region === region);
-  const selectedProvince = selectedRegion?.provinces.find((p: any) => p.province === province);
-  const selectedCityObj = selectedProvince?.cities.find((c: any) => c.city === selectedCity);
-  if (selectedCityObj) {
-    setCityCode(selectedCityObj.cityCode);
-  } else {
-    setCityCode("");
-  }
-};
+
 
 /* ----- Load Barangays ----- */
-function normalizeName(name: string) {
-  return name
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/city of /g, "")
-    .replace(/city /g, "")
-    .replace(/[^a-z0-9\s]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 useEffect(() => {
-  async function loadBarangays() {
-    if (!city) {
-      setBarangays([]);
-      return;
-    }
+  if (region && province && city && phLocationsData.length > 0) {
+    const selectedRegion = phLocationsData.find((r: any) => r.region === region);
+    const selectedProvince = selectedRegion?.provinces.find((p: any) => p.province === province);
+    const selectedCity = selectedProvince?.cities.find((c: any) => c.city === city);
 
-    try {
-      const resCities = await fetch("https://psgc.gitlab.io/api/cities-municipalities/");
-      const allCities = await resCities.json();
-
-      const normCity = normalizeName(city);
-
-      // Multi-pass fuzzy matching
-      const selectedCity =
-        allCities.find((c: any) => normalizeName(c.name) === normCity) ||
-        allCities.find((c: any) => normalizeName(c.name).includes(normCity)) ||
-        allCities.find((c: any) => normCity.includes(normalizeName(c.name)));
-
-      if (!selectedCity) {
-        console.warn("City not found in PSGC:", city);
-        setBarangays([]);
-        return;
-      }
-
-      const cityCode = selectedCity.code;
-
-      const resBrgy = await fetch(
-        `https://psgc.gitlab.io/api/cities-municipalities/${cityCode}/barangays`
-      );
-      const barangayList = await resBrgy.json();
-
-      setBarangays(barangayList.map((b: any) => b.name));
-    } catch (error) {
-      console.error("Error loading barangays:", error);
+    if (selectedCity && selectedCity.barangays) {
+      setBarangays(selectedCity.barangays);
+    } else {
       setBarangays([]);
     }
+  } else {
+    setBarangays([]);
   }
-
-  loadBarangays();
-}, [city]);
+}, [region, province, city, phLocationsData]);
 
 
 
@@ -605,74 +556,20 @@ useEffect(() => {
   }, [dependentRegion, dependentProvince, phLocationsData]);
 
 useEffect(() => {
-  async function loadDependentBarangays() {
-    if (!dependentCity) {
-      setDependantBarangays([]);
-      return;
-    }
+  if (dependentRegion && dependentProvince && dependentCity && phLocationsData.length > 0) {
+    const selectedRegion = phLocationsData.find((r: any) => r.region === dependentRegion);
+    const selectedProvince = selectedRegion?.provinces.find((p: any) => p.province === dependentProvince);
+    const selectedCity = selectedProvince?.cities.find((c: any) => c.city === dependentCity);
 
-    try {
-      // Fetch all cities/municipalities from PSGC
-      const resCities = await fetch("https://psgc.gitlab.io/api/cities-municipalities/");
-      if (!resCities.ok) throw new Error("Failed to fetch cities");
-      const allCities: Array<{ code: string | number; name: string }> = await resCities.json();
-
-      const normalizedCity = dependentCity.toLowerCase().trim();
-
-      // ⭐ Special case for Manila
-      if (normalizedCity === "manila") {
-        // Get all Manila districts
-        const manilaDistricts = allCities.filter((c) =>
-          c.name.toLowerCase().includes("manila")
-        );
-
-        // Fetch barangays for all districts in parallel
-        const barangaysArrays = await Promise.all(
-          manilaDistricts.map(async (district) => {
-            const res = await fetch(
-              `https://psgc.gitlab.io/api/cities-municipalities/${district.code}/barangays`
-            );
-            if (!res.ok) return [];
-            const list: Array<{ name: string }> = await res.json();
-            return list.map((b) => b.name);
-          })
-        );
-
-        // Merge, remove duplicates, and sort
-        const uniqueBarangays = [...new Set(barangaysArrays.flat())].sort();
-        setDependantBarangays(uniqueBarangays);
-        return;
-      }
-
-      // ⭐ Normal cities
-      const match =
-        allCities.find((c) => c.name.toLowerCase() === normalizedCity) ||
-        allCities.find((c) => c.name.toLowerCase().includes(normalizedCity)) ||
-        allCities.find((c) => normalizedCity.includes(c.name.toLowerCase()));
-
-      if (!match) {
-        console.warn("City not found in PSGC for dependentCity:", dependentCity);
-        setDependantBarangays([]);
-        return;
-      }
-
-      const cityCode = String(match.code);
-
-      const resBrgy = await fetch(
-        `https://psgc.gitlab.io/api/cities-municipalities/${cityCode}/barangays`
-      );
-      if (!resBrgy.ok) throw new Error("Failed to fetch barangays");
-
-      const barangayList: Array<{ name: string }> = await resBrgy.json();
-      setDependantBarangays(barangayList.map((b) => b.name));
-    } catch (err) {
-      console.error("Error loading dependent barangays:", err);
+    if (selectedCity && selectedCity.barangays) {
+      setDependantBarangays(selectedCity.barangays);
+    } else {
       setDependantBarangays([]);
     }
+  } else {
+    setDependantBarangays([]);
   }
-
-  loadDependentBarangays();
-}, [dependentCity]);
+}, [dependentRegion, dependentProvince, dependentCity, phLocationsData]);
 
 
 
@@ -742,11 +639,6 @@ useEffect(() => {
       }
     }
 
-    if (Object.keys(roleErrors).length > 0) {
-      setErrors((prev) => ({ ...prev, ...roleErrors }));
-      return;
-    }
-
     // Validate employee form - NOW INCLUDING PROVINCE
     const formErrors = validateEmployeeForm(
       firstName,
@@ -771,9 +663,24 @@ useEffect(() => {
     console.log("Validation result:", Object.keys(formErrors).length === 0);
     console.log("Current errors:", formErrors);
 
-    if (Object.keys(formErrors).length > 0 || !employee) {
-      setErrors(formErrors);
+    const allErrors = { ...roleErrors, ...formErrors };
+
+    if (Object.keys(allErrors).length > 0 || !employee) {
+      setErrors(allErrors);
       console.log("Validation failed or no employee");
+
+      const uniqueErrors = Array.from(new Set(Object.values(allErrors)));
+      toast.error(
+        <div>
+          <p className="font-bold">Employee Form Errors:</p>
+          <ul className="list-disc pl-4 mt-1 text-sm">
+            {uniqueErrors.map((err: any, i) => (
+              <li key={i}>{err}</li>
+            ))}
+          </ul>
+        </div>,
+        { duration: 5000 }
+      );
       return;
     }
 
@@ -1446,6 +1353,18 @@ useEffect(() => {
 
                       if (Object.keys(newErrors).length > 0) {
                         setDependentErrors(newErrors);
+                        const uniqueErrors = Array.from(new Set(Object.values(newErrors)));
+                        toast.error(
+                          <div>
+                            <p className="font-bold">Please fix the following errors:</p>
+                            <ul className="list-disc pl-4 mt-1 text-sm">
+                              {uniqueErrors.map((err: any, i) => (
+                                <li key={i}>{err}</li>
+                              ))}
+                            </ul>
+                          </div>,
+                          { duration: 5000 }
+                        );
                         return;
                       }
 

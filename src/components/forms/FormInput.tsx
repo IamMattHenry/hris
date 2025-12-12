@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useEffect } from "react";
+import toast from "react-hot-toast";
 
 interface FormInputProps {
   label: string;
@@ -23,6 +24,12 @@ export default function FormInput({
   readOnly = false, // default false
   disabled = false,
 }: FormInputProps) {
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+    }
+  }, [error]);
+
   return (
     <div className="flex flex-col">
       <label className="block text-[#3b2b1c] mb-1 font-medium">{label}</label>
