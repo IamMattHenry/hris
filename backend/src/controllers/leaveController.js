@@ -125,18 +125,18 @@ export const applyLeave = async (req, res, next) => {
       });
     }
 
-    // Check if employee has a pending leave request
-    const pendingLeave = await db.getOne(
-      'SELECT * FROM leaves WHERE employee_id = ? AND status = ?',
-      [targetEmployeeId, 'pending']
-    );
+    // // Check if employee has a pending leave request
+    // const pendingLeave = await db.getOne(
+    //   'SELECT * FROM leaves WHERE employee_id = ? AND status = ?',
+    //   [targetEmployeeId, 'pending']
+    // );
 
-    if (pendingLeave) {
-      return res.status(400).json({
-        success: false,
-        message: 'Employee already has a pending leave request. Please wait for approval or rejection before submitting a new request.',
-      });
-    }
+    // if (pendingLeave) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: 'Employee already has a pending leave request. Please wait for approval or rejection before submitting a new request.',
+    //   });
+    // }
 
     // Get user ID from JWT token for audit trail
     const createdBy = requesterUserId;
