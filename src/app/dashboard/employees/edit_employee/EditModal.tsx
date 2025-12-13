@@ -175,6 +175,7 @@ export default function EditEmployeeModal({
 
   // Dependents state
   const [dependents, setDependents] = useState<Dependent[]>([]);
+  const [salary, setSalary] = useState("");
   const [dependentFirstName, setDependentFirstName] = useState("");
   const [dependentLastName, setDependentLastName] = useState("");
   const [dependentEmail, setDependentEmail] = useState("");
@@ -235,7 +236,9 @@ const [cityCode, setCityCode] = useState("");
         setDepartmentId(res.data.department_id);
         setPositionId(res.data.position_id);
         setSupervisorId(res.data.supervisor_id || null);
-        setShift(formatShiftForDisplay(res.data.shift));
+  setShift(formatShiftForDisplay(res.data.shift));
+  // Salary (as stored) - keep as string for editing (treated as per-hour value)
+  setSalary(res.data.salary !== undefined && res.data.salary !== null ? String(res.data.salary) : "");
         setHomeAddress(res.data.home_address || "");
         setBarangay(res.data.barangay || ""); 
         setCity(res.data.city || "");
@@ -708,6 +711,14 @@ useEffect(() => {
         dependents: dependents,
       };
 
+      // Include salary if provided
+      if (salary !== undefined && salary !== null && String(salary).trim() !== "") {
+        const numeric = Number(String(salary).replace(/,/g, ""));
+        if (!Number.isNaN(numeric)) {
+          updatedData.salary = numeric;
+        }
+      }
+
       const normalizedStatus = normalizeStatusForPayload(employmentStatus);
       if (normalizedStatus) {
         updatedData.status = normalizedStatus;
@@ -766,6 +777,8 @@ useEffect(() => {
       setValue(value);
     }
   };
+
+  // salary is used directly as the editable "salary" value (treated as per-hour here)
 
   if (!isOpen) return null;
 
@@ -982,6 +995,24 @@ useEffect(() => {
                       options={[...STATUS_OPTIONS]}
                       error={errors.employmentStatus}
                     />
+
+                    {/* Salary (per hour) - fetched as-is and editable */}
+                    <div>
+                      <FormInput
+                        label="Salary (per hour)"
+                        type="text"
+                        value={salary}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          // allow digits, commas and dot (no conversion requested)
+                          if (/^[0-9,]*\.?[0-9]{0,2}$/.test(val) || val === "") {
+                            setSalary(val);
+                          }
+                        }}
+                        placeholder="Enter hourly salary as stored"
+                        error={errors.salary}
+                      />
+                    </div>
                   </div>
                 </section>
               )}
@@ -1536,11 +1567,8 @@ useEffect(() => {
                         </p>
                       </div>
                     ) : (
-                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                        <p className="text-sm text-red-700">
-                          ⚠️ The selected department does not have an associated HR/IT sub-role. Choose another department or disable the privilege.
-                        </p>
-                      </div>
+                      // No sub-role configured: allow granting privileges without blocking the user.
+                      <></>
                     )}
                     {errors.subRole && (
                       <p className="text-red-500 text-xs mt-2">{errors.subRole}</p>

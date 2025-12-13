@@ -113,26 +113,6 @@ function friendlyNetworkErrorMessage(err: any): string {
     const isBrowser = typeof window !== 'undefined';
 	
 	  const finish = (result: ApiResult<T>): ApiResult<T> => {
-      if (isBrowser) {
-        if (result.success) {
-          // Avoid spamming success toasts for simple data fetches
-          if (!isGet) {
-            const successMessage =
-              result.message ||
-              (method === 'POST'
-                ? 'Request completed successfully.'
-                : 'Changes saved successfully.');
-            showToast.success(successMessage);
-          }
-        } else {
-          const errorMessage =
-            result.message ||
-            result.error ||
-            'Something went wrong. Please try again.';
-          showToast.error(errorMessage);
-        }
-      }
-	
 	    return result;
 	  };
 	

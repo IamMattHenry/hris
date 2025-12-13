@@ -170,9 +170,7 @@ export const validateStep4 = (
   }
 
   // Sub-role validation for admin
-  if (grantAdminPrivilege && !subRole) {
-    errors.subRole = "Sub-role is required for admin privilege";
-  }
+  // Sub-role is optional when creating admin/supervisor. If provided it will be validated elsewhere.
 
   return errors;
 };

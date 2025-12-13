@@ -27,6 +27,8 @@ interface PendingLeave {
   leave_type: string;
   start_date: string;
   end_date: string;
+  requester_role?: string;
+  requester_sub_role?: string | null;
 }
 
 interface AbsenceRecord {
@@ -630,6 +632,9 @@ export default function Dashboard() {
                           <p className="font-semibold text-gray-800">
                             {leave.first_name} {leave.last_name} ({leave.employee_code})
                           </p>
+                          {leave.requester_role && (
+                            <p className="text-sm text-gray-500 mt-1">Requested role: {leave.requester_role}{leave.requester_sub_role ? ` — ${leave.requester_sub_role}` : ''}</p>
+                          )}
                         </div>
                         <div>
                           <p className="text-gray-600">Leave Type</p>

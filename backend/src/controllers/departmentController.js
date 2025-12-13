@@ -81,19 +81,37 @@ export const createDepartment = async (req, res, next) => {
       });
     }
 
-    let supervisorId = null;
+  let supervisorId = null;
+  let supervisorPromotion = null;
     if (supervisor_id) {
+      // Use LEFT JOIN in case the employee exists but has no linked user record.
+      // Validate role case-insensitively and provide clearer errors.
       const supervisor = await db.getOne(
-        'SELECT employee_id, role FROM employees WHERE employee_id = ?',
+        'SELECT e.employee_id, u.role FROM employees e LEFT JOIN users u ON e.user_id = u.user_id WHERE e.employee_id = ?',
         [supervisor_id]
       );
-      if (!supervisor || supervisor.role !== 'supervisor') {
+
+      if (!supervisor) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid supervisor selected',
+          message: 'Selected supervisor employee not found',
         });
       }
-      supervisorId = supervisor.employee_id;
+
+      const role = (supervisor.role || '').toString().toLowerCase();
+
+      // If the employee has no linked user/role, allow assignment but inform the caller
+      if (!role) {
+        // assign anyway but note that the employee lacks a user role
+        supervisorId = supervisor.employee_id;
+        supervisorPromotion = { promoted: true, previousRole: null };
+      } else if (role !== 'supervisor') {
+        // allow assigning an employee who is not currently a supervisor — caller may choose to promote
+        supervisorId = supervisor.employee_id;
+        supervisorPromotion = { promoted: true, previousRole: role };
+      } else {
+        supervisorId = supervisor.employee_id;
+      }
     }
 
     const createdBy = req.user?.user_id;
@@ -135,6 +153,7 @@ export const createDepartment = async (req, res, next) => {
         department_name,
         description,
         supervisor_id,
+        promotedSupervisor: supervisorPromotion,
       },
     });
   } catch (error) {
@@ -146,25 +165,40 @@ export const createDepartment = async (req, res, next) => {
 export const updateDepartment = async (req, res, next) => {
   try {
     const { id } = req.params;
-    let supervisorId = null;
+  let supervisorId = null;
+  let supervisorPromotion = null;
     if (req.body.supervisor_id) {
+      // Use LEFT JOIN to avoid failing when user record is missing; validate role carefully.
       const supervisor = await db.getOne(
-        'SELECT employee_id, department_id, role FROM employees WHERE employee_id = ?',
+        'SELECT e.employee_id, e.department_id, u.role FROM employees e LEFT JOIN users u ON e.user_id = u.user_id WHERE e.employee_id = ?',
         [req.body.supervisor_id]
       );
-      if (!supervisor || supervisor.role !== 'supervisor') {
+
+      if (!supervisor) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid supervisor selected',
+          message: 'Selected supervisor employee not found',
         });
       }
+
+      const role = (supervisor.role || '').toString().toLowerCase();
+
+      if (!role) {
+        supervisorId = supervisor.employee_id;
+        supervisorPromotion = { promoted: true, previousRole: null };
+      } else if (role !== 'supervisor') {
+        supervisorId = supervisor.employee_id;
+        supervisorPromotion = { promoted: true, previousRole: role };
+      } else {
+        supervisorId = supervisor.employee_id;
+      }
+
       if (supervisor.department_id !== parseInt(id)) {
         return res.status(400).json({
           success: false,
           message: 'Supervisor must belong to the same department',
         });
       }
-      supervisorId = supervisor.employee_id;
     }
     const updates = req.body;
 
@@ -226,6 +260,7 @@ export const updateDepartment = async (req, res, next) => {
       success: true,
       message: 'Department updated successfully',
       affectedRows,
+      promotedSupervisor: supervisorPromotion,
     });
   } catch (error) {
     logger.error('Update department error:', error);

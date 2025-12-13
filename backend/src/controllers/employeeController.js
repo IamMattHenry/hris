@@ -400,47 +400,24 @@ export const createEmployee = async (req, res, next) => {
     await db.beginTransaction();
 
     try {
-      // Validate sub_role if role is 'admin' or 'supervisor'
-      const validSubRoles = ["hr", "it"];
-      if (userRole === "admin" || userRole === "supervisor") {
-        if (!sub_role) {
-          await db.rollback();
-          return res.status(400).json({
-            success: false,
-            message: `sub_role is required when creating an admin or supervisor. Valid values: ${validSubRoles.join(
-              ", "
-            )}.`,
-          });
-        }
+      // Sub-role is optional now when creating admin or supervisor.
+      // If sub_role is provided, validate it matches department mapping.
+      if ((userRole === "admin" || userRole === "supervisor") && sub_role && department_id) {
+        const deptResult = await db.transactionQuery(
+          "SELECT department_name FROM departments WHERE department_id = ?",
+          [department_id]
+        );
 
-        if (!validSubRoles.includes(sub_role)) {
-          await db.rollback();
-          return res.status(400).json({
-            success: false,
-            message: `Invalid sub_role. Must be one of: ${validSubRoles.join(
-              ", "
-            )}.`,
-          });
-        }
+        if (deptResult && deptResult.length > 0) {
+          const deptName = deptResult[0].department_name;
+          const validDeptSubRole = mapDepartmentToSubRole(deptName);
 
-        // Validate sub_role matches department
-        if (department_id) {
-          const deptResult = await db.transactionQuery(
-            "SELECT department_name FROM departments WHERE department_id = ?",
-            [department_id]
-          );
-
-          if (deptResult && deptResult.length > 0) {
-            const deptName = deptResult[0].department_name;
-            const validDeptSubRole = mapDepartmentToSubRole(deptName);
-
-            if (validDeptSubRole && sub_role !== validDeptSubRole) {
-              await db.rollback();
-              return res.status(400).json({
-                success: false,
-                message: `${deptName} department employees can only have '${validDeptSubRole}' as sub_role.`,
-              });
-            }
+          if (validDeptSubRole && sub_role !== validDeptSubRole) {
+            await db.rollback();
+            return res.status(400).json({
+              success: false,
+              message: `${deptName} department employees can only have '${validDeptSubRole}' as sub_role.`,
+            });
           }
         }
       }
@@ -594,15 +571,14 @@ export const createEmployee = async (req, res, next) => {
         });
       }
 
-      // If role is 'admin' or 'supervisor', create user_role record
+      // If role is 'admin' or 'supervisor' and sub_role provided, create user_role record
       let userRoleId = null;
-      if (userRole === "admin" || userRole === "supervisor") {
+      if ((userRole === "admin" || userRole === "supervisor") && sub_role) {
         // Insert user role record
         userRoleId = await db.transactionInsert("user_roles", {
           user_id: userId,
           sub_role: sub_role,
           created_by,
-          
         });
 
         logger.info(
@@ -816,15 +792,7 @@ export const updateEmployee = async (req, res, next) => {
         });
       }
 
-      // Validate sub_role is provided for admin/supervisor (but not superadmin)
-      if ((role === 'admin' || role === 'supervisor') && !sub_role) {
-        return res.status(400).json({
-          success: false,
-          message: "Sub-role is required when granting admin or supervisor privilege",
-        });
-      }
-
-      // Validate sub_role matches department
+      // Sub-role is optional when updating role; validate only when provided.
       if ((role === 'admin' || role === 'supervisor') && sub_role && updates.department_id) {
         const department = await db.getOne(
           "SELECT department_name FROM departments WHERE department_id = ?",

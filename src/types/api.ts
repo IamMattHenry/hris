@@ -54,6 +54,8 @@ export interface UserRole {
   updated_at: string;
   created_by?: number;
   updated_by?: number;
+  requester_role?: string;
+  requester_sub_role?: string | null;
 }
 
 /**

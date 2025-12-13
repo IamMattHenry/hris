@@ -265,27 +265,9 @@ export const validateRoleManagement = (
 ): ValidationErrors => {
   const errors: ValidationErrors = {};
 
-  if ((grantAdminPrivilege || grantSupervisorPrivilege) && !subRole) {
-    errors.subRole =
-      "Sub-role is required when granting admin or supervisor privilege";
-    return errors;
-  }
-
-  if (
-    (grantAdminPrivilege || grantSupervisorPrivilege) &&
-    departmentId &&
-    subRole
-  ) {
-    const normalizedSubRole = subRole.toLowerCase();
-    const isValid = validSubRoles.some(
-      (role) => role.toLowerCase() === normalizedSubRole
-    );
-
-    if (!isValid) {
-      errors.subRole = `${departmentName} department employees can only have '${validSubRoles[0]?.toLowerCase()}' as sub_role.`;
-    }
-  }
-
+  // Edit flow: relax sub-role validation. Allow granting admin/supervisor privilege
+  // without enforcing a sub-role or department-specific sub-role restrictions.
+  // Returning empty errors means the form won't be blocked here.
   return errors;
 };
 

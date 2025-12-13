@@ -58,6 +58,7 @@ export default function RequestsPage() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [filterLeaveType, setFilterLeaveType] = useState<LeaveType | "">("");
   const [filterStatus, setFilterStatus] = useState<LeaveStatus | "">("");
+  const [filterRequesterRole, setFilterRequesterRole] = useState<string | "">("");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -135,6 +136,12 @@ export default function RequestsPage() {
       filtered = filtered.filter(l => l.status === filterStatus);
     }
 
+    // Filter by requester role (if requested)
+    if (filterRequesterRole) {
+      const roleLower = filterRequesterRole.toLowerCase();
+      filtered = filtered.filter(l => (l.requester_role || '').toLowerCase() === roleLower);
+    }
+
     return filtered;
   };
 
@@ -151,6 +158,10 @@ export default function RequestsPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchRequest, filterLeaveType, filterStatus]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterRequesterRole]);
 
   const handleView = (leave: Leave) => {
     setSelectedLeave(leave);
@@ -288,6 +299,20 @@ export default function RequestsPage() {
                   <option value="pending">Pending</option>
                   <option value="approved">Approved</option>
                   <option value="rejected">Rejected</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold mb-2">Requester Role</label>
+                <select
+                  value={filterRequesterRole}
+                  onChange={(e) => setFilterRequesterRole(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value="">All Roles</option>
+                  <option value="superadmin">Superadmin</option>
+                  <option value="admin">Admin</option>
+                  <option value="employee">Employee</option>
                 </select>
               </div>
             </div>

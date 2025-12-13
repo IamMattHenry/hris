@@ -33,14 +33,16 @@ export default function EditDepartmentModal({
   const [description, setDescription] = useState("");
   const [supervisorId, setSupervisorId] = useState("");
   const [supervisors, setSupervisors] = useState<any[]>([]);
+  const [employeesList, setEmployeesList] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   useEffect(() => {
     if (isOpen && department?.department_id) {
-      fetchSupervisors(department.department_id);
+      fetchEmployees(department.department_id);
     } else {
       setSupervisors([]);
+      setEmployeesList([]);
     }
   }, [isOpen, department?.department_id]);
 
@@ -52,15 +54,17 @@ export default function EditDepartmentModal({
     }
   }, [department]);
 
-  const fetchSupervisors = async (deptId: number) => {
+  const fetchEmployees = async (deptId: number) => {
     const result = await employeeApi.getAll({
       department_id: deptId,
-      role: 'supervisor',
       status: 'active',
     });
-    if (result.success && result.data) {
+    if (result.success && Array.isArray(result.data)) {
+      setEmployeesList(result.data);
+      // Supervisors select should show all employees so admins can assign any active employee as supervisor
       setSupervisors(result.data);
     } else {
+      setEmployeesList([]);
       setSupervisors([]);
     }
   };
@@ -164,6 +168,40 @@ export default function EditDepartmentModal({
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Department Employees List */}
+              <div>
+                <label className="block text-sm font-medium mb-2">Department Employees</label>
+                {employeesList.length === 0 ? (
+                  <p className="text-sm text-gray-500">No employees found in this department.</p>
+                ) : (
+                  <div className="max-h-40 overflow-y-auto border border-[#e6dcc8] rounded-md p-2">
+                    {employeesList.map((emp) => (
+                      <div key={emp.employee_id} className="flex items-center justify-between py-2 px-2 hover:bg-white/50 rounded">
+                        <div>
+                          <p className="text-sm font-medium">{emp.first_name} {emp.last_name} <span className="text-xs text-gray-500">({emp.employee_code})</span></p>
+                          <p className="text-xs text-gray-500">{emp.position_name || emp.sub_role || ''}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {String(emp.employee_id) === String(supervisorId) && (
+                            <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Current Supervisor</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSupervisorId(String(emp.employee_id));
+                              toast.success(`Assigned ${emp.first_name} ${emp.last_name} as supervisor (will be saved on Save Changes)`);
+                            }}
+                            className="text-sm px-3 py-1 bg-[#3b2b1c] text-white rounded hover:opacity-90"
+                          >
+                            Assign as Supervisor
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Buttons */}

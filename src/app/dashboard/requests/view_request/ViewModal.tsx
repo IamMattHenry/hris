@@ -21,6 +21,14 @@ interface Leave {
   end_date: string;
   status: LeaveStatus;
   remarks?: string;
+  requester_role?: string;
+  requester_sub_role?: string | null;
+  // Optional approver info (may be provided as approved_by_name or approver_first/last fields)
+  approved_by?: number;
+  approved_by_name?: string;
+  approver_first_name?: string;
+  approver_last_name?: string;
+  approver_employee_code?: string;
 }
 
 
@@ -56,6 +64,7 @@ export default function ViewLeaveModal({
   const { user } = useAuth();
   const isSupervisor = user?.role === "supervisor";
   const isAdmin = user?.role === "admin";
+  const isSuperadmin = user?.role === "superadmin";
 
   if (!isOpen) return null;
 
@@ -75,6 +84,9 @@ export default function ViewLeaveModal({
           <InfoBox label="Code" value={leave.leave_code} />
           <InfoBox label="Employee" value={`${leave.first_name} ${leave.last_name}`} />
           <InfoBox label="Department" value={leave.department_name || (leave.department_id ? `Department #${leave.department_id}` : 'N/A')} />
+          {leave.requester_role && (
+            <InfoBox label="Requested role" value={leave.requester_role + (leave.requester_sub_role ? ` — ${leave.requester_sub_role}` : '')} />
+          )}
           <InfoBox label="Leave Type" value={LEAVE_TYPE_LABELS[leave.leave_type]} />
           <InfoBox label="Start Date" value={new Date(leave.start_date).toLocaleDateString()} />
           <InfoBox label="End Date" value={new Date(leave.end_date).toLocaleDateString()} />
@@ -82,18 +94,30 @@ export default function ViewLeaveModal({
           {leave.remarks && (
             <InfoBox label="Remarks" value={leave.remarks} />
           )}
+          {/* Show approver when available for approved requests */}
+          {leave.status === "approved" && (leave.approved_by_name || leave.approver_first_name || leave.approver_employee_code) && (
+            <InfoBox
+              label="Approved By"
+              value={
+                leave.approved_by_name
+                  ?? ((leave.approver_first_name || leave.approver_last_name)
+                      ? `${leave.approver_first_name || ''} ${leave.approver_last_name || ''}`.trim()
+                      : leave.approver_employee_code || 'N/A')
+              }
+            />
+          )}
         </div>
 
-        {/* Only supervisors can approve/reject */}
-        {leave.status === "pending" && isSupervisor && (
+        {/* Supervisors and superadmins can approve/reject */}
+        {leave.status === "pending" && (isSupervisor || isSuperadmin) && (
           <div className="flex justify-end gap-3">
             <ActionButton label="Reject" onClick={onReject} />
             <ActionButton label="Approve" onClick={onApprove} />
           </div>
         )}
 
-        {/* Admins can only view, show message */}
-        {leave.status === "pending" && isAdmin && (
+        {/* Admins can only view, show message (superadmin excluded) */}
+        {leave.status === "pending" && isAdmin && !isSuperadmin && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
             <p className="text-sm text-yellow-800">
               ℹ️ Only supervisors can approve or reject leave requests.
@@ -102,7 +126,7 @@ export default function ViewLeaveModal({
         )}
 
         {/* Close button for non-pending or when user can't approve/reject */}
-        {(leave.status !== "pending" || isAdmin) && (
+        {(leave.status !== "pending" || (!isSupervisor && !isSuperadmin)) && (
           <div className="flex justify-end">
             <ActionButton label="Close" onClick={onClose} />
           </div>
