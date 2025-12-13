@@ -147,86 +147,112 @@ export default function EditDependantModal({
   useEffect(() => {
     async function loadPhLocationsData() {
       try {
+        console.log("Fetching ph_locations.json...");
+        // 1. FETCH THE RAW JSON
         const res = await fetch("/data/ph_locations.json");
-        if (!res.ok) throw new Error(`Failed to fetch PH locations: ${res.status}`);
-        const data = await res.json();
-        setPhLocationsData(data);
-        setRegions(data.map((r: any) => r.region));
-      } catch (err) {
-        console.error(err);
+        
+        if (!res.ok) {
+          throw new Error(`Failed to fetch: ${res.status}`);
+        }
+
+        const rawData = await res.json();
+
+        // 2. NORMALIZE THE DATA (The Critical Step)
+        const processedData = rawData.map((region: any) => {
+          
+          // A. Process standard provinces (if any)
+          let finalProvinces = region.provinces.map((prov: any) => ({
+            name: prov.name,
+            cities: prov.cities.map((city: any) => ({
+              name: city.name,
+              barangays: city.barangays.map((b: any) => ({ name: b.name }))
+            }))
+          }));
+
+          // B. Process direct cities (Like NCR in your snippet)
+          // If the region has cities directly attached, we move them to a dummy province.
+          if (region.cities && region.cities.length > 0) {
+            const directCities = region.cities.map((city: any) => ({
+              name: city.name,
+              barangays: city.barangays.map((b: any) => ({ name: b.name }))
+            }));
+
+            // Create a "Metro Manila" province for NCR, or "Independent Cities" for others
+            const dummyProvinceName = region.name === "NCR" ? "Metro Manila" : "Independent Cities";
+
+            finalProvinces.push({
+              name: dummyProvinceName,
+              cities: directCities
+            });
+          }
+
+          // Return the unified structure
+          return {
+            name: region.name,
+            provinces: finalProvinces
+          };
+        });
+
+        console.log("Data processed successfully");
+        setPhLocationsData(processedData);
+        
+        // 3. SET INITIAL REGIONS LIST
+        setRegions(processedData.map((r: any) => r.name));
+
+      } catch (error) {
+        console.error("Error loading PH locations:", error);
         setRegions([]);
       }
     }
+
     loadPhLocationsData();
   }, []);
 
-  // Update provinces when region changes
+  // 2. Update provinces when region changes (Home)
   useEffect(() => {
     if (region) {
-      const selectedRegion = phLocationsData.find((r: any) => r.region === region);
+      // Match by 'name'
+      const selectedRegion = phLocationsData.find((r: any) => r.name === region);
       if (selectedRegion) {
-        const provinceNames = selectedRegion.provinces.map((p: any) => p.province);
+        const provinceNames = selectedRegion.provinces.map((p: any) => p.name);
         setProvinces(provinceNames);
-
-        // Only clear city if the current province is not in the new list
-        if (!provinceNames.includes(province)) {
-          setProvince("");
-          setCities([]);
-          setBarangays([]);
-        }
-      } else {
-        setProvinces([]);
-        setCities([]);
+        setCities([]); 
+        setBarangays([]); // Reset lower levels
       }
     } else {
       setProvinces([]);
       setCities([]);
       setBarangays([]);
-      setProvince("");
-      setCity("");
-      setBarangay("");
     }
   }, [region, phLocationsData]);
 
-  // Update cities when province changes
+  // 3. Update cities when province changes (Home)
   useEffect(() => {
     if (region && province) {
-      const selectedRegion = phLocationsData.find((r: any) => r.region === region);
+      const selectedRegion = phLocationsData.find((r: any) => r.name === region);
       if (selectedRegion) {
-        const selectedProvince = selectedRegion.provinces.find((p: any) => p.province === province);
+        const selectedProvince = selectedRegion.provinces.find((p: any) => p.name === province);
         if (selectedProvince) {
-          // Map cities to strings if they are objects
-          const cityNames = selectedProvince.cities.map((c: any) => (typeof c === 'string' ? c : c.city));
-          setCities(cityNames);
-
-          // Only clear city if it's not in the new list
-          if (!cityNames.includes(city)) {
-            setCity("");
-            setBarangays([]);
-          }
-        } else {
-          setCities([]);
-          setCity("");
-          setBarangays([]);
+          // Map city names (API uses 'name')
+          setCities(selectedProvince.cities.map((c: any) => c.name));
+          setBarangays([]); 
         }
       }
     } else {
       setCities([]);
       setBarangays([]);
-      setCity("");
-      setBarangay("");
     }
   }, [region, province, phLocationsData]);
 
-  // Update barangays when city changes
+  // 4. Load Barangays (Home)
   useEffect(() => {
     if (region && province && city && phLocationsData.length > 0) {
-      const selectedRegion = phLocationsData.find((r: any) => r.region === region);
-      const selectedProvince = selectedRegion?.provinces.find((p: any) => p.province === province);
-      const selectedCity = selectedProvince?.cities.find((c: any) => (typeof c === 'string' ? c : c.city) === city);
-
-      if (selectedCity && selectedCity.barangays) {
-        setBarangays(selectedCity.barangays);
+      const r = phLocationsData.find((x: any) => x.name === region);
+      const p = r?.provinces.find((x: any) => x.name === province);
+      const c = p?.cities.find((x: any) => x.name === city);
+      
+      if (c && c.barangays) {
+        setBarangays(c.barangays.map((b: any) => b.name));
       } else {
         setBarangays([]);
       }

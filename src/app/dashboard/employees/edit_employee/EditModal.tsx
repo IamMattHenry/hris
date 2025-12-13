@@ -420,159 +420,177 @@ const [cityCode, setCityCode] = useState("");
   };
 
 
-/* ---------- PH locations ---------- */
 useEffect(() => {
-  async function loadPhLocationsData() {
-    try {
-      const res = await fetch("/data/ph_locations.json");
-      if (!res.ok) {
-        throw new Error(
-          `Failed to fetch PH locations data: ${res.status} ${res.statusText}`
-        );
-      }
-      const data = await res.json();
-      setPhLocationsData(data);
-      const regionNames = data.map((r: any) => r.region);
-      setRegions(regionNames);
-    } catch (error) {
-      console.error("Error loading PH locations data:", error);
-      setRegions([]);
-    }
-  }
-  loadPhLocationsData();
-}, []);
+    async function loadPhLocationsData() {
+      try {
+        console.log("Fetching ph_locations.json...");
+        // 1. FETCH THE RAW JSON
+        const res = await fetch("/data/ph_locations.json");
+        
+        if (!res.ok) {
+          throw new Error(`Failed to fetch: ${res.status}`);
+        }
 
-// When region changes
-useEffect(() => {
-  if (region) {
-    const selectedRegion = phLocationsData.find((r: any) => r.region === region);
-    if (selectedRegion) {
-      setRegionCode(selectedRegion.regionCode);
-      const provinceNames = selectedRegion.provinces.map((p: any) => p.province);
-      setProvinces(provinceNames);
-      setCities([]);
-      // Reset codes when region changes
-      setProvinceCode("");
-      setCityCode("");
+        const rawData = await res.json();
+
+        // 2. NORMALIZE THE DATA (The Critical Step)
+        const processedData = rawData.map((region: any) => {
+          
+          // A. Process standard provinces (if any)
+          let finalProvinces = region.provinces.map((prov: any) => ({
+            name: prov.name,
+            cities: prov.cities.map((city: any) => ({
+              name: city.name,
+              barangays: city.barangays.map((b: any) => ({ name: b.name }))
+            }))
+          }));
+
+          // B. Process direct cities (Like NCR in your snippet)
+          // If the region has cities directly attached, we move them to a dummy province.
+          if (region.cities && region.cities.length > 0) {
+            const directCities = region.cities.map((city: any) => ({
+              name: city.name,
+              barangays: city.barangays.map((b: any) => ({ name: b.name }))
+            }));
+
+            // Create a "Metro Manila" province for NCR, or "Independent Cities" for others
+            const dummyProvinceName = region.name === "NCR" ? "Metro Manila" : "Independent Cities";
+
+            finalProvinces.push({
+              name: dummyProvinceName,
+              cities: directCities
+            });
+          }
+
+          // Return the unified structure
+          return {
+            name: region.name,
+            provinces: finalProvinces
+          };
+        });
+
+        console.log("Data processed successfully");
+        console.log(processedData);
+
+        setPhLocationsData(processedData);
+        
+        // 3. SET INITIAL REGIONS LIST
+        setRegions(processedData.map((r: any) => r.name));
+
+      } catch (error) {
+        console.error("Error loading PH locations:", error);
+        setRegions([]);
+      }
+    }
+
+    loadPhLocationsData();
+  }, []);
+
+  // 2. Update provinces when region changes (Home)
+  useEffect(() => {
+    if (region) {
+      // Match by 'name'
+      const selectedRegion = phLocationsData.find((r: any) => r.name === region);
+      if (selectedRegion) {
+        const provinceNames = selectedRegion.provinces.map((p: any) => p.name);
+        setProvinces(provinceNames);
+        setCities([]); 
+        setBarangays([]); // Reset lower levels
+      }
     } else {
       setProvinces([]);
       setCities([]);
-      setRegionCode("");
-      setProvinceCode("");
-      setCityCode("");
+      setBarangays([]);
     }
-  } else {
-    setProvinces([]);
-    setCities([]);
-    setRegionCode("");
-    setProvinceCode("");
-    setCityCode("");
-  }
-}, [region, phLocationsData]);
+  }, [region, phLocationsData]);
 
-// When province changes
-useEffect(() => {
-  if (region && province) {
-    const selectedRegion = phLocationsData.find((r: any) => r.region === region);
-    if (selectedRegion) {
-      const selectedProvince = selectedRegion.provinces.find((p: any) => p.province === province);
-      if (selectedProvince) {
-        setProvinceCode(selectedProvince.provinceCode);
-        setCities(selectedProvince.cities);
-        // Reset city code when province changes
-        setCityCode("");
-      } else {
-        setCities([]);
-        setProvinceCode("");
-        setCityCode("");
+  // 3. Update cities when province changes (Home)
+  useEffect(() => {
+    if (region && province) {
+      const selectedRegion = phLocationsData.find((r: any) => r.name === region);
+      if (selectedRegion) {
+        const selectedProvince = selectedRegion.provinces.find((p: any) => p.name === province);
+        if (selectedProvince) {
+          // Map city names (API uses 'name')
+          setCities(selectedProvince.cities.map((c: any) => c.name));
+          setBarangays([]); 
+        }
       }
+    } else {
+      setCities([]);
+      setBarangays([]);
     }
-  } else {
-    setCities([]);
-    setProvinceCode("");
-    setCityCode("");
-  }
-}, [region, province, phLocationsData]);
+  }, [region, province, phLocationsData]);
 
-
-
-/* ----- Load Barangays ----- */
-useEffect(() => {
-  if (region && province && city && phLocationsData.length > 0) {
-    const selectedRegion = phLocationsData.find((r: any) => r.region === region);
-    const selectedProvince = selectedRegion?.provinces.find((p: any) => p.province === province);
-    const selectedCity = selectedProvince?.cities.find((c: any) => c.city === city);
-
-    if (selectedCity && selectedCity.barangays) {
-      setBarangays(selectedCity.barangays);
+  // 4. Load Barangays (Home)
+  useEffect(() => {
+    if (region && province && city && phLocationsData.length > 0) {
+      const r = phLocationsData.find((x: any) => x.name === region);
+      const p = r?.provinces.find((x: any) => x.name === province);
+      const c = p?.cities.find((x: any) => x.name === city);
+      
+      if (c && c.barangays) {
+        setBarangays(c.barangays.map((b: any) => b.name));
+      } else {
+        setBarangays([]);
+      }
     } else {
       setBarangays([]);
     }
-  } else {
-    setBarangays([]);
-  }
-}, [region, province, city, phLocationsData]);
+  }, [region, province, city, phLocationsData]);
 
+  // --- DEPENDENT ADDRESS LOGIC (Repeat of above structure) ---
 
-
-/* ----- Dependent PH Locations ----- */
-
+  // 5. Update dependent provinces
   useEffect(() => {
     if (dependentRegion) {
-      const selectedRegion = phLocationsData.find(
-        (r: any) => r.region === dependentRegion
-      );
+      const selectedRegion = phLocationsData.find((r: any) => r.name === dependentRegion);
       if (selectedRegion) {
-        const provinceNames = selectedRegion.provinces.map(
-          (p: any) => p.province
-        );
+        const provinceNames = selectedRegion.provinces.map((p: any) => p.name);
         setDependentProvinces(provinceNames);
         setDependentCities([]);
-      } else {
-        setDependentProvinces([]);
-        setDependentCities([]);
+        setDependantBarangays([]);
       }
     } else {
       setDependentProvinces([]);
       setDependentCities([]);
+      setDependantBarangays([]);
     }
   }, [dependentRegion, phLocationsData]);
 
+  // 6. Update dependent cities
   useEffect(() => {
     if (dependentRegion && dependentProvince) {
-      const selectedRegion = phLocationsData.find(
-        (r: any) => r.region === dependentRegion
-      );
+      const selectedRegion = phLocationsData.find((r: any) => r.name === dependentRegion);
       if (selectedRegion) {
-        const selectedProvince = selectedRegion.provinces.find(
-          (p: any) => p.province === dependentProvince
-        );
+        const selectedProvince = selectedRegion.provinces.find((p: any) => p.name === dependentProvince);
         if (selectedProvince) {
-          setDependentCities(selectedProvince.cities);
-        } else {
-          setDependentCities([]);
+          setDependentCities(selectedProvince.cities.map((c: any) => c.name));
+          setDependantBarangays([]);
         }
       }
     } else {
       setDependentCities([]);
+      setDependantBarangays([]);
     }
   }, [dependentRegion, dependentProvince, phLocationsData]);
 
-useEffect(() => {
-  if (dependentRegion && dependentProvince && dependentCity && phLocationsData.length > 0) {
-    const selectedRegion = phLocationsData.find((r: any) => r.region === dependentRegion);
-    const selectedProvince = selectedRegion?.provinces.find((p: any) => p.province === dependentProvince);
-    const selectedCity = selectedProvince?.cities.find((c: any) => c.city === dependentCity);
-
-    if (selectedCity && selectedCity.barangays) {
-      setDependantBarangays(selectedCity.barangays);
+  // 7. Load Dependent Barangays
+  useEffect(() => {
+    if (dependentRegion && dependentProvince && dependentCity && phLocationsData.length > 0) {
+      const r = phLocationsData.find((x: any) => x.name === dependentRegion);
+      const p = r?.provinces.find((x: any) => x.name === dependentProvince);
+      const c = p?.cities.find((x: any) => x.name === dependentCity);
+      
+      if (c && c.barangays) {
+        setDependantBarangays(c.barangays.map((b: any) => b.name));
+      } else {
+        setDependantBarangays([]);
+      }
     } else {
       setDependantBarangays([]);
     }
-  } else {
-    setDependantBarangays([]);
-  }
-}, [dependentRegion, dependentProvince, dependentCity, phLocationsData]);
+  }, [dependentRegion, dependentProvince, dependentCity, phLocationsData]);
 
 
 
@@ -1259,7 +1277,7 @@ useEffect(() => {
                           setDependentErrors((prev) => ({ ...prev, contactInfo: "" }));
                         }
                       }}
-                      placeholder="Phone number (optional)"
+                      placeholder="Phone number (required)"
                       error={dependentErrors.contactInfo}
                     />
                     <FormSelect
