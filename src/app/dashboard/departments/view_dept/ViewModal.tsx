@@ -70,10 +70,10 @@ export default function ViewDepartmentModal({ isOpen, onClose, department }: Vie
                             />
 
                             {/* Supervisor */}
-                            <InfoBox
+                            {/*<InfoBox
                                 label="Department Supervisor"
                                 value={department.supervisor_name || "No Supervisor Assigned"}
-                            />
+                            />*/}
 
                             {/* Number of Employees */}
                             <InfoBox
