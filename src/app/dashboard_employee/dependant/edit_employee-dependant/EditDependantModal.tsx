@@ -27,6 +27,7 @@ interface Dependent {
   region_name?: string;
   province_name?: string;
   city_name?: string;
+  barangay?: string;
 }
 
 /* ---------- Form Components ---------- */
@@ -84,12 +85,14 @@ export default function EditDependantModal({
   const [region, setRegion] = useState("");
   const [province, setProvince] = useState("");
   const [city, setCity] = useState("");
+  const [barangay, setBarangay] = useState("");
   const [otherRelationship, setOtherRelationship] = useState("");
 
   // Location data
   const [regions, setRegions] = useState<string[]>([]);
   const [provinces, setProvinces] = useState<string[]>([]);
   const [cities, setCities] = useState<string[]>([]);
+  const [barangays, setBarangays] = useState<string[]>([]);
   const [phLocationsData, setPhLocationsData] = useState<any[]>([]);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -130,6 +133,7 @@ export default function EditDependantModal({
           setRegion(dep.region_name || "");
           setProvince(dep.province_name || "");
           setCity(dep.city_name || "");
+          setBarangay(dep.barangay || "");
         } catch (err) {
           console.error("Failed to load dependant:", err);
           toast.error("Failed to load dependent");
@@ -168,6 +172,7 @@ export default function EditDependantModal({
         if (!provinceNames.includes(province)) {
           setProvince("");
           setCities([]);
+          setBarangays([]);
         }
       } else {
         setProvinces([]);
@@ -176,8 +181,10 @@ export default function EditDependantModal({
     } else {
       setProvinces([]);
       setCities([]);
+      setBarangays([]);
       setProvince("");
       setCity("");
+      setBarangay("");
     }
   }, [region, phLocationsData]);
 
@@ -188,22 +195,46 @@ export default function EditDependantModal({
       if (selectedRegion) {
         const selectedProvince = selectedRegion.provinces.find((p: any) => p.province === province);
         if (selectedProvince) {
-          setCities(selectedProvince.cities);
+          // Map cities to strings if they are objects
+          const cityNames = selectedProvince.cities.map((c: any) => (typeof c === 'string' ? c : c.city));
+          setCities(cityNames);
 
           // Only clear city if it's not in the new list
-          if (!selectedProvince.cities.includes(city)) {
+          if (!cityNames.includes(city)) {
             setCity("");
+            setBarangays([]);
           }
         } else {
           setCities([]);
           setCity("");
+          setBarangays([]);
         }
       }
     } else {
       setCities([]);
+      setBarangays([]);
       setCity("");
+      setBarangay("");
     }
   }, [region, province, phLocationsData]);
+
+  // Update barangays when city changes
+  useEffect(() => {
+    if (region && province && city && phLocationsData.length > 0) {
+      const selectedRegion = phLocationsData.find((r: any) => r.region === region);
+      const selectedProvince = selectedRegion?.provinces.find((p: any) => p.province === province);
+      const selectedCity = selectedProvince?.cities.find((c: any) => (typeof c === 'string' ? c : c.city) === city);
+
+      if (selectedCity && selectedCity.barangays) {
+        setBarangays(selectedCity.barangays);
+      } else {
+        setBarangays([]);
+      }
+    } else {
+      setBarangays([]);
+    }
+  }, [region, province, city, phLocationsData]);
+
 
   /* ---------- Validation ---------- */
   const validateForm = () => {
@@ -250,6 +281,9 @@ export default function EditDependantModal({
     if (!city) {
       newErrors.city = "City is required.";
     }
+    if (!barangay) {
+      newErrors.barangay = "Barangay is required.";
+    }
 
     if (relationship === "other" && !otherRelationship.trim()) {
       newErrors.otherRelationship = "Please specify the relationship.";
@@ -263,6 +297,18 @@ export default function EditDependantModal({
     const validationErrors = validateForm();
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
+      const uniqueErrors = Array.from(new Set(Object.values(validationErrors)));
+      toast.error(
+        <div>
+          <p className="font-bold">Please fix the following errors:</p>
+          <ul className="list-disc pl-4 mt-1 text-sm">
+            {uniqueErrors.map((err: any, i) => (
+              <li key={i}>{err}</li>
+            ))}
+          </ul>
+        </div>,
+        { duration: 5000 }
+      );
       return;
     }
 
@@ -287,6 +333,7 @@ export default function EditDependantModal({
             region: region,
             province: province,
             city: city,
+            barangay: barangay,
           }
           : {
             firstName: d.firstname,
@@ -298,6 +345,7 @@ export default function EditDependantModal({
             region: d.region_name,
             province: d.province_name,
             city: d.city_name,
+            barangay: d.barangay,
           }
       ));
 
@@ -439,6 +487,7 @@ export default function EditDependantModal({
                 value={region}
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                   setRegion(e.target.value);
+                  setBarangay("");
                   if (errors.region) setErrors(prev => ({ ...prev, region: "" }));
                 }}
                 options={regions}
@@ -449,6 +498,7 @@ export default function EditDependantModal({
                 value={province}
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                   setProvince(e.target.value);
+                  setBarangay("");
                   if (errors.province) setErrors(prev => ({ ...prev, province: "" }));
                 }}
                 options={region ? provinces : []}
@@ -459,10 +509,21 @@ export default function EditDependantModal({
                 value={city}
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                   setCity(e.target.value);
+                  setBarangay("");
                   if (errors.city) setErrors(prev => ({ ...prev, city: "" }));
                 }}
                 options={province ? cities : []}
                 error={errors.city}
+              />
+              <FormSelect
+                label="Barangay *"
+                value={barangay}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                  setBarangay(e.target.value);
+                  if (errors.barangay) setErrors(prev => ({ ...prev, barangay: "" }));
+                }}
+                options={barangays}
+                error={errors.barangay}
               />
             </div>
 

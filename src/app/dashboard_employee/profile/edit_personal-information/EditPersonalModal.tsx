@@ -38,18 +38,6 @@ const formatCivilStatusForDisplay = (value?: string | null) => {
   return map[v] || value;
 };
 
-function normalizeName(name: string) {
-  return name
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/city of /g, "")
-    .replace(/city /g, "")
-    .replace(/[^a-z0-9\s]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 
 /* ---------- Component ---------- */
 export default function EditEmployeeModal({
@@ -119,7 +107,9 @@ export default function EditEmployeeModal({
       if (selectedRegion) {
         const selectedProvince = selectedRegion.provinces.find((p: any) => p.province === province);
         if (selectedProvince) {
-          setCities(selectedProvince.cities);
+          setCities(selectedProvince.cities.map((c: any) => 
+            typeof c === 'string' ? c : c.city
+          ));
         } else {
           setCities([]);
         }
@@ -129,39 +119,22 @@ export default function EditEmployeeModal({
     }
   }, [region, province, phLocationsData]);
 
-  // Load barangays when city changes (via PSGC API)
+  // Load barangays when city changes (via local JSON)
   useEffect(() => {
-    async function loadBarangays() {
-      if (!city) {
-        setBarangays([]);
-        return;
-      }
-      try {
-        const resCities = await fetch("https://psgc.gitlab.io/api/cities-municipalities/");
-        const allCities = await resCities.json();
-        const normCity = normalizeName(city);
-        const selectedCity =
-          allCities.find((c: any) => normalizeName(c.name) === normCity) ||
-          allCities.find((c: any) => normalizeName(c.name).includes(normCity)) ||
-          allCities.find((c: any) => normCity.includes(normalizeName(c.name)));
-        if (!selectedCity) {
-          console.warn("City not found in PSGC:", city);
-          setBarangays([]);
-          return;
-        }
-        const cityCode = selectedCity.code;
-        const resBrgy = await fetch(
-          `https://psgc.gitlab.io/api/cities-municipalities/${cityCode}/barangays`
-        );
-        const barangayList = await resBrgy.json();
-        setBarangays(barangayList.map((b: any) => b.name));
-      } catch (err) {
-        console.error("Error loading barangays:", err);
+    if (region && province && city && phLocationsData.length > 0) {
+      const selectedRegion = phLocationsData.find((r: any) => r.region === region);
+      const selectedProvince = selectedRegion?.provinces.find((p: any) => p.province === province);
+      const selectedCity = selectedProvince?.cities.find((c: any) => (typeof c === 'string' ? c : c.city) === city);
+
+      if (selectedCity && selectedCity.barangays) {
+        setBarangays(selectedCity.barangays);
+      } else {
         setBarangays([]);
       }
+    } else {
+      setBarangays([]);
     }
-    loadBarangays();
-  }, [city]);
+  }, [region, province, city, phLocationsData]);
 
 
   const [errors, setErrors] = useState<ValidationErrors>({});
@@ -208,6 +181,19 @@ export default function EditEmployeeModal({
     if (Object.keys(formErrors).length > 0 || !employee) {
       setErrors(formErrors);
       console.log("Validation failed or no employee");
+
+      const uniqueErrors = Array.from(new Set(Object.values(formErrors)));
+      toast.error(
+        <div>
+          <p className="font-bold">Please fix the following errors:</p>
+          <ul className="list-disc pl-4 mt-1 text-sm">
+            {uniqueErrors.map((err: any, i) => (
+              <li key={i}>{err}</li>
+            ))}
+          </ul>
+        </div>,
+        { duration: 5000 }
+      );
       return;
     }
 
