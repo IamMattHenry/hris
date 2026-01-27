@@ -521,7 +521,7 @@ const TechnicalSupportTab = () => {
                 <textarea
                   value={resolutionText}
                   onChange={(e) => setResolutionText(e.target.value)}
-                  className="w-full min-h-[120px] p-3 border rounded-md resize-none text-sm"
+                  className="w-full min-h-[120px] p-3 border rounded-md text-[#3b2b1c] resize-none text-sm"
                   placeholder="Describe the resolution performed, steps taken, and any notes for the requester..."
                   aria-label="Resolution description"
                 />

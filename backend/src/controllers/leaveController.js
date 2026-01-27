@@ -15,21 +15,12 @@ export const getLeaveRequests = async (req, res, next) => {
         e.leave_credit,
         jp.position_name,
         d.department_name,
-        u.role AS requester_role,
-        ur.sub_role AS requester_sub_role,
-        -- approver info (may be null)
-        CONCAT(ea.first_name, ' ', ea.last_name) AS approved_by_name,
-        ea.first_name AS approver_first_name,
-        ea.last_name AS approver_last_name,
-        ea.employee_code AS approver_employee_code
+        u.role AS requester_role
       FROM leaves l
       LEFT JOIN employees e ON l.employee_id = e.employee_id
       LEFT JOIN users u ON e.user_id = u.user_id
-      LEFT JOIN user_roles ur ON u.user_id = ur.user_id
       LEFT JOIN job_positions jp ON e.position_id = jp.position_id
       LEFT JOIN departments d ON e.department_id = d.department_id
-      LEFT JOIN users ua ON l.approved_by = ua.user_id
-      LEFT JOIN employees ea ON ua.user_id = ea.user_id
       WHERE 1=1
     `;
     const params = [];
@@ -81,22 +72,9 @@ export const getLeaveByEmployee = async (req, res, next) => {
     const { employee_id } = req.params;
 
     const leaves = await db.getAll(`
-      SELECT
-        l.*,
-        u.role AS requester_role,
-        ur.sub_role AS requester_sub_role,
-        CONCAT(ea.first_name, ' ', ea.last_name) AS approved_by_name,
-        ea.first_name AS approver_first_name,
-        ea.last_name AS approver_last_name,
-        ea.employee_code AS approver_employee_code
-      FROM leaves l
-      LEFT JOIN employees e ON l.employee_id = e.employee_id
-      LEFT JOIN users u ON e.user_id = u.user_id
-      LEFT JOIN user_roles ur ON u.user_id = ur.user_id
-      LEFT JOIN users ua ON l.approved_by = ua.user_id
-      LEFT JOIN employees ea ON ua.user_id = ea.user_id
-      WHERE l.employee_id = ?
-      ORDER BY l.start_date DESC
+      SELECT * FROM leaves
+      WHERE employee_id = ?
+      ORDER BY start_date DESC
     `, [employee_id]);
 
     res.json({
@@ -147,18 +125,18 @@ export const applyLeave = async (req, res, next) => {
       });
     }
 
-    // // Check if employee has a pending leave request
-    // const pendingLeave = await db.getOne(
-    //   'SELECT * FROM leaves WHERE employee_id = ? AND status = ?',
-    //   [targetEmployeeId, 'pending']
-    // );
+    // Check if employee has a pending leave request
+    const pendingLeave = await db.getOne(
+      'SELECT * FROM leaves WHERE employee_id = ? AND status = ?',
+      [targetEmployeeId, 'pending']
+    );
 
-    // if (pendingLeave) {
-    //   return res.status(400).json({
-    //     success: false,
-    //     message: 'Employee already has a pending leave request. Please wait for approval or rejection before submitting a new request.',
-    //   });
-    // }
+    if (pendingLeave) {
+      return res.status(400).json({
+        success: false,
+        message: 'Employee already has a pending leave request. Please wait for approval or rejection before submitting a new request.',
+      });
+    }
 
     // Get user ID from JWT token for audit trail
     const createdBy = requesterUserId;
@@ -210,11 +188,10 @@ export const approveLeave = async (req, res, next) => {
     // Load leave with employee details
     const leave = await db.getOne(
       `
-      SELECT l.*, e.employee_id AS emp_id, e.department_id AS emp_department_id, e.leave_credit AS emp_leave_credit, u.role AS requester_role, ur.sub_role AS requester_sub_role
+      SELECT l.*, e.employee_id AS emp_id, e.department_id AS emp_department_id, e.leave_credit AS emp_leave_credit, u.role AS requester_role
       FROM leaves l
       JOIN employees e ON l.employee_id = e.employee_id
       JOIN users u ON e.user_id = u.user_id
-      LEFT JOIN user_roles ur ON u.user_id = ur.user_id
       WHERE l.leave_id = ?
     `,
       [id]
@@ -261,30 +238,23 @@ export const approveLeave = async (req, res, next) => {
         return res.status(403).json({ success: false, message: 'You cannot approve your own leave request' });
       }
     } else if (requesterRole === 'supervisor') {
-      // Only admin or superadmin can approve supervisor leave requests
-      if (!(approverRole === 'admin' || approverRole === 'superadmin')) {
-        return res.status(403).json({ success: false, message: 'Only admin or superadmin can approve supervisor leave requests' });
+      // Only admin or superadmin can approve
+      if (!(approverRole === 'superadmin') || !(approverRole === 'admin')) {
+        return res.status(403).json({ success: false, message: 'Only superadmin and admin can approve supervisor leave requests' });
       }
       if (approver && approver.employee_id === leave.emp_id) {
         return res.status(403).json({ success: false, message: 'You cannot approve your own leave request' });
       }
     } else if (requesterRole === 'admin') {
       // Only superadmin can approve
-      if (approverRole !== 'superadmin') {
-        return res.status(403).json({ success: false, message: 'Only superadmin can approve admin leave requests' });
+      if (approverRole !== 'superadmin' || approverRole !== 'admin') {
+        return res.status(403).json({ success: false, message: 'Only superadmin can approve supervisor leave requests' });
       }
       if (approver && approver.employee_id === leave.emp_id) {
         return res.status(403).json({ success: false, message: 'You cannot approve your own leave request' });
       }
     } else {
-      // Unhandled requester role — return a concise, non-technical message and include role info.
-      const requesterSub = leave.requester_sub_role || null;
-      const roleInfo = requesterSub ? `${requesterRole} (${requesterSub})` : requesterRole;
-      return res.status(403).json({
-        success: false,
-        message: `Approval not allowed for requester role '${roleInfo}'. Please contact your system administrator to confirm approval permissions.`,
-        data: { requester_role: leave.requester_role, requester_sub_role: leave.requester_sub_role || null },
-      });
+      return res.status(403).json({ success: false, message: 'No approval policy configured for this requester role' });
     }
 
     // Determine deduction rule: 1 credit per leave (except sick leave = 0)
@@ -380,11 +350,10 @@ export const rejectLeave = async (req, res, next) => {
     // Load leave with employee details
     const leave = await db.getOne(
       `
-      SELECT l.*, e.employee_id AS emp_id, e.department_id AS emp_department_id, u.role AS requester_role, ur.sub_role AS requester_sub_role
+      SELECT l.*, e.employee_id AS emp_id, e.department_id AS emp_department_id, u.role AS requester_role
       FROM leaves l
       JOIN employees e ON l.employee_id = e.employee_id
       JOIN users u ON e.user_id = u.user_id
-      LEFT JOIN user_roles ur ON u.user_id = ur.user_id
       WHERE l.leave_id = ?
     `,
       [id]
@@ -447,13 +416,7 @@ export const rejectLeave = async (req, res, next) => {
         return res.status(403).json({ success: false, message: 'You cannot reject your own leave request' });
       }
     } else {
-      const requesterSub = leave.requester_sub_role || null;
-      const roleInfo = requesterSub ? `${requesterRole} (${requesterSub})` : requesterRole;
-      return res.status(403).json({
-        success: false,
-        message: `Rejection not allowed for requester role '${roleInfo}'. Please contact your system administrator to confirm rejection permissions.`,
-        data: { requester_role: leave.requester_role, requester_sub_role: leave.requester_sub_role || null },
-      });
+      return res.status(403).json({ success: false, message: 'No rejection policy configured for this requester role' });
     }
 
     await db.update(
@@ -625,23 +588,9 @@ export const getPendingLeaveCount = async (req, res, next) => {
 export const getPendingLeaves = async (req, res, next) => {
   try {
     const leaves = await db.getAll(`
-      SELECT
-        l.*,
-        e.first_name,
-        e.last_name,
-        e.employee_code,
-        u.role AS requester_role,
-        ur.sub_role AS requester_sub_role,
-        CONCAT(ea.first_name, ' ', ea.last_name) AS approved_by_name,
-        ea.first_name AS approver_first_name,
-        ea.last_name AS approver_last_name,
-        ea.employee_code AS approver_employee_code
+      SELECT l.*, e.first_name, e.last_name, e.employee_code
       FROM leaves l
       LEFT JOIN employees e ON l.employee_id = e.employee_id
-      LEFT JOIN users u ON e.user_id = u.user_id
-      LEFT JOIN user_roles ur ON u.user_id = ur.user_id
-      LEFT JOIN users ua ON l.approved_by = ua.user_id
-      LEFT JOIN employees ea ON ua.user_id = ea.user_id
       WHERE l.status = 'pending'
       ORDER BY l.start_date ASC
     `);
