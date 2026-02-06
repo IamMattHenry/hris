@@ -110,12 +110,7 @@ release/*  →  main
 
 ---
 
-## 🧩 Tips for Docker or Local DB Users
-If someone uses **Docker** and others use **XAMPP**, that’s fine — just make sure:
-- You all use the **same database name** (e.g., `hotel_hris`)
-- You **don’t push `.env` or `docker-compose.yml`** if they contain local configs
-- Always keep **SQL dumps or migrations** updated and shared when database changes
-
+<!-- Docker-specific tips removed: repository no longer uses Docker workflows. -->
 ---
 
 ## 🎒 Suggested Folder Branch Focus

@@ -15,7 +15,6 @@ This file gives focused, actionable context for AI coding agents to be immediate
   - Frontend <-> Backend: frontend expects backend API at NEXT_PUBLIC_API_URL (default http://localhost:5000/api). The frontend `apiCall` wraps responses that often use the `{ success, data, message }` envelope.
   - Authentication: token stored in `localStorage` under key `token`. `apiCall` attaches `Authorization: Bearer <token>` automatically.
   - Fingerprint/Hardware: backend includes `serialport` and a fingerprint bridge script `backend/src/scripts/startFingerprintBridge.js` — treat hardware flows as separate processes connecting to backend endpoints (`/api/fingerprint`).
-  - Docker: a `docker-compose.yml` exists at repo root for integrated local deployment — check env values before running.
 
 - Developer workflows / commands (PowerShell examples)
   - Frontend (Next.js):
@@ -28,7 +27,7 @@ This file gives focused, actionable context for AI coding agents to be immediate
       - `npm install`
       - Dev: `npm run dev` (nodemon src/server.js) — default port 5000
       - Start fingerprint bridge (if testing hardware): `npm run fingerprint` in `backend/`
-  - Full stack with Docker Compose: inspect `docker-compose.yml`, set env values, then `docker compose up --build`.
+  - Full stack: run frontend and backend separately or use your preferred local orchestration.
 
 - Project-specific patterns & conventions (do not assume generic defaults)
   - API envelope: many backend endpoints return an object with `success`, `data`, `message`. The frontend `apiCall` checks for a `success` field — prefer returning that envelope when changing backend responses.
@@ -43,7 +42,6 @@ This file gives focused, actionable context for AI coding agents to be immediate
   - `backend/src/app.js` and `backend/src/server.js` — middleware, routes and server lifecycle
   - `src/lib/api.ts` — API helper, auth header, retry and timeout rules
   - `src/contexts/AuthContext.tsx` — client auth flow and redirects
-  - `docker-compose.yml` — how services are composed for local deployment
 
 - Quick guidance for code changes
   - When changing an API route, update both backend controller and any frontend callers in `src/lib/api.ts` or pages/components that call it.
