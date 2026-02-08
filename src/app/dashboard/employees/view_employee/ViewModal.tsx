@@ -130,6 +130,8 @@ export default function ViewEmployeeModal({
     { id: "authentication" as TabType, label: "Authentication" },
   ];
 
+  const capitalizeFirstChar = (str: string | undefined) => str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
+
   return (
     <div
       className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
@@ -217,7 +219,7 @@ export default function ViewEmployeeModal({
                   <div className="text-left space-y-1">
                     <p className="text-sm text-[#8b7355]">Job Title: <span className="text-[#3b2b1c] font-medium">{employee.position_name}</span></p>
                     <p className="text-sm text-[#8b7355]">Department: <span className="text-[#3b2b1c] font-medium">{employee.department_name}</span></p>
-                    <p className="text-sm text-[#8b7355]">Shift: <span className="text-[#3b2b1c] font-medium">{employee.shift}</span></p>
+                    <p className="text-sm text-[#8b7355]">Shift: <span className="text-[#3b2b1c] font-medium">{capitalizeFirstChar(employee.shift)}</span></p>
                   </div>
                 </div>
 
@@ -232,7 +234,7 @@ export default function ViewEmployeeModal({
                           .join("\n")}
                         isTextarea={true}
                       />
-                      <InfoBox label="Gender" value={employee.gender} />
+                      <InfoBox label="Gender" value={capitalizeFirstChar(employee.gender)} />
                       <InfoBox label="Home Address" value={employee.home_address} isTextarea={true} />
                       <InfoBox
                         label="Contact"
@@ -241,7 +243,7 @@ export default function ViewEmployeeModal({
                           .join("\n")}
                         isTextarea={true}
                       />
-                      <InfoBox label="Civil Status" value={employee.civil_status} />
+                      <InfoBox label="Civil Status" value={capitalizeFirstChar(employee.civil_status)} />
                       <InfoBox label="Region" value={employee.region} />
                       <InfoBox label="Age" value={calculateAge(employee.birthdate)} />
                       <InfoBox label="Birthdate" value={formatDate(employee.birthdate)} />
@@ -256,7 +258,7 @@ export default function ViewEmployeeModal({
                   <div className="space-y-6">
                     <div className="grid grid-cols-3 gap-4">
                       <InfoBox label="Hired Date" value={formatDate(employee.hire_date)} />
-                      <InfoBox label="Shift" value={employee.shift || "N/A"} />
+                      <InfoBox label="Shift" value={capitalizeFirstChar(employee.shift) || "N/A"} />
                       <InfoBox label="Department" value={employee.department_name || "N/A"} />
                       <InfoBox label="Position" value={employee.position_name || "N/A"} />
                       <InfoBox label="Leave Credits (Remaining)" value={(employee.leave_credit ?? 0).toString()} />

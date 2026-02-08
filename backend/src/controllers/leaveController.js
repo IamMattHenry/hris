@@ -109,6 +109,22 @@ export const applyLeave = async (req, res, next) => {
       targetEmployeeId = selfEmp.employee_id;
     }
 
+    // Prevent probationary employees from submitting leave requests
+    const targetEmployee = await db.getOne(
+      'SELECT employee_id, employment_type, probation_end_date, leave_credit, date_hired, gender FROM employees WHERE employee_id = ? LIMIT 1',
+      [targetEmployeeId]
+    );
+    if (!targetEmployee) {
+      return res.status(404).json({ success: false, message: 'Employee not found' });
+    }
+
+    if (targetEmployee.employment_type === 'probationary') {
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (targetEmployee.probation_end_date && targetEmployee.probation_end_date > todayStr) {
+        return res.status(403).json({ success: false, message: 'Probationary employees cannot submit leave requests until probation ends' });
+      }
+    }
+
     // Validate required fields (employee_id required only for non-employee requesters)
     if (!leave_type || !start_date || !end_date || (!targetEmployeeId && requesterRole !== 'employee')) {
       return res.status(400).json({
@@ -118,7 +134,9 @@ export const applyLeave = async (req, res, next) => {
     }
 
     // Validate dates
-    if (new Date(start_date) > new Date(end_date)) {
+    const startDt = new Date(start_date);
+    const endDt = new Date(end_date);
+    if (startDt > endDt) {
       return res.status(400).json({
         success: false,
         message: 'Start date must be before end date',
@@ -140,6 +158,59 @@ export const applyLeave = async (req, res, next) => {
 
     // Get user ID from JWT token for audit trail
     const createdBy = requesterUserId;
+
+    // Enforce leave-type specific date/duration rules
+    const diffMs = endDt.getTime() - startDt.getTime();
+    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
+
+    const leaveLimits = {
+      maternity: 105,
+      maternity_solo: 120,
+      maternity_miscarriage: 60,
+      paternity: 7,
+      sil: 5,
+      special_women: 60,
+      bereavement: 5,
+    };
+
+    // Determine effective leave type key and validate
+    let effectiveType = (leave_type || '').toLowerCase();
+    // Allow callers to specify subtypes for maternity via `maternity_type` in body
+    const { maternity_type } = req.body;
+    if (effectiveType === 'maternity' && maternity_type) {
+      if (maternity_type === 'solo') effectiveType = 'maternity_solo';
+      if (maternity_type === 'miscarriage') effectiveType = 'maternity_miscarriage';
+    }
+
+    if (leaveLimits[effectiveType]) {
+      const max = leaveLimits[effectiveType];
+      if (days > max) {
+        return res.status(400).json({ success: false, message: `Maximum allowed days for ${leave_type} is ${max}` });
+      }
+    }
+
+    // Additional checks: paternity requires male gender, maternity requires female
+    if (effectiveType.startsWith('maternity')) {
+      if ((targetEmployee.gender || '').toLowerCase() !== 'female') {
+        return res.status(400).json({ success: false, message: 'Maternity leave can only be requested for female employees' });
+      }
+    }
+    if (effectiveType === 'paternity') {
+      if ((targetEmployee.gender || '').toLowerCase() !== 'male') {
+        return res.status(400).json({ success: false, message: 'Paternity leave can only be requested for male employees' });
+      }
+    }
+
+    // Service Incentive Leave (SIL) check: ensure at least 1 year of service
+    if (effectiveType === 'sil') {
+      const hired = targetEmployee.date_hired ? new Date(targetEmployee.date_hired) : null;
+      if (!hired || ((new Date() - hired) < 365 * 24 * 60 * 60 * 1000)) {
+        return res.status(400).json({ success: false, message: 'SIL is available after one year of service' });
+      }
+      if (days > (targetEmployee.leave_credit || 0)) {
+        return res.status(400).json({ success: false, message: 'Insufficient leave credits for SIL' });
+      }
+    }
 
     const leaveId = await db.insert('leaves', {
       employee_id: targetEmployeeId,
@@ -222,39 +293,13 @@ export const approveLeave = async (req, res, next) => {
 
     const requesterRole = leave.requester_role;
 
-    // Enforce approval hierarchy 
-    if (requesterRole === 'employee') {
-      // Only same-department supervisors (not self)
-      if (approverRole !== 'supervisor') {
-        return res.status(403).json({ success: false, message: 'Only same-department supervisors can approve employee leave requests' });
-      }
-      if (!approver) {
-        return res.status(403).json({ success: false, message: 'Approver is not linked to an employee record' });
-      }
-      if (approver.department_id !== leave.emp_department_id) {
-        return res.status(403).json({ success: false, message: 'Supervisors can only approve leave requests within their department' });
-      }
-      if (approver.employee_id === leave.emp_id) {
-        return res.status(403).json({ success: false, message: 'You cannot approve your own leave request' });
-      }
-    } else if (requesterRole === 'supervisor') {
-      // Only admin or superadmin can approve
-      if (!(approverRole === 'superadmin') || !(approverRole === 'admin')) {
-        return res.status(403).json({ success: false, message: 'Only superadmin and admin can approve supervisor leave requests' });
-      }
-      if (approver && approver.employee_id === leave.emp_id) {
-        return res.status(403).json({ success: false, message: 'You cannot approve your own leave request' });
-      }
-    } else if (requesterRole === 'admin') {
-      // Only superadmin can approve
-      if (approverRole !== 'superadmin' || approverRole !== 'admin') {
-        return res.status(403).json({ success: false, message: 'Only superadmin can approve supervisor leave requests' });
-      }
-      if (approver && approver.employee_id === leave.emp_id) {
-        return res.status(403).json({ success: false, message: 'You cannot approve your own leave request' });
-      }
-    } else {
-      return res.status(403).json({ success: false, message: 'No approval policy configured for this requester role' });
+    // New approval policy: Only HR can approve leave requests.
+    // NOTE: using 'superadmin' as a placeholder for HR role — replace with 'hr' when ready.
+    if (approverRole !== 'superadmin') {
+      return res.status(403).json({ success: false, message: 'Only HR can approve leave requests' });
+    }
+    if (approver && approver.employee_id === leave.emp_id) {
+      return res.status(403).json({ success: false, message: 'You cannot approve your own leave request' });
     }
 
     // Determine deduction rule: 1 credit per leave (except sick leave = 0)
@@ -674,69 +719,73 @@ export const getAbsenceCount = async (req, res, next) => {
 
 export const checkAndRevertLeaveStatus = async (req, res, next) => {
   try {
-    // Find all approved leaves where end_date has passed
-    const expiredLeaves = await db.getAll(`
-      SELECT l.*, e.employee_id
-      FROM leaves l
-      LEFT JOIN employees e ON l.employee_id = e.employee_id
-      WHERE l.status = 'approved'
-      AND l.end_date < CURDATE()
-      AND e.status = 'on-leave'
-    `);
-
-    if (expiredLeaves.length === 0) {
-      return res.json({
-        success: true,
-        message: 'No expired leaves to revert',
-        data: { reverted_count: 0 },
-      });
-    }
-
-    // Start transaction
-    await db.beginTransaction();
-
-    try {
-      let revertedCount = 0;
-
-      for (const leave of expiredLeaves) {
-        // Check if employee has any other active approved leaves
-        const otherActiveLeaves = await db.transactionGetOne(
-          `SELECT COUNT(*) as count FROM leaves
-           WHERE employee_id = ?
-           AND status = 'approved'
-           AND end_date >= CURDATE()
-           AND leave_id != ?`,
-          [leave.employee_id, leave.leave_id]
-        );
-
-        // Only revert status if no other active leaves
-        if (otherActiveLeaves.count === 0) {
-          await db.transactionUpdate(
-            'employees',
-            { status: 'active' },
-            'employee_id = ?',
-            [leave.employee_id]
-          );
-          revertedCount++;
-        }
-      }
-
-      await db.commit();
-
-      logger.info(`Leave status check completed. Reverted ${revertedCount} employees to active status`);
-
-      res.json({
-        success: true,
-        message: `Successfully reverted ${revertedCount} employees to active status`,
-        data: { reverted_count: revertedCount },
-      });
-    } catch (error) {
-      await db.rollback();
-      throw error;
-    }
+    const result = await revertExpiredLeaves();
+    res.json({
+      success: true,
+      message: `Successfully reverted ${result.revertedCount} employees to active status`,
+      data: { reverted_count: result.revertedCount },
+    });
   } catch (error) {
     logger.error('Check and revert leave status error:', error);
     next(error);
+  }
+};
+
+// Reusable function to revert expired leaves (can be called from scheduled jobs)
+export const revertExpiredLeaves = async () => {
+  // Find all approved leaves where end_date has passed
+  const expiredLeaves = await db.getAll(`
+    SELECT l.*, e.employee_id, l.leave_id
+    FROM leaves l
+    LEFT JOIN employees e ON l.employee_id = e.employee_id
+    WHERE l.status = 'approved'
+    AND l.end_date < CURDATE()
+    AND e.status = 'on-leave'
+  `);
+
+  if (!expiredLeaves || expiredLeaves.length === 0) {
+    logger.info('No expired leaves to revert');
+    return { revertedCount: 0 };
+  }
+
+  // Start transaction
+  await db.beginTransaction();
+
+  try {
+    let revertedCount = 0;
+
+    for (const leave of expiredLeaves) {
+      // Check if employee has any other active approved leaves
+      const otherActiveLeaves = await db.transactionGetOne(
+        `SELECT COUNT(*) as count FROM leaves
+         WHERE employee_id = ?
+         AND status = 'approved'
+         AND end_date >= CURDATE()
+         AND leave_id != ?`,
+        [leave.employee_id, leave.leave_id]
+      );
+
+      // Only revert status if no other active leaves
+      if (otherActiveLeaves.count === 0) {
+        await db.transactionUpdate(
+          'employees',
+          { status: 'active' },
+          'employee_id = ?',
+          [leave.employee_id]
+        );
+        revertedCount++;
+      }
+    }
+
+    await db.commit();
+
+    logger.info(`Leave status check completed. Reverted ${revertedCount} employees to active status`);
+
+    return { revertedCount };
+  } catch (error) {
+    await db.rollback();
+    logger.error('Failed reverting expired leaves:', error);
+    throw error;
   }
 };
 

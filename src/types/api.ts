@@ -276,7 +276,7 @@ export interface Leave {
   employee_code?: string;
   first_name?: string;
   last_name?: string;
-  leave_type: 'vacation' | 'sick' | 'emergency' | 'others';
+  leave_type: 'vacation' | 'sick' | 'emergency' | 'half_day' | 'others' | 'maternity' | 'paternity' | 'sil' | 'special_women' | 'bereavement';
   start_date: string;
   end_date: string;
   status: 'pending' | 'approved' | 'rejected' | 'cancelled';

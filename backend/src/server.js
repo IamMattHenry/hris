@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import app from './app.js';
 import { testConnection } from './config/db.js';
 import logger from './utils/logger.js';
+import { revertExpiredLeaves } from './controllers/leaveController.js';
 
 // Load environment variables
 dotenv.config();
@@ -41,6 +42,18 @@ const startServer = async () => {
     app.listen(PORT, () => {
       logger.info(`Server running on port ${PORT}`);
     });
+
+    // Run revert job once at startup and schedule daily
+    try {
+      await revertExpiredLeaves();
+    } catch (err) {
+      logger.error('Error running initial revertExpiredLeaves job:', err);
+    }
+
+    const intervalMs = Number(process.env.REVERT_LEAVES_INTERVAL_MS) || 24 * 60 * 60 * 1000; // default 24h
+    setInterval(() => {
+      revertExpiredLeaves().catch((err) => logger.error('Scheduled revertExpiredLeaves error:', err));
+    }, intervalMs);
   } catch (error) {
     logger.error('Failed to start server:', error);
     process.exit(1);

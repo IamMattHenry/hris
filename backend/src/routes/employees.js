@@ -44,6 +44,10 @@ router.post(
     body('email').optional().isEmail().normalizeEmail().withMessage('Invalid email format'),
     body('contact_number').optional().matches(/^09\d{9}$/).withMessage('Invalid Philippine phone format'),
     body('salary').optional().isFloat({ min: 0, max: 999999.99 }).withMessage('Invalid salary amount'),
+    body('employment_type').optional().isIn(['regular','probationary']).withMessage('Invalid employment type'),
+    body('probation_end_date').optional().isISO8601().withMessage('Invalid probation end date'),
+    body('monthly_salary').optional().isFloat({ min: 0 }).withMessage('Invalid monthly salary'),
+    body('hourly_rate').optional().isFloat({ min: 0 }).withMessage('Invalid hourly rate'),
   ],
   handleValidationErrors,
   createEmployee

@@ -5,7 +5,7 @@ import { leaveApi, employeeApi, authApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "react-hot-toast";
 
-type LeaveType = "vacation" | "sick" | "emergency" | "half_day" | "others";
+type LeaveType = "vacation" | "sick" | "emergency" | "half_day" | "others" | "maternity" | "paternity" | "sil" | "special_women" | "bereavement";
 type LeaveStatus = "pending" | "approved" | "rejected";
 
 interface Leave {
@@ -33,6 +33,11 @@ const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
   emergency: "Emergency Leave",
   half_day: "Half Day",
   others: "Others",
+  maternity: "Maternity Leave",
+  paternity: "Paternity Leave",
+  sil: "Service Incentive Leave (SIL)",
+  special_women: "Special Leave for Women",
+  bereavement: "Bereavement Leave",
 };
 
 export default function RequestsPage() {
@@ -49,6 +54,8 @@ export default function RequestsPage() {
     end_date: "",
     remarks: "",
   });
+  const [maternityType, setMaternityType] = useState<"normal" | "solo" | "miscarriage">("normal");
+  const [isProbationActive, setIsProbationActive] = useState(false);
 
   // Prevent selecting past dates
   const today = new Date().toISOString().split("T")[0];
@@ -75,6 +82,17 @@ export default function RequestsPage() {
         const me = await authApi.getCurrentUser();
         if ((me as any)?.success && (me as any)?.data) {
           setLeaveCredit((me as any).data.leave_credit ?? null);
+            // check probation status from user data
+            const empType = (me as any).data.employment_type;
+            const probationEnd = (me as any).data.probation_end_date;
+            if (empType === 'probationary') {
+              const todayStr = new Date().toISOString().split('T')[0];
+              if (probationEnd && probationEnd > todayStr) {
+                setIsProbationActive(true);
+              } else {
+                setIsProbationActive(false);
+              }
+            }
         }
       } catch {
         // ignore; credit banner just won't show
@@ -126,6 +144,7 @@ export default function RequestsPage() {
       const result = await leaveApi.create({
         employee_id: user.employee_id,
         leave_type: formData.leave_type,
+        maternity_type: maternityType === 'normal' ? undefined : maternityType,
         start_date: formData.start_date,
         end_date: formData.end_date,
         remarks: combinedRemarks,
@@ -169,6 +188,11 @@ export default function RequestsPage() {
         {/* Leave Request Form */}
         <div className="bg-white rounded-xl shadow-sm border border-[#e8dcc8] p-6">
           <h2 className="text-xl font-semibold mb-4">Submit New Leave Request</h2>
+          {isProbationActive && (
+            <div className="mb-4 bg-red-50 border border-red-200 text-red-900 rounded p-3">
+              You are currently on probation. Leave requests are not allowed until probation ends.
+            </div>
+          )}
           {leaveCredit !== null && (
             <div className="mb-3 text-sm text-gray-600">
               Current Leave Credits: <span className="font-semibold">{leaveCredit}</span>
@@ -192,6 +216,7 @@ export default function RequestsPage() {
                   onChange={(e) => handleInputChange("leave_type", e.target.value)}
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#073532]"
+                  disabled={isProbationActive}
                 >
                   <option value="">Select leave type</option>
                   {Object.entries(LEAVE_TYPE_LABELS).map(([key, label]) => (
@@ -201,6 +226,22 @@ export default function RequestsPage() {
                   ))}
                 </select>
               </div>
+
+              {/* Maternity subtype */}
+              {formData.leave_type === 'maternity' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Maternity Type</label>
+                  <select
+                    value={maternityType}
+                    onChange={(e) => setMaternityType(e.target.value as any)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#073532]"
+                  >
+                    <option value="normal">Normal (105 days)</option>
+                    <option value="solo">Solo Parent (120 days)</option>
+                    <option value="miscarriage">Miscarriage/Emergency Termination (60 days)</option>
+                  </select>
+                </div>
+              )}
 
               {/* Start Date */}
               <div>
@@ -279,7 +320,7 @@ export default function RequestsPage() {
 
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isProbationActive}
               className="w-full bg-[#073532] text-white py-2 px-4 rounded-lg hover:bg-[#073532]/90 disabled:opacity-50 transition"
             >
               {isSubmitting ? "Submitting..." : "Submit Request"}

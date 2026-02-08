@@ -743,6 +743,7 @@ export const leaveApi = {
   create: async (data: {
     employee_id: number;
     leave_type: string;
+    maternity_type?: string;
     start_date: string;
     end_date: string;
     remarks?: string;

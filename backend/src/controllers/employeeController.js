@@ -358,6 +358,10 @@ export const createEmployee = async (req, res, next) => {
       contact_number,
       status,
       fingerprint_id,
+      employment_type,
+      probation_end_date,
+      monthly_salary,
+      hourly_rate,
       created_by,
       dependents
     } = req.body;
@@ -506,6 +510,18 @@ export const createEmployee = async (req, res, next) => {
         `User account created: ${username} (ID: ${userId}, Role: ${userRole})`
       );
 
+      // Normalize and validate employment type
+      const normalizedEmploymentType = (typeof employment_type === 'string' && employment_type.trim()) ? employment_type.trim().toLowerCase() : null;
+      const allowedTypes = ['regular', 'probationary'];
+      const finalEmploymentType = allowedTypes.includes(normalizedEmploymentType) ? normalizedEmploymentType : 'probationary';
+
+      // Parse numeric salary/rate values
+      const finalMonthlySalary = monthly_salary !== undefined && monthly_salary !== null ? Number(monthly_salary) : (salary !== undefined ? Number(salary) : 0);
+      const finalHourlyRate = hourly_rate !== undefined && hourly_rate !== null ? Number(hourly_rate) : 0;
+
+      // probation_end_date should be either null or a valid date string (YYYY-MM-DD)
+      const finalProbationEndDate = probation_end_date ? probation_end_date : null;
+
       // Insert employee without code first
       const tempEmployeeId = await db.transactionInsert("employees", {
         user_id: userId,
@@ -523,7 +539,11 @@ export const createEmployee = async (req, res, next) => {
         department_id,
         leave_credit,
         supervisor_id,
-        salary,
+        salary: finalMonthlySalary,
+        monthly_salary: finalMonthlySalary,
+        hourly_rate: finalHourlyRate,
+        employment_type: finalEmploymentType,
+        probation_end_date: finalProbationEndDate,
         fingerprint_id: fingerprintIdValue,
         created_by,
       });
@@ -885,6 +905,24 @@ export const updateEmployee = async (req, res, next) => {
     try {
       // Update employee basic info (only valid employee fields)
       if (Object.keys(updates).length > 0) {
+        // Normalize and validate employment_type if provided
+        if (Object.prototype.hasOwnProperty.call(updates, 'employment_type')) {
+          const et = updates.employment_type;
+          const normalized = (typeof et === 'string' && et.trim()) ? et.trim().toLowerCase() : null;
+          const allowed = ['regular', 'probationary'];
+          updates.employment_type = allowed.includes(normalized) ? normalized : undefined;
+        }
+
+        // Ensure numeric salary/rate
+        if (Object.prototype.hasOwnProperty.call(updates, 'monthly_salary')) {
+          const ms = updates.monthly_salary;
+          updates.monthly_salary = ms !== null && ms !== undefined && !Number.isNaN(Number(ms)) ? Number(ms) : 0;
+        }
+        if (Object.prototype.hasOwnProperty.call(updates, 'hourly_rate')) {
+          const hr = updates.hourly_rate;
+          updates.hourly_rate = hr !== null && hr !== undefined && !Number.isNaN(Number(hr)) ? Number(hr) : 0;
+        }
+
         const updatesWithAudit = {
           ...updates,
           updated_by: updatedBy,
