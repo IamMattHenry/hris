@@ -125,27 +125,44 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [usernameEdited, setUsernameEdited] = useState(false);
   const [passwordEdited, setPasswordEdited] = useState(false);
 
+  const [sss, setSss] = useState(false);
+  const [pagIbig, setPagIbig] = useState(false);
+  const [philhealth, setPhilhealth] = useState(false);
+
   // Helper to normalize first name into a safe username
-  const makeUsernameFromFirst = (fn: string) =>
-    fn.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  // Helper to capitalize first letter and remove symbols
+  const makeUsernameFromFirst = (fn: string) => {
+    const cleaned = fn.trim().replace(/[^a-zA-Z0-9]/g, "");
+    if (!cleaned) return "";
+    return cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase();
+  };
+
+  // Helper to add random digits if a string is too short
+  const padWithRandom = (str: string, minLength: number) => {
+    let result = str;
+    while (result.length < minLength) {
+      result += Math.floor(Math.random() * 10).toString();
+    }
+    return result;
+  };
 
   useEffect(() => {
-    const base = makeUsernameFromFirst(firstName || "");
+    // 1. Start with Capitalized name (e.g., "John")
+    let base = makeUsernameFromFirst(firstName || "");
 
-    // --- Username generation ---
-    let generatedUsername = base;
+    base = padWithRandom(base, 5);
+
     const randomNumber = Math.floor(100 + Math.random() * 900);
-    generatedUsername += randomNumber.toString();
+    const generatedUsername = base + randomNumber.toString();
 
     // --- Password generation ---
-    const cleanedFirstName = firstName ? firstName.replace(/\s+/g, "") : "";
-    let generatedPassword = cleanedFirstName ? `@${cleanedFirstName}` : "";
-    let suffixNumber = 12345;
+    const cleanedFirstName = firstName ? firstName.replace(/\s+/g, "") : "User";
+    // Capitalize password start
+    let formattedPass = cleanedFirstName.charAt(0).toUpperCase() + cleanedFirstName.slice(1);
+    let generatedPassword = `@${formattedPass}`;
 
-    while (generatedPassword.length < 12) {
-      generatedPassword = `${generatedPassword}${suffixNumber}`;
-      suffixNumber++;
-    }
+    // Pad password to at least 12 characters using random numbers
+    generatedPassword = padWithRandom(generatedPassword, 12);
 
     if (!usernameEdited) setUsername(generatedUsername);
     if (!passwordEdited) {
@@ -153,7 +170,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       setConfirmPassword(generatedPassword);
     }
   }, [firstName, usernameEdited, passwordEdited]);
-
 
   useEffect(() => {
     if (hireDate) {
@@ -172,8 +188,10 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     }
   }, [hireDate]);
 
+
+
   // Load PH locations data from JSON file
-  useEffect(() => {
+useEffect(() => {
     async function loadPhLocationsData() {
       try {
         console.log("Fetching ph_locations.json...");
@@ -201,7 +219,10 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     loadPhLocationsData();
   }, []);
 
-  // Update provinces when region changes (for home address)
+
+
+  // 2. Update provinces when region changes (Home)
+    // Update provinces when region changes (for home address)
   useEffect(() => {
     if (region) {
       const selectedRegion = phLocationsData.find((r: any) => r.region === region);
@@ -238,45 +259,8 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     }
   }, [region, province, phLocationsData]);
 
-  // Update dependent provinces when dependent region changes
-  useEffect(() => {
-    if (dependentRegion) {
-      const selectedRegion = phLocationsData.find((r: any) => r.region === dependentRegion);
-      if (selectedRegion) {
-        const provinceNames = selectedRegion.provinces.map((p: any) => p.province);
-        setDependentProvinces(provinceNames);
-        setDependentCities([]);
-      } else {
-        setDependentProvinces([]);
-        setDependentCities([]);
-      }
-    } else {
-      setDependentProvinces([]);
-      setDependentCities([]);
-    }
-  }, [dependentRegion, phLocationsData]);
 
-  // Update dependent cities when dependent province changes
-  useEffect(() => {
-    if (dependentRegion && dependentProvince) {
-      const selectedRegion = phLocationsData.find((r: any) => r.region === dependentRegion);
-      if (selectedRegion) {
-        const selectedProvince = selectedRegion.provinces.find((p: any) => p.province === dependentProvince);
-        if (selectedProvince) {
-          setDependentCities(selectedProvince.cities.map((c: any) => 
-            typeof c === 'string' ? c : c.city
-          ));
-        } else {
-          setDependentCities([]);
-        }
-      }
-    } else {
-      setDependentCities([]);
-    }
-  }, [dependentRegion, dependentProvince, phLocationsData]);
-
-
-  // Load Barangays (Home)
+   // Load Barangays (Home)
   useEffect(() => {
     if (region && province && city && phLocationsData.length > 0) {
       const r = phLocationsData.find((x: any) => x.region === region);
@@ -309,8 +293,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       setDependentBarangays([]);
     }
   }, [dependentRegion, dependentProvince, dependentCity, phLocationsData]);
-
-
 
   // Fetch departments when modal opens
   useEffect(() => {
@@ -571,6 +553,9 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     setMessage(null);
     setShowFingerprintEnrollment(false);
     setNewEmployeeId(null);
+    setSss(false);
+    setPagIbig(false);
+    setPhilhealth(false);
   };
 
   // ─── Validation ───────────────────────────────
@@ -713,7 +698,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         setTimeout(() => {
           setMessage(null);
           resetForm();
-        //setShowFingerprintEnrollment(true);
+          //setShowFingerprintEnrollment(true);
           onClose();
         }, 1000);
 
@@ -741,11 +726,23 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
 
   // Reusable name validation function
-  const validateNameFormat = (value: string, setValue: (v: string) => void, maxLength: number = 30) => {
-    if (/^[A-Za-zñÑ\s'-.]*$/.test(value) && value.length <= maxLength) {
-      setValue(value);
-    }
+  const validateNameFormat = (
+    value: string,
+    setValue: (v: string) => void,
+    maxLength: number = 30
+  ) => {
+    // 1. Allowed characters (letters + spaces)
+    if (!/^[A-Za-zñÑ\s]*$/.test(value)) return;
+    if (value.length > maxLength) return;
+
+    // 2. Normalize casing: Initial uppercase, rest lowercase
+    const formattedValue = value
+      .toLowerCase()
+      .replace(/(^|\s)[a-zñ]/g, (char) => char.toUpperCase());
+
+    setValue(formattedValue);
   };
+
 
   // ─── UI ───────────────────────────────────────
   return (
@@ -1348,7 +1345,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                             {dependent.homeAddress && <p className="text-xs text-[#6b5344]">Address: {dependent.homeAddress}</p>}
                             {(dependent.barangay || dependent.city || dependent.province || dependent.region) && (
                               <p className="text-xs text-[#6b5344]">
-                                Location: {[ dependent.barangay, dependent.city, dependent.province, dependent.region].filter(Boolean).join(", ")}
+                                Location: {[dependent.barangay, dependent.city, dependent.province, dependent.region].filter(Boolean).join(", ")}
                               </p>
                             )}
                           </div>
@@ -1423,6 +1420,51 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                 </div>
               </motion.div>
             )}
+
+            {step === 5 && (
+              <motion.div
+                key="step5"
+                initial={{ opacity: 0, x: 40 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -40 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="flex flex-col space-y-4">
+                  <h3 className="text-lg font-semibold text-[#3b2b1c]">Document Requirements</h3>
+                  <div className="space-y-3 pl-2">
+                    <label className="flex items-center space-x-3 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={sss}
+                        onChange={(e) => setSss(e.target.checked)}
+                        className="w-5 h-5 accent-[#4b0b14] cursor-pointer"
+                      />
+                      <span className="text-[#3b2b1c] group-hover:text-[#4b0b14] transition-colors">SSS</span>
+                    </label>
+
+                    <label className="flex items-center space-x-3 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={pagIbig}
+                        onChange={(e) => setPagIbig(e.target.checked)}
+                        className="w-5 h-5 accent-[#4b0b14] cursor-pointer"
+                      />
+                      <span className="text-[#3b2b1c] group-hover:text-[#4b0b14] transition-colors">Pag-ibig</span>
+                    </label>
+
+                    <label className="flex items-center space-x-3 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={philhealth}
+                        onChange={(e) => setPhilhealth(e.target.checked)}
+                        className="w-5 h-5 accent-[#4b0b14] cursor-pointer"
+                      />
+                      <span className="text-[#3b2b1c] group-hover:text-[#4b0b14] transition-colors">Philhealth</span>
+                    </label>
+                  </div>
+                </div>
+              </motion.div>
+            )}
           </AnimatePresence>
         </div>
 
@@ -1435,6 +1477,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
               { id: 2, label: "Job Information" },
               { id: 3, label: "Contact Information" },
               { id: 4, label: "Authentication" },
+              { id: 5, label: "Documents" },
             ].map((item) => (
               <div
                 key={item.id}
@@ -1468,7 +1511,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
               {step === 1 ? "Close" : "Back"}
             </button>
 
-            {step < 4 ? (
+            {step < 5 ? (
               <button onClick={handleNext} className="bg-[#3b2b1c] text-white px-6 py-2 cursor-pointer rounded-lg shadow-md hover:opacity-80">
                 Next
               </button>
