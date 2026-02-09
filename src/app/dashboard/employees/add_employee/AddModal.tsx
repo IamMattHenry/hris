@@ -125,6 +125,10 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [usernameEdited, setUsernameEdited] = useState(false);
   const [passwordEdited, setPasswordEdited] = useState(false);
 
+  const [sss, setSss] = useState(false);
+  const [pagIbig, setPagIbig] = useState(false);
+  const [philhealth, setPhilhealth] = useState(false);
+
   // Helper to normalize first name into a safe username
   const makeUsernameFromFirst = (fn: string) =>
     fn.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -603,6 +607,9 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     setMessage(null);
     setShowFingerprintEnrollment(false);
     setNewEmployeeId(null);
+    setSss(false);
+    setPagIbig(false);
+    setPhilhealth(false);
   };
 
   // ─── Validation ───────────────────────────────
@@ -1455,6 +1462,51 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                 </div>
               </motion.div>
             )}
+
+            {step === 5 && (
+              <motion.div
+                key="step5"
+                initial={{ opacity: 0, x: 40 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -40 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="flex flex-col space-y-4">
+                  <h3 className="text-lg font-semibold text-[#3b2b1c]">Document Requirements</h3>
+                  <div className="space-y-3 pl-2">
+                    <label className="flex items-center space-x-3 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={sss}
+                        onChange={(e) => setSss(e.target.checked)}
+                        className="w-5 h-5 accent-[#4b0b14] cursor-pointer"
+                      />
+                      <span className="text-[#3b2b1c] group-hover:text-[#4b0b14] transition-colors">SSS</span>
+                    </label>
+
+                    <label className="flex items-center space-x-3 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={pagIbig}
+                        onChange={(e) => setPagIbig(e.target.checked)}
+                        className="w-5 h-5 accent-[#4b0b14] cursor-pointer"
+                      />
+                      <span className="text-[#3b2b1c] group-hover:text-[#4b0b14] transition-colors">Pag-ibig</span>
+                    </label>
+
+                    <label className="flex items-center space-x-3 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={philhealth}
+                        onChange={(e) => setPhilhealth(e.target.checked)}
+                        className="w-5 h-5 accent-[#4b0b14] cursor-pointer"
+                      />
+                      <span className="text-[#3b2b1c] group-hover:text-[#4b0b14] transition-colors">Philhealth</span>
+                    </label>
+                  </div>
+                </div>
+              </motion.div>
+            )}
           </AnimatePresence>
         </div>
 
@@ -1467,6 +1519,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
               { id: 2, label: "Job Information" },
               { id: 3, label: "Contact Information" },
               { id: 4, label: "Authentication" },
+              { id: 5, label: "Documents" },
             ].map((item) => (
               <div
                 key={item.id}
@@ -1500,7 +1553,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
               {step === 1 ? "Close" : "Back"}
             </button>
 
-            {step < 4 ? (
+            {step < 5 ? (
               <button onClick={handleNext} className="bg-[#3b2b1c] text-white px-6 py-2 cursor-pointer rounded-lg shadow-md hover:opacity-80">
                 Next
               </button>
