@@ -222,7 +222,7 @@ useEffect(() => {
 
 
   // 2. Update provinces when region changes (Home)
-    // Update provinces when region changes (for home address)
+    
   useEffect(() => {
     if (region) {
       const selectedRegion = phLocationsData.find((r: any) => r.region === region);
@@ -240,6 +240,7 @@ useEffect(() => {
     }
   }, [region, phLocationsData]);
 
+ 
   // Update cities when province changes (for home address)
   useEffect(() => {
     if (region && province) {
@@ -277,22 +278,91 @@ useEffect(() => {
     }
   }, [region, province, city, phLocationsData]);
 
-  // Load Barangays (Dependent)
-  useEffect(() => {
-    if (dependentRegion && dependentProvince && dependentCity && phLocationsData.length > 0) {
-      const r = phLocationsData.find((x: any) => x.region === dependentRegion);
-      const p = r?.provinces.find((x: any) => x.province === dependentProvince);
-      const c = p?.cities.find((x: any) => (typeof x === 'string' ? x : x.city) === dependentCity);
-      
-      if (c && c.barangays) {
-        setDependentBarangays(c.barangays);
-      } else {
-        setDependentBarangays([]);
-      }
+
+
+  //DEPENDANT AREA
+
+useEffect(() => {
+  if (dependentRegion) {
+    const selectedRegion = phLocationsData.find(
+      (r: any) => r.region === dependentRegion
+    );
+
+    if (selectedRegion) {
+      const provinceNames = selectedRegion.provinces.map(
+        (p: any) => p.province
+      );
+      setDependentProvinces(provinceNames);
+      setDependentCities([]);
+      setDependentBarangays([]);
+    } else {
+      setDependentProvinces([]);
+      setDependentCities([]);
+      setDependentBarangays([]);
+    }
+  } else {
+    setDependentProvinces([]);
+    setDependentCities([]);
+    setDependentBarangays([]);
+  }
+}, [dependentRegion, phLocationsData]);
+
+useEffect(() => {
+  if (dependentRegion && dependentProvince) {
+    const selectedRegion = phLocationsData.find(
+      (r: any) => r.region === dependentRegion
+    );
+
+    const selectedProvince = selectedRegion?.provinces.find(
+      (p: any) => p.province === dependentProvince
+    );
+
+    if (selectedProvince) {
+      setDependentCities(
+        selectedProvince.cities.map((c: any) =>
+          typeof c === "string" ? c : c.city
+        )
+      );
+      setDependentBarangays([]);
+    } else {
+      setDependentCities([]);
+      setDependentBarangays([]);
+    }
+  } else {
+    setDependentCities([]);
+    setDependentBarangays([]);
+  }
+}, [dependentRegion, dependentProvince, phLocationsData]);
+
+useEffect(() => {
+  if (
+    dependentRegion &&
+    dependentProvince &&
+    dependentCity &&
+    phLocationsData.length > 0
+  ) {
+    const r = phLocationsData.find(
+      (x: any) => x.region === dependentRegion
+    );
+    const p = r?.provinces.find(
+      (x: any) => x.province === dependentProvince
+    );
+    const c = p?.cities.find(
+      (x: any) =>
+        (typeof x === "string" ? x : x.city) === dependentCity
+    );
+
+    if (c && c.barangays) {
+      setDependentBarangays(c.barangays);
     } else {
       setDependentBarangays([]);
     }
-  }, [dependentRegion, dependentProvince, dependentCity, phLocationsData]);
+  } else {
+    setDependentBarangays([]);
+  }
+}, [dependentRegion, dependentProvince, dependentCity, phLocationsData]);
+
+
 
   // Fetch departments when modal opens
   useEffect(() => {
