@@ -308,6 +308,7 @@ export const approveLeave = async (req, res, next) => {
     // Validate dates (still required)
     const start = new Date(leave.start_date);
     const end = new Date(leave.end_date);
+    const today = new Date();
     const diffMs = end.getTime() - start.getTime();
     const days = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
 
@@ -315,6 +316,15 @@ export const approveLeave = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: 'Invalid leave date range',
+      });
+    }
+
+    // Check if the leave request date has already ended
+
+    if (end < today) {
+      return res.status(400).json({
+        success: false,
+        message: 'End date of the leave request has ended already.'
       });
     }
 
