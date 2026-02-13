@@ -44,12 +44,13 @@ interface Dependent {
   city: string;
 }
 
+
 export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps) {
   const { user } = useAuth();
   const [step, setStep] = useState(1);
 
   // Fingerprint enrollment
-  const [showFingerprintEnrollment, setShowFingerprintEnrollment] = useState(false);
+ 
   const [newEmployeeId, setNewEmployeeId] = useState<number | null>(null);
 
 
@@ -73,10 +74,9 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [positionId, setPositionId] = useState<number | null>(null);
   const [salary, setSalary] = useState("");
   const [leaveCredit, setLeaveCredit] = useState("15");
+  const [employmentType, setEmploymentType] = useState("");
   const [supervisorId, setSupervisorId] = useState<number | null>(null);
   const [hireDate, setHireDate] = useState("");
-  const [payStart, setPayStart] = useState("");
-  const [payEnd, setPayEnd] = useState("");
   const [shift, setShift] = useState("");
   const [salaryDisplay, setSalaryDisplay] = useState("");
   const [email, setEmail] = useState("");
@@ -125,11 +125,27 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [usernameEdited, setUsernameEdited] = useState(false);
   const [passwordEdited, setPasswordEdited] = useState(false);
 
-  const [sss, setSss] = useState(false);
-  const [pagIbig, setPagIbig] = useState(false);
-  const [philhealth, setPhilhealth] = useState(false);
+  const DOCUMENTS = [
+    { key: "sss", label: "SSS" },
+    { key: "pagIbig", label: "PAG-IBIG" },
+    { key: "tin", label: "TIN ID" },
+    { key: "philhealth", label: "PHILHEALTH" },
+    { key: "cedula", label: "CEDULA" },
+    { key: "birthCert", label: "BIRTH CERTIFICATE" },
+    { key: "policeClearance", label: "POLICE CLEARANCE" },
+    { key: "barangayClearance", label: "BARANGAY CLEARANCE" },
+    { key: "medicalCert", label: "MEDICAL CERTIFICATE" },
+    { key: "others", label: "OTHERS" }
+  ] as const;
 
-  // Helper to normalize first name into a safe username
+  
+  const [documents, setDocuments] = useState<Record<string, boolean>>(
+    Object.fromEntries(DOCUMENTS.map(doc => [doc.key, false]))
+  );
+
+
+
+
   // Helper to capitalize first letter and remove symbols
   const makeUsernameFromFirst = (fn: string) => {
     const cleaned = fn.trim().replace(/[^a-zA-Z0-9]/g, "");
@@ -171,27 +187,12 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     }
   }, [firstName, usernameEdited, passwordEdited]);
 
-  useEffect(() => {
-    if (hireDate) {
-      const start = new Date(hireDate);
-      const end = new Date(start);
-      end.setDate(start.getDate() + 15); // Add 15 days for example
 
-      // Format to YYYY-MM-DD for input[type="date"]
-      const formatDate = (d: Date) => d.toISOString().split("T")[0];
-
-      setPayStart(formatDate(start));
-      setPayEnd(formatDate(end));
-    } else {
-      setPayStart("");
-      setPayEnd("");
-    }
-  }, [hireDate]);
 
 
 
   // Load PH locations data from JSON file
-useEffect(() => {
+  useEffect(() => {
     async function loadPhLocationsData() {
       try {
         console.log("Fetching ph_locations.json...");
@@ -222,7 +223,7 @@ useEffect(() => {
 
 
   // 2. Update provinces when region changes (Home)
-    
+
   useEffect(() => {
     if (region) {
       const selectedRegion = phLocationsData.find((r: any) => r.region === region);
@@ -240,7 +241,7 @@ useEffect(() => {
     }
   }, [region, phLocationsData]);
 
- 
+
   // Update cities when province changes (for home address)
   useEffect(() => {
     if (region && province) {
@@ -248,7 +249,7 @@ useEffect(() => {
       if (selectedRegion) {
         const selectedProvince = selectedRegion.provinces.find((p: any) => p.province === province);
         if (selectedProvince) {
-          setCities(selectedProvince.cities.map((c: any) => 
+          setCities(selectedProvince.cities.map((c: any) =>
             typeof c === 'string' ? c : c.city
           ));
         } else {
@@ -261,13 +262,13 @@ useEffect(() => {
   }, [region, province, phLocationsData]);
 
 
-   // Load Barangays (Home)
+  // Load Barangays (Home)
   useEffect(() => {
     if (region && province && city && phLocationsData.length > 0) {
       const r = phLocationsData.find((x: any) => x.region === region);
       const p = r?.provinces.find((x: any) => x.province === province);
       const c = p?.cities.find((x: any) => (typeof x === 'string' ? x : x.city) === city);
-      
+
       if (c && c.barangays) {
         setBarangays(c.barangays);
       } else {
@@ -282,87 +283,85 @@ useEffect(() => {
 
   //DEPENDANT AREA
 
-useEffect(() => {
-  if (dependentRegion) {
-    const selectedRegion = phLocationsData.find(
-      (r: any) => r.region === dependentRegion
-    );
-
-    if (selectedRegion) {
-      const provinceNames = selectedRegion.provinces.map(
-        (p: any) => p.province
+  useEffect(() => {
+    if (dependentRegion) {
+      const selectedRegion = phLocationsData.find(
+        (r: any) => r.region === dependentRegion
       );
-      setDependentProvinces(provinceNames);
-      setDependentCities([]);
-      setDependentBarangays([]);
+
+      if (selectedRegion) {
+        const provinceNames = selectedRegion.provinces.map(
+          (p: any) => p.province
+        );
+        setDependentProvinces(provinceNames);
+        setDependentCities([]);
+        setDependentBarangays([]);
+      } else {
+        setDependentProvinces([]);
+        setDependentCities([]);
+        setDependentBarangays([]);
+      }
     } else {
       setDependentProvinces([]);
       setDependentCities([]);
       setDependentBarangays([]);
     }
-  } else {
-    setDependentProvinces([]);
-    setDependentCities([]);
-    setDependentBarangays([]);
-  }
-}, [dependentRegion, phLocationsData]);
+  }, [dependentRegion, phLocationsData]);
 
-useEffect(() => {
-  if (dependentRegion && dependentProvince) {
-    const selectedRegion = phLocationsData.find(
-      (r: any) => r.region === dependentRegion
-    );
-
-    const selectedProvince = selectedRegion?.provinces.find(
-      (p: any) => p.province === dependentProvince
-    );
-
-    if (selectedProvince) {
-      setDependentCities(
-        selectedProvince.cities.map((c: any) =>
-          typeof c === "string" ? c : c.city
-        )
+  useEffect(() => {
+    if (dependentRegion && dependentProvince) {
+      const selectedRegion = phLocationsData.find(
+        (r: any) => r.region === dependentRegion
       );
-      setDependentBarangays([]);
+
+      const selectedProvince = selectedRegion?.provinces.find(
+        (p: any) => p.province === dependentProvince
+      );
+
+      if (selectedProvince) {
+        setDependentCities(
+          selectedProvince.cities.map((c: any) =>
+            typeof c === "string" ? c : c.city
+          )
+        );
+        setDependentBarangays([]);
+      } else {
+        setDependentCities([]);
+        setDependentBarangays([]);
+      }
     } else {
       setDependentCities([]);
       setDependentBarangays([]);
     }
-  } else {
-    setDependentCities([]);
-    setDependentBarangays([]);
-  }
-}, [dependentRegion, dependentProvince, phLocationsData]);
+  }, [dependentRegion, dependentProvince, phLocationsData]);
 
-useEffect(() => {
-  if (
-    dependentRegion &&
-    dependentProvince &&
-    dependentCity &&
-    phLocationsData.length > 0
-  ) {
-    const r = phLocationsData.find(
-      (x: any) => x.region === dependentRegion
-    );
-    const p = r?.provinces.find(
-      (x: any) => x.province === dependentProvince
-    );
-    const c = p?.cities.find(
-      (x: any) =>
-        (typeof x === "string" ? x : x.city) === dependentCity
-    );
+  useEffect(() => {
+    if (
+      dependentRegion &&
+      dependentProvince &&
+      dependentCity &&
+      phLocationsData.length > 0
+    ) {
+      const r = phLocationsData.find(
+        (x: any) => x.region === dependentRegion
+      );
+      const p = r?.provinces.find(
+        (x: any) => x.province === dependentProvince
+      );
+      const c = p?.cities.find(
+        (x: any) =>
+          (typeof x === "string" ? x : x.city) === dependentCity
+      );
 
-    if (c && c.barangays) {
-      setDependentBarangays(c.barangays);
+      if (c && c.barangays) {
+        setDependentBarangays(c.barangays);
+      } else {
+        setDependentBarangays([]);
+      }
     } else {
       setDependentBarangays([]);
     }
-  } else {
-    setDependentBarangays([]);
-  }
-}, [dependentRegion, dependentProvince, dependentCity, phLocationsData]);
-
-
+  }, [dependentRegion, dependentProvince, dependentCity, phLocationsData]);
 
   // Fetch departments when modal opens
   useEffect(() => {
@@ -598,8 +597,6 @@ useEffect(() => {
     setLeaveCredit("15");
     setSupervisorId(null);
     setHireDate("");
-    setPayStart("");
-    setPayEnd("");
     setShift("");
     setSalaryDisplay("");
     setEmail("");
@@ -621,11 +618,8 @@ useEffect(() => {
     setStep(1);
     setErrors({});
     setMessage(null);
-    setShowFingerprintEnrollment(false);
     setNewEmployeeId(null);
-    setSss(false);
-    setPagIbig(false);
-    setPhilhealth(false);
+  
   };
 
   // ─── Validation ───────────────────────────────
@@ -851,6 +845,12 @@ useEffect(() => {
             </h3>
           </div>
 
+
+        {/* Form Sections 
+           FIX THIS CONTENT STEPS
+        */}
+
+        
           {/* Step Content */}
           <AnimatePresence mode="wait">
             {step === 1 && (
@@ -1087,25 +1087,36 @@ useEffect(() => {
                   </div>
 
                   <FormInput label="Hire Date:" type="date" max={today} value={hireDate} onChange={(e) => setHireDate(e.target.value)} error={errors.hireDate} />
-                  <FormInput label="Pay Period Start:" type="date" value={payStart} onChange={(e) => setPayStart(e.target.value)} readOnly={true} />
-
                   <FormSelect label="Shift:" value={shift} onChange={(e) => setShift(e.target.value)} options={["Morning", "Night"]} error={errors.shift} />
-                  <FormInput label="Pay Period End:" type="date" value={payEnd} onChange={(e) => setPayEnd(e.target.value)} readOnly={true} />
+            
+                  <FormSelect label="Employment Type: " value={employmentType} onChange={(e) => setEmploymentType(e.target.value)} options={[
+                    { label: "Full Time", value: "FULL_TIME" },
+                    { label: "Part Time", value: "PART_TIME" }
+                  ]} error={errors.employmentType} />
 
-                  <div>
-                    <label className="block text-[#3b2b1c] mb-1">Salary (Hourly Rate):</label>
-                    <div className="flex items-center border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] overflow-hidden">
-                      <span className="px-3 py-2 text-[#3b2b1c] font-semibold">₱</span>
-                      <input
-                        type="text"
-                        value={salaryDisplay}
-                        onChange={handleSalaryChange}
-                        placeholder="0.00"
-                        className="flex-1 px-3 py-2 bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14] focus:ring-inset"
-                      />
+                  {employmentType === "PART_TIME" && (
+                    <div>
+                      <label className="block text-[#3b2b1c] mb-1">
+                        Salary (Hourly Rate):
+                      </label>
+
+                      <div className="flex items-center border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] overflow-hidden">
+                        <span className="px-3 py-2 text-[#3b2b1c] font-semibold">₱</span>
+                        <input
+                          type="text"
+                          value={salaryDisplay}
+                          onChange={handleSalaryChange}
+                          placeholder="0.00"
+                          className="flex-1 px-3 py-2 bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14] focus:ring-inset"
+                        />
+                      </div>
+
+                      {errors.salary && (
+                        <p className="text-red-500 text-xs mt-1">{errors.salary}</p>
+                      )}
                     </div>
-                    {errors.salary && <p className="text-red-500 text-xs mt-1">{errors.salary}</p>}
-                  </div>
+                  )}
+
 
                   {/* Supervisor Dropdown - Filtered by Department */}
                   <div>
@@ -1435,6 +1446,47 @@ useEffect(() => {
                 exit={{ opacity: 0, x: -40 }}
                 transition={{ duration: 0.3 }}
               >
+                <div className="flex flex-col space-y-4">
+                  <h3 className="text-lg font-semibold text-[#3b2b1c]">
+                    Document Requirements
+                  </h3>
+
+                  <div className="space-y-3 pl-2">
+                    {DOCUMENTS.map(doc => (
+                      <label
+                        key={doc.key}
+                        className="flex items-center space-x-3 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={documents[doc.key]}
+                          onChange={(e) =>
+                            setDocuments(prev => ({
+                              ...prev,
+                              [doc.key]: e.target.checked,
+                            }))
+                          }
+                          className="w-5 h-5 accent-[#4b0b14] cursor-pointer"
+                        />
+
+                        <span className="text-[#3b2b1c]">
+                          {doc.label}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {step === 5 && (
+              <motion.div
+                key="step5"
+                initial={{ opacity: 0, x: 40 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -40 }}
+                transition={{ duration: 0.3 }}
+              >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
                   <FormInput
                     label="Username:"
@@ -1490,53 +1542,9 @@ useEffect(() => {
                 </div>
               </motion.div>
             )}
-
-            {step === 5 && (
-              <motion.div
-                key="step5"
-                initial={{ opacity: 0, x: 40 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -40 }}
-                transition={{ duration: 0.3 }}
-              >
-                <div className="flex flex-col space-y-4">
-                  <h3 className="text-lg font-semibold text-[#3b2b1c]">Document Requirements</h3>
-                  <div className="space-y-3 pl-2">
-                    <label className="flex items-center space-x-3 cursor-pointer group">
-                      <input
-                        type="checkbox"
-                        checked={sss}
-                        onChange={(e) => setSss(e.target.checked)}
-                        className="w-5 h-5 accent-[#4b0b14] cursor-pointer"
-                      />
-                      <span className="text-[#3b2b1c] group-hover:text-[#4b0b14] transition-colors">SSS</span>
-                    </label>
-
-                    <label className="flex items-center space-x-3 cursor-pointer group">
-                      <input
-                        type="checkbox"
-                        checked={pagIbig}
-                        onChange={(e) => setPagIbig(e.target.checked)}
-                        className="w-5 h-5 accent-[#4b0b14] cursor-pointer"
-                      />
-                      <span className="text-[#3b2b1c] group-hover:text-[#4b0b14] transition-colors">Pag-ibig</span>
-                    </label>
-
-                    <label className="flex items-center space-x-3 cursor-pointer group">
-                      <input
-                        type="checkbox"
-                        checked={philhealth}
-                        onChange={(e) => setPhilhealth(e.target.checked)}
-                        className="w-5 h-5 accent-[#4b0b14] cursor-pointer"
-                      />
-                      <span className="text-[#3b2b1c] group-hover:text-[#4b0b14] transition-colors">Philhealth</span>
-                    </label>
-                  </div>
-                </div>
-              </motion.div>
-            )}
           </AnimatePresence>
         </div>
+          
 
         {/* Footer Section - Progress Bar and Buttons */}
         <div className="border-t border-[#e6d2b5] p-8 mt-4r bg-[#f9ecd7] rounded-b-2xl">
@@ -1546,8 +1554,8 @@ useEffect(() => {
               { id: 1, label: "Basic Information" },
               { id: 2, label: "Job Information" },
               { id: 3, label: "Contact Information" },
-              { id: 4, label: "Authentication" },
-              { id: 5, label: "Documents" },
+              { id: 4, label: "Documents" },
+              { id: 5, label: "Account Information" },
             ].map((item) => (
               <div
                 key={item.id}
@@ -1581,7 +1589,7 @@ useEffect(() => {
               {step === 1 ? "Close" : "Back"}
             </button>
 
-            {step < 5 ? (
+            {step < 6 ? (
               <button onClick={handleNext} className="bg-[#3b2b1c] text-white px-6 py-2 cursor-pointer rounded-lg shadow-md hover:opacity-80">
                 Next
               </button>
