@@ -652,8 +652,20 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       newErrors = validateStep3(email, contactNumber, dependents);
     }
 
-    // Step 4 - Authentication
+    // Step 4 - Document Requirements
     if (step === 4) {
+
+      const atLeastOneSubmitted = DOCUMENTS
+        .filter(doc => doc.key !== 'others')
+        .some(doc => documents[doc.key]);
+
+      if (!atLeastOneSubmitted) {
+        newErrors.documents = "Please select at least one required document to proceed.";
+      }
+    }
+
+    // Step 5 - Authentication
+    if (step === 5) {
       newErrors = validateStep4(username, password, confirmPassword, grantAdminPrivilege || grantSupervisorPrivilege, subRole);
 
       // Additional validation for supervisor role
@@ -1451,6 +1463,10 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                     Document Requirements
                   </h3>
 
+                  {errors.documents && (
+                    <p className="text-red-500 text-sm mt-2">{errors.documents}</p>
+                  )}
+
                   <div className="space-y-3 pl-2">
                     {DOCUMENTS.map(doc => (
                       <label
@@ -1460,12 +1476,15 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                         <input
                           type="checkbox"
                           checked={documents[doc.key]}
-                          onChange={(e) =>
+                          onChange={(e) => {
                             setDocuments(prev => ({
                               ...prev,
                               [doc.key]: e.target.checked,
-                            }))
-                          }
+                            }));
+                            if (errors.documents) {
+                              setErrors(prev => ({ ...prev, documents: "" }));
+                            }
+                          }}
                           className="w-5 h-5 accent-[#4b0b14] cursor-pointer"
                         />
 
@@ -1589,7 +1608,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
               {step === 1 ? "Close" : "Back"}
             </button>
 
-            {step < 6 ? (
+            {step < 5 ? (
               <button onClick={handleNext} className="bg-[#3b2b1c] text-white px-6 py-2 cursor-pointer rounded-lg shadow-md hover:opacity-80">
                 Next
               </button>

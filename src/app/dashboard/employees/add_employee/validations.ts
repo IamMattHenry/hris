@@ -240,6 +240,8 @@ export const validateDependent = (
 export const validateBirthDate = (birthDateString: string): string => {
   const selectedDate = new Date(birthDateString);
   const today = new Date();
+  
+  // Calculate the cutoff for being at least 20 years old
   const minAgeDate = new Date(
     today.getFullYear() - 20,
     today.getMonth(),
@@ -248,6 +250,10 @@ export const validateBirthDate = (birthDateString: string): string => {
 
   if (selectedDate > minAgeDate) {
     return "You must be older than 20 years old.";
+  }
+
+  if (selectedDate.getFullYear() < 1960) {
+    return "Birth year cannot be earlier than 1960.";
   }
 
   return "";

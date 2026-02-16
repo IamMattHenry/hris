@@ -28,6 +28,8 @@ const ProfileSection = () => {
   const [regions, setRegions] = useState<string[]>([]);
   const [provinces, setProvinces] = useState<string[]>([]);
   const [cities, setCities] = useState<string[]>([]);
+  const [barangay, setBarangay] = useState("");
+  const [barangays, setBarangays] = useState<string[]>([]);
   const [phLocationsData, setPhLocationsData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -59,6 +61,8 @@ const ProfileSection = () => {
           setRegion(user.region || "");
           setProvince(user.province || "");
           setCity(user.city || "");
+          setBarangay(user.barangay || "");
+          setBarangay(user.barangay || "");
           
           // Set emails and contacts
           if (user.emails && user.emails.length > 0) {
@@ -88,25 +92,45 @@ const ProfileSection = () => {
     loadData();
   }, []);
 
-  // Update provinces and cities
+  // Handle address cascading dropdowns
   useEffect(() => {
     if (region) {
       const selectedRegion = phLocationsData.find((r: any) => r.region === region);
-      setProvinces(selectedRegion ? selectedRegion.provinces.map((p: any) => p.province) : []);
-      setProvince("");
-      setCity("");
-      setCities([]);
+      const newProvinces = selectedRegion ? selectedRegion.provinces.map((p: any) => p.province) : [];
+      setProvinces(newProvinces);
+      if (!newProvinces.includes(province)) {
+        setProvince("");
+        setCity("");
+        setBarangay("");
+      }
     }
-  }, [region, phLocationsData]);
+  }, [region, province, phLocationsData]);
 
   useEffect(() => {
-    if (province && region) {
+    if (province) {
       const selectedRegion = phLocationsData.find((r: any) => r.region === region);
       const selectedProvince = selectedRegion?.provinces.find((p: any) => p.province === province);
-      setCities(selectedProvince ? selectedProvince.cities : []);
-      setCity("");
+      const newCities = selectedProvince ? selectedProvince.cities.map((c: any) => (typeof c === 'string' ? c : c.city)) : [];
+      setCities(newCities);
+      if (!newCities.includes(city)) {
+        setCity("");
+        setBarangay("");
+      }
     }
-  }, [province, region, phLocationsData]);
+  }, [province, city, region, phLocationsData]);
+
+  useEffect(() => {
+    if (city) {
+      const selectedRegion = phLocationsData.find((r: any) => r.region === region);
+      const selectedProvince = selectedRegion?.provinces.find((p: any) => p.province === province);
+      const selectedCity = selectedProvince?.cities.find((c: any) => (typeof c === 'string' ? c : c.city) === city);
+      const newBarangays = (selectedCity && typeof selectedCity !== 'string') ? selectedCity.barangays : [];
+      setBarangays(newBarangays);
+      if (!newBarangays.includes(barangay)) {
+        setBarangay("");
+      }
+    }
+  }, [city, barangay, province, region, phLocationsData]);
 
   // Email handlers
   const addEmail = () => setEmails([...emails, ""]);
@@ -134,10 +158,11 @@ const ProfileSection = () => {
     if (!lastName.trim()) newErrors.lastName = "Last name is required.";
     if (!gender) newErrors.gender = "Gender is required.";
     if (!civilStatus) newErrors.civilStatus = "Civil status is required.";
-    if (!homeAddress.trim()) newErrors.homeAddress = "Street / Barangay is required.";
+    if (!homeAddress.trim()) newErrors.homeAddress = "Street address is required.";
     if (!region) newErrors.region = "Region is required.";
     if (!province) newErrors.province = "Province is required.";
     if (!city) newErrors.city = "City / Municipality is required.";
+    if (!barangay) newErrors.barangay = "Barangay is required.";
 
     const hasEmail = emails.some((e) => e.trim() !== "");
     const hasContact = contacts.some((c) => c.trim() !== "");
@@ -171,6 +196,7 @@ const ProfileSection = () => {
         region: region,
         province: province,
         city: city,
+        barangay: barangay,
         emails: emails.filter((e) => e.trim() !== ""),
         contact_numbers: contacts.filter((c) => c.trim() !== ""),
       };
@@ -336,7 +362,7 @@ const ProfileSection = () => {
         <h3 className="text-md font-semibold text-gray-900 mb-3">Home Address</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <FormInput
-            label="Street / Barangay"
+            label="Home Address"
             type="text"
             value={homeAddress}
             onChange={(e) => {
@@ -375,11 +401,22 @@ const ProfileSection = () => {
             options={cities}
             error={errors.city}
           />
+
+          <FormSelect 
+            label="Barangay"
+            value={barangay}
+            onChange={(e) => {
+              setBarangay(e.target.value);
+              if (errors.barangay) setErrors((prev) => ({ ...prev, barangay: "" }));
+            }}
+            options={barangays} 
+            error={errors.barangay}
+          />
         </div>
       </div>
 
       {/* SAVE BUTTON */}
-      <div className="pt-6 border-t border-gray-200 flex justify-end">
+      <div className="pt-6 flex justify-end">
         <ActionButton
           onClick={handleSave}
           label={saving ? "Saving..." : "Save Profile"}
