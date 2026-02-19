@@ -61,6 +61,7 @@ interface EmployeeData {
   status: string;
   image_url?: string;
   province?: string;
+  barangay?: string;
   username?: string;
   role?: string;
   salary?: string;
@@ -148,11 +149,10 @@ export default function ViewEmployeeModal({
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`w-full text-left px-4 py-2.5 rounded-lg text-sm cursor-pointer font-medium transition-all ${
-                activeTab === tab.id
+              className={`w-full text-left px-4 py-2.5 rounded-lg text-sm cursor-pointer font-medium transition-all ${activeTab === tab.id
                   ? "bg-[#e8d4b8] text-[#3b2b1c] shadow-sm"
                   : "text-[#6b5844] hover:bg-[#ede0ca]"
-              }`}
+                }`}
             >
               {tab.label}
             </button>
@@ -224,31 +224,60 @@ export default function ViewEmployeeModal({
                 {/* Tab Content */}
                 {activeTab === "profile" && (
                   <div className="space-y-6">
-                    <div className="grid grid-cols-3 gap-4">
-                      <InfoBox
-                        label="Emails"
-                        value={employee.emails
-                          ?.map(e => `${e.email}`)
-                          .join("\n")}
-                        isTextarea={true}
-                      />
-                      <InfoBox label="Gender" value={employee.gender} />
-                      <InfoBox label="Home Address" value={employee.home_address} isTextarea={true} />
-                      <InfoBox
-                        label="Contact"
-                        value={employee.contact_numbers
-                          ?.map(c => c.contact_number)
-                          .join("\n")}
-                        isTextarea={true}
-                      />
-                      <InfoBox label="Civil Status" value={employee.civil_status} />
-                      <InfoBox label="Region" value={employee.region} />
-                      <InfoBox label="Age" value={calculateAge(employee.birthdate)} />
-                      <InfoBox label="Birthdate" value={formatDate(employee.birthdate)} />
-                      <InfoBox label="Province" value={employee.province || "N/A"} />
-                      <InfoBox label="City" value={employee.city} />
+                    <div className="space-y-8">
+
+                      {/* Contact Information */}
+                      <section>
+                        <h3 className="text-md font-semibold text-gray-900 mb-4">
+                          Contact Information
+                        </h3>
+                        <div className="grid grid-cols-3 gap-4">
+                          <InfoBox
+                            label="Emails"
+                            value={employee.emails?.map(e => e.email).join("\n")}
+                            isTextarea
+                          />
+                          <InfoBox
+                            label="Contact Numbers"
+                            value={employee.contact_numbers?.map(c => c.contact_number).join("\n")}
+                            isTextarea
+                          />
+                        </div>
+                      </section>
+
+                      {/* Personal Information */}
+                      <section>
+                        <h3 className="text-md font-semibold text-gray-900 mb-4">
+                          Personal Information
+                        </h3>
+                        <div className="grid grid-cols-3 gap-4">
+                          <InfoBox label="Gender" value={employee.gender} />
+                          <InfoBox label="Civil Status" value={employee.civil_status} />
+                          <InfoBox label="Age" value={calculateAge(employee.birthdate)} />
+                          <InfoBox label="Birthdate" value={formatDate(employee.birthdate)} />
+                        </div>
+                      </section>
+
+                      {/* Address Information */}
+                      <section>
+                        <h3 className="text-md font-semibold text-gray-900 mb-4">
+                          Address Information
+                        </h3>
+                        <div className="grid grid-cols-3 gap-4">
+                          <InfoBox
+                            label="Home Address"
+                            value={employee.home_address}
+                            isTextarea
+                          />
+                          <InfoBox label="Region" value={employee.region} />
+                          <InfoBox label="Province" value={employee.province || "N/A"} />
+                          <InfoBox label="City" value={employee.city} />
+                          <InfoBox label="Barangay" value={employee.barangay || "N/A"} />
+                        </div>
+                      </section>
 
                     </div>
+
                   </div>
                 )}
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { use, useEffect, useState } from "react";
 import ActionButton from "@/components/buttons/ActionButton";
 import FormInput from "@/components/forms/FormInput";
 import FormSelect from "@/components/forms/FormSelect";
@@ -43,12 +43,12 @@ const ProfileSection = () => {
     async function loadData() {
       try {
         setLoading(true);
-        
+
         // Fetch user data
         const userResult = await authApi.getCurrentUser();
         if (userResult.success && userResult.data) {
           setUserData(userResult.data);
-          
+
           // Populate form fields with user data
           const user = userResult.data as any;
           setFirstName(user.first_name || "");
@@ -62,22 +62,21 @@ const ProfileSection = () => {
           setProvince(user.province || "");
           setCity(user.city || "");
           setBarangay(user.barangay || "");
-          setBarangay(user.barangay || "");
-          
+
           // Set emails and contacts
           if (user.emails && user.emails.length > 0) {
             setEmails(user.emails);
           } else {
             setEmails([""]);
           }
-          
+
           if (user.contact_numbers && user.contact_numbers.length > 0) {
             setContacts(user.contact_numbers);
           } else {
             setContacts([""]);
           }
         }
-        
+
         // Fetch PH locations
         const res = await fetch("/data/ph_locations.json");
         const data = await res.json();
@@ -172,6 +171,35 @@ const ProfileSection = () => {
     return newErrors;
   };
 
+
+  const isValidPHNumber = (value: string) => {
+    return /^09\d{2} \d{3} \d{4}$/.test(value);
+  };
+
+
+
+  const hasInvalidContact = contacts.some(
+    (c) => c && !isValidPHNumber(c)
+  );
+
+
+  useEffect(() => {
+    if (hasInvalidContact) {
+      setErrors((prev) => ({
+        ...prev,
+        emailContact: "Please enter a valid PH mobile number",
+      }));
+    } else {
+      setErrors((prev) => ({
+        ...prev,
+        emailContact: "",
+      }));
+    }
+  }, [contacts]);
+
+
+
+
   // Save Handler
   const handleSave = async () => {
     const newErrors = validateProfile();
@@ -203,7 +231,7 @@ const ProfileSection = () => {
 
       // Use 'me' endpoint to update current user's profile
       const result = await employeeApi.update('me' as any, profileData);
-      
+
       if (result.success) {
         alert("Profile updated successfully!");
         // Refresh user data to get latest updates
@@ -232,6 +260,34 @@ const ProfileSection = () => {
       </div>
     );
   }
+
+
+  const formatPHNumber = (value: string) => {
+    // Keep digits only
+    let digits = value.replace(/\D/g, "");
+
+    // Force start with 09
+    if (digits.startsWith("63")) {
+      digits = "0" + digits.slice(2);
+    } else if (digits.startsWith("9")) {
+      digits = "0" + digits;
+    }
+
+    // Limit to 11 digits (09XXXXXXXXX)
+    digits = digits.slice(0, 11);
+
+    // Format: 0912 235 2123
+    if (digits.length > 4 && digits.length <= 7) {
+      return `${digits.slice(0, 4)} ${digits.slice(4)}`;
+    }
+
+    if (digits.length > 7) {
+      return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
+    }
+
+    return digits;
+  };
+
 
   return (
     <div className="space-y-6 text-gray-900">
@@ -299,9 +355,8 @@ const ProfileSection = () => {
               type="email"
               value={email}
               onChange={(e) => updateEmail(index, e.target.value)}
-              className={`flex-1 px-4 py-2 border rounded-lg ${
-                errors.emailContact ? "border-red-500" : "border-gray-300"
-              }`}
+              className={`flex-1 px-4 py-2 border rounded-lg ${errors.emailContact ? "border-red-500" : "border-gray-300"
+                }`}
               placeholder="Enter email address"
             />
             {emails.length > 1 && (
@@ -330,10 +385,12 @@ const ProfileSection = () => {
             <input
               type="text"
               value={contact}
-              onChange={(e) => updateContact(index, e.target.value)}
-              className={`flex-1 px-4 py-2 border rounded-lg ${
-                errors.emailContact ? "border-red-500" : "border-gray-300"
-              }`}
+              onChange={(e) => {
+                const formatted = formatPHNumber(e.target.value);
+                updateContact(index, formatted);
+              }}
+              className={`flex-1 px-4 py-2 border rounded-lg ${errors.emailContact ? "border-red-500" : "border-gray-300"
+                }`}
               placeholder="Enter contact number"
             />
             {contacts.length > 1 && (
@@ -402,29 +459,28 @@ const ProfileSection = () => {
             error={errors.city}
           />
 
-          <FormSelect 
+          <FormSelect
             label="Barangay"
             value={barangay}
             onChange={(e) => {
               setBarangay(e.target.value);
               if (errors.barangay) setErrors((prev) => ({ ...prev, barangay: "" }));
             }}
-            options={barangays} 
+            options={barangays}
             error={errors.barangay}
           />
         </div>
       </div>
 
       {/* SAVE BUTTON */}
-      <div className="pt-6 flex justify-end">
+      <div className="flex justify-end">
         <ActionButton
           onClick={handleSave}
           label={saving ? "Saving..." : "Save Profile"}
           icon={saving ? undefined : Save}
           disabled={saving}
-          className={`bg-[#4B0B14] hover:opacity-90 transition ${
-            saving ? "opacity-75 cursor-not-allowed" : ""
-          }`}
+          className={`bg-[#4B0B14] hover:opacity-90 transition ${saving ? "opacity-75 cursor-not-allowed" : ""
+            }`}
         />
       </div>
     </div>
