@@ -138,6 +138,10 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     { key: "others", label: "OTHERS" }
   ] as const;
 
+  const [sss, setSss] = useState<boolean>(false);
+  const [pagIbig, setPagIbig] = useState<boolean>(false);
+  const [philhealth, setPhilhealth] = useState<boolean>(false);
+
   
   const [documents, setDocuments] = useState<Record<string, boolean>>(
     Object.fromEntries(DOCUMENTS.map(doc => [doc.key, false]))
@@ -189,6 +193,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
 
 
+/* LOCATIONS */
 
 
   // Load PH locations data from JSON file
@@ -278,19 +283,16 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   }, [region, phLocationsData]);
 
 
-  // Update cities when province changes (for home address)
+   // Update cities when province changes (for home address)
   useEffect(() => {
     if (region && province) {
       const selectedRegion = phLocationsData.find((r: any) => r.name === region);
-      if (selectedRegion) {
-        const selectedProvince = selectedRegion.provinces.find((p: any) => p.name === province);
-        if (selectedProvince) {
-          setCities(selectedProvince.cities.map((c: any) =>
-            typeof c === 'string' ? c : c.city
-          ));
-        } else {
-          setCities([]);
-        }
+      const selectedProvince = selectedRegion?.provinces.find((p: any) => p.name === province);
+
+      if (selectedProvince) {
+        setCities(selectedProvince.cities.map((c: any) => c.name));
+      } else {
+        setCities([]);
       }
     } else {
       setCities([]);
@@ -301,13 +303,13 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
   // Load Barangays (Home)
   useEffect(() => {
-    if (region && province && city && phLocationsData.length > 0) {
-      const r = phLocationsData.find((x: any) => x.region === region);
-      const p = r?.provinces.find((x: any) => x.province === province);
-      const c = p?.cities.find((x: any) => (typeof x === 'string' ? x : x.city) === city);
+    if (region && province && city) {
+      const selectedRegion = phLocationsData.find((r: any) => r.name === region);
+      const selectedProvince = selectedRegion?.provinces.find((p: any) => p.name === province);
+      const selectedCity = selectedProvince?.cities.find((c: any) => c.name === city);
 
-      if (c && c.barangays) {
-        setBarangays(c.barangays);
+      if (selectedCity && selectedCity.barangays) {
+        setBarangays(selectedCity.barangays.map((b: any) => b.name));
       } else {
         setBarangays([]);
       }
@@ -323,21 +325,19 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   useEffect(() => {
     if (dependentRegion) {
       const selectedRegion = phLocationsData.find(
-        (r: any) => r.region === dependentRegion
+        (r: any) => r.name === dependentRegion
       );
 
       if (selectedRegion) {
         const provinceNames = selectedRegion.provinces.map(
-          (p: any) => p.province
+          (p: any) => p.name
         );
         setDependentProvinces(provinceNames);
-        setDependentCities([]);
-        setDependentBarangays([]);
       } else {
         setDependentProvinces([]);
-        setDependentCities([]);
-        setDependentBarangays([]);
       }
+      setDependentCities([]);
+      setDependentBarangays([]);
     } else {
       setDependentProvinces([]);
       setDependentCities([]);
@@ -348,24 +348,21 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   useEffect(() => {
     if (dependentRegion && dependentProvince) {
       const selectedRegion = phLocationsData.find(
-        (r: any) => r.region === dependentRegion
+        (r: any) => r.name === dependentRegion
       );
 
       const selectedProvince = selectedRegion?.provinces.find(
-        (p: any) => p.province === dependentProvince
+        (p: any) => p.name === dependentProvince
       );
 
       if (selectedProvince) {
         setDependentCities(
-          selectedProvince.cities.map((c: any) =>
-            typeof c === "string" ? c : c.city
-          )
+          selectedProvince.cities.map((c: any) => c.name)
         );
-        setDependentBarangays([]);
       } else {
         setDependentCities([]);
-        setDependentBarangays([]);
       }
+      setDependentBarangays([]);
     } else {
       setDependentCities([]);
       setDependentBarangays([]);
@@ -376,22 +373,20 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     if (
       dependentRegion &&
       dependentProvince &&
-      dependentCity &&
-      phLocationsData.length > 0
+      dependentCity
     ) {
-      const r = phLocationsData.find(
-        (x: any) => x.region === dependentRegion
+      const selectedRegion = phLocationsData.find(
+        (r: any) => r.name === dependentRegion
       );
-      const p = r?.provinces.find(
-        (x: any) => x.province === dependentProvince
+      const selectedProvince = selectedRegion?.provinces.find(
+        (p: any) => p.name === dependentProvince
       );
-      const c = p?.cities.find(
-        (x: any) =>
-          (typeof x === "string" ? x : x.city) === dependentCity
+      const selectedCity = selectedProvince?.cities.find(
+        (c: any) => c.name === dependentCity
       );
 
-      if (c && c.barangays) {
-        setDependentBarangays(c.barangays.map((b: any) => b.name));
+      if (selectedCity && selectedCity.barangays) {
+        setDependentBarangays(selectedCity.barangays.map((b: any) => b.name));
       } else {
         setDependentBarangays([]);
       }
@@ -399,6 +394,9 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       setDependentBarangays([]);
     }
   }, [dependentRegion, dependentProvince, dependentCity, phLocationsData]);
+
+
+
 
   // Fetch departments when modal opens
   useEffect(() => {
