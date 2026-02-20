@@ -6,6 +6,7 @@ import {
   generateDependentCode,
 } from "../utils/codeGenerator.js";
 import { deleteFingerprintTemplate } from "../services/fingerprintService.js";
+import emailService from "../utils/emailService.js";
 
 const mapDepartmentToSubRole = (departmentName = "") => {
   const normalized = departmentName.trim().toLowerCase();
@@ -688,6 +689,25 @@ export const createEmployee = async (req, res, next) => {
       } catch (logError) {
         // Log the error but don't fail the request
         logger.error("Failed to create activity log:", logError);
+      }
+
+      // Send account creation email if employee has an email
+      try {
+        if (normalizedEmail) {
+          const frontendBase = (process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+          const loginUrl = `${frontendBase}/login_hr`;
+          // Log the final URL used in the email so deployed vs local can be verified
+          logger.info(`Account creation email login link for ${normalizedEmail}: ${loginUrl}`);
+          await emailService.sendAccountCreatedEmail({
+            to: normalizedEmail,
+            name: `${first_name} ${last_name}`,
+            username,
+            loginUrl,
+          });
+        }
+      } catch (emailError) {
+        // Don't fail the request if email sending fails; just log it
+        logger.error('Failed to send account creation email:', emailError);
       }
 
       // Build response data

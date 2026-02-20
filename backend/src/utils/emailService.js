@@ -121,7 +121,48 @@ export const sendTicketResolutionEmail = async ({ to, ticketCode, title, resolut
   }
 };
 
+export const sendAccountCreatedEmail = async ({ to, name, username, loginUrl }) => {
+  const subject = 'Your HRIS account has been created';
+  const text = `Hi ${name || 'there'},\n\n` +
+    `Your account has been created. You can log in with the username: ${username}\n\n` +
+    `Login here: ${loginUrl}\n\n` +
+    'If you did not expect this email, please contact your administrator.\n\n' +
+    'Regards,\nHRIS Support Team';
+
+  const html = `
+    <p>Hi ${name || 'there'},</p>
+    <p>Your account has been created. You can log in with the username: <strong>${username}</strong></p>
+    <p><a href="${loginUrl}" style="background:#2563eb;color:#fff;padding:8px 12px;text-decoration:none;border-radius:4px;">Log in to HRIS</a></p>
+    <p>If you did not expect this email, please contact your administrator.</p>
+    <p>Regards,<br/>HRIS Support Team</p>
+  `;
+
+  const mailOptions = {
+    from: SMTP_FROM || SMTP_USER || 'no-reply@example.com',
+    to,
+    subject,
+    text,
+    html,
+  };
+
+  const activeTransporter = ensureTransporter();
+
+  if (!activeTransporter) {
+    logger.info('Email not sent (no SMTP config). Payload:', { to, subject });
+    return;
+  }
+
+  try {
+    await activeTransporter.sendMail(mailOptions);
+    logger.info(`Account creation email sent to ${to}`);
+  } catch (error) {
+    logger.error('Failed to send account creation email', error);
+    throw error;
+  }
+};
+
 export default {
   sendOtpEmail,
   sendTicketResolutionEmail,
+  sendAccountCreatedEmail,
 };

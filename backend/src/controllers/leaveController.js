@@ -111,7 +111,7 @@ export const applyLeave = async (req, res, next) => {
 
     // Prevent probationary employees from submitting leave requests
     const targetEmployee = await db.getOne(
-      'SELECT employee_id, employment_type, probation_end_date, leave_credit, date_hired, gender FROM employees WHERE employee_id = ? LIMIT 1',
+      'SELECT employee_id, employment_type, probation_end_date, leave_credit, hire_date, gender FROM employees WHERE employee_id = ? LIMIT 1',
       [targetEmployeeId]
     );
     if (!targetEmployee) {
@@ -203,7 +203,7 @@ export const applyLeave = async (req, res, next) => {
 
     // Service Incentive Leave (SIL) check: ensure at least 1 year of service
     if (effectiveType === 'sil') {
-      const hired = targetEmployee.date_hired ? new Date(targetEmployee.date_hired) : null;
+      const hired = targetEmployee.hire_date ? new Date(targetEmployee.hire_date) : null;
       if (!hired || ((new Date() - hired) < 365 * 24 * 60 * 60 * 1000)) {
         return res.status(400).json({ success: false, message: 'SIL is available after one year of service' });
       }

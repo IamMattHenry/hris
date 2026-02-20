@@ -79,7 +79,6 @@ export default function LoginForm() {
         if (result.message === "Invalid credentials") {
           setErrorMessage("Incorrect username or password.");
           alert("Incorrect username or password.");
-          window.location.reload();
         } else {
           setErrorMessage(result.message || "Login failed. Please try again.");
           alert(result.message || "Login failed. Please try again.");
