@@ -17,13 +17,17 @@ export default function PositionTable() {
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<any>(null);
-  const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null);
   const [positions, setPositions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
+  const [menuState, setMenuState] = useState<{
+    index: number;
+    top: number;
+    left: number;
+  } | null>(null);
   const [sortOrder, setSortOrder] = useState<"default" | "asc" | "desc">("default");
 
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -38,15 +42,25 @@ export default function PositionTable() {
     fetchPositions();
   }, []);
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpenMenuIndex(null);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+ useEffect(() => {
+  if (!menuState) return;
+
+  const handlePointerDown = (event: PointerEvent) => {
+    const target = event.target as Node;
+
+    // If menu unmounted or click inside, ignore
+    if (!menuRef.current || menuRef.current.contains(target)) return;
+
+    setMenuState(null);
+  };
+
+  // Capture phase prevents immediate close when reopening
+  document.addEventListener("pointerdown", handlePointerDown, true);
+
+  return () => {
+    document.removeEventListener("pointerdown", handlePointerDown, true);
+  };
+}, [menuState]);
 
   const fetchPositions = async () => {
     setLoading(true);
@@ -60,8 +74,17 @@ export default function PositionTable() {
     setLoading(false);
   };
 
-  const toggleMenu = (index: number) => {
-    setOpenMenuIndex(openMenuIndex === index ? null : index);
+  const openMenu = (
+    e: React.MouseEvent<HTMLButtonElement>,
+    index: number
+  ) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+
+    setMenuState({
+      index,
+      top: rect.bottom + window.scrollY,
+      left: rect.right - 160 + window.scrollX, // 160 = menu width
+    });
   };
 
   const handleView = (job: any) => {
@@ -269,7 +292,7 @@ export default function PositionTable() {
               <thead className="text-md">
                 <tr className="bg-[#3b2b1c] text-white">
                   <th className="py-4 px-4 text-left">Job ID</th>
-                   <th className="py-4 px-4 text-left">Job Position</th>
+                  <th className="py-4 px-4 text-left">Job Position</th>
                   <th className="py-4 px-4 text-left">Department</th>
                   <th className="py-4 px-4 text-left">Employment Type</th>
                   <th className="py-4 px-4 text-left">Default Salary</th>
@@ -297,55 +320,62 @@ export default function PositionTable() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          toggleMenu(index);
+                          openMenu(e, index);
                         }}
                         className="p-2 rounded-full hover:bg-[#e8d6bb] transition"
                       >
                         <MoreVertical size={18} className="text-[#3b2b1c]" />
                       </button>
 
-                      {openMenuIndex === index && (
-                        <div className="absolute right-4 mt-2 w-36 bg-white border border-[#e2d5c3] rounded-lg shadow-md z-50" ref={menuRef}>
-                          <button
-                            onClick={() => {
-                              handleView(pos);
-                              setOpenMenuIndex(null);
-                            }}
-                            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#fdf4e7] text-[#3b2b1c] rounded-t-lg"
-                          >
-                            <Eye size={16} /> View
-                          </button>
-
-                          {!isSupervisor && (
-                            <>
-                              <button
-                                onClick={() => {
-                                  handleEdit(pos);
-                                  setOpenMenuIndex(null);
-                                }}
-                                className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#fdf4e7] text-[#3b2b1c]"
-                              >
-                                <Pencil size={16} /> Edit
-                              </button>
-
-                              <button
-                                onClick={() => {
-                                  handleDelete(pos.position_id);
-                                  setOpenMenuIndex(null);
-                                }}
-                                className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#ffe5e5] text-[#b91c1c] rounded-b-lg"
-                              >
-                                <Trash2 size={16} /> Delete
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            {menuState && (
+              <div
+                ref={menuRef}
+                className="fixed w-40 bg-white border border-[#e2d5c3] rounded-lg shadow-xl z-[9999]"
+                style={{
+                  top: menuState.top,
+                  left: menuState.left,
+                }}
+              >
+                <button
+                  onClick={() => {
+                    handleView(currentPositions[menuState.index]);
+                    setMenuState(null);
+                  }}
+                  className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#fdf4e7] rounded-t-lg text-[#3b2b1c]"
+                >
+                  <Eye size={16} /> View
+                </button>
+
+                {!isSupervisor && (
+                  <>
+                    <button
+                      onClick={() => {
+                        handleEdit(currentPositions[menuState.index]);
+                        setMenuState(null);
+                      }}
+                      className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#fdf4e7] text-[#3b2b1c]"
+                    >
+                      <Pencil size={16} /> Edit
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        handleDelete(currentPositions[menuState.index].position_id);
+                        setMenuState(null);
+                      }}
+                      className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#ffe5e5] text-[#b91c1c] rounded-b-lg"
+                    >
+                      <Trash2 size={16} /> Delete
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Pagination */}
@@ -367,8 +397,8 @@ export default function PositionTable() {
                     key={num}
                     onClick={() => goToPage(num as number)}
                     className={`px-3 py-2 rounded text-sm cursor-pointer transition ${currentPage === num
-                        ? "bg-[#3b2b1c] text-white"
-                        : "text-[#3b2b1c] hover:bg-[#e8d6bb]"
+                      ? "bg-[#3b2b1c] text-white"
+                      : "text-[#3b2b1c] hover:bg-[#e8d6bb]"
                       }`}
                   >
                     {num}

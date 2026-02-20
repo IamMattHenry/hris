@@ -644,7 +644,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     setLeaveCredit("15");
     setSupervisorId(null);
     setHireDate("");
-    setShift("");
     setSalaryDisplay("");
     setEmail("");
     setContactNumber("");
@@ -1130,11 +1129,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                           ? "Select Position"
                           : "Select Department First"}
                       </option>
-                      {positions.map((pos) => (
-                        <option key={pos.position_id} value={pos.position_id}>
-                          {pos.position_name}
-                        </option>
-                      ))}
+                     
                     </select>
                     {errors.position && <p className="text-red-500 text-xs mt-1">{errors.position}</p>}
                   </div>
