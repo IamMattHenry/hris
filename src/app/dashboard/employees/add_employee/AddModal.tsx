@@ -125,6 +125,11 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [usernameEdited, setUsernameEdited] = useState(false);
   const [passwordEdited, setPasswordEdited] = useState(false);
 
+  const [sss, setSss] = useState<boolean>(false);
+  const [pagIbig, setPagIbig] = useState<boolean>(false);
+  const [tin, setTIN] = useState<boolean>(false);
+  const [philhealth, setPhilhealth] = useState<boolean>(false);
+
   const DOCUMENTS = [
     { key: "sss", label: "SSS" },
     { key: "pagIbig", label: "PAG-IBIG" },
@@ -1553,9 +1558,9 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
               </motion.div>
             )}
 
-            {step === 5 && (
+            {step === 4 && (
               <motion.div
-                key="step5"
+                key="step4"
                 initial={{ opacity: 0, x: 40 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -40 }}
