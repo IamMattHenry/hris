@@ -253,8 +253,8 @@ export default function ViewEmployeeModal({
                           Personal Information
                         </h3>
                         <div className="grid grid-cols-3 gap-4">
-                          <InfoBox label="Gender" value={employee.gender} />
-                          <InfoBox label="Civil Status" value={employee.civil_status} />
+                          <InfoBox label="Gender" value={capitalizeFirstChar(employee.gender)} />
+                          <InfoBox label="Civil Status" value={capitalizeFirstChar(employee.civil_status)} />
                           <InfoBox label="Age" value={calculateAge(employee.birthdate)} />
                           <InfoBox label="Birthdate" value={formatDate(employee.birthdate)} />
                         </div>
