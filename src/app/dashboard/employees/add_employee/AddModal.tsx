@@ -44,12 +44,13 @@ interface Dependent {
   city: string;
 }
 
+
 export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps) {
   const { user } = useAuth();
   const [step, setStep] = useState(1);
 
   // Fingerprint enrollment
-  const [showFingerprintEnrollment, setShowFingerprintEnrollment] = useState(false);
+ 
   const [newEmployeeId, setNewEmployeeId] = useState<number | null>(null);
 
 
@@ -73,10 +74,9 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [positionId, setPositionId] = useState<number | null>(null);
   const [salary, setSalary] = useState("");
   const [leaveCredit, setLeaveCredit] = useState("15");
+  const [employmentType, setEmploymentType] = useState("");
   const [supervisorId, setSupervisorId] = useState<number | null>(null);
   const [hireDate, setHireDate] = useState("");
-  const [payStart, setPayStart] = useState("");
-  const [payEnd, setPayEnd] = useState("");
   const [shift, setShift] = useState("");
   const [salaryDisplay, setSalaryDisplay] = useState("");
   const [email, setEmail] = useState("");
@@ -125,31 +125,60 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [usernameEdited, setUsernameEdited] = useState(false);
   const [passwordEdited, setPasswordEdited] = useState(false);
 
-  const [sss, setSss] = useState(false);
-  const [pagIbig, setPagIbig] = useState(false);
-  const [philhealth, setPhilhealth] = useState(false);
+  const DOCUMENTS = [
+    { key: "sss", label: "SSS" },
+    { key: "pagIbig", label: "PAG-IBIG" },
+    { key: "tin", label: "TIN ID" },
+    { key: "philhealth", label: "PHILHEALTH" },
+    { key: "cedula", label: "CEDULA" },
+    { key: "birthCert", label: "BIRTH CERTIFICATE" },
+    { key: "policeClearance", label: "POLICE CLEARANCE" },
+    { key: "barangayClearance", label: "BARANGAY CLEARANCE" },
+    { key: "medicalCert", label: "MEDICAL CERTIFICATE" },
+    { key: "others", label: "OTHERS" }
+  ] as const;
 
-  // Helper to normalize first name into a safe username
-  const makeUsernameFromFirst = (fn: string) =>
-    fn.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  
+  const [documents, setDocuments] = useState<Record<string, boolean>>(
+    Object.fromEntries(DOCUMENTS.map(doc => [doc.key, false]))
+  );
+
+
+
+
+  // Helper to capitalize first letter and remove symbols
+  const makeUsernameFromFirst = (fn: string) => {
+    const cleaned = fn.trim().replace(/[^a-zA-Z0-9]/g, "");
+    if (!cleaned) return "";
+    return cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase();
+  };
+
+  // Helper to add random digits if a string is too short
+  const padWithRandom = (str: string, minLength: number) => {
+    let result = str;
+    while (result.length < minLength) {
+      result += Math.floor(Math.random() * 10).toString();
+    }
+    return result;
+  };
 
   useEffect(() => {
-    const base = makeUsernameFromFirst(firstName || "");
+    // 1. Start with Capitalized name (e.g., "John")
+    let base = makeUsernameFromFirst(firstName || "");
 
-    // --- Username generation ---
-    let generatedUsername = base;
+    base = padWithRandom(base, 5);
+
     const randomNumber = Math.floor(100 + Math.random() * 900);
-    generatedUsername += randomNumber.toString();
+    const generatedUsername = base + randomNumber.toString();
 
     // --- Password generation ---
-    const cleanedFirstName = firstName ? firstName.replace(/\s+/g, "") : "";
-    let generatedPassword = cleanedFirstName ? `@${cleanedFirstName}` : "";
-    let suffixNumber = 12345;
+    const cleanedFirstName = firstName ? firstName.replace(/\s+/g, "") : "User";
+    // Capitalize password start
+    let formattedPass = cleanedFirstName.charAt(0).toUpperCase() + cleanedFirstName.slice(1);
+    let generatedPassword = `@${formattedPass}`;
 
-    while (generatedPassword.length < 12) {
-      generatedPassword = `${generatedPassword}${suffixNumber}`;
-      suffixNumber++;
-    }
+    // Pad password to at least 12 characters using random numbers
+    generatedPassword = padWithRandom(generatedPassword, 12);
 
     if (!usernameEdited) setUsername(generatedUsername);
     if (!passwordEdited) {
@@ -159,22 +188,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   }, [firstName, usernameEdited, passwordEdited]);
 
 
-  useEffect(() => {
-    if (hireDate) {
-      const start = new Date(hireDate);
-      const end = new Date(start);
-      end.setDate(start.getDate() + 15); // Add 15 days for example
 
-      // Format to YYYY-MM-DD for input[type="date"]
-      const formatDate = (d: Date) => d.toISOString().split("T")[0];
-
-      setPayStart(formatDate(start));
-      setPayEnd(formatDate(end));
-    } else {
-      setPayStart("");
-      setPayEnd("");
-    }
-  }, [hireDate]);
 
 
   // Load PH locations data from JSON file
@@ -242,7 +256,10 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     loadPhLocationsData();
   }, []);
 
+
+
   // 2. Update provinces when region changes (Home)
+
   useEffect(() => {
     if (region) {
       // Match by 'name'
@@ -260,16 +277,19 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     }
   }, [region, phLocationsData]);
 
-  // 3. Update cities when province changes (Home)
+
+  // Update cities when province changes (for home address)
   useEffect(() => {
     if (region && province) {
       const selectedRegion = phLocationsData.find((r: any) => r.name === region);
       if (selectedRegion) {
         const selectedProvince = selectedRegion.provinces.find((p: any) => p.name === province);
         if (selectedProvince) {
-          // Map city names (API uses 'name')
-          setCities(selectedProvince.cities.map((c: any) => c.name));
-          setBarangays([]); 
+          setCities(selectedProvince.cities.map((c: any) =>
+            typeof c === 'string' ? c : c.city
+          ));
+        } else {
+          setCities([]);
         }
       }
     } else {
@@ -278,15 +298,16 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     }
   }, [region, province, phLocationsData]);
 
-  // 4. Load Barangays (Home)
+
+  // Load Barangays (Home)
   useEffect(() => {
     if (region && province && city && phLocationsData.length > 0) {
-      const r = phLocationsData.find((x: any) => x.name === region);
-      const p = r?.provinces.find((x: any) => x.name === province);
-      const c = p?.cities.find((x: any) => x.name === city);
-      
+      const r = phLocationsData.find((x: any) => x.region === region);
+      const p = r?.provinces.find((x: any) => x.province === province);
+      const c = p?.cities.find((x: any) => (typeof x === 'string' ? x : x.city) === city);
+
       if (c && c.barangays) {
-        setBarangays(c.barangays.map((b: any) => b.name));
+        setBarangays(c.barangays);
       } else {
         setBarangays([]);
       }
@@ -295,15 +316,25 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     }
   }, [region, province, city, phLocationsData]);
 
-  // --- DEPENDENT ADDRESS LOGIC (Repeat of above structure) ---
 
-  // 5. Update dependent provinces
+
+  //DEPENDANT AREA
+
   useEffect(() => {
     if (dependentRegion) {
-      const selectedRegion = phLocationsData.find((r: any) => r.name === dependentRegion);
+      const selectedRegion = phLocationsData.find(
+        (r: any) => r.region === dependentRegion
+      );
+
       if (selectedRegion) {
-        const provinceNames = selectedRegion.provinces.map((p: any) => p.name);
+        const provinceNames = selectedRegion.provinces.map(
+          (p: any) => p.province
+        );
         setDependentProvinces(provinceNames);
+        setDependentCities([]);
+        setDependentBarangays([]);
+      } else {
+        setDependentProvinces([]);
         setDependentCities([]);
         setDependentBarangays([]);
       }
@@ -314,16 +345,26 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     }
   }, [dependentRegion, phLocationsData]);
 
-  // 6. Update dependent cities
   useEffect(() => {
     if (dependentRegion && dependentProvince) {
-      const selectedRegion = phLocationsData.find((r: any) => r.name === dependentRegion);
-      if (selectedRegion) {
-        const selectedProvince = selectedRegion.provinces.find((p: any) => p.name === dependentProvince);
-        if (selectedProvince) {
-          setDependentCities(selectedProvince.cities.map((c: any) => c.name));
-          setDependentBarangays([]);
-        }
+      const selectedRegion = phLocationsData.find(
+        (r: any) => r.region === dependentRegion
+      );
+
+      const selectedProvince = selectedRegion?.provinces.find(
+        (p: any) => p.province === dependentProvince
+      );
+
+      if (selectedProvince) {
+        setDependentCities(
+          selectedProvince.cities.map((c: any) =>
+            typeof c === "string" ? c : c.city
+          )
+        );
+        setDependentBarangays([]);
+      } else {
+        setDependentCities([]);
+        setDependentBarangays([]);
       }
     } else {
       setDependentCities([]);
@@ -331,13 +372,24 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     }
   }, [dependentRegion, dependentProvince, phLocationsData]);
 
-  // 7. Load Dependent Barangays
   useEffect(() => {
-    if (dependentRegion && dependentProvince && dependentCity && phLocationsData.length > 0) {
-      const r = phLocationsData.find((x: any) => x.name === dependentRegion);
-      const p = r?.provinces.find((x: any) => x.name === dependentProvince);
-      const c = p?.cities.find((x: any) => x.name === dependentCity);
-      
+    if (
+      dependentRegion &&
+      dependentProvince &&
+      dependentCity &&
+      phLocationsData.length > 0
+    ) {
+      const r = phLocationsData.find(
+        (x: any) => x.region === dependentRegion
+      );
+      const p = r?.provinces.find(
+        (x: any) => x.province === dependentProvince
+      );
+      const c = p?.cities.find(
+        (x: any) =>
+          (typeof x === "string" ? x : x.city) === dependentCity
+      );
+
       if (c && c.barangays) {
         setDependentBarangays(c.barangays.map((b: any) => b.name));
       } else {
@@ -582,8 +634,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     setLeaveCredit("15");
     setSupervisorId(null);
     setHireDate("");
-    setPayStart("");
-    setPayEnd("");
     setShift("");
     setSalaryDisplay("");
     setEmail("");
@@ -605,11 +655,8 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     setStep(1);
     setErrors({});
     setMessage(null);
-    setShowFingerprintEnrollment(false);
     setNewEmployeeId(null);
-    setSss(false);
-    setPagIbig(false);
-    setPhilhealth(false);
+  
   };
 
   // ─── Validation ───────────────────────────────
@@ -642,8 +689,20 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       newErrors = validateStep3(email, contactNumber, dependents);
     }
 
-    // Step 4 - Authentication
+    // Step 4 - Document Requirements
     if (step === 4) {
+
+      const atLeastOneSubmitted = DOCUMENTS
+        .filter(doc => doc.key !== 'others')
+        .some(doc => documents[doc.key]);
+
+      if (!atLeastOneSubmitted) {
+        newErrors.documents = "Please select at least one required document to proceed.";
+      }
+    }
+
+    // Step 5 - Authentication
+    if (step === 5) {
       newErrors = validateStep4(username, password, confirmPassword, grantAdminPrivilege || grantSupervisorPrivilege, subRole);
 
       // Additional validation for supervisor role
@@ -752,7 +811,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         setTimeout(() => {
           setMessage(null);
           resetForm();
-        //setShowFingerprintEnrollment(true);
+          //setShowFingerprintEnrollment(true);
           onClose();
         }, 1000);
 
@@ -780,11 +839,23 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
 
   // Reusable name validation function
-  const validateNameFormat = (value: string, setValue: (v: string) => void, maxLength: number = 30) => {
-    if (/^[A-Za-zñÑ\s'-.]*$/.test(value) && value.length <= maxLength) {
-      setValue(value);
-    }
+  const validateNameFormat = (
+    value: string,
+    setValue: (v: string) => void,
+    maxLength: number = 30
+  ) => {
+    // 1. Allowed characters (letters + spaces)
+    if (!/^[A-Za-zñÑ\s]*$/.test(value)) return;
+    if (value.length > maxLength) return;
+
+    // 2. Normalize casing: Initial uppercase, rest lowercase
+    const formattedValue = value
+      .toLowerCase()
+      .replace(/(^|\s)[a-zñ]/g, (char) => char.toUpperCase());
+
+    setValue(formattedValue);
   };
+
 
   // ─── UI ───────────────────────────────────────
   return (
@@ -823,6 +894,12 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
             </h3>
           </div>
 
+
+        {/* Form Sections 
+           FIX THIS CONTENT STEPS
+        */}
+
+        
           {/* Step Content */}
           <AnimatePresence mode="wait">
             {step === 1 && (
@@ -1059,25 +1136,36 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                   </div>
 
                   <FormInput label="Hire Date:" type="date" max={today} value={hireDate} onChange={(e) => setHireDate(e.target.value)} error={errors.hireDate} />
-                  <FormInput label="Pay Period Start:" type="date" value={payStart} onChange={(e) => setPayStart(e.target.value)} readOnly={true} />
-
                   <FormSelect label="Shift:" value={shift} onChange={(e) => setShift(e.target.value)} options={["Morning", "Night"]} error={errors.shift} />
-                  <FormInput label="Pay Period End:" type="date" value={payEnd} onChange={(e) => setPayEnd(e.target.value)} readOnly={true} />
+            
+                  <FormSelect label="Employment Type: " value={employmentType} onChange={(e) => setEmploymentType(e.target.value)} options={[
+                    { label: "Full Time", value: "FULL_TIME" },
+                    { label: "Part Time", value: "PART_TIME" }
+                  ]} error={errors.employmentType} />
 
-                  <div>
-                    <label className="block text-[#3b2b1c] mb-1">Salary (Hourly Rate):</label>
-                    <div className="flex items-center border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] overflow-hidden">
-                      <span className="px-3 py-2 text-[#3b2b1c] font-semibold">₱</span>
-                      <input
-                        type="text"
-                        value={salaryDisplay}
-                        onChange={handleSalaryChange}
-                        placeholder="0.00"
-                        className="flex-1 px-3 py-2 bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14] focus:ring-inset"
-                      />
+                  {employmentType === "PART_TIME" && (
+                    <div>
+                      <label className="block text-[#3b2b1c] mb-1">
+                        Salary (Hourly Rate):
+                      </label>
+
+                      <div className="flex items-center border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] overflow-hidden">
+                        <span className="px-3 py-2 text-[#3b2b1c] font-semibold">₱</span>
+                        <input
+                          type="text"
+                          value={salaryDisplay}
+                          onChange={handleSalaryChange}
+                          placeholder="0.00"
+                          className="flex-1 px-3 py-2 bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14] focus:ring-inset"
+                        />
+                      </div>
+
+                      {errors.salary && (
+                        <p className="text-red-500 text-xs mt-1">{errors.salary}</p>
+                      )}
                     </div>
-                    {errors.salary && <p className="text-red-500 text-xs mt-1">{errors.salary}</p>}
-                  </div>
+                  )}
+
 
                   {/* Supervisor Dropdown - Filtered by Department */}
                   <div>
@@ -1387,7 +1475,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                             {dependent.homeAddress && <p className="text-xs text-[#6b5344]">Address: {dependent.homeAddress}</p>}
                             {(dependent.barangay || dependent.city || dependent.province || dependent.region) && (
                               <p className="text-xs text-[#6b5344]">
-                                Location: {[ dependent.barangay, dependent.city, dependent.province, dependent.region].filter(Boolean).join(", ")}
+                                Location: {[dependent.barangay, dependent.city, dependent.province, dependent.region].filter(Boolean).join(", ")}
                               </p>
                             )}
                           </div>
@@ -1402,6 +1490,54 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
             {step === 4 && (
               <motion.div
                 key="step4"
+                initial={{ opacity: 0, x: 40 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -40 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="flex flex-col space-y-4">
+                  <h3 className="text-lg font-semibold text-[#3b2b1c]">
+                    Document Requirements
+                  </h3>
+
+                  {errors.documents && (
+                    <p className="text-red-500 text-sm mt-2">{errors.documents}</p>
+                  )}
+
+                  <div className="space-y-3 pl-2">
+                    {DOCUMENTS.map(doc => (
+                      <label
+                        key={doc.key}
+                        className="flex items-center space-x-3 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={documents[doc.key]}
+                          onChange={(e) => {
+                            setDocuments(prev => ({
+                              ...prev,
+                              [doc.key]: e.target.checked,
+                            }));
+                            if (errors.documents) {
+                              setErrors(prev => ({ ...prev, documents: "" }));
+                            }
+                          }}
+                          className="w-5 h-5 accent-[#4b0b14] cursor-pointer"
+                        />
+
+                        <span className="text-[#3b2b1c]">
+                          {doc.label}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {step === 5 && (
+              <motion.div
+                key="step5"
                 initial={{ opacity: 0, x: 40 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -40 }}
@@ -1509,6 +1645,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
             )}
           </AnimatePresence>
         </div>
+          
 
         {/* Footer Section - Progress Bar and Buttons */}
         <div className="border-t border-[#e6d2b5] p-8 mt-4r bg-[#f9ecd7] rounded-b-2xl">
@@ -1518,8 +1655,8 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
               { id: 1, label: "Basic Information" },
               { id: 2, label: "Job Information" },
               { id: 3, label: "Contact Information" },
-              { id: 4, label: "Authentication" },
-              { id: 5, label: "Documents" },
+              { id: 4, label: "Documents" },
+              { id: 5, label: "Account Information" },
             ].map((item) => (
               <div
                 key={item.id}

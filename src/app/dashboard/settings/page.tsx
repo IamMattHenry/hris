@@ -85,7 +85,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Tab Content */}
-        <div className="bg-[#fff7ec] rounded-lg shadow-lg border border-gray-200 p-8  max-h-[100vh]">
+        <div className="bg-[#fff7ec] p-8 max-h-[100vh]">
           {activeTab === "about" && <AboutUserTab />}
           {activeTab === "auth" && <AuthenticationTab />}
         </div>

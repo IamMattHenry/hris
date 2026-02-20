@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { use, useEffect, useState } from "react";
 import ActionButton from "@/components/buttons/ActionButton";
 import FormInput from "@/components/forms/FormInput";
 import FormSelect from "@/components/forms/FormSelect";
@@ -28,6 +28,8 @@ const ProfileSection = () => {
   const [regions, setRegions] = useState<string[]>([]);
   const [provinces, setProvinces] = useState<string[]>([]);
   const [cities, setCities] = useState<string[]>([]);
+  const [barangay, setBarangay] = useState("");
+  const [barangays, setBarangays] = useState<string[]>([]);
   const [phLocationsData, setPhLocationsData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -41,12 +43,12 @@ const ProfileSection = () => {
     async function loadData() {
       try {
         setLoading(true);
-        
+
         // Fetch user data
         const userResult = await authApi.getCurrentUser();
         if (userResult.success && userResult.data) {
           setUserData(userResult.data);
-          
+
           // Populate form fields with user data
           const user = userResult.data as any;
           setFirstName(user.first_name || "");
@@ -59,21 +61,22 @@ const ProfileSection = () => {
           setRegion(user.region || "");
           setProvince(user.province || "");
           setCity(user.city || "");
-          
+          setBarangay(user.barangay || "");
+
           // Set emails and contacts
           if (user.emails && user.emails.length > 0) {
             setEmails(user.emails);
           } else {
             setEmails([""]);
           }
-          
+
           if (user.contact_numbers && user.contact_numbers.length > 0) {
             setContacts(user.contact_numbers);
           } else {
             setContacts([""]);
           }
         }
-        
+
         // Fetch PH locations
         const res = await fetch("/data/ph_locations.json");
         const data = await res.json();
@@ -88,25 +91,45 @@ const ProfileSection = () => {
     loadData();
   }, []);
 
-  // Update provinces and cities
+  // Handle address cascading dropdowns
   useEffect(() => {
     if (region) {
       const selectedRegion = phLocationsData.find((r: any) => r.region === region);
-      setProvinces(selectedRegion ? selectedRegion.provinces.map((p: any) => p.province) : []);
-      setProvince("");
-      setCity("");
-      setCities([]);
+      const newProvinces = selectedRegion ? selectedRegion.provinces.map((p: any) => p.province) : [];
+      setProvinces(newProvinces);
+      if (!newProvinces.includes(province)) {
+        setProvince("");
+        setCity("");
+        setBarangay("");
+      }
     }
-  }, [region, phLocationsData]);
+  }, [region, province, phLocationsData]);
 
   useEffect(() => {
-    if (province && region) {
+    if (province) {
       const selectedRegion = phLocationsData.find((r: any) => r.region === region);
       const selectedProvince = selectedRegion?.provinces.find((p: any) => p.province === province);
-      setCities(selectedProvince ? selectedProvince.cities : []);
-      setCity("");
+      const newCities = selectedProvince ? selectedProvince.cities.map((c: any) => (typeof c === 'string' ? c : c.city)) : [];
+      setCities(newCities);
+      if (!newCities.includes(city)) {
+        setCity("");
+        setBarangay("");
+      }
     }
-  }, [province, region, phLocationsData]);
+  }, [province, city, region, phLocationsData]);
+
+  useEffect(() => {
+    if (city) {
+      const selectedRegion = phLocationsData.find((r: any) => r.region === region);
+      const selectedProvince = selectedRegion?.provinces.find((p: any) => p.province === province);
+      const selectedCity = selectedProvince?.cities.find((c: any) => (typeof c === 'string' ? c : c.city) === city);
+      const newBarangays = (selectedCity && typeof selectedCity !== 'string') ? selectedCity.barangays : [];
+      setBarangays(newBarangays);
+      if (!newBarangays.includes(barangay)) {
+        setBarangay("");
+      }
+    }
+  }, [city, barangay, province, region, phLocationsData]);
 
   // Email handlers
   const addEmail = () => setEmails([...emails, ""]);
@@ -134,10 +157,11 @@ const ProfileSection = () => {
     if (!lastName.trim()) newErrors.lastName = "Last name is required.";
     if (!gender) newErrors.gender = "Gender is required.";
     if (!civilStatus) newErrors.civilStatus = "Civil status is required.";
-    if (!homeAddress.trim()) newErrors.homeAddress = "Street / Barangay is required.";
+    if (!homeAddress.trim()) newErrors.homeAddress = "Street address is required.";
     if (!region) newErrors.region = "Region is required.";
     if (!province) newErrors.province = "Province is required.";
     if (!city) newErrors.city = "City / Municipality is required.";
+    if (!barangay) newErrors.barangay = "Barangay is required.";
 
     const hasEmail = emails.some((e) => e.trim() !== "");
     const hasContact = contacts.some((c) => c.trim() !== "");
@@ -146,6 +170,35 @@ const ProfileSection = () => {
 
     return newErrors;
   };
+
+
+  const isValidPHNumber = (value: string) => {
+    return /^09\d{2} \d{3} \d{4}$/.test(value);
+  };
+
+
+
+  const hasInvalidContact = contacts.some(
+    (c) => c && !isValidPHNumber(c)
+  );
+
+
+  useEffect(() => {
+    if (hasInvalidContact) {
+      setErrors((prev) => ({
+        ...prev,
+        emailContact: "Please enter a valid PH mobile number",
+      }));
+    } else {
+      setErrors((prev) => ({
+        ...prev,
+        emailContact: "",
+      }));
+    }
+  }, [contacts]);
+
+
+
 
   // Save Handler
   const handleSave = async () => {
@@ -171,13 +224,14 @@ const ProfileSection = () => {
         region: region,
         province: province,
         city: city,
+        barangay: barangay,
         emails: emails.filter((e) => e.trim() !== ""),
         contact_numbers: contacts.filter((c) => c.trim() !== ""),
       };
 
       // Use 'me' endpoint to update current user's profile
       const result = await employeeApi.update('me' as any, profileData);
-      
+
       if (result.success) {
         alert("Profile updated successfully!");
         // Refresh user data to get latest updates
@@ -206,6 +260,34 @@ const ProfileSection = () => {
       </div>
     );
   }
+
+
+  const formatPHNumber = (value: string) => {
+    // Keep digits only
+    let digits = value.replace(/\D/g, "");
+
+    // Force start with 09
+    if (digits.startsWith("63")) {
+      digits = "0" + digits.slice(2);
+    } else if (digits.startsWith("9")) {
+      digits = "0" + digits;
+    }
+
+    // Limit to 11 digits (09XXXXXXXXX)
+    digits = digits.slice(0, 11);
+
+    // Format: 0912 235 2123
+    if (digits.length > 4 && digits.length <= 7) {
+      return `${digits.slice(0, 4)} ${digits.slice(4)}`;
+    }
+
+    if (digits.length > 7) {
+      return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
+    }
+
+    return digits;
+  };
+
 
   return (
     <div className="space-y-6 text-gray-900">
@@ -273,9 +355,8 @@ const ProfileSection = () => {
               type="email"
               value={email}
               onChange={(e) => updateEmail(index, e.target.value)}
-              className={`flex-1 px-4 py-2 border rounded-lg ${
-                errors.emailContact ? "border-red-500" : "border-gray-300"
-              }`}
+              className={`flex-1 px-4 py-2 border rounded-lg ${errors.emailContact ? "border-red-500" : "border-gray-300"
+                }`}
               placeholder="Enter email address"
             />
             {emails.length > 1 && (
@@ -304,10 +385,12 @@ const ProfileSection = () => {
             <input
               type="text"
               value={contact}
-              onChange={(e) => updateContact(index, e.target.value)}
-              className={`flex-1 px-4 py-2 border rounded-lg ${
-                errors.emailContact ? "border-red-500" : "border-gray-300"
-              }`}
+              onChange={(e) => {
+                const formatted = formatPHNumber(e.target.value);
+                updateContact(index, formatted);
+              }}
+              className={`flex-1 px-4 py-2 border rounded-lg ${errors.emailContact ? "border-red-500" : "border-gray-300"
+                }`}
               placeholder="Enter contact number"
             />
             {contacts.length > 1 && (
@@ -336,7 +419,7 @@ const ProfileSection = () => {
         <h3 className="text-md font-semibold text-gray-900 mb-3">Home Address</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <FormInput
-            label="Street / Barangay"
+            label="Home Address"
             type="text"
             value={homeAddress}
             onChange={(e) => {
@@ -375,19 +458,29 @@ const ProfileSection = () => {
             options={cities}
             error={errors.city}
           />
+
+          <FormSelect
+            label="Barangay"
+            value={barangay}
+            onChange={(e) => {
+              setBarangay(e.target.value);
+              if (errors.barangay) setErrors((prev) => ({ ...prev, barangay: "" }));
+            }}
+            options={barangays}
+            error={errors.barangay}
+          />
         </div>
       </div>
 
       {/* SAVE BUTTON */}
-      <div className="pt-6 border-t border-gray-200 flex justify-end">
+      <div className="flex justify-end">
         <ActionButton
           onClick={handleSave}
           label={saving ? "Saving..." : "Save Profile"}
           icon={saving ? undefined : Save}
           disabled={saving}
-          className={`bg-[#4B0B14] hover:opacity-90 transition ${
-            saving ? "opacity-75 cursor-not-allowed" : ""
-          }`}
+          className={`bg-[#4B0B14] hover:opacity-90 transition ${saving ? "opacity-75 cursor-not-allowed" : ""
+            }`}
         />
       </div>
     </div>
