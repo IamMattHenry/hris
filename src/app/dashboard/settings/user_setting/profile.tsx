@@ -77,11 +77,34 @@ const ProfileSection = () => {
           }
         }
 
-        // Fetch PH locations
+        // Fetch PH locations and normalize structure (handle regions with direct cities)
         const res = await fetch("/data/ph_locations.json");
-        const data = await res.json();
-        setPhLocationsData(data);
-        setRegions(data.map((r: any) => r.region));
+        const rawData = await res.json();
+
+        const processedData = rawData.map((region: any) => {
+          let finalProvinces = (region.provinces || []).map((prov: any) => ({
+            name: prov.name,
+            cities: (prov.cities || []).map((city: any) => ({
+              name: city.name,
+              barangays: (city.barangays || []).map((b: any) => ({ name: b.name }))
+            }))
+          }));
+
+          if (region.cities && region.cities.length > 0) {
+            const directCities = region.cities.map((city: any) => ({
+              name: city.name,
+              barangays: (city.barangays || []).map((b: any) => ({ name: b.name }))
+            }));
+
+            const dummyProvinceName = region.name === "NCR" ? "Metro Manila" : "Independent Cities";
+            finalProvinces.push({ name: dummyProvinceName, cities: directCities });
+          }
+
+          return { name: region.name, provinces: finalProvinces };
+        });
+
+        setPhLocationsData(processedData);
+        setRegions(processedData.map((r: any) => r.name));
       } catch (err) {
         console.error("Error loading data:", err);
       } finally {
@@ -94,8 +117,8 @@ const ProfileSection = () => {
   // Handle address cascading dropdowns
   useEffect(() => {
     if (region) {
-      const selectedRegion = phLocationsData.find((r: any) => r.region === region);
-      const newProvinces = selectedRegion ? selectedRegion.provinces.map((p: any) => p.province) : [];
+      const selectedRegion = phLocationsData.find((r: any) => r.name === region);
+      const newProvinces = selectedRegion ? selectedRegion.provinces.map((p: any) => p.name) : [];
       setProvinces(newProvinces);
       if (!newProvinces.includes(province)) {
         setProvince("");
@@ -107,9 +130,9 @@ const ProfileSection = () => {
 
   useEffect(() => {
     if (province) {
-      const selectedRegion = phLocationsData.find((r: any) => r.region === region);
-      const selectedProvince = selectedRegion?.provinces.find((p: any) => p.province === province);
-      const newCities = selectedProvince ? selectedProvince.cities.map((c: any) => (typeof c === 'string' ? c : c.city)) : [];
+      const selectedRegion = phLocationsData.find((r: any) => r.name === region);
+      const selectedProvince = selectedRegion?.provinces.find((p: any) => p.name === province);
+      const newCities = selectedProvince ? selectedProvince.cities.map((c: any) => (typeof c === 'string' ? c : c.name)) : [];
       setCities(newCities);
       if (!newCities.includes(city)) {
         setCity("");
@@ -120,10 +143,10 @@ const ProfileSection = () => {
 
   useEffect(() => {
     if (city) {
-      const selectedRegion = phLocationsData.find((r: any) => r.region === region);
-      const selectedProvince = selectedRegion?.provinces.find((p: any) => p.province === province);
-      const selectedCity = selectedProvince?.cities.find((c: any) => (typeof c === 'string' ? c : c.city) === city);
-      const newBarangays = (selectedCity && typeof selectedCity !== 'string') ? selectedCity.barangays : [];
+      const selectedRegion = phLocationsData.find((r: any) => r.name === region);
+      const selectedProvince = selectedRegion?.provinces.find((p: any) => p.name === province);
+      const selectedCity = selectedProvince?.cities.find((c: any) => (typeof c === 'string' ? c : c.name) === city);
+      const newBarangays = (selectedCity && typeof selectedCity !== 'string') ? (selectedCity.barangays || []).map((b: any) => (typeof b === 'string' ? b : b.name)) : [];
       setBarangays(newBarangays);
       if (!newBarangays.includes(barangay)) {
         setBarangay("");

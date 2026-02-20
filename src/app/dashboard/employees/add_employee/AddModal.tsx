@@ -286,7 +286,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         const selectedProvince = selectedRegion.provinces.find((p: any) => p.name === province);
         if (selectedProvince) {
           setCities(selectedProvince.cities.map((c: any) =>
-            typeof c === 'string' ? c : c.city
+            typeof c === 'string' ? c : c.name
           ));
         } else {
           setCities([]);
@@ -302,12 +302,12 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   // Load Barangays (Home)
   useEffect(() => {
     if (region && province && city && phLocationsData.length > 0) {
-      const r = phLocationsData.find((x: any) => x.region === region);
-      const p = r?.provinces.find((x: any) => x.province === province);
-      const c = p?.cities.find((x: any) => (typeof x === 'string' ? x : x.city) === city);
+      const r = phLocationsData.find((x: any) => x.name === region);
+      const p = r?.provinces.find((x: any) => x.name === province);
+      const c = p?.cities.find((x: any) => (typeof x === 'string' ? x : x.name) === city);
 
       if (c && c.barangays) {
-        setBarangays(c.barangays);
+        setBarangays(c.barangays.map((b: any) => (typeof b === 'string' ? b : b.name)));
       } else {
         setBarangays([]);
       }
@@ -323,12 +323,12 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   useEffect(() => {
     if (dependentRegion) {
       const selectedRegion = phLocationsData.find(
-        (r: any) => r.region === dependentRegion
+        (r: any) => r.name === dependentRegion
       );
 
       if (selectedRegion) {
         const provinceNames = selectedRegion.provinces.map(
-          (p: any) => p.province
+          (p: any) => p.name
         );
         setDependentProvinces(provinceNames);
         setDependentCities([]);
@@ -348,17 +348,17 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   useEffect(() => {
     if (dependentRegion && dependentProvince) {
       const selectedRegion = phLocationsData.find(
-        (r: any) => r.region === dependentRegion
+        (r: any) => r.name === dependentRegion
       );
 
       const selectedProvince = selectedRegion?.provinces.find(
-        (p: any) => p.province === dependentProvince
+        (p: any) => p.name === dependentProvince
       );
 
       if (selectedProvince) {
         setDependentCities(
           selectedProvince.cities.map((c: any) =>
-            typeof c === "string" ? c : c.city
+            typeof c === "string" ? c : c.name
           )
         );
         setDependentBarangays([]);
@@ -380,18 +380,18 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       phLocationsData.length > 0
     ) {
       const r = phLocationsData.find(
-        (x: any) => x.region === dependentRegion
+        (x: any) => x.name === dependentRegion
       );
       const p = r?.provinces.find(
-        (x: any) => x.province === dependentProvince
+        (x: any) => x.name === dependentProvince
       );
       const c = p?.cities.find(
         (x: any) =>
-          (typeof x === "string" ? x : x.city) === dependentCity
+          (typeof x === 'string' ? x : x.name) === dependentCity
       );
 
       if (c && c.barangays) {
-        setDependentBarangays(c.barangays.map((b: any) => b.name));
+        setDependentBarangays(c.barangays.map((b: any) => (typeof b === 'string' ? b : b.name)));
       } else {
         setDependentBarangays([]);
       }

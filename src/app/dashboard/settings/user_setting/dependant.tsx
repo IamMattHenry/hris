@@ -56,9 +56,31 @@ const DependantsSection = () => {
           fetch("/data/ph_locations.json"),
           authApi.getCurrentUser(),
         ]);
-        const locations = await locationsRes.json();
-        setPhLocationsData(locations);
-        setRegions(locations.map((r: any) => r.region));
+        const rawLocations = await locationsRes.json();
+        const processedData = rawLocations.map((region: any) => {
+          const finalProvinces = (region.provinces || []).map((prov: any) => ({
+            name: prov.name,
+            cities: (prov.cities || []).map((city: any) => ({
+              name: city.name,
+              barangays: (city.barangays || []).map((b: any) => ({ name: b.name }))
+            }))
+          }));
+
+          if (region.cities && region.cities.length > 0) {
+            const directCities = region.cities.map((city: any) => ({
+              name: city.name,
+              barangays: (city.barangays || []).map((b: any) => ({ name: b.name }))
+            }));
+
+            const dummyProvinceName = region.name === "NCR" ? "Metro Manila" : "Independent Cities";
+            finalProvinces.push({ name: dummyProvinceName, cities: directCities });
+          }
+
+          return { name: region.name, provinces: finalProvinces };
+        });
+
+        setPhLocationsData(processedData);
+        setRegions(processedData.map((r: any) => r.name));
 
         if (userRes.success && userRes.data) {
           const mapped = (userRes.data.dependents || []).map((dep: any): DependentForm => {
@@ -97,8 +119,8 @@ const DependantsSection = () => {
   // Update provinces & cities
   useEffect(() => {
     if (dependentRegion) {
-      const regionObj = phLocationsData.find((r: any) => r.region === dependentRegion);
-      setDependentProvinces(regionObj ? regionObj.provinces.map((p: any) => p.province) : []);
+      const regionObj = phLocationsData.find((r: any) => r.name === dependentRegion);
+      setDependentProvinces(regionObj ? regionObj.provinces.map((p: any) => p.name) : []);
       setDependentProvince("");
       setDependentCity("");
       setDependentCities([]);
@@ -107,9 +129,9 @@ const DependantsSection = () => {
 
   useEffect(() => {
     if (dependentProvince && dependentRegion) {
-      const regionObj = phLocationsData.find((r: any) => r.region === dependentRegion);
-      const provObj = regionObj?.provinces.find((p: any) => p.province === dependentProvince);
-      setDependentCities(provObj ? provObj.cities : []);
+      const regionObj = phLocationsData.find((r: any) => r.name === dependentRegion);
+      const provObj = regionObj?.provinces.find((p: any) => p.name === dependentProvince);
+      setDependentCities(provObj ? provObj.cities.map((c: any) => (typeof c === 'string' ? c : c.name)) : []);
       setDependentCity("");
     }
   }, [dependentProvince, dependentRegion, phLocationsData]);
