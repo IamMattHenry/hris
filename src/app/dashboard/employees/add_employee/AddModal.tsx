@@ -460,6 +460,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       const result = await positionApi.getAll(deptId);
       if (result.success && result.data) {
         setPositions(result.data);
+        console.log(result.data);
       }
     } catch (error) {
       console.error("Error fetching positions:", error);
@@ -1129,7 +1130,11 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                           ? "Select Position"
                           : "Select Department First"}
                       </option>
-                     
+                      {positions.map((pos) => (
+                        <option key={pos.position_id} value={pos.position_id}>
+                          {pos.position_name}
+                        </option>
+                      ))}
                     </select>
                     {errors.position && <p className="text-red-500 text-xs mt-1">{errors.position}</p>}
                   </div>
@@ -1553,7 +1558,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
               </motion.div>
             )}
 
-            {step === 4 && (
+            {step === 5 && (
               <motion.div
                 key="step4"
                 initial={{ opacity: 0, x: 40 }}
@@ -1617,6 +1622,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
               </motion.div>
             )}
 
+{/*}
             {step === 5 && (
               <motion.div
                 key="step5"
@@ -1660,12 +1666,14 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                   </div>
                 </div>
               </motion.div>
-            )}
+            )} */}
           </AnimatePresence>
         </div>
           
 
         {/* Footer Section - Progress Bar and Buttons */}
+
+
         <div className="border-t border-[#e6d2b5] p-8 mt-4r bg-[#f9ecd7] rounded-b-2xl">
           {/* Progress Bar (Clickable) */}
           <div className="flex justify-between items-center w-3/4 mx-auto mb-6">
