@@ -43,7 +43,6 @@ export const validateStep2 = (
   departmentId: number | null,
   positionId: number | null,
   hireDate: string,
-  shift: string,
   salary: string
 ): ValidationErrors => {
   const errors: ValidationErrors = {};
@@ -71,7 +70,7 @@ export const validateStep2 = (
     }
   }
 
-  if (!shift) errors.shift = "Shift is required";
+  // shift removed from step2 validation
 
   return errors;
 };

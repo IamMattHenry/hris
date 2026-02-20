@@ -77,7 +77,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [employmentType, setEmploymentType] = useState("");
   const [supervisorId, setSupervisorId] = useState<number | null>(null);
   const [hireDate, setHireDate] = useState("");
-  const [shift, setShift] = useState("");
+  // shift removed - do not track in UI
   const [salaryDisplay, setSalaryDisplay] = useState("");
   const [email, setEmail] = useState("");
   const [contactNumber, setContactNumber] = useState("");
@@ -691,7 +691,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
     // Step 2 - Job Info
     if (step === 2) {
-      newErrors = validateStep2(departmentId, positionId, hireDate, shift, salary);
+      newErrors = validateStep2(departmentId, positionId, hireDate, salary);
     }
 
     // Step 3 - Contact Info & Dependents
