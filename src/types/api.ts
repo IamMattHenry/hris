@@ -80,7 +80,6 @@ export interface Employee {
   province_city?: string;
   position_id?: number;
   department_id?: number;
-  shift?: 'morning' | 'night';
   salary?: number;
   hire_date: string;
   status: 'active' | 'resigned' | 'terminated' | 'on-leave';
@@ -137,7 +136,6 @@ export interface CreateEmployeeRequest {
   civil_status?: 'single' | 'married' | 'divorced' | 'widowed';
   position_id?: number;
   department_id?: number;
-  shift?: 'morning' | 'night';
   salary?: number;
   hire_date: string;
   leave_credit?: number;
@@ -196,7 +194,6 @@ export interface Department {
  */
 export interface Position {
   position_id: number;
-  position_name: string;
   position_code: string;
   position_desc?: string;
   department_id: number;

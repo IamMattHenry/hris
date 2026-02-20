@@ -169,7 +169,6 @@ export const validateEmployeeForm = (
   extensionName: string,
   departmentId: number | null,
   positionId: number | null,
-  shift: string,
   employmentStatus: string,
   homeAddress: string,
   barangay: string,
@@ -200,9 +199,7 @@ export const validateEmployeeForm = (
     errors.position = "Position is required";
   }
 
-  if (!shift) {
-    errors.shift = "Shift is required";
-  }
+  // shift removed from validation
 
   if (!employmentStatus) {
     errors.employmentStatus = "Employment status is required";

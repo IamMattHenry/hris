@@ -56,7 +56,6 @@ interface EmployeeData {
   emails?: ContactEmail[];
   contact_numbers?: ContactNumber[];
   dependents?: Dependent[];
-  shift: string;
   sub_role?: string;
   status: string;
   image_url?: string;
@@ -219,7 +218,6 @@ export default function ViewEmployeeModal({
                   <div className="text-left space-y-1">
                     <p className="text-sm text-[#8b7355]">Job Title: <span className="text-[#3b2b1c] font-medium">{employee.position_name}</span></p>
                     <p className="text-sm text-[#8b7355]">Department: <span className="text-[#3b2b1c] font-medium">{employee.department_name}</span></p>
-                    <p className="text-sm text-[#8b7355]">Shift: <span className="text-[#3b2b1c] font-medium">{capitalizeFirstChar(employee.shift)}</span></p>
                   </div>
                 </div>
 
@@ -285,9 +283,8 @@ export default function ViewEmployeeModal({
 
                 {activeTab === "job" && (
                   <div className="space-y-6">
-                    <div className="grid grid-cols-3 gap-4">
+                      <div className="grid grid-cols-3 gap-4">
                       <InfoBox label="Hired Date" value={formatDate(employee.hire_date)} />
-                      <InfoBox label="Shift" value={capitalizeFirstChar(employee.shift) || "N/A"} />
                       <InfoBox label="Department" value={employee.department_name || "N/A"} />
                       <InfoBox label="Position" value={employee.position_name || "N/A"} />
                       <InfoBox label="Leave Credits (Remaining)" value={(employee.leave_credit ?? 0).toString()} />
@@ -342,8 +339,7 @@ export default function ViewEmployeeModal({
                               first_name: employee.first_name,
                               last_name: employee.last_name,
                               position_name: employee.position_name || "N/A",
-                              shift: employee.shift || "N/A",
-                              schedule_time: employee.shift === "morning" ? "08:00" : "17:00",
+                              schedule_time: "08:00",
                             }}
                             size={200}
                           />
@@ -357,12 +353,11 @@ export default function ViewEmployeeModal({
                           </p>
                           <div className="text-xs text-[#8b7355] bg-[#fff7ec] p-3 rounded-md border border-[#d4c5b9]">
                             <p className="font-semibold mb-1">QR Code Data:</p>
-                            <ul className="list-disc list-inside space-y-1">
+                              <ul className="list-disc list-inside space-y-1">
                               <li>Employee ID: {employee.employee_id}</li>
                               <li>Employee Code: {employee.employee_code}</li>
                               <li>Name: {employee.first_name} {employee.last_name}</li>
                               <li>Position: {employee.position_name || "N/A"}</li>
-                              <li>Shift: {employee.shift || "N/A"}</li>
                             </ul>
                           </div>
                         </div>

@@ -108,7 +108,6 @@ interface EmployeeData {
   region: string;
   department_id: number;
   position_id: number;
-  shift: string;
   email: string;
   civil_status?: string;
   supervisor_id?: number;
@@ -155,7 +154,7 @@ export default function EditEmployeeModal({
   const [departmentId, setDepartmentId] = useState<number | null>(null);
   const [positionId, setPositionId] = useState<number | null>(null);
   const [supervisorId, setSupervisorId] = useState<number | null>(null);
-  const [shift, setShift] = useState("");
+  // shift removed - field no longer exists
   const [employmentType, setEmploymentType] = useState<string | null>(null);
   const [salaryDisplay, setSalaryDisplay] = useState<string>("");
   const [homeAddress, setHomeAddress] = useState("");
@@ -694,7 +693,6 @@ useEffect(() => {
       extensionName,
       departmentId,
       positionId,
-      shift,
       employmentStatus,
       homeAddress,
       barangay,

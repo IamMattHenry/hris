@@ -19,7 +19,6 @@ type FormattedData = {
     civilStatus: string;
     status: string;
     hireDate: string;
-    shift: string;
     leaveCredit: number;
     address: { region: string; province: string; city: string; homeAddress: string };
     contacts: ContactItem[];
@@ -60,7 +59,7 @@ const mockEmployeeData = {
         civilStatus: 'Married',
         status: 'Active',
         hireDate: '2020-01-15',
-        shift: 'Morning',
+        // shift removed
         leaveCredit: 15,
         address: {
             region: 'NCR',
@@ -189,7 +188,7 @@ const Profile = () => {
             civilStatus: userData.civil_status ? userData.civil_status.charAt(0).toUpperCase() + userData.civil_status.slice(1) : "",
             status: userData.status ? userData.status.charAt(0).toUpperCase() + userData.status.slice(1) : "",
             hireDate: userData.hire_date || "",
-            shift: userData.shift ? userData.shift.charAt(0).toUpperCase() + userData.shift.slice(1) : "",
+            // shift removed (DB column no longer present)
             leaveCredit: userData.leave_credit || 0,
             address: {
                 region: userData.region || "",
@@ -298,12 +297,7 @@ const Profile = () => {
                                                 {formattedData.personal.employeeCode}
                                             </span>
                                         </div>
-                                        <div>
-                                            <span className="text-gray-500">Shift:</span>{" "}
-                                            <span className="font-medium">
-                                                {formattedData.personal.shift}
-                                            </span>
-                                        </div>
+                                        {/* Shift removed per schema change */}
                                         <div>
                                             <span className="text-gray-500">Status:</span>{" "}
                                             <span className="inline-block px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">

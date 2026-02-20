@@ -230,24 +230,11 @@ export default function Dashboard() {
               <hr className="border-gray-300 my-2" />
 
               <div className="flex items-center justify-center gap-4 mt-4">
-                {currentEmployee?.shift && (
-                  <Image
-                    src={currentEmployee.shift === "morning" ? "/assets/morning.png" : "/assets/night.png"}
-                    alt={`${currentEmployee.shift} shift`}
-                    width={60}
-                    height={60}
-                    className="object-contain"
-                  />
-                )}
                 <div className="text-center">
                   <p className="text-lg font-semibold text-[#8B1A1A] capitalize">
-                    {currentEmployee?.shift + " Shift" || "Not Assigned"}
+                    Shift information unavailable
                   </p>
-                  {currentEmployee?.shift && (
-                    <p className="text-sm text-gray-500 mt-1">
-                      {currentEmployee.shift === "morning" ? "8:00 AM - 5:00 PM" : "5:00 PM - 8:00 AM"}
-                    </p>
-                  )}
+                  <p className="text-sm text-gray-500 mt-1">Shift data has been removed from the system</p>
                 </div>
               </div>
             </div>
