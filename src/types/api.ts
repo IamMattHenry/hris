@@ -201,7 +201,9 @@ export interface Position {
   position_desc?: string;
   department_id: number;
   department_name?: string;
-  salary?: number;
+  default_salary?: number;
+  employment_type?: 'regular' | 'probationary';
+  salary_unit?: 'monthly' | 'hourly';
   availability?: number;
   created_at: string;
   updated_at: string;

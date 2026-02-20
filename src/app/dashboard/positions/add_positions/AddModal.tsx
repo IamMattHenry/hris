@@ -19,11 +19,14 @@ export default function AddJobModal({ isOpen, onClose }: AddJobModalProps) {
     const [department, setDepartment] = useState("");
     const [departments, setDepartments] = useState<any[]>([]);
     const [availability, setAvailability] = useState("0");
+    const [employmentType, setEmploymentType] = useState("regular");
+    const [defaultSalary, setDefaultSalary] = useState("");
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState({
         jobTitle: "",
         jobDescription: "",
         department: "",
+        defaultSalary: "",
     });
 
     // Fetch departments on mount
@@ -85,6 +88,12 @@ export default function AddJobModal({ isOpen, onClose }: AddJobModalProps) {
             valid = false;
         }
 
+        // Default salary
+        if (!defaultSalary || isNaN(Number(defaultSalary))) {
+            newErrors.defaultSalary = "Default salary is required and must be a number.";
+            valid = false;
+        }
+
         setErrors(newErrors);
         return valid;
     };
@@ -99,6 +108,9 @@ export default function AddJobModal({ isOpen, onClose }: AddJobModalProps) {
             position_desc: jobDescription || undefined,
             department_id: parseInt(department),
             availability: parseInt(availability),
+            employment_type: employmentType,
+            default_salary: Number(defaultSalary),
+            salary_unit: employmentType === 'regular' ? 'monthly' : 'hourly',
         });
 
         setLoading(false);
@@ -166,6 +178,32 @@ export default function AddJobModal({ isOpen, onClose }: AddJobModalProps) {
                                         {errors.jobDescription}
                                     </p>
                                 )}
+                            </div>
+
+                            {/* Employment Type & Default Salary */}
+                            <div className="flex gap-3">
+                                <div className="w-1/2">
+                                    <label className="block text-sm font-medium text-[#3b2b1c] mb-1">Employment Type</label>
+                                    <select
+                                        value={employmentType}
+                                        onChange={(e) => setEmploymentType(e.target.value)}
+                                        className="w-full p-2 border rounded-lg focus:outline-none border-[#d6c3aa] focus:ring-2 focus:ring-[#3b2b1c]"
+                                    >
+                                        <option value="regular">Regular</option>
+                                        <option value="probationary">Probationary</option>
+                                    </select>
+                                </div>
+
+                                <div className="w-1/2">
+                                    <FormInput
+                                        type="number"
+                                        label={`Default Salary (${employmentType === 'regular' ? 'per month' : 'per hour'})`}
+                                        placeholder="Enter default salary"
+                                        value={defaultSalary}
+                                        onChange={(e) => setDefaultSalary(e.target.value)}
+                                        error={errors.defaultSalary}
+                                    />
+                                </div>
                             </div>
 
                             {/* Department */}

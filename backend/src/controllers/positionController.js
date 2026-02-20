@@ -97,7 +97,15 @@ export const getTotalPosAvailability = async (req, res, next) => {
 
 export const createPosition = async (req, res, next) => {
   try {
-    const { position_name, position_desc, department_id, availability } = req.body;
+    const {
+      position_name,
+      position_desc,
+      department_id,
+      availability,
+      employment_type,
+      default_salary,
+      salary_unit,
+    } = req.body;
 
     // Validate required fields
     if (!position_name || !department_id) {
@@ -106,6 +114,26 @@ export const createPosition = async (req, res, next) => {
         message: "Position name and department are required",
       });
     }
+
+    // Validate employment_type and salary
+    const validTypes = ["regular", "probationary"];
+    if (!employment_type || !validTypes.includes(employment_type)) {
+      return res.status(400).json({
+        success: false,
+        message: "employment_type is required and must be 'regular' or 'probationary'",
+      });
+    }
+
+    if (default_salary == null || isNaN(Number(default_salary))) {
+      return res.status(400).json({
+        success: false,
+        message: "default_salary is required and must be a number",
+      });
+    }
+
+    // Derive salary_unit from employment_type to avoid inconsistent input
+    const derivedUnit = employment_type === "regular" ? "monthly" : "hourly";
+
 
     // Prevent admin from creating positions for other departments
     const createdBy = req.user?.user_id;
@@ -132,6 +160,9 @@ export const createPosition = async (req, res, next) => {
       position_desc,
       department_id,
       availability: availability || 0,
+      employment_type,
+      default_salary: Number(default_salary),
+      salary_unit: derivedUnit,
       created_by: createdBy,
     });
 
@@ -171,6 +202,9 @@ export const createPosition = async (req, res, next) => {
         position_desc,
         department_id,
         availability,
+        employment_type,
+        default_salary: Number(default_salary),
+        salary_unit: derivedUnit,
       },
     });
   } catch (error) {
@@ -199,6 +233,31 @@ export const updatePosition = async (req, res, next) => {
     // Prevent updating the code
     if (updates.position_code) {
       delete updates.position_code;
+    }
+
+    // If employment_type is being updated, validate and derive salary_unit
+    if (updates.employment_type) {
+      const validTypes = ["regular", "probationary"];
+      if (!validTypes.includes(updates.employment_type)) {
+        return res.status(400).json({
+          success: false,
+          message: "employment_type must be 'regular' or 'probationary'",
+        });
+      }
+
+      updates.salary_unit =
+        updates.employment_type === "regular" ? "monthly" : "hourly";
+    }
+
+    // If default_salary provided, ensure it's numeric
+    if (updates.default_salary != null) {
+      if (isNaN(Number(updates.default_salary))) {
+        return res.status(400).json({
+          success: false,
+          message: "default_salary must be a number",
+        });
+      }
+      updates.default_salary = Number(updates.default_salary);
     }
 
     // Restrict admins to their own department

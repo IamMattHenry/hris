@@ -156,6 +156,8 @@ export default function EditEmployeeModal({
   const [positionId, setPositionId] = useState<number | null>(null);
   const [supervisorId, setSupervisorId] = useState<number | null>(null);
   const [shift, setShift] = useState("");
+  const [employmentType, setEmploymentType] = useState<string | null>(null);
+  const [salaryDisplay, setSalaryDisplay] = useState<string>("");
   const [homeAddress, setHomeAddress] = useState("");
   const [barangay, setBarangay] = useState("");
   const [city, setCity] = useState("");
@@ -235,10 +237,17 @@ const [cityCode, setCityCode] = useState("");
         setExtensionName(res.data.extension_name || "");
         setDepartmentId(res.data.department_id);
         setPositionId(res.data.position_id);
-        setSupervisorId(res.data.supervisor_id || null);
-  setShift(formatShiftForDisplay(res.data.shift));
-  // Salary (as stored) - keep as string for editing (treated as per-hour value)
-  setSalary(res.data.salary !== undefined && res.data.salary !== null ? String(res.data.salary) : "");
+          setSupervisorId(res.data.supervisor_id || null);
+          // shift removed - keep existing state untouched
+
+          // Salary and employment type: prefer canonical fields if present
+          const empType = (res.data.employment_type) ? res.data.employment_type : (res.data.monthly_salary ? 'regular' : (res.data.hourly_rate ? 'probationary' : null));
+          setEmploymentType(empType);
+
+          const cs = res.data.current_salary ?? res.data.monthly_salary ?? res.data.hourly_rate ?? res.data.salary;
+          setSalary(cs !== undefined && cs !== null ? String(cs) : "");
+          const unit = res.data.salary_unit || (empType === 'regular' ? 'monthly' : 'hourly');
+          setSalaryDisplay(cs ? `${cs} / ${unit === 'monthly' ? 'month' : 'hr'}` : "");
         setHomeAddress(res.data.home_address || "");
         setBarangay(res.data.barangay || ""); 
         setCity(res.data.city || "");
@@ -331,6 +340,23 @@ const [cityCode, setCityCode] = useState("");
       setSupervisors([]);
     }
   }, [departmentId]);
+
+  // Auto-populate salary and employment type when position changes
+  useEffect(() => {
+    if (positionId && positions.length > 0) {
+      const selected = positions.find((p) => p.position_id === positionId);
+      if (selected) {
+        const def = (selected as any).default_salary;
+        const unit = (selected as any).salary_unit || (((selected as any).employment_type === 'regular') ? 'monthly' : 'hourly');
+        const empType = (selected as any).employment_type || (unit === 'monthly' ? 'regular' : 'probationary');
+        if (def != null) {
+          setSalary(String(def));
+          setSalaryDisplay(`${def} / ${unit === 'monthly' ? 'month' : 'hr'}`);
+        }
+        setEmploymentType(empType);
+      }
+    }
+  }, [positionId, positions]);
 
   const fetchDepartments = async () => {
     try {
@@ -715,7 +741,7 @@ useEffect(() => {
         department_id: departmentId,
         position_id: positionId,
         supervisor_id: supervisorId || null,
-        shift: shift ? shift.toLowerCase() : null,
+        // shift removed intentionally
         home_address: homeAddress,
         barangay: barangay,
         city: city,
@@ -729,11 +755,27 @@ useEffect(() => {
         dependents: dependents,
       };
 
-      // Include salary if provided
+      // Include salary and employment type if provided
+      let numericSalary: number | null = null;
       if (salary !== undefined && salary !== null && String(salary).trim() !== "") {
-        const numeric = Number(String(salary).replace(/,/g, ""));
-        if (!Number.isNaN(numeric)) {
-          updatedData.salary = numeric;
+        numericSalary = Number(String(salary).replace(/,/g, ""));
+        if (!Number.isNaN(numericSalary)) {
+          updatedData.current_salary = numericSalary;
+        } else {
+          numericSalary = null;
+        }
+      }
+
+      if (employmentType) {
+        updatedData.employment_type = employmentType.toLowerCase();
+        if (numericSalary != null) {
+          if (employmentType.toLowerCase() === 'regular') {
+            updatedData.monthly_salary = numericSalary;
+            updatedData.salary_unit = 'monthly';
+          } else {
+            updatedData.hourly_rate = numericSalary;
+            updatedData.salary_unit = 'hourly';
+          }
         }
       }
 
@@ -995,13 +1037,16 @@ useEffect(() => {
                       </p>
                     </div>
 
-                    <FormSelect
-                      label="Shift"
-                      value={shift}
-                      onChange={(e) => setShift(e.target.value)}
-                      options={["Morning", "Night"]}
-                      error={errors.shift}
-                    />
+                    {/* Shift input removed per request */}
+
+                    {salaryDisplay && (
+                      <div className="md:col-span-3 mt-2">
+                        <div className="text-sm text-[#3b2b1c]">Salary Preview:</div>
+                        <div className="mt-1 inline-block px-3 py-2 bg-white border rounded-lg text-[#3b2b1c] font-semibold">
+                          {salaryDisplay}
+                        </div>
+                      </div>
+                    )}
 
                     <FormSelect
                       label="Employment Status"

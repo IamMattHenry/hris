@@ -423,11 +423,16 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   // Auto-populate salary when position is selected
   useEffect(() => {
     if (positionId && positions.length > 0) {
-      const selectedPosition = positions.find(
-        (p) => p.position_id === positionId
-      );
-      if (selectedPosition && selectedPosition.salary) {
-        setSalary(selectedPosition.salary.toString());
+      const selectedPosition = positions.find((p) => p.position_id === positionId);
+      if (selectedPosition) {
+        const def = (selectedPosition as any).default_salary;
+        const unit = (selectedPosition as any).salary_unit || ((selectedPosition as any).employment_type === 'regular' ? 'monthly' : 'hourly');
+        const empType = (selectedPosition as any).employment_type || (unit === 'monthly' ? 'regular' : 'probationary');
+        if (def != null) {
+          setSalary(String(def));
+          setSalaryDisplay(`${def} / ${unit === 'monthly' ? 'month' : 'hr'}`);
+        }
+        setEmploymentType(empType);
       }
     }
   }, [positionId, positions]);
@@ -781,9 +786,12 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         position_id: positionId,
         department_id: departmentId,
         salary: salary ? parseFloat(salary) : null,
+        employment_type: employmentType ? employmentType.toLowerCase() : undefined,
+        monthly_salary: employmentType && employmentType.toLowerCase() === 'regular' ? (salary ? parseFloat(salary) : null) : undefined,
+        hourly_rate: employmentType && employmentType.toLowerCase() !== 'regular' ? (salary ? parseFloat(salary) : null) : undefined,
         leave_credit: leaveCredit ? parseInt(leaveCredit) : 15,
         supervisor_id: supervisorId || null,
-        shift: shift ? shift.toLowerCase() : null,
+        // shift removed intentionally
         hire_date: hireDate,
         email: email,
         contact_number: contactNumber ? contactNumber.replace(/\s/g, "") : null,
@@ -1135,15 +1143,25 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                     </div>
                   </div>
 
+                  {/* Salary preview (read-only) */}
+                  {salaryDisplay && (
+                    <div className="md:col-span-3 mt-2">
+                      <div className="text-sm text-[#3b2b1c]">Salary Preview:</div>
+                      <div className="mt-1 inline-block px-3 py-2 bg-white border rounded-lg text-[#3b2b1c] font-semibold">
+                        {salaryDisplay}
+                      </div>
+                    </div>
+                  )}
+
                   <FormInput label="Hire Date:" type="date" max={today} value={hireDate} onChange={(e) => setHireDate(e.target.value)} error={errors.hireDate} />
-                  <FormSelect label="Shift:" value={shift} onChange={(e) => setShift(e.target.value)} options={["Morning", "Night"]} error={errors.shift} />
+                  {/* Shift input removed per request */}
             
                   <FormSelect label="Employment Type: " value={employmentType} onChange={(e) => setEmploymentType(e.target.value)} options={[
-                    { label: "Full Time", value: "FULL_TIME" },
-                    { label: "Part Time", value: "PART_TIME" }
+                    { label: "Regular", value: "Regular" },
+                    { label: "Probationary", value: "Probationary" }
                   ]} error={errors.employmentType} />
 
-                  {employmentType === "PART_TIME" && (
+                  {employmentType && employmentType.toLowerCase() === "probationary" && (
                     <div>
                       <label className="block text-[#3b2b1c] mb-1">
                         Salary (Hourly Rate):

@@ -271,6 +271,8 @@ export default function PositionTable() {
                   <th className="py-4 px-4 text-left">Job ID</th>
                    <th className="py-4 px-4 text-left">Job Position</th>
                   <th className="py-4 px-4 text-left">Department</th>
+                  <th className="py-4 px-4 text-left">Employment Type</th>
+                  <th className="py-4 px-4 text-left">Default Salary</th>
                   <th className="py-4 px-4 text-left">Availability</th>
                   <th className="py-4 px-4 text-left">Total Assigned</th>
                   <th className="py-4 px-4 text-center">Actions</th>
@@ -286,6 +288,8 @@ export default function PositionTable() {
                     <td className="py-4 px-4">{pos.position_code || `POS-${String(pos.position_id).padStart(4, '0')}`}</td>
                     <td className="py-4 px-4">{pos.position_name}</td>
                     <td className="py-4 px-4">{pos.department_name || 'N/A'}</td>
+                    <td className="py-4 px-4">{(pos as any).employment_type || 'N/A'}</td>
+                    <td className="py-4 px-4">{((pos as any).default_salary != null) ? `${(pos as any).default_salary} / ${((pos as any).salary_unit) || 'month'}` : 'N/A'}</td>
                     <td className="py-4 px-4">{pos.availability > 0 ? 'Yes' : 'No'}</td>
                     <td className="py-4 px-4">{pos.availability || 0}</td>
 

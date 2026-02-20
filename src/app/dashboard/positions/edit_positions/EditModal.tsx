@@ -26,6 +26,8 @@ export default function EditJobModal({ isOpen, onClose, position, onSave }: Edit
   const [description, setDescription] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [availability, setAvailability] = useState("0");
+  const [employmentType, setEmploymentType] = useState("regular");
+  const [defaultSalary, setDefaultSalary] = useState("");
 
   const [departments, setDepartments] = useState<any[]>([]);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -43,6 +45,8 @@ export default function EditJobModal({ isOpen, onClose, position, onSave }: Edit
       setDescription(position.position_desc || "");
       setDepartmentId(position.department_id.toString());
       setAvailability(position.availability?.toString() || "0");
+      setEmploymentType((position as any).employment_type || 'regular');
+      setDefaultSalary(((position as any).default_salary != null) ? String((position as any).default_salary) : '');
     }
   }, [position]);
 
@@ -72,6 +76,9 @@ export default function EditJobModal({ isOpen, onClose, position, onSave }: Edit
       position_desc: description || undefined,
       department_id: parseInt(departmentId),
       availability: parseInt(availability),
+      employment_type: employmentType,
+      default_salary: defaultSalary ? Number(defaultSalary) : undefined,
+      salary_unit: employmentType === 'regular' ? 'monthly' : 'hourly',
     });
 
     setLoading(false);
@@ -163,6 +170,31 @@ export default function EditJobModal({ isOpen, onClose, position, onSave }: Edit
                   placeholder="Enter number of available slots"
                   className="w-full p-2 border border-[#d6c3aa] rounded-lg focus:outline-none"
                 />
+              </div>
+
+              <div className="flex gap-3">
+                <div className="w-1/2">
+                  <label className="block text-sm font-medium">Employment Type</label>
+                  <select
+                    value={employmentType}
+                    onChange={(e) => setEmploymentType(e.target.value)}
+                    className="w-full p-2 border rounded-lg focus:outline-none border-[#d6c3aa]"
+                  >
+                    <option value="regular">Regular</option>
+                    <option value="probationary">Probationary</option>
+                  </select>
+                </div>
+
+                <div className="w-1/2">
+                  <label className="block text-sm font-medium">Default Salary ({employmentType === 'regular' ? 'per month' : 'per hour'})</label>
+                  <input
+                    type="number"
+                    value={defaultSalary}
+                    onChange={(e) => setDefaultSalary(e.target.value)}
+                    className="w-full p-2 border border-[#d6c3aa] rounded-lg focus:outline-none"
+                    placeholder="Enter default salary"
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end mt-6">

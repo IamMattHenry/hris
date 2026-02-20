@@ -514,14 +514,52 @@ export const createEmployee = async (req, res, next) => {
       // Normalize and validate employment type
       const normalizedEmploymentType = (typeof employment_type === 'string' && employment_type.trim()) ? employment_type.trim().toLowerCase() : null;
       const allowedTypes = ['regular', 'probationary'];
-      const finalEmploymentType = allowedTypes.includes(normalizedEmploymentType) ? normalizedEmploymentType : 'probationary';
+      let finalEmploymentType = allowedTypes.includes(normalizedEmploymentType) ? normalizedEmploymentType : 'probationary';
 
-      // Parse numeric salary/rate values
-      const finalMonthlySalary = monthly_salary !== undefined && monthly_salary !== null ? Number(monthly_salary) : (salary !== undefined ? Number(salary) : 0);
-      const finalHourlyRate = hourly_rate !== undefined && hourly_rate !== null ? Number(hourly_rate) : 0;
+      // Parse numeric salary/rate values from request as fallback
+      const reqMonthlySalary = monthly_salary !== undefined && monthly_salary !== null ? Number(monthly_salary) : (salary !== undefined ? Number(salary) : null);
+      const reqHourlyRate = hourly_rate !== undefined && hourly_rate !== null ? Number(hourly_rate) : null;
 
       // probation_end_date should be either null or a valid date string (YYYY-MM-DD)
       const finalProbationEndDate = probation_end_date ? probation_end_date : null;
+
+      // If position_id is provided, prefer position defaults for salary and employment type
+      let finalCurrentSalary = null;
+      let finalSalaryUnit = null;
+      if (position_id) {
+        try {
+          const pos = await db.transactionQuery(
+            "SELECT default_salary, salary_unit, employment_type FROM job_positions WHERE position_id = ?",
+            [position_id]
+          );
+
+          if (pos && pos.length > 0) {
+            const p = pos[0];
+            if (p.default_salary != null) {
+              finalCurrentSalary = Number(p.default_salary);
+            }
+            if (p.salary_unit) finalSalaryUnit = p.salary_unit;
+            if (p.employment_type) finalEmploymentType = p.employment_type;
+          }
+        } catch (posErr) {
+          logger.error('Failed to read position defaults:', posErr);
+        }
+      }
+
+      // Fallback to request-provided values if position defaults not available
+      if (finalCurrentSalary == null) {
+        if (finalEmploymentType === 'regular') {
+          finalCurrentSalary = reqMonthlySalary != null ? Number(reqMonthlySalary) : 0;
+          finalSalaryUnit = finalSalaryUnit || 'monthly';
+        } else {
+          finalCurrentSalary = reqHourlyRate != null ? Number(reqHourlyRate) : 0;
+          finalSalaryUnit = finalSalaryUnit || 'hourly';
+        }
+      }
+
+      // Ensure numeric defaults
+      finalCurrentSalary = finalCurrentSalary != null ? Number(finalCurrentSalary) : 0;
+      finalSalaryUnit = finalSalaryUnit || (finalEmploymentType === 'regular' ? 'monthly' : 'hourly');
 
       // Insert employee without code first
       const tempEmployeeId = await db.transactionInsert("employees", {
@@ -540,9 +578,11 @@ export const createEmployee = async (req, res, next) => {
         department_id,
         leave_credit,
         supervisor_id,
-        salary: finalMonthlySalary,
-        monthly_salary: finalMonthlySalary,
-        hourly_rate: finalHourlyRate,
+        salary: finalEmploymentType === 'regular' ? finalCurrentSalary : null,
+        monthly_salary: finalEmploymentType === 'regular' ? finalCurrentSalary : null,
+        hourly_rate: finalEmploymentType === 'probationary' ? finalCurrentSalary : null,
+        current_salary: finalCurrentSalary,
+        salary_unit: finalSalaryUnit,
         employment_type: finalEmploymentType,
         probation_end_date: finalProbationEndDate,
         fingerprint_id: fingerprintIdValue,
@@ -671,6 +711,23 @@ export const createEmployee = async (req, res, next) => {
 
       // Commit transaction
       await db.commit();
+
+      // Insert initial salary_history row for this new employee (best-effort, non-fatal)
+      try {
+        if (typeof finalCurrentSalary !== 'undefined' && finalCurrentSalary != null && finalCurrentSalary > 0) {
+          await db.insert('salary_history', {
+            employee_id: employeeId,
+            old_salary: null,
+            new_salary: finalCurrentSalary,
+            salary_unit: finalSalaryUnit,
+            changed_by: created_by || userId,
+            reason: 'initial-hire',
+            effective_at: new Date(),
+          });
+        }
+      } catch (histErr) {
+        logger.error('Failed to insert salary_history for new employee:', histErr);
+      }
 
       logger.info(
         `Employee created: ${employeeCode} (ID: ${employeeId}, User: ${username})`

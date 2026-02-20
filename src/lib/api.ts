@@ -586,7 +586,9 @@ export const positionApi = {
     position_name: string;
     position_desc?: string;
     department_id: number;
-    salary?: number;
+    default_salary?: number;
+    employment_type?: 'regular' | 'probationary';
+    salary_unit?: 'monthly' | 'hourly';
     availability?: number;
   }) => {
     return apiCall<any>('/positions', {
