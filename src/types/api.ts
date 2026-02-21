@@ -195,6 +195,8 @@ export interface Department {
 export interface Position {
   position_id: number;
   position_code: string;
+  // Human-friendly name for the position (kept for compatibility)
+  position_name?: string;
   position_desc?: string;
   department_id: number;
   department_name?: string;

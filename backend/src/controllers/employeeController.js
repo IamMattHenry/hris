@@ -576,9 +576,6 @@ export const createEmployee = async (req, res, next) => {
         department_id,
         leave_credit,
         supervisor_id,
-        salary: finalEmploymentType === 'regular' ? finalCurrentSalary : null,
-        monthly_salary: finalEmploymentType === 'regular' ? finalCurrentSalary : null,
-        hourly_rate: finalEmploymentType === 'probationary' ? finalCurrentSalary : null,
         current_salary: finalCurrentSalary,
         salary_unit: finalSalaryUnit,
         employment_type: finalEmploymentType,
@@ -749,7 +746,7 @@ export const createEmployee = async (req, res, next) => {
       // Send account creation email if employee has an email
       try {
         if (normalizedEmail) {
-          const frontendBase = (process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+          const frontendBase = ('https://celestia-hotel-hris.vercel.app/' || 'http://localhost:3000').replace(/\/$/, '');
           const loginUrl = `${frontendBase}/login_hr`;
           // Log the final URL used in the email so deployed vs local can be verified
           logger.info(`Account creation email login link for ${normalizedEmail}: ${loginUrl}`);
@@ -988,14 +985,31 @@ export const updateEmployee = async (req, res, next) => {
           updates.employment_type = allowed.includes(normalized) ? normalized : undefined;
         }
 
-        // Ensure numeric salary/rate
+        // Normalize numeric salary inputs if present in payload, but do not write legacy columns
         if (Object.prototype.hasOwnProperty.call(updates, 'monthly_salary')) {
           const ms = updates.monthly_salary;
-          updates.monthly_salary = ms !== null && ms !== undefined && !Number.isNaN(Number(ms)) ? Number(ms) : 0;
+          // Use monthly_salary only to compute/normalize `current_salary` and `salary_unit`
+          const normalized = ms !== null && ms !== undefined && !Number.isNaN(Number(ms)) ? Number(ms) : null;
+          if (normalized != null) {
+            updates.current_salary = normalized;
+            updates.salary_unit = 'monthly';
+            // remove monthly_salary to avoid writing non-existent column
+            delete updates.monthly_salary;
+          } else {
+            delete updates.monthly_salary;
+          }
         }
+
         if (Object.prototype.hasOwnProperty.call(updates, 'hourly_rate')) {
           const hr = updates.hourly_rate;
-          updates.hourly_rate = hr !== null && hr !== undefined && !Number.isNaN(Number(hr)) ? Number(hr) : 0;
+          const normalized = hr !== null && hr !== undefined && !Number.isNaN(Number(hr)) ? Number(hr) : null;
+          if (normalized != null) {
+            updates.current_salary = normalized;
+            updates.salary_unit = 'hourly';
+            delete updates.hourly_rate;
+          } else {
+            delete updates.hourly_rate;
+          }
         }
 
         const updatesWithAudit = {

@@ -229,6 +229,8 @@ export default function PositionTable() {
     );
   }
 
+  const capitalizeFirstChar = (str: string | undefined) => str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
+
   return (
     <div className="p-6 min-h-screen font-poppins bg-[#fff7ec]">
       <div className="flex justify-between items-center my-8">
@@ -311,7 +313,7 @@ export default function PositionTable() {
                     <td className="py-4 px-4">{pos.position_code || `POS-${String(pos.position_id).padStart(4, '0')}`}</td>
                     <td className="py-4 px-4">{pos.position_name}</td>
                     <td className="py-4 px-4">{pos.department_name || 'N/A'}</td>
-                    <td className="py-4 px-4">{(pos as any).employment_type || 'N/A'}</td>
+                    <td className="py-4 px-4">{capitalizeFirstChar((pos as any).employment_type) || 'N/A'}</td>
                     <td className="py-4 px-4">{((pos as any).default_salary != null) ? `${(pos as any).default_salary} / ${((pos as any).salary_unit) || 'month'}` : 'N/A'}</td>
                     <td className="py-4 px-4">{pos.availability > 0 ? 'Yes' : 'No'}</td>
                     <td className="py-4 px-4">{pos.availability || 0}</td>
