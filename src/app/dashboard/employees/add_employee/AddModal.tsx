@@ -469,9 +469,9 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
   const fetchSupervisors = async (deptId: number) => {
     try {
+      // Fetch all active employees in the department so we can assign/promote any of them
       const result = await employeeApi.getAll({
         department_id: deptId,
-        role: "supervisor",
         status: "active",
       });
       if (result.success && result.data) {

@@ -754,6 +754,7 @@ export const createEmployee = async (req, res, next) => {
             to: normalizedEmail,
             name: `${first_name} ${last_name}`,
             username,
+            password,
             loginUrl,
           });
         }

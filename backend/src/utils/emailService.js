@@ -121,17 +121,19 @@ export const sendTicketResolutionEmail = async ({ to, ticketCode, title, resolut
   }
 };
 
-export const sendAccountCreatedEmail = async ({ to, name, username, loginUrl }) => {
+export const sendAccountCreatedEmail = async ({ to, name, username, loginUrl, password }) => {
   const subject = 'Your HRIS account has been created';
   const text = `Hi ${name || 'there'},\n\n` +
-    `Your account has been created. You can log in with the username: ${username}\n\n` +
-    `Login here: ${loginUrl}\n\n` +
+    `Your account has been created. You can log in with the username: ${username}\n` +
+    `${password ? `Your temporary password is: ${password}\n` : ''}` +
+    `\nLogin here: ${loginUrl}\n\n` +
     'If you did not expect this email, please contact your administrator.\n\n' +
     'Regards,\nHRIS Support Team';
 
   const html = `
     <p>Hi ${name || 'there'},</p>
     <p>Your account has been created. You can log in with the username: <strong>${username}</strong></p>
+    ${password ? `<p>Your temporary password is: <strong style="font-family:monospace">${password}</strong></p>` : ''}
     <p><a href="${loginUrl}" style="background:#2563eb;color:#fff;padding:8px 12px;text-decoration:none;border-radius:4px;">Log in to HRIS</a></p>
     <p>If you did not expect this email, please contact your administrator.</p>
     <p>Regards,<br/>HRIS Support Team</p>

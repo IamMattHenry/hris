@@ -12,6 +12,7 @@ import emailService from '../src/utils/emailService.js';
       to,
       name: 'Matt Henry Buenaventura',
       username: 'itadmin',
+      password: process.env.SMTP_TEST_PASSWORD || 'TempPass123!',
       loginUrl: (process.env.FRONTEND_URL || 'http://localhost:3000') + '/login_hr',
     });
     console.log('Email test completed (check logs for delivery status)');
