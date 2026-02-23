@@ -319,7 +319,7 @@ const ProfileSection = () => {
 
 
   return (
-    <div className="space-y-6 text-gray-900">
+    <div className="space-y-2 text-gray-900">
       {/* Warning Banner for users without employee record */}
       {!userData?.employee_id && (
         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
