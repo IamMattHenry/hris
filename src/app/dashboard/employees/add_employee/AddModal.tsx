@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, use } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Eye, EyeOff } from "lucide-react";
 import FormInput from "@/components/forms/FormInput";
@@ -22,7 +22,7 @@ import {
 } from "./validations";
 import { toast } from "react-hot-toast";
 
-import { b, s } from "framer-motion/client";
+import { b, em, s, u } from "framer-motion/client";
 
 interface EmployeeModalProps {
   isOpen: boolean;
@@ -78,7 +78,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [supervisorId, setSupervisorId] = useState<number | null>(null);
   const [hireDate, setHireDate] = useState("");
   // shift removed - do not track in UI
-  const [salaryDisplay, setSalaryDisplay] = useState("");
   const [email, setEmail] = useState("");
   const [contactNumber, setContactNumber] = useState("");
   const [username, setUsername] = useState("");
@@ -121,7 +120,8 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [dependentBarangays, setDependentBarangays] = useState<string[]>([]);
   const [dependentErrors, setDependentErrors] = useState<{ [key: string]: string }>({});
   const today = new Date().toISOString().split("T")[0];
-
+  const salaryDisplay =  salary && employmentType ? `${salary} per ${employmentType === "regular" ? "month" : "hour"}`: "";
+  
   const [usernameEdited, setUsernameEdited] = useState(false);
   const [passwordEdited, setPasswordEdited] = useState(false);
 
@@ -435,12 +435,38 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         const empType = (selectedPosition as any).employment_type || (unit === 'monthly' ? 'regular' : 'probationary');
         if (def != null) {
           setSalary(String(def));
-          setSalaryDisplay(`${def} / ${unit === 'monthly' ? 'month' : 'hr'}`);
+          //setSalaryDisplay(`${def} / ${unit === 'monthly' ? 'month' : 'hr'}`);
         }
         setEmploymentType(empType);
       }
     }
   }, [positionId, positions]);
+
+
+  // Auto-update when employment type change
+  useEffect(() => {
+    if (!positionId || positions.length === 0) return;
+
+    const selectedPosition = positions.find(
+      (p) => p.position_id === positionId
+    );
+
+    if (!selectedPosition) return;
+
+    const def = selectedPosition.default_salary;
+    //const unit = employmentType === "regular" ? "monthly" : "hourly";
+
+    if (def != null) {
+      setSalary(String(def));
+
+      //setSalaryDisplay(
+        //`${def} / ${unit === "monthly" ? "month" : "hr"}`
+      //);
+    }
+
+  }, [positionId, employmentType, positions]);
+
+
 
   const fetchDepartments = async () => {
     try {
@@ -588,27 +614,22 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
   // handle salary input with comma formatting
   const handleSalaryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Remove commas and non-numeric characters
-    let input = e.target.value.replace(/,/g, "").replace(/\D/g, "");
+    let value = e.target.value;
+    value = value.replace(/[^0-9.]/g, "");
 
-    if (input === "") {
+    const parts = value.split(".");
+    if (parts.length > 2) {
+      value = parts[0] + "." + parts[1];
+    }
+    if (parts[1]) {
+      value = parts[0] + "." + parts[1].slice(0, 2);
+    }
+    if (value === "") {
       setSalary("");
-      setSalaryDisplay("");
       return;
     }
-
-    // Convert to number and cap at 1,000,000
-    let numericValue = parseInt(input, 10);
-    if (numericValue > 1000000) {
-      numericValue = 1000000;
-    }
-
-    // Store the raw numeric value
+    const numericValue = Math.min(parseFloat(value), 1000000);
     setSalary(numericValue.toString());
-
-    // Format with commas for display
-    const formatted = numericValue.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-    setSalaryDisplay(formatted);
   };
 
   // handle dependent contact info with formatting (similar to contact number)
@@ -645,7 +666,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     setLeaveCredit("15");
     setSupervisorId(null);
     setHireDate("");
-    setSalaryDisplay("");
+    //setSalaryDisplay("");
     setEmail("");
     setContactNumber("");
     setDependents([]);
@@ -691,7 +712,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
     // Step 2 - Job Info
     if (step === 2) {
-      newErrors = validateStep2(departmentId, positionId, hireDate, salary);
+      newErrors = validateStep2(departmentId, positionId, hireDate, parseInt(salary));
     }
 
     // Step 3 - Contact Info & Dependents
@@ -1161,7 +1182,9 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                   <FormInput label="Hire Date:" type="date" max={today} value={hireDate} onChange={(e) => setHireDate(e.target.value)} error={errors.hireDate} />
                   {/* Shift input removed per request */}
             
-                  <FormSelect label="Employment Type: " value={employmentType} onChange={(e) => setEmploymentType(e.target.value)} options={[
+                  <FormSelect label="Employment Type: " value={employmentType} 
+                  onChange={(e) => setEmploymentType(e.target.value)} 
+                  options={[
                     { label: "Regular", value: "Regular" },
                     { label: "Probationary", value: "Probationary" }
                   ]} error={errors.employmentType} />
@@ -1176,7 +1199,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                         <span className="px-3 py-2 text-[#3b2b1c] font-semibold">₱</span>
                         <input
                           type="text"
-                          value={salaryDisplay}
+                          value={salary}
                           onChange={handleSalaryChange}
                           placeholder="0.00"
                           className="flex-1 px-3 py-2 bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14] focus:ring-inset"
@@ -1560,7 +1583,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
             {step === 5 && (
               <motion.div
-                key="step4"
+                key="step5"
                 initial={{ opacity: 0, x: 40 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -40 }}
