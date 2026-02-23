@@ -815,7 +815,7 @@ export const createEmployee = async (req, res, next) => {
       try {
         if (normalizedEmail) {
           const frontendBase = ('https://celestia-hotel-hris.vercel.app/' || 'http://localhost:3000').replace(/\/$/, '');
-          const loginUrl = `${frontendBase}/login_hr`;
+          const loginUrl = `${frontendBase}/login_employee`;
           // Log the final URL used in the email so deployed vs local can be verified
           logger.info(`Account creation email login link for ${normalizedEmail}: ${loginUrl}`);
           await emailService.sendAccountCreatedEmail({

@@ -43,7 +43,7 @@ export const validateStep2 = (
   departmentId: number | null,
   positionId: number | null,
   hireDate: string,
-  salary: string
+  salary: number
 ): ValidationErrors => {
   const errors: ValidationErrors = {};
 
@@ -69,6 +69,7 @@ export const validateStep2 = (
       errors.hireDate = "Hire date cannot be in the future";
     }
   }
+  if(salary <= 0) errors.salary = "Salary must be greater than 0";
 
   // shift removed from step2 validation
 

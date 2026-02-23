@@ -23,6 +23,7 @@ import {
 import { toast } from "react-hot-toast";
 
 import { b, s } from "framer-motion/client";
+import { Slabo_13px } from "next/font/google";
 
 interface EmployeeModalProps {
   isOpen: boolean;
@@ -50,7 +51,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [step, setStep] = useState(1);
 
   // Fingerprint enrollment
- 
+
   const [newEmployeeId, setNewEmployeeId] = useState<number | null>(null);
 
 
@@ -78,7 +79,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [supervisorId, setSupervisorId] = useState<number | null>(null);
   const [hireDate, setHireDate] = useState("");
   // shift removed - do not track in UI
-  const [salaryDisplay, setSalaryDisplay] = useState("");
+  // const [salaryDisplay, setSalaryDisplay] = useState("");
   const [email, setEmail] = useState("");
   const [contactNumber, setContactNumber] = useState("");
   const [username, setUsername] = useState("");
@@ -121,6 +122,10 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [dependentBarangays, setDependentBarangays] = useState<string[]>([]);
   const [dependentErrors, setDependentErrors] = useState<{ [key: string]: string }>({});
   const today = new Date().toISOString().split("T")[0];
+  const salaryDisplay =
+    salary && employmentType
+      ? `${salary} / ${employmentType === "regular" ? "month" : "hr"}`
+      : "";
 
   const [usernameEdited, setUsernameEdited] = useState(false);
   const [passwordEdited, setPasswordEdited] = useState(false);
@@ -143,7 +148,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     { key: "others", label: "OTHERS" }
   ] as const;
 
-  
+
   const [documents, setDocuments] = useState<Record<string, boolean>>(
     Object.fromEntries(DOCUMENTS.map(doc => [doc.key, false]))
   );
@@ -197,13 +202,13 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
 
   // Load PH locations data from JSON file
- useEffect(() => {
+  useEffect(() => {
     async function loadPhLocationsData() {
       try {
         console.log("Fetching ph_locations.json...");
         // 1. FETCH THE RAW JSON
         const res = await fetch("/data/ph_locations.json");
-        
+
         if (!res.ok) {
           throw new Error(`Failed to fetch: ${res.status}`);
         }
@@ -212,7 +217,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
         // 2. NORMALIZE THE DATA (The Critical Step)
         const processedData = rawData.map((region: any) => {
-          
+
           // A. Process standard provinces (if any)
           let finalProvinces = region.provinces.map((prov: any) => ({
             name: prov.name,
@@ -248,7 +253,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
         console.log("Data processed successfully");
         setPhLocationsData(processedData);
-        
+
         // 3. SET INITIAL REGIONS LIST
         setRegions(processedData.map((r: any) => r.name));
 
@@ -272,7 +277,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       if (selectedRegion) {
         const provinceNames = selectedRegion.provinces.map((p: any) => p.name);
         setProvinces(provinceNames);
-        setCities([]); 
+        setCities([]);
         setBarangays([]); // Reset lower levels
       }
     } else {
@@ -435,7 +440,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         const empType = (selectedPosition as any).employment_type || (unit === 'monthly' ? 'regular' : 'probationary');
         if (def != null) {
           setSalary(String(def));
-          setSalaryDisplay(`${def} / ${unit === 'monthly' ? 'month' : 'hr'}`);
+          //setSalaryDisplay(`${def} / ${unit === 'monthly' ? 'month' : 'hr'}`);
         }
         setEmploymentType(empType);
       }
@@ -516,6 +521,27 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     return mapped ? [mapped] : [];
   };
 
+
+  useEffect(() => {
+    if (!positionId || positions.length === 0) return;
+
+    const selectedPosition = positions.find(
+      (p) => p.position_id === positionId
+    );
+
+    if (!selectedPosition) return;
+
+    const def = selectedPosition.default_salary;
+    const unit =
+      selectedPosition.salary_unit ||
+      (employmentType === "regular" ? "monthly" : "hourly");
+
+    if (def != null) {
+      setSalary(String(def));
+
+    }
+  }, [positionId, employmentType, positions]);
+
   // Check if department already has a supervisor
   const checkDepartmentSupervisor = async (deptId: number) => {
     try {
@@ -593,7 +619,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
     if (input === "") {
       setSalary("");
-      setSalaryDisplay("");
+      //setSalaryDisplay("");
       return;
     }
 
@@ -608,7 +634,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
     // Format with commas for display
     const formatted = numericValue.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-    setSalaryDisplay(formatted);
+    //setSalaryDisplay(formatted);
   };
 
   // handle dependent contact info with formatting (similar to contact number)
@@ -645,7 +671,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     setLeaveCredit("15");
     setSupervisorId(null);
     setHireDate("");
-    setSalaryDisplay("");
+    //setSalaryDisplay("");
     setEmail("");
     setContactNumber("");
     setDependents([]);
@@ -666,7 +692,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     setErrors({});
     setMessage(null);
     setNewEmployeeId(null);
-  
+
   };
 
   // ─── Validation ───────────────────────────────
@@ -691,7 +717,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
     // Step 2 - Job Info
     if (step === 2) {
-      newErrors = validateStep2(departmentId, positionId, hireDate, salary);
+      newErrors = validateStep2(departmentId, positionId, hireDate, parseInt(salary));
     }
 
     // Step 3 - Contact Info & Dependents
@@ -910,11 +936,11 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
           </div>
 
 
-        {/* Form Sections 
+          {/* Form Sections 
            FIX THIS CONTENT STEPS
         */}
 
-        
+
           {/* Step Content */}
           <AnimatePresence mode="wait">
             {step === 1 && (
@@ -1162,7 +1188,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
                   <FormInput label="Hire Date:" type="date" max={today} value={hireDate} onChange={(e) => setHireDate(e.target.value)} error={errors.hireDate} />
                   {/* Shift input removed per request */}
-            
+
                   <FormSelect label="Employment Type: " value={employmentType} onChange={(e) => setEmploymentType(e.target.value)} options={[
                     { label: "Regular", value: "Regular" },
                     { label: "Probationary", value: "Probationary" }
@@ -1178,7 +1204,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                         <span className="px-3 py-2 text-[#3b2b1c] font-semibold">₱</span>
                         <input
                           type="text"
-                          value={salaryDisplay}
+                          value={salary}
                           onChange={handleSalaryChange}
                           placeholder="0.00"
                           className="flex-1 px-3 py-2 bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14] focus:ring-inset"
@@ -1624,7 +1650,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
               </motion.div>
             )}
 
-{/*}
+            {/*}
             {step === 5 && (
               <motion.div
                 key="step5"
@@ -1671,7 +1697,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
             )} */}
           </AnimatePresence>
         </div>
-          
+
 
         {/* Footer Section - Progress Bar and Buttons */}
 
