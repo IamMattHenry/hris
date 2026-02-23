@@ -96,6 +96,21 @@ interface EditEmployeeModalProps {
   id: number | null;
 }
 
+interface EmployeeDocuments {
+  document_id?: number;
+  employee_id: number;
+  sss: boolean;
+  pagIbig: boolean;
+  tin: boolean;
+  philhealth: boolean;
+  cedula: boolean;
+  birthCert: boolean;
+  policeClearance: boolean;
+  barangayClearance: boolean;
+  medicalCert: boolean;
+  others: boolean;
+}
+
 interface EmployeeData {
   employee_id: number;
   first_name: string;
@@ -115,6 +130,7 @@ interface EmployeeData {
   emails?: Array<{ email_id: number; email: string }>;
   contact_numbers?: Array<{ contact_id: number; contact_number: string }>;
   dependents?: Array<any>;
+  documents?: EmployeeDocuments;
   role?: string;
   sub_role?: string;
   user_id?: number;
@@ -189,6 +205,24 @@ export default function EditEmployeeModal({
   const [dependentProvince, setDependentProvince] = useState("");
   const [dependentCity, setDependentCity] = useState("");
   const [dependentErrors, setDependentErrors] = useState<ValidationErrors>({});
+
+  // Documents state
+  const DOCUMENTS = [
+    { key: "sss", label: "SSS" },
+    { key: "pagIbig", label: "PAG-IBIG" },
+    { key: "tin", label: "TIN ID" },
+    { key: "philhealth", label: "PHILHEALTH" },
+    { key: "cedula", label: "CEDULA" },
+    { key: "birthCert", label: "BIRTH CERTIFICATE" },
+    { key: "policeClearance", label: "POLICE CLEARANCE" },
+    { key: "barangayClearance", label: "BARANGAY CLEARANCE" },
+    { key: "medicalCert", label: "MEDICAL CERTIFICATE" },
+    { key: "others", label: "OTHERS" }
+  ] as const;
+
+  const [documents, setDocuments] = useState<Record<string, boolean>>(
+    Object.fromEntries(DOCUMENTS.map(doc => [doc.key, false]))
+  );
 
 
   // Dropdown options
@@ -303,6 +337,24 @@ const [cityCode, setCityCode] = useState("");
           setDependents(dMapped);
         } else {
           setDependents([]);
+        }
+
+        // Set documents from the fetched data
+        if (res.data.documents) {
+          setDocuments({
+            sss: res.data.documents.sss || false,
+            pagIbig: res.data.documents.pagIbig || false,
+            tin: res.data.documents.tin || false,
+            philhealth: res.data.documents.philhealth || false,
+            cedula: res.data.documents.cedula || false,
+            birthCert: res.data.documents.birthCert || false,
+            policeClearance: res.data.documents.policeClearance || false,
+            barangayClearance: res.data.documents.barangayClearance || false,
+            medicalCert: res.data.documents.medicalCert || false,
+            others: res.data.documents.others || false,
+          });
+        } else {
+          setDocuments(Object.fromEntries(DOCUMENTS.map(doc => [doc.key, false])));
         }
 
         // Set role management state
@@ -751,6 +803,7 @@ useEffect(() => {
           .map((c) => c.contact_number.replace(/\s/g, ""))
           .filter((c) => c && c.trim()),
         dependents: dependents,
+        documents: documents,
       };
 
       // Include salary and employment type if provided
@@ -874,6 +927,7 @@ useEffect(() => {
             { id: "address", label: "Address Information" },
             { id: "contact", label: "Contact Information" },
             { id: "dependent", label: "Dependent Information" },
+            { id: "documents", label: "Documents" },
             { id: "roles", label: "User Roles" },
             { id: "fingerprint", label: "Fingerprint Registration" },
           ].map((tab) => (
@@ -1545,6 +1599,60 @@ useEffect(() => {
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/*================= Documents Section ================= */}
+            {activeTab === "documents" && (
+              <div className="pt-6 mt-8">
+                <h3 className="text-[#3b2b1c] font-semibold mb-4">Document Checklist</h3>
+                <p className="text-sm text-[#6b5344] mb-6">
+                  Check the documents that have been submitted by the employee.
+                </p>
+
+                <div className="grid grid-cols-2 gap-4">
+                  {DOCUMENTS.map((doc) => (
+                    <div
+                      key={doc.key}
+                      className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all cursor-pointer ${
+                        documents[doc.key]
+                          ? "bg-green-50 border-green-300"
+                          : "bg-gray-50 border-gray-300"
+                      }`}
+                      onClick={() => setDocuments({ ...documents, [doc.key]: !documents[doc.key] })}
+                    >
+                      <input
+                        type="checkbox"
+                        id={`doc-${doc.key}`}
+                        checked={documents[doc.key]}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          setDocuments({ ...documents, [doc.key]: e.target.checked });
+                        }}
+                        className="w-5 h-5 text-green-600 bg-white border-gray-300 rounded focus:ring-green-500 focus:ring-2 cursor-pointer"
+                      />
+                      <label
+                        htmlFor={`doc-${doc.key}`}
+                        className={`font-medium cursor-pointer select-none flex-1 ${
+                          documents[doc.key] ? "text-green-700" : "text-gray-600"
+                        }`}
+                      >
+                        {doc.label}
+                      </label>
+                      {documents[doc.key] && (
+                        <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-6 p-4 bg-blue-50 border-l-4 border-blue-400 rounded">
+                  <p className="text-sm text-blue-700">
+                    <span className="font-semibold">Note:</span> These checkboxes indicate which documents have been submitted by the employee.
+                  </p>
+                </div>
               </div>
             )}
 

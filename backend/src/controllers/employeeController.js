@@ -314,10 +314,58 @@ export const getEmployeeById = async (req, res, next) => {
       [id]
     );
 
-    // Attach contact info and dependents to employee object
+    // Fetch employee documents
+    const documentsRow = await db.getOne(
+      `SELECT
+        document_id,
+        employee_id,
+        sss,
+        pag_ibig,
+        tin,
+        philhealth,
+        cedula,
+        birth_cert,
+        police_clearance,
+        barangay_clearance,
+        medical_cert,
+        others,
+        created_at,
+        updated_at,
+        created_by,
+        updated_by
+      FROM employee_documents
+      WHERE employee_id = ?`,
+      [id]
+    );
+
+    // Convert BIT values to boolean for frontend
+    let documents = null;
+    if (documentsRow) {
+      documents = {
+        document_id: documentsRow.document_id,
+        employee_id: documentsRow.employee_id,
+        sss: documentsRow.sss ? documentsRow.sss[0] === 1 : false,
+        pagIbig: documentsRow.pag_ibig ? documentsRow.pag_ibig[0] === 1 : false,
+        tin: documentsRow.tin ? documentsRow.tin[0] === 1 : false,
+        philhealth: documentsRow.philhealth ? documentsRow.philhealth[0] === 1 : false,
+        cedula: documentsRow.cedula ? documentsRow.cedula[0] === 1 : false,
+        birthCert: documentsRow.birth_cert ? documentsRow.birth_cert[0] === 1 : false,
+        policeClearance: documentsRow.police_clearance ? documentsRow.police_clearance[0] === 1 : false,
+        barangayClearance: documentsRow.barangay_clearance ? documentsRow.barangay_clearance[0] === 1 : false,
+        medicalCert: documentsRow.medical_cert ? documentsRow.medical_cert[0] === 1 : false,
+        others: documentsRow.others ? documentsRow.others[0] === 1 : false,
+        created_at: documentsRow.created_at,
+        updated_at: documentsRow.updated_at,
+        created_by: documentsRow.created_by,
+        updated_by: documentsRow.updated_by,
+      };
+    }
+
+    // Attach contact info, dependents, and documents to employee object
     employee.emails = emails;
     employee.contact_numbers = contact_numbers;
     employee.dependents = dependents;
+    employee.documents = documents;
 
     res.json({
       success: true,
@@ -363,7 +411,8 @@ export const createEmployee = async (req, res, next) => {
       monthly_salary,
       hourly_rate,
       created_by,
-      dependents
+      dependents,
+      documents
     } = req.body;
 
     const normalizedEmail = email?.trim();
@@ -704,6 +753,25 @@ export const createEmployee = async (req, res, next) => {
         }
       }
 
+      // Handle documents if provided
+      if (documents && typeof documents === 'object') {
+        await db.transactionInsert("employee_documents", {
+          employee_id: employeeId,
+          sss: documents.sss ? 1 : 0,
+          pag_ibig: documents.pagIbig ? 1 : 0,
+          tin: documents.tin ? 1 : 0,
+          philhealth: documents.philhealth ? 1 : 0,
+          cedula: documents.cedula ? 1 : 0,
+          birth_cert: documents.birthCert ? 1 : 0,
+          police_clearance: documents.policeClearance ? 1 : 0,
+          barangay_clearance: documents.barangayClearance ? 1 : 0,
+          medical_cert: documents.medicalCert ? 1 : 0,
+          others: documents.others ? 1 : 0,
+          created_by,
+        });
+        logger.info(`Documents record created for employee ${employeeCode}`);
+      }
+
       // Commit transaction
       await db.commit();
 
@@ -809,6 +877,7 @@ export const updateEmployee = async (req, res, next) => {
       emails,
       contact_numbers,
       dependents,
+      documents,
       role,
       sub_role,
       home_address,
@@ -1225,6 +1294,48 @@ export const updateEmployee = async (req, res, next) => {
           }
 
           logger.info(`Dependent created: ${dependentCode} for employee ${id}`);
+        }
+      }
+
+      // Handle documents if provided
+      if (documents && typeof documents === 'object') {
+        // Check if document record exists
+        const existingDoc = await db.transactionQuery(
+          "SELECT document_id FROM employee_documents WHERE employee_id = ?",
+          [id]
+        );
+
+        const documentData = {
+          sss: documents.sss ? 1 : 0,
+          pag_ibig: documents.pagIbig ? 1 : 0,
+          tin: documents.tin ? 1 : 0,
+          philhealth: documents.philhealth ? 1 : 0,
+          cedula: documents.cedula ? 1 : 0,
+          birth_cert: documents.birthCert ? 1 : 0,
+          police_clearance: documents.policeClearance ? 1 : 0,
+          barangay_clearance: documents.barangayClearance ? 1 : 0,
+          medical_cert: documents.medicalCert ? 1 : 0,
+          others: documents.others ? 1 : 0,
+          updated_by: updatedBy,
+        };
+
+        if (existingDoc && existingDoc.length > 0) {
+          // Update existing record
+          await db.transactionUpdate(
+            "employee_documents",
+            documentData,
+            "employee_id = ?",
+            [id]
+          );
+          logger.info(`Documents updated for employee ${id}`);
+        } else {
+          // Insert new record
+          await db.transactionInsert("employee_documents", {
+            employee_id: id,
+            ...documentData,
+            created_by: updatedBy,
+          });
+          logger.info(`Documents record created for employee ${id}`);
         }
       }
 

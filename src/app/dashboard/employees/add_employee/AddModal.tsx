@@ -805,6 +805,8 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         created_by: user?.user_id || null,
         // Dependents
         dependents: dependents,
+        // Documents
+        documents: documents,
       };
 
       // Add sub_role if admin or supervisor privilege is granted

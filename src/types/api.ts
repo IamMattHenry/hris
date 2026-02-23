@@ -59,6 +59,28 @@ export interface UserRole {
 }
 
 /**
+ * Employee Documents entity
+ */
+export interface EmployeeDocuments {
+  document_id?: number;
+  employee_id: number;
+  sss: boolean;
+  pagIbig: boolean;
+  tin: boolean;
+  philhealth: boolean;
+  cedula: boolean;
+  birthCert: boolean;
+  policeClearance: boolean;
+  barangayClearance: boolean;
+  medicalCert: boolean;
+  others: boolean;
+  created_at?: string;
+  updated_at?: string;
+  created_by?: number;
+  updated_by?: number;
+}
+
+/**
  * Employee entity
  */
 export interface Employee {
@@ -97,6 +119,7 @@ export interface Employee {
   contact_numbers?: string[];
   address?: EmployeeAddress;
   dependents?: Dependent[];
+  documents?: EmployeeDocuments;
   // Associated user info
   username?: string;
   role?: string;
