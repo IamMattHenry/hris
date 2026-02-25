@@ -53,7 +53,7 @@ export default function Sidebar() {
             </ul>
             <div className="absolute bottom-4 left-4 text-xs text-yellow-800 opacity-60 flex items-center">
                 <Image src="/logo/logo_outline.png" alt="Celestia Logo" width={48} height={48} />
-                <span className="ml-1 text-lg">© Celestia Hotel 2025</span>
+                <span className="ml-1 text-lg">© Celestia Hotel {new Date().getFullYear()}</span>
             </div>
         </aside>
     );

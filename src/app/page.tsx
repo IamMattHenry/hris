@@ -2,7 +2,6 @@ import Image from "next/image";
 import Link from "next/link";
 
 export default function Home() {
-
   return (
     <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-[#3b0a0a] to-[#1e0000] text-center text-yellow-400">
       <div className="flex flex-col items-center space-y-4">
@@ -31,7 +30,7 @@ export default function Home() {
       <div className="absolute bottom-4 left-4 text-xs text-yellow-800 opacity-60">
         <div className="flex flex-column items-center">
           <Image src="/logo/logo_outline.png" alt="Celestia Logo" width={48} height={48} />
-          <span className="ml-1 text-lg">© Celestia Hotel 2025</span>
+          <span className="ml-1 text-lg">© Celestia Hotel {new Date().getFullYear()}</span>
         </div>
       </div>
     </main>
