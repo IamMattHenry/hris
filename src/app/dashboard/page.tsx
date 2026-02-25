@@ -135,9 +135,9 @@ export default function Dashboard() {
       try {
         const role = user?.role || '';
         const actionablePromise = role === 'supervisor'
-          ? leaveApi.getByStatus('pending')
+          ? Promise.resolve({ success: true, data: [] })
           : role === 'superadmin'
-          ? leaveApi.getByStatus('supervisor_approved')
+          ? leaveApi.getByStatus('pending')
           : Promise.resolve({ success: true, data: [] });
 
         const [empResult, statsResult, attendanceResult, actionableResult] = await Promise.all([
@@ -366,7 +366,7 @@ export default function Dashboard() {
               const label = isSuperadmin
                 ? 'Pending HR Review'
                 : isSupervisor
-                ? 'Pending Supervisor Review'
+                ? 'Pending HR Review'
                 : 'Pending Requests';
               return (
                 <>

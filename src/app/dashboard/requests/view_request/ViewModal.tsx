@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import InfoBox from "@/components/forms/FormDisplay";
 
 
-type LeaveStatus = "pending" | "supervisor_approved" | "approved" | "rejected";
+type LeaveStatus = "pending" | "hr_approved" | "approved" | "rejected" | "supervisor_approved"; // include legacy
 
 interface Leave {
   leave_id: number;
@@ -30,10 +30,13 @@ interface Leave {
   approver_last_name?: string;
   approver_employee_code?: string;
   // Two-stage approval fields (optional)
+  hr_approved_by?: number | null;
   supervisor_approved_by?: number | null;
   supervisor_approved_at?: string | null;
-  supervisor_approver_first_name?: string;
-  supervisor_approver_last_name?: string;
+  hr_approver_first_name?: string;
+  hr_approver_last_name?: string;
+  supervisor_approver_first_name?: string; // legacy/final approver helper
+  supervisor_approver_last_name?: string;  // legacy/final approver helper
   hr_approved_at?: string | null;
   // Supporting documents JSON string (optional)
   supporting_docs?: string | null;
@@ -108,7 +111,9 @@ export default function ViewLeaveModal({
 
   const stageLabel =
     leave.status === 'pending'
-      ? 'Pending Supervisor Review'
+      ? 'Pending HR Review'
+      : leave.status === 'hr_approved'
+      ? 'HR Pre-Approved'
       : leave.status === 'supervisor_approved'
       ? 'Pending HR Review'
       : leave.status === 'approved'
@@ -141,18 +146,18 @@ export default function ViewLeaveModal({
           {leave.remarks && (
             <InfoBox label="Remarks" value={leave.remarks} />
           )}
-          {/* Supervisor approver info when available */}
-          {(leave.status === "supervisor_approved" || leave.status === "approved") &&
-            (leave.supervisor_approver_first_name || leave.supervisor_approver_last_name) && (
+          {/* HR pre-approver info when available */}
+          {(leave.status === "hr_approved" || leave.status === "approved") &&
+            (leave.hr_approver_first_name || leave.hr_approver_last_name) && (
             <InfoBox
-              label="Supervisor Approved By"
-              value={`${leave.supervisor_approver_first_name || ''} ${leave.supervisor_approver_last_name || ''}`.trim()}
+              label="HR Approved By"
+              value={`${leave.hr_approver_first_name || ''} ${leave.hr_approver_last_name || ''}`.trim()}
             />
           )}
-          {(leave.status === "supervisor_approved" || leave.status === "approved") && leave.supervisor_approved_at && (
-            <InfoBox label="Supervisor Approved At" value={new Date(leave.supervisor_approved_at).toLocaleString()} />
+          {(leave.status === "hr_approved" || leave.status === "approved") && leave.hr_approved_at && (
+            <InfoBox label="HR Approved At" value={new Date(leave.hr_approved_at).toLocaleString()} />
           )}
-          {/* HR approver info when available */}
+          {/* Final approver (Supervisor) info when available */}
           {leave.status === "approved" && (leave.approved_by_name || leave.approver_first_name || leave.approver_employee_code) && (
             <InfoBox
               label="Approved By"
@@ -163,9 +168,6 @@ export default function ViewLeaveModal({
                       : leave.approver_employee_code || 'N/A')
               }
             />
-          )}
-          {leave.status === "approved" && leave.hr_approved_at && (
-            <InfoBox label="HR Approved At" value={new Date(leave.hr_approved_at).toLocaleString()} />
           )}
         </div>
 
@@ -205,13 +207,15 @@ export default function ViewLeaveModal({
           </div>
         )}
 
-        {/* Stage-based actions */}
-        {leave.status === "pending" && isSupervisor && (
+        {/* Stage-based actions (reversed flow) */}
+        {leave.status === "pending" && isSuperadmin && (
           <div className="flex justify-end gap-3">
             <ActionButton label="Reject" onClick={onReject} />
             <ActionButton label="Approve" onClick={onApprove} />
           </div>
         )}
+        {/* No supervisor actions: supervisors cannot approve/reject */}
+        {/* Legacy support: HR can finalize legacy supervisor_approved */}
         {leave.status === "supervisor_approved" && isSuperadmin && (
           <div className="flex justify-end gap-3">
             <ActionButton label="Reject" onClick={onReject} />
@@ -223,13 +227,13 @@ export default function ViewLeaveModal({
         {leave.status === "pending" && isAdmin && !isSuperadmin && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
             <p className="text-sm text-yellow-800">
-              ℹ️ Only supervisors can approve or reject leave requests.
+              ℹ️ Only HR can approve or reject leave requests at this stage.
             </p>
           </div>
         )}
 
         {/* Close button when user can't act at this stage */}
-        {((leave.status === "pending" && !isSupervisor) ||
+        {((leave.status === "pending" && !isSuperadmin) ||
           (leave.status === "supervisor_approved" && !isSuperadmin) ||
           (leave.status !== "pending" && leave.status !== "supervisor_approved")) && (
           <div className="flex justify-end">

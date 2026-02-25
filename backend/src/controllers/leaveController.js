@@ -16,21 +16,26 @@ export const getLeaveRequests = async (req, res, next) => {
         jp.position_name,
         d.department_name,
         u.role AS requester_role,
-        -- Supervisor approver info (when available)
-        se.first_name AS supervisor_approver_first_name,
-        se.last_name AS supervisor_approver_last_name,
-        -- HR approver info (when available)
+        -- HR pre-approver info (when available)
+        hre.first_name AS hr_approver_first_name,
+        hre.last_name AS hr_approver_last_name,
+        -- Final approver info (approved_by)
         he.first_name AS approver_first_name,
-        he.last_name AS approver_last_name
+        he.last_name AS approver_last_name,
+        -- Supervisor info (for final stage timestamp convenience)
+        se.first_name AS supervisor_approver_first_name,
+        se.last_name AS supervisor_approver_last_name
       FROM leaves l
       LEFT JOIN employees e ON l.employee_id = e.employee_id
       LEFT JOIN users u ON e.user_id = u.user_id
       LEFT JOIN job_positions jp ON e.position_id = jp.position_id
       LEFT JOIN departments d ON e.department_id = d.department_id
-      LEFT JOIN users su ON l.supervisor_approved_by = su.user_id
-      LEFT JOIN employees se ON se.user_id = su.user_id
+      LEFT JOIN users hru ON l.hr_approved_by = hru.user_id
+      LEFT JOIN employees hre ON hre.user_id = hru.user_id
       LEFT JOIN users hu ON l.approved_by = hu.user_id
       LEFT JOIN employees he ON he.user_id = hu.user_id
+      LEFT JOIN users su ON l.supervisor_approved_by = su.user_id
+      LEFT JOIN employees se ON se.user_id = su.user_id
       WHERE 1=1
     `;
     const params = [];
@@ -382,56 +387,16 @@ export const approveLeave = async (req, res, next) => {
       [approverUserId]
     );
 
-    // Stage 1: Supervisor approval from 'pending' -> 'supervisor_approved'
-    if (approverRole === 'supervisor') {
-      if (leave.status !== 'pending') {
-        return res.status(400).json({ success: false, message: 'Only pending leave requests can be supervisor-approved' });
-      }
-      if (!approver) {
-        return res.status(403).json({ success: false, message: 'Approver is not linked to an employee record' });
-      }
-      if (approver.department_id !== leave.emp_department_id) {
-        return res.status(403).json({ success: false, message: 'Supervisors can only approve leave requests within their department' });
-      }
-      if (approver.employee_id === leave.emp_id) {
-        return res.status(403).json({ success: false, message: 'You cannot approve your own leave request' });
-      }
-
-      await db.update(
-        'leaves',
-        {
-          status: 'supervisor_approved',
-          supervisor_approved_by: approverUserId,
-          supervisor_approved_at: new Date(),
-          updated_by: approverUserId,
-        },
-        'leave_id = ?',
-        [id]
-      );
-
-      // Activity log
-      try {
-        await db.insert('activity_logs', {
-          user_id: approverUserId || 1,
-          action: 'UPDATE',
-          module: 'leaves',
-          description: `Supervisor approved leave request ${leave.leave_code} for employee ID ${leave.emp_id}`,
-          created_by: approverUserId || 1,
-        });
-      } catch (logError) {
-        logger.error('Failed to create activity log:', logError);
-      }
-
-      return res.json({ success: true, message: 'Supervisor approval recorded; pending HR review' });
-    }
-
-    // Stage 2: HR (superadmin) final approval from 'supervisor_approved' -> 'approved'
+    // Single-stage HR approval: HR (superadmin) finalizes to 'approved' with deductions
     if (approverRole === 'superadmin') {
-      if (leave.status !== 'supervisor_approved') {
-        return res.status(400).json({ success: false, message: 'Request must be supervisor-approved before HR can finalize approval' });
-      }
       if (approver && approver.employee_id === leave.emp_id) {
         return res.status(403).json({ success: false, message: 'You cannot approve your own leave request' });
+      }
+
+      // Allow HR to finalize from current/new/legacy intermediate states
+      const allowedStatuses = ['pending', 'hr_approved', 'supervisor_approved'];
+      if (!allowedStatuses.includes(leave.status)) {
+        return res.status(400).json({ success: false, message: 'Only pending (or legacy pre-approved) leave requests can be approved by HR' });
       }
 
       // Determine deduction rules per leave type
@@ -453,15 +418,12 @@ export const approveLeave = async (req, res, next) => {
         return res.status(400).json({ success: false, message: 'End date of the leave request has ended already.' });
       }
 
-      // Check available leave credits (only for types that deduct credits)
       const availableCredits = Number(leave.emp_leave_credit ?? 0);
       const deductsCredits = !isSickLeave && !isStatNoDeduction && !isSIL;
       const isNonPaid = deductsCredits && availableCredits < 1;
 
-      // Start transaction for atomic operations
       await db.beginTransaction();
       try {
-        // Update leave to approved and set HR approver fields
         const newRemarks = isNonPaid
           ? (leave.remarks ? `${leave.remarks} [NON-PAID]` : '[NON-PAID]')
           : leave.remarks;
@@ -470,7 +432,7 @@ export const approveLeave = async (req, res, next) => {
           {
             status: 'approved',
             approved_by: approverUserId,
-            hr_approved_at: new Date(),
+            hr_approved_at: new Date(), // record HR approval timestamp
             updated_by: approverUserId,
             remarks: newRemarks,
           },
@@ -478,11 +440,10 @@ export const approveLeave = async (req, res, next) => {
           [id]
         );
 
-        // Deduct leave credits per policy and set employee status to on-leave
         let deducted = 0;
         let newCredits = availableCredits;
         if (isSIL) {
-          deducted = days; // SIL: deduct actual days (Labor Code Art. 95)
+          deducted = days; // SIL: deduct actual days
           newCredits = availableCredits - days;
         } else if (deductsCredits && !isNonPaid) {
           deducted = 1; // Company-policy leaves: 1 credit per leave
@@ -506,30 +467,29 @@ export const approveLeave = async (req, res, next) => {
                 ? 'approved as non-paid (0 credits)'
                 : 'deducted 1 credit';
 
-        logger.info(`Leave request approved by HR: ${id}, Employee ${leave.emp_id} set to on-leave, ${deductionMsg}`);
-
         // Activity log
         try {
           await db.insert('activity_logs', {
             user_id: approverUserId || 1,
             action: 'UPDATE',
             module: 'leaves',
-            description: `Final HR approval for leave request ${leave.leave_code} (employee ID ${leave.emp_id}); ${deductionMsg}`,
+            description: `HR approved leave request ${leave.leave_code} (employee ID ${leave.emp_id}); ${deductionMsg}`,
             created_by: approverUserId || 1,
           });
         } catch (logError) {
           logger.error('Failed to create activity log:', logError);
         }
 
-        return res.json({
-          success: true,
-          message: `Leave request approved; ${deductionMsg}`,
-          data: { leave_id: id, employee_id: leave.emp_id, deducted_credits: deducted },
-        });
+        return res.json({ success: true, message: `Leave request approved; ${deductionMsg}` });
       } catch (error) {
         await db.rollback();
         throw error;
       }
+    }
+
+    // Supervisors no longer approve in the new policy
+    if (approverRole === 'supervisor' || approverRole === 'admin') {
+      return res.status(403).json({ success: false, message: 'Only HR can approve leave requests' });
     }
 
     // Any other role cannot approve
@@ -573,49 +533,20 @@ export const rejectLeave = async (req, res, next) => {
       [approverUserId]
     );
 
-    // Two-stage rejection policy
-    if (approverRole === 'supervisor') {
-      // Supervisors can reject only at the first stage (pending)
-      if (leave.status !== 'pending') {
-        return res.status(400).json({ success: false, message: 'Only pending leave requests can be rejected by a supervisor' });
-      }
-      if (!approver) {
-        return res.status(403).json({ success: false, message: 'Approver is not linked to an employee record' });
-      }
-      if (approver.department_id !== leave.emp_department_id) {
-        return res.status(403).json({ success: false, message: 'Supervisors can only reject leave requests within their department' });
-      }
-      if (approver.employee_id === leave.emp_id) {
-        return res.status(403).json({ success: false, message: 'You cannot reject your own leave request' });
-      }
-
-      const newRemarks = remarks
-        ? `[SUPERVISOR REJECTED] ${remarks}`
-        : '[SUPERVISOR REJECTED]';
-      await db.update(
-        'leaves',
-        { status: 'rejected', remarks: newRemarks, updated_by: approverUserId },
-        'leave_id = ?',
-        [id]
-      );
-    } else if (approverRole === 'superadmin') {
-      // HR can reject only after supervisor approval
-      if (leave.status !== 'supervisor_approved') {
-        return res.status(400).json({ success: false, message: 'Only supervisor-approved requests can be rejected by HR' });
+    // Two-stage rejection policy (reversed flow)
+    if (approverRole === 'superadmin') {
+      // HR can reject at the first stage (pending)
+      if (!(leave.status === 'pending' || leave.status === 'supervisor_approved')) {
+        return res.status(400).json({ success: false, message: 'HR can only reject pending (or legacy supervisor-approved) leave requests' });
       }
       if (approver && approver.employee_id === leave.emp_id) {
         return res.status(403).json({ success: false, message: 'You cannot reject your own leave request' });
       }
 
-      const newRemarks = remarks
-        ? `[HR REJECTED] ${remarks}`
-        : '[HR REJECTED]';
-      await db.update(
-        'leaves',
-        { status: 'rejected', remarks: newRemarks, updated_by: approverUserId },
-        'leave_id = ?',
-        [id]
-      );
+      const newRemarks = remarks ? `[HR REJECTED] ${remarks}` : '[HR REJECTED]';
+      await db.update('leaves', { status: 'rejected', remarks: newRemarks, updated_by: approverUserId }, 'leave_id = ?', [id]);
+    } else if (approverRole === 'supervisor' || approverRole === 'admin') {
+      return res.status(403).json({ success: false, message: 'Only HR can reject leave requests' });
     } else {
       return res.status(403).json({ success: false, message: 'You do not have permission to reject at this stage' });
     }

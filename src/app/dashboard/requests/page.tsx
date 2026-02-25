@@ -27,7 +27,7 @@ type LeaveType =
   // Legacy
   | "personal"
   | "parental";
-type LeaveStatus = "pending" | "supervisor_approved" | "approved" | "rejected";
+type LeaveStatus = "pending" | "hr_approved" | "approved" | "rejected" | "supervisor_approved"; // include legacy
 
 interface Leave {
   leave_id: number;
@@ -142,17 +142,20 @@ export default function RequestsPage() {
     let filtered = leaves;
 
     // Filter by tab and role-specific stage
-    if (activeTab === "Leave Request") {
-      if (isSupervisor) {
-        filtered = filtered.filter(l => l.status === "pending");
-      } else if (isSuperadmin) {
-        filtered = filtered.filter(l => l.status === "supervisor_approved");
-      } else {
-        filtered = filtered.filter(l => l.status === "pending" || l.status === "supervisor_approved");
-      }
+  if (activeTab === "Leave Request") {
+    if (isSupervisor) {
+      // Supervisors view-only; show pending requests for awareness
+      filtered = filtered.filter(l => l.status === "pending");
+    } else if (isSuperadmin) {
+      // HR acts on pending requests (and legacy supervisor_approved for backward compatibility)
+      filtered = filtered.filter(l => l.status === "pending" || l.status === "supervisor_approved");
     } else {
-      filtered = filtered.filter(l => !(l.status === "pending" || l.status === "supervisor_approved"));
+      // Others see both stages
+      filtered = filtered.filter(l => l.status === "pending" || l.status === "hr_approved");
     }
+  } else {
+    filtered = filtered.filter(l => !(l.status === "pending" || l.status === "hr_approved"));
+  }
 
     // Filter by search
     if (searchRequest) {
@@ -333,8 +336,9 @@ export default function RequestsPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 >
                   <option value="">All Status</option>
-                  <option value="pending">Pending</option>
-                  <option value="supervisor_approved">Pending HR Review</option>
+                  <option value="pending">Pending HR Review</option>
+                  <option value="hr_approved">HR Pre-Approved</option>
+                  <option value="supervisor_approved">Pending HR Review (legacy)</option>
                   <option value="approved">Approved</option>
                   <option value="rejected">Rejected</option>
                 </select>
@@ -391,12 +395,20 @@ export default function RequestsPage() {
                             ? "bg-green-100 text-green-800"
                             : leave.status === "rejected"
                             ? "bg-red-100 text-red-800"
+                            : leave.status === "hr_approved"
+                            ? "bg-blue-100 text-blue-800" // Pending Supervisor Review
                             : leave.status === "supervisor_approved"
-                            ? "bg-blue-100 text-blue-800"
-                            : "bg-yellow-100 text-yellow-800"
+                            ? "bg-blue-100 text-blue-800" // legacy
+                            : "bg-yellow-100 text-yellow-800" // pending for HR
                         }`}
                       >
-                        {leave.status === "supervisor_approved" ? "Pending HR Review" : leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
+                        {leave.status === "hr_approved"
+                          ? "HR Pre-Approved"
+                          : leave.status === "pending"
+                          ? "Pending HR Review"
+                          : leave.status === "supervisor_approved"
+                          ? "Pending HR Review"
+                          : leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-center relative">

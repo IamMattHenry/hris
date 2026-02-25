@@ -303,14 +303,17 @@ export interface Leave {
   leave_type: 'vacation' | 'sick' | 'emergency' | 'half_day' | 'others' | 'maternity' | 'paternity' | 'sil' | 'special_women' | 'bereavement' | 'solo_parent' | 'vawc';
   start_date: string;
   end_date: string;
-  status: 'pending' | 'supervisor_approved' | 'approved' | 'rejected' | 'cancelled';
+  status: 'pending' | 'hr_approved' | 'approved' | 'rejected' | 'cancelled' | 'supervisor_approved';
   remarks?: string;
   approved_by?: number;
   approved_by_name?: string;
   // Two-stage approval metadata (optional)
+  hr_approved_by?: number | null;
   supervisor_approved_by?: number | null;
   supervisor_approved_at?: string | null;
   hr_approved_at?: string | null;
+  hr_approver_first_name?: string;
+  hr_approver_last_name?: string;
   supervisor_approver_first_name?: string;
   supervisor_approver_last_name?: string;
   approver_first_name?: string;
