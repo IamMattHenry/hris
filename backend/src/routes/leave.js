@@ -1,6 +1,6 @@
 import express from 'express';
 import { body } from 'express-validator';
-import { handleValidationErrors } from '../middleware/validation.js';
+import { handleValidationErrors, validateLeave } from '../middleware/validation.js';
 import { verifyToken, verifyRole } from '../middleware/auth.js';
 import {
   getLeaveRequests,
@@ -25,13 +25,8 @@ const router = express.Router();
 router.post(
   '/apply',
   verifyToken,
-  [
-    body('employee_id').optional().isInt().withMessage('Employee ID must be an integer'),
-    body('leave_type').isIn(['vacation', 'sick', 'emergency', 'personal', 'parental', 'bereavement', 'half_day', 'others']).withMessage('Invalid leave type'),
-    body('start_date').isISO8601().withMessage('Invalid start date format'),
-    body('end_date').isISO8601().withMessage('Invalid end date format'),
-  ],
-  handleValidationErrors,
+  // Use centralized validation rules (includes statutory leave types + conditional docs)
+  validateLeave,
   applyLeave
 );
 

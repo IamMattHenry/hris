@@ -730,6 +730,16 @@ export const leaveApi = {
   },
 
   /**
+   * Get leave requests filtered by status (e.g., 'pending', 'supervisor_approved')
+   */
+  getByStatus: async (status: string) => {
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    const url = `/leave?${params.toString()}`;
+    return apiCall<any[]>(url, { method: 'GET' });
+  },
+
+  /**
    * Get leave by ID
    */
   getById: async (id: number) => {
@@ -744,10 +754,16 @@ export const leaveApi = {
   create: async (data: {
     employee_id: number;
     leave_type: string;
-    maternity_type?: string;
     start_date: string;
     end_date: string;
     remarks?: string;
+    // Statutory/documentation fields (optional)
+    maternity_type?: 'live_birth' | 'solo' | 'miscarriage';
+    pregnancy_doc_ref?: string;
+    marriage_cert_no?: string;
+    solo_parent_id?: string;
+    vawc_cert_ref?: string;
+    medical_cert_no?: string;
   }) => {
     return apiCall<any>('/leave/apply', {
       method: 'POST',

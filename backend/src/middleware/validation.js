@@ -75,7 +75,7 @@ export const validateAttendance = [
 
 export const validateLeave = [
   body('leave_type')
-    .isIn(['vacation', 'sick', 'emergency', 'others'])
+    .isIn(['vacation','sick','emergency','half_day','others','maternity','paternity','sil','solo_parent','vawc','special_women','bereavement'])
     .withMessage('Invalid leave type'),
   body('start_date')
     .isISO8601()
@@ -83,6 +83,31 @@ export const validateLeave = [
   body('end_date')
     .isISO8601()
     .withMessage('Invalid end date'),
+  // Conditional requirements for statutory leaves (basic payload validation; eligibility checked in controller)
+  body('maternity_type')
+    .if(body('leave_type').equals('maternity'))
+    .isIn(['live_birth','solo','miscarriage'])
+    .withMessage('Invalid maternity_type (allowed: live_birth, solo, miscarriage)'),
+  body('pregnancy_doc_ref')
+    .if(body('leave_type').equals('maternity'))
+    .notEmpty()
+    .withMessage('Maternity leave requires pregnancy/birth documentation reference'),
+  body('marriage_cert_no')
+    .if(body('leave_type').equals('paternity'))
+    .notEmpty()
+    .withMessage('Paternity leave requires a marriage certificate number'),
+  body('solo_parent_id')
+    .if((value, { req }) => req.body.leave_type === 'solo_parent' || (req.body.leave_type === 'maternity' && req.body.maternity_type === 'solo'))
+    .notEmpty()
+    .withMessage('Solo Parent leave requires a Solo Parent ID'),
+  body('vawc_cert_ref')
+    .if(body('leave_type').equals('vawc'))
+    .notEmpty()
+    .withMessage('VAWC leave requires a barangay or police certification reference'),
+  body('medical_cert_no')
+    .if(body('leave_type').equals('special_women'))
+    .notEmpty()
+    .withMessage('Special leave for women requires a medical certificate number'),
   handleValidationErrors
 ];
 

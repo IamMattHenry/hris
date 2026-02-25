@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import InfoBox from "@/components/forms/FormDisplay";
 
 
-type LeaveStatus = "pending" | "approved" | "rejected";
+type LeaveStatus = "pending" | "supervisor_approved" | "approved" | "rejected";
 
 interface Leave {
   leave_id: number;
@@ -29,20 +29,50 @@ interface Leave {
   approver_first_name?: string;
   approver_last_name?: string;
   approver_employee_code?: string;
+  // Two-stage approval fields (optional)
+  supervisor_approved_by?: number | null;
+  supervisor_approved_at?: string | null;
+  supervisor_approver_first_name?: string;
+  supervisor_approver_last_name?: string;
+  hr_approved_at?: string | null;
+  // Supporting documents JSON string (optional)
+  supporting_docs?: string | null;
 }
 
 
-type LeaveType = "vacation" | "sick" | "personal" | "parental" | "bereavement" | "emergency" | "half_day" | "others";
+type LeaveType =
+  | "vacation"
+  | "sick"
+  | "emergency"
+  | "half_day"
+  | "others"
+  | "maternity"
+  | "paternity"
+  | "sil"
+  | "special_women"
+  | "bereavement"
+  | "solo_parent"
+  | "vawc"
+  // Legacy types kept for backward compatibility with old data
+  | "personal"
+  | "parental";
 
 const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
-    vacation: "Vacation Leave",
-    sick: "Sick Leave",
-    personal: "Personal Leave",
-    parental: "Parental Leave",
-    bereavement: "Bereavement Leave",
-    emergency: "Emergency Leave",
-    half_day: "Half Day",
-    others: "Others",
+  vacation: "Vacation Leave",
+  sick: "Sick Leave",
+  emergency: "Emergency Leave",
+  half_day: "Half Day",
+  others: "Others",
+  maternity: "Maternity Leave",
+  paternity: "Paternity Leave",
+  sil: "Service Incentive Leave (SIL)",
+  special_women: "Special Leave for Women",
+  bereavement: "Bereavement Leave",
+  solo_parent: "Solo Parent Leave",
+  vawc: "VAWC Leave",
+  // Legacy
+  personal: "Personal Leave",
+  parental: "Parental Leave",
 };
 
 
@@ -68,6 +98,23 @@ export default function ViewLeaveModal({
 
   if (!isOpen) return null;
 
+  // Parse supporting documents JSON (if any)
+  let docs: Record<string, any> | null = null;
+  try {
+    docs = leave.supporting_docs ? JSON.parse(leave.supporting_docs) : null;
+  } catch (e) {
+    docs = null;
+  }
+
+  const stageLabel =
+    leave.status === 'pending'
+      ? 'Pending Supervisor Review'
+      : leave.status === 'supervisor_approved'
+      ? 'Pending HR Review'
+      : leave.status === 'approved'
+      ? 'Approved'
+      : 'Rejected';
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
       <div
@@ -90,11 +137,22 @@ export default function ViewLeaveModal({
           <InfoBox label="Leave Type" value={LEAVE_TYPE_LABELS[leave.leave_type]} />
           <InfoBox label="Start Date" value={new Date(leave.start_date).toLocaleDateString()} />
           <InfoBox label="End Date" value={new Date(leave.end_date).toLocaleDateString()} />
-          <InfoBox label="Status" value={leave.status.charAt(0).toUpperCase() + leave.status.slice(1)} />
+          <InfoBox label="Status" value={stageLabel} />
           {leave.remarks && (
             <InfoBox label="Remarks" value={leave.remarks} />
           )}
-          {/* Show approver when available for approved requests */}
+          {/* Supervisor approver info when available */}
+          {(leave.status === "supervisor_approved" || leave.status === "approved") &&
+            (leave.supervisor_approver_first_name || leave.supervisor_approver_last_name) && (
+            <InfoBox
+              label="Supervisor Approved By"
+              value={`${leave.supervisor_approver_first_name || ''} ${leave.supervisor_approver_last_name || ''}`.trim()}
+            />
+          )}
+          {(leave.status === "supervisor_approved" || leave.status === "approved") && leave.supervisor_approved_at && (
+            <InfoBox label="Supervisor Approved At" value={new Date(leave.supervisor_approved_at).toLocaleString()} />
+          )}
+          {/* HR approver info when available */}
           {leave.status === "approved" && (leave.approved_by_name || leave.approver_first_name || leave.approver_employee_code) && (
             <InfoBox
               label="Approved By"
@@ -106,10 +164,55 @@ export default function ViewLeaveModal({
               }
             />
           )}
+          {leave.status === "approved" && leave.hr_approved_at && (
+            <InfoBox label="HR Approved At" value={new Date(leave.hr_approved_at).toLocaleString()} />
+          )}
         </div>
 
-        {/* Supervisors and superadmins can approve/reject */}
-        {leave.status === "pending" && (isSupervisor || isSuperadmin) && (
+        {/* Supporting Documents section (visible to supervisors, HR, admins) */}
+        {(isSupervisor || isSuperadmin || isAdmin) && docs && (
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold mb-2">Supporting Documents</h3>
+            <div className="space-y-2">
+              {leave.leave_type === 'maternity' && (
+                <>
+                  {docs.maternity_type && <InfoBox label="Maternity Type" value={docs.maternity_type} />}
+                  {docs.pregnancy_doc_ref && <InfoBox label="Pregnancy Doc Ref" value={docs.pregnancy_doc_ref} />} 
+                  {docs.solo_parent_id && <InfoBox label="Solo Parent ID" value={docs.solo_parent_id} />}
+                </>
+              )}
+              {leave.leave_type === 'paternity' && (
+                <>
+                  {docs.marriage_cert_no && <InfoBox label="Marriage Certificate No." value={docs.marriage_cert_no} />}
+                </>
+              )}
+              {leave.leave_type === 'solo_parent' && (
+                <>
+                  {docs.solo_parent_id && <InfoBox label="Solo Parent ID" value={docs.solo_parent_id} />}
+                </>
+              )}
+              {leave.leave_type === 'vawc' && (
+                <>
+                  {docs.vawc_cert_ref && <InfoBox label="VAWC Certification Ref" value={docs.vawc_cert_ref} />}
+                </>
+              )}
+              {leave.leave_type === 'special_women' && (
+                <>
+                  {docs.medical_cert_no && <InfoBox label="Medical Certificate No." value={docs.medical_cert_no} />}
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Stage-based actions */}
+        {leave.status === "pending" && isSupervisor && (
+          <div className="flex justify-end gap-3">
+            <ActionButton label="Reject" onClick={onReject} />
+            <ActionButton label="Approve" onClick={onApprove} />
+          </div>
+        )}
+        {leave.status === "supervisor_approved" && isSuperadmin && (
           <div className="flex justify-end gap-3">
             <ActionButton label="Reject" onClick={onReject} />
             <ActionButton label="Approve" onClick={onApprove} />
@@ -125,8 +228,10 @@ export default function ViewLeaveModal({
           </div>
         )}
 
-        {/* Close button for non-pending or when user can't approve/reject */}
-        {(leave.status !== "pending" || (!isSupervisor && !isSuperadmin)) && (
+        {/* Close button when user can't act at this stage */}
+        {((leave.status === "pending" && !isSupervisor) ||
+          (leave.status === "supervisor_approved" && !isSuperadmin) ||
+          (leave.status !== "pending" && leave.status !== "supervisor_approved")) && (
           <div className="flex justify-end">
             <ActionButton label="Close" onClick={onClose} />
           </div>

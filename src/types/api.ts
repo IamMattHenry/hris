@@ -300,17 +300,33 @@ export interface Leave {
   employee_code?: string;
   first_name?: string;
   last_name?: string;
-  leave_type: 'vacation' | 'sick' | 'emergency' | 'half_day' | 'others' | 'maternity' | 'paternity' | 'sil' | 'special_women' | 'bereavement';
+  leave_type: 'vacation' | 'sick' | 'emergency' | 'half_day' | 'others' | 'maternity' | 'paternity' | 'sil' | 'special_women' | 'bereavement' | 'solo_parent' | 'vawc';
   start_date: string;
   end_date: string;
-  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  status: 'pending' | 'supervisor_approved' | 'approved' | 'rejected' | 'cancelled';
   remarks?: string;
   approved_by?: number;
   approved_by_name?: string;
+  // Two-stage approval metadata (optional)
+  supervisor_approved_by?: number | null;
+  supervisor_approved_at?: string | null;
+  hr_approved_at?: string | null;
+  supervisor_approver_first_name?: string;
+  supervisor_approver_last_name?: string;
+  approver_first_name?: string;
+  approver_last_name?: string;
   created_at: string;
   updated_at: string;
   created_by?: number;
   updated_by?: number;
+  // Statutory fields (optional; may be present in request/response)
+  maternity_type?: 'live_birth' | 'solo' | 'miscarriage';
+  pregnancy_doc_ref?: string;
+  marriage_cert_no?: string;
+  solo_parent_id?: string;
+  vawc_cert_ref?: string;
+  medical_cert_no?: string;
+  supporting_docs?: string | null;
 }
 
 /**

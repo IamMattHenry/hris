@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { employeeApi, leaveApi, attendanceApi, ticketApi } from "@/lib/api";
 import { Employee } from "@/types/api";
@@ -109,6 +110,7 @@ const computeWeeklyAttendanceData = (
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const router = useRouter();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [pendingLeaves, setPendingLeaves] = useState<PendingLeave[]>([]);
@@ -122,6 +124,8 @@ export default function Dashboard() {
   const [showAbsenceRecords, setShowAbsenceRecords] = useState(false);
   const [showFingerprintModal, setShowFingerprintModal] = useState(false);
   const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
+  // Role-aware actionable pending count (supervisors: 'pending'; superadmin/HR: 'supervisor_approved')
+  const [pendingActionableCount, setPendingActionableCount] = useState<number | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -129,10 +133,18 @@ export default function Dashboard() {
       setError(null);
 
       try {
-        const [empResult, statsResult, attendanceResult] = await Promise.all([
+        const role = user?.role || '';
+        const actionablePromise = role === 'supervisor'
+          ? leaveApi.getByStatus('pending')
+          : role === 'superadmin'
+          ? leaveApi.getByStatus('supervisor_approved')
+          : Promise.resolve({ success: true, data: [] });
+
+        const [empResult, statsResult, attendanceResult, actionableResult] = await Promise.all([
           employeeApi.getAll(),
           leaveApi.getDashboardStats(),
           attendanceApi.getAll(),
+          actionablePromise,
         ]);
 
         if (empResult.success && empResult.data) {
@@ -161,6 +173,13 @@ export default function Dashboard() {
         }
 
         setWeeklyAttendanceData(computeWeeklyAttendanceData(attendanceRecords));
+
+        // Set actionable pending count for role-aware requests card
+        if (Array.isArray((actionableResult as any)?.data)) {
+          setPendingActionableCount(((actionableResult as any).data as any[]).length);
+        } else {
+          setPendingActionableCount(null);
+        }
 
         // Check if current user needs fingerprint registration
         if (user?.employee_id) {
@@ -257,19 +276,9 @@ export default function Dashboard() {
       color: colorPalette[index % colorPalette.length]
     }));
 
-  const handleViewPendingLeaves = async () => {
-    try {
-      const result = await leaveApi.getPendingLeaves();
-      if (result.success && result.data) {
-        setPendingLeaves(result.data as PendingLeave[]);
-        setShowPendingLeaves(true);
-      } else {
-        toast.error(result.message || 'Failed to load pending leave requests.');
-      }
-    } catch (err) {
-      console.error("Error fetching pending leaves:", err);
-      toast.error('Failed to load pending leave requests.');
-    }
+  const handleViewPendingLeaves = () => {
+    // Navigate to the Requests page; it applies role-based default filtering
+    router.push('/dashboard/requests');
   };
 
   const handleViewAbsenceRecords = async () => {
@@ -348,8 +357,24 @@ export default function Dashboard() {
             <p className="text-sm text-gray-600 mt-1">Late</p>
           </div>
           <div className="text-center">
-            <p className="text-3xl font-bold text-gray-800">{stats?.pending_requests || 0}</p>
-            <p className="text-sm text-gray-600 mt-1">Pending Requests</p>
+            {(() => {
+              const isSupervisor = user?.role === 'supervisor';
+              const isSuperadmin = user?.role === 'superadmin';
+              const count = (isSupervisor || isSuperadmin)
+                ? (pendingActionableCount ?? 0)
+                : (stats?.pending_requests || 0);
+              const label = isSuperadmin
+                ? 'Pending HR Review'
+                : isSupervisor
+                ? 'Pending Supervisor Review'
+                : 'Pending Requests';
+              return (
+                <>
+                  <p className="text-3xl font-bold text-gray-800">{count}</p>
+                  <p className="text-sm text-gray-600 mt-1">{label}</p>
+                </>
+              );
+            })()}
           </div>
         </div>
 
@@ -430,7 +455,14 @@ export default function Dashboard() {
                     fill="none"
                     stroke="#f4a460"
                     strokeWidth="8"
-                    strokeDasharray={`${(stats?.pending_requests || 0) * 10} 251.2`}
+                    strokeDasharray={`${(() => {
+                      const isSupervisor = user?.role === 'supervisor';
+                      const isSuperadmin = user?.role === 'superadmin';
+                      const count = (isSupervisor || isSuperadmin)
+                        ? (pendingActionableCount ?? 0)
+                        : (stats?.pending_requests || 0);
+                      return count * 10;
+                    })()} 251.2`}
                     strokeLinecap="round"
                     transform="rotate(-90 50 50)"
                   />
