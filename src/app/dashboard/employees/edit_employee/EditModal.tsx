@@ -67,15 +67,6 @@ const formatCivilStatusForDisplay = (value?: string | null) => {
   return map[v] || value;
 };
 
-const formatShiftForDisplay = (value?: string | null) => {
-  if (!value) return "";
-  const v = value.toLowerCase();
-  const map: Record<string, string> = {
-    morning: "Morning",
-    night: "Night",
-  };
-  return map[v] || value;
-};
 
 function normalizeName(name: string) {
   return name
@@ -170,9 +161,13 @@ export default function EditEmployeeModal({
   const [departmentId, setDepartmentId] = useState<number | null>(null);
   const [positionId, setPositionId] = useState<number | null>(null);
   const [supervisorId, setSupervisorId] = useState<number | null>(null);
-  // shift removed - field no longer exists
   const [employmentType, setEmploymentType] = useState<string | null>(null);
   const [salaryDisplay, setSalaryDisplay] = useState<string>("");
+  // New: Work type and schedule
+  const [workType, setWorkType] = useState<string>("");
+  const [scheduledDays, setScheduledDays] = useState<string[]>([]);
+  const [scheduledStartTime, setScheduledStartTime] = useState<string>("");
+  const [scheduledEndTime, setScheduledEndTime] = useState<string>("");
   const [homeAddress, setHomeAddress] = useState("");
   const [barangay, setBarangay] = useState("");
   const [city, setCity] = useState("");
@@ -271,7 +266,6 @@ const [cityCode, setCityCode] = useState("");
         setDepartmentId(res.data.department_id);
         setPositionId(res.data.position_id);
           setSupervisorId(res.data.supervisor_id || null);
-          // shift removed - keep existing state untouched
 
           // Salary and employment type: prefer canonical fields if present
           const empType = (res.data.employment_type) ? res.data.employment_type : (res.data.monthly_salary ? 'regular' : (res.data.hourly_rate ? 'probationary' : null));
@@ -281,6 +275,23 @@ const [cityCode, setCityCode] = useState("");
           setSalary(cs !== undefined && cs !== null ? String(cs) : "");
           const unit = res.data.salary_unit || (empType === 'regular' ? 'monthly' : 'hourly');
           setSalaryDisplay(cs ? `${cs} / ${unit === 'monthly' ? 'month' : 'hr'}` : "");
+
+          // Work type and schedule
+          const wt = (res.data.work_type || 'full-time').toLowerCase();
+          setWorkType(wt === 'part-time' ? 'Part-time' : 'Full-time');
+          try {
+            let days: any = res.data.scheduled_days;
+            if (typeof days === 'string') {
+              days = JSON.parse(days);
+            }
+            const dd = Array.isArray(days) ? days.map((d: any) => String(d).toLowerCase()) : [];
+            setScheduledDays(dd);
+          } catch {
+            setScheduledDays([]);
+          }
+          const normTime = (t?: string | null) => (t && t.length >= 5 ? t.slice(0,5) : "");
+          setScheduledStartTime(normTime(res.data.scheduled_start_time));
+          setScheduledEndTime(normTime(res.data.scheduled_end_time));
         setHomeAddress(res.data.home_address || "");
         setBarangay(res.data.barangay || ""); 
         setCity(res.data.city || "");
@@ -391,6 +402,32 @@ const [cityCode, setCityCode] = useState("");
       setSupervisors([]);
     }
   }, [departmentId]);
+
+  // Default schedule based on work type (non-destructive for existing schedules)
+  useEffect(() => {
+    const wt = (workType || '').toLowerCase();
+    if (wt === 'full-time' && scheduledDays.length === 0) {
+      setScheduledDays(['monday','tuesday','wednesday','thursday','friday']);
+    } else if (wt === 'part-time' && scheduledDays.length === 0) {
+      setScheduledDays([]);
+    }
+  }, [workType]);
+
+  // Auto-calc end time for full-time when start time changes (start + 9 hours)
+  useEffect(() => {
+    const wt = (workType || '').toLowerCase();
+    if (wt !== 'full-time') return;
+    if (!scheduledStartTime) return;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const calcEnd = (start: string) => {
+      const [hh, mm] = start.split(':').map((x) => parseInt(x || '0', 10));
+      const totalMin = (hh * 60 + mm + 9 * 60) % (24 * 60);
+      const nh = Math.floor(totalMin / 60);
+      const nm = totalMin % 60;
+      return `${pad(nh)}:${pad(nm)}`;
+    };
+    setScheduledEndTime(calcEnd(scheduledStartTime));
+  }, [workType, scheduledStartTime]);
 
   // Auto-populate salary and employment type when position changes
   useEffect(() => {
@@ -754,7 +791,11 @@ useEffect(() => {
       civilStatus,
       emails,
       contactNumbers,
-      dependents
+      dependents,
+      workType,
+      scheduledDays,
+      scheduledStartTime,
+      scheduledEndTime
     );
 
     console.log("Validation result:", Object.keys(formErrors).length === 0);
@@ -791,7 +832,6 @@ useEffect(() => {
         department_id: departmentId,
         position_id: positionId,
         supervisor_id: supervisorId || null,
-        // shift removed intentionally
         home_address: homeAddress,
         barangay: barangay,
         city: city,
@@ -804,6 +844,11 @@ useEffect(() => {
           .filter((c) => c && c.trim()),
         dependents: dependents,
         documents: documents,
+        // Work & schedule
+        work_type: workType ? workType.toLowerCase() : undefined,
+        scheduled_days: scheduledDays,
+        scheduled_start_time: scheduledStartTime || undefined,
+        scheduled_end_time: scheduledEndTime || undefined,
       };
 
       // Include salary and employment type if provided
@@ -819,14 +864,16 @@ useEffect(() => {
 
       if (employmentType) {
         updatedData.employment_type = employmentType.toLowerCase();
-        if (numericSalary != null) {
-          if (employmentType.toLowerCase() === 'regular') {
-            updatedData.monthly_salary = numericSalary;
-            updatedData.salary_unit = 'monthly';
-          } else {
-            updatedData.hourly_rate = numericSalary;
-            updatedData.salary_unit = 'hourly';
-          }
+      }
+
+      // Align salary fields to work_type
+      if (numericSalary != null) {
+        if ((workType || '').toLowerCase() === 'part-time') {
+          updatedData.hourly_rate = numericSalary;
+          updatedData.salary_unit = 'hourly';
+        } else {
+          updatedData.monthly_salary = numericSalary;
+          updatedData.salary_unit = 'monthly';
         }
       }
 
@@ -1089,7 +1136,7 @@ useEffect(() => {
                       </p>
                     </div>
 
-                    {/* Shift input removed per request */}
+                    {/* */}
 
                     {salaryDisplay && (
                       <div className="md:col-span-3 mt-2">
@@ -1111,23 +1158,71 @@ useEffect(() => {
                       error={errors.employmentStatus}
                     />
 
-                    {/* Salary (per hour) - fetched as-is and editable */}
+                    {/* Work Type */}
+                    <FormSelect
+                      label="Work Type"
+                      value={workType}
+                      onChange={(e) => setWorkType(e.target.value)}
+                      options={["Full-time","Part-time"]}
+                    />
+
+                    {/* Salary - label aligns with Work Type */}
                     <div>
                       <FormInput
-                        label="Salary (per hour)"
+                        label={workType?.toLowerCase() === 'part-time' ? "Salary (Hourly Rate)" : "Salary (Monthly)"}
                         type="text"
                         value={salary}
                         onChange={(e) => {
                           const val = e.target.value;
-                          // allow digits, commas and dot (no conversion requested)
                           if (/^[0-9,]*\.?[0-9]{0,2}$/.test(val) || val === "") {
                             setSalary(val);
                           }
                         }}
-                        placeholder="Enter hourly salary as stored"
+                        placeholder={workType?.toLowerCase() === 'part-time' ? "Enter hourly rate" : "Enter monthly salary"}
                         error={errors.salary}
                       />
                     </div>
+
+                        {/* Schedule: Days */}
+                        <div className="md:col-span-3">
+                          <label className="block text-[#3b2b1c] mb-1 font-medium">Scheduled Days <span className="text-red-500">*</span></label>
+                      <div className="flex flex-wrap gap-3">
+                        {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map((day) => {
+                          const key = day.toLowerCase();
+                          const checked = scheduledDays.includes(key);
+                          return (
+                            <label key={day} className="inline-flex items-center gap-2 text-sm text-[#3b2b1c]">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  setScheduledDays((prev) => {
+                                    if (e.target.checked) return Array.from(new Set([...prev, key]));
+                                    return prev.filter((d) => d !== key);
+                                  });
+                                }}
+                              />
+                              {day}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                        {/* Schedule: Times */}
+                        <FormInput
+                          label="Scheduled Start Time:"
+                      type="time"
+                      value={scheduledStartTime}
+                      onChange={(e) => setScheduledStartTime(e.target.value)}
+                    />
+                        <FormInput
+                          label="Scheduled End Time:"
+                      type="time"
+                      value={scheduledEndTime}
+                      onChange={(e) => setScheduledEndTime(e.target.value)}
+                          disabled={(workType || '').toLowerCase() === 'full-time'}
+                    />
                   </div>
                 </section>
               )}

@@ -76,9 +76,13 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [salary, setSalary] = useState("");
   const [leaveCredit, setLeaveCredit] = useState("15");
   const [employmentType, setEmploymentType] = useState("");
+  // New: Work type and schedule
+  const [workType, setWorkType] = useState<string>("Full-time");
+  const [scheduledDays, setScheduledDays] = useState<string[]>([]);
+  const [scheduledStartTime, setScheduledStartTime] = useState<string>("");
+  const [scheduledEndTime, setScheduledEndTime] = useState<string>("");
   const [supervisorId, setSupervisorId] = useState<number | null>(null);
   const [hireDate, setHireDate] = useState("");
-  // shift removed - do not track in UI
   // const [salaryDisplay, setSalaryDisplay] = useState("");
   const [email, setEmail] = useState("");
   const [contactNumber, setContactNumber] = useState("");
@@ -196,6 +200,32 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       setConfirmPassword(generatedPassword);
     }
   }, [firstName, usernameEdited, passwordEdited]);
+
+  // Default schedule based on work type
+  useEffect(() => {
+    const wt = (workType || '').toLowerCase();
+    if (wt === 'full-time') {
+      setScheduledDays(['monday','tuesday','wednesday','thursday','friday']);
+    } else if (wt === 'part-time') {
+      setScheduledDays([]);
+    }
+  }, [workType]);
+
+  // Auto-calculate end time for full-time as start + 9 hours (8h work + 1h lunch)
+  useEffect(() => {
+    const wt = (workType || '').toLowerCase();
+    if (wt !== 'full-time') return;
+    if (!scheduledStartTime) return;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const calcEnd = (start: string) => {
+      const [hh, mm] = start.split(':').map((x) => parseInt(x || '0', 10));
+      const totalMin = (hh * 60 + mm + 9 * 60) % (24 * 60);
+      const nh = Math.floor(totalMin / 60);
+      const nm = totalMin % 60;
+      return `${pad(nh)}:${pad(nm)}`;
+    };
+    setScheduledEndTime(calcEnd(scheduledStartTime));
+  }, [workType, scheduledStartTime]);
 
 
 
@@ -717,7 +747,16 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
     // Step 2 - Job Info
     if (step === 2) {
-      newErrors = validateStep2(departmentId, positionId, hireDate, parseInt(salary));
+      newErrors = validateStep2(
+        departmentId,
+        positionId,
+        hireDate,
+        parseInt(salary || "0"),
+        workType,
+        scheduledDays,
+        scheduledStartTime,
+        scheduledEndTime
+      );
     }
 
     // Step 3 - Contact Info & Dependents
@@ -818,15 +857,20 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         department_id: departmentId,
         salary: salary ? parseFloat(salary) : null,
         employment_type: employmentType ? employmentType.toLowerCase() : undefined,
-        monthly_salary: employmentType && employmentType.toLowerCase() === 'regular' ? (salary ? parseFloat(salary) : null) : undefined,
-        hourly_rate: employmentType && employmentType.toLowerCase() !== 'regular' ? (salary ? parseFloat(salary) : null) : undefined,
+        work_type: workType ? workType.toLowerCase() : undefined,
+        // Align salary fields to work_type
+        monthly_salary: workType && workType.toLowerCase() === 'full-time' ? (salary ? parseFloat(salary) : null) : undefined,
+        hourly_rate: workType && workType.toLowerCase() === 'part-time' ? (salary ? parseFloat(salary) : null) : undefined,
         leave_credit: leaveCredit ? parseInt(leaveCredit) : 15,
         supervisor_id: supervisorId || null,
-        // shift removed intentionally
         hire_date: hireDate,
         email: email,
         contact_number: contactNumber ? contactNumber.replace(/\s/g, "") : null,
         status: "active" as const,
+        // Schedule fields
+        scheduled_days: scheduledDays,
+        scheduled_start_time: scheduledStartTime,
+        scheduled_end_time: scheduledEndTime,
         // Audit fields
         created_by: user?.user_id || null,
         // Dependents
@@ -1187,35 +1231,85 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                   )}
 
                   <FormInput label="Hire Date:" type="date" max={today} value={hireDate} onChange={(e) => setHireDate(e.target.value)} error={errors.hireDate} />
-                  {/* Shift input removed per request */}
 
                   <FormSelect label="Employment Type: " value={employmentType} onChange={(e) => setEmploymentType(e.target.value)} options={[
                     { label: "Regular", value: "Regular" },
                     { label: "Probationary", value: "Probationary" }
                   ]} error={errors.employmentType} />
 
-                  {employmentType && employmentType.toLowerCase() === "probationary" && (
-                    <div>
-                      <label className="block text-[#3b2b1c] mb-1">
-                        Salary (Hourly Rate):
-                      </label>
+                  {/* Work Type */}
+                  <FormSelect
+                    label="Work Type:"
+                    value={workType}
+                    onChange={(e) => setWorkType(e.target.value)}
+                    options={["Full-time", "Part-time"]}
+                    error={errors.workType}
+                  />
 
-                      <div className="flex items-center border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] overflow-hidden">
-                        <span className="px-3 py-2 text-[#3b2b1c] font-semibold">₱</span>
-                        <input
-                          type="text"
-                          value={salary}
-                          onChange={handleSalaryChange}
-                          placeholder="0.00"
-                          className="flex-1 px-3 py-2 bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14] focus:ring-inset"
-                        />
-                      </div>
+                  {/* Salary input aligns with Work Type */}
+                  <div>
+                    <label className="block text-[#3b2b1c] mb-1">
+                      {workType?.toLowerCase() === "part-time" ? "Salary (Hourly Rate):" : "Salary (Monthly):"}
+                    </label>
 
-                      {errors.salary && (
-                        <p className="text-red-500 text-xs mt-1">{errors.salary}</p>
-                      )}
+                    <div className="flex items-center border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] overflow-hidden">
+                      <span className="px-3 py-2 text-[#3b2b1c] font-semibold">₱</span>
+                      <input
+                        type="text"
+                        value={salary}
+                        onChange={handleSalaryChange}
+                        placeholder="0.00"
+                        className="flex-1 px-3 py-2 bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14] focus:ring-inset"
+                      />
                     </div>
-                  )}
+
+                    {errors.salary && (
+                      <p className="text-red-500 text-xs mt-1">{errors.salary}</p>
+                    )}
+                  </div>
+
+                  {/* Schedule: Days */}
+                  <div className="md:col-span-3">
+                    <label className="block text-[#3b2b1c] mb-1 font-medium">Scheduled Days <span className="text-red-500">*</span></label>
+                    <div className="flex flex-wrap gap-3">
+                      {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map((day) => {
+                        const key = day.toLowerCase();
+                        const checked = scheduledDays.includes(key);
+                        return (
+                          <label key={day} className="inline-flex items-center gap-2 text-sm text-[#3b2b1c]">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                setScheduledDays((prev) => {
+                                  if (e.target.checked) return Array.from(new Set([...prev, key]));
+                                  return prev.filter((d) => d !== key);
+                                });
+                              }}
+                            />
+                            {day}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Schedule: Times */}
+                  <FormInput
+                    label="Scheduled Start Time:"
+                    type="time"
+                    value={scheduledStartTime}
+                    onChange={(e) => setScheduledStartTime(e.target.value)}
+                    error={errors.scheduledStartTime}
+                  />
+                  <FormInput
+                    label="Scheduled End Time:"
+                    type="time"
+                    value={scheduledEndTime}
+                    onChange={(e) => setScheduledEndTime(e.target.value)}
+                    disabled={(workType || '').toLowerCase() === 'full-time'}
+                    error={errors.scheduledEndTime}
+                  />
 
 
                   {/* Supervisor Dropdown - Filtered by Department */}

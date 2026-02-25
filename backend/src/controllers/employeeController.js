@@ -410,6 +410,10 @@ export const createEmployee = async (req, res, next) => {
       probation_end_date,
       monthly_salary,
       hourly_rate,
+        work_type,
+        scheduled_days,
+        scheduled_start_time,
+        scheduled_end_time,
       created_by,
       dependents,
       documents
@@ -453,6 +457,61 @@ export const createEmployee = async (req, res, next) => {
     await db.beginTransaction();
 
     try {
+      // Validate/normalize work type and schedule inputs
+      const allowedWorkTypes = ['full-time', 'part-time'];
+      const normalizedWorkTypeInput = (typeof work_type === 'string' && work_type.trim()) ? work_type.trim().toLowerCase() : null;
+      const finalWorkType = allowedWorkTypes.includes(normalizedWorkTypeInput || '') ? normalizedWorkTypeInput : 'full-time';
+
+      const allowedDays = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+      const parseScheduledDays = (value) => {
+        if (value == null) return null;
+        let arr = value;
+        if (typeof value === 'string') {
+          try { arr = JSON.parse(value); } catch { return null; }
+        }
+        if (!Array.isArray(arr)) return null;
+        const norm = arr
+          .map((d) => (typeof d === 'string' ? d.trim().toLowerCase() : ''))
+          .filter((d) => allowedDays.includes(d));
+        return norm.length > 0 ? norm : [];
+      };
+
+      const timeRe = /^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/;
+      const normalizeTime = (t) => {
+        if (!t || typeof t !== 'string') return null;
+        const v = t.trim();
+        const m = v.match(timeRe);
+        if (!m) return null;
+        const hh = m[1];
+        const mm = m[2];
+        const ss = m[3] ?? '00';
+        return `${hh}:${mm}:${ss}`;
+      };
+      const toSec = (ts) => {
+        const [h, m, s] = ts.split(':').map((x) => parseInt(x, 10));
+        return h * 3600 + m * 60 + (s || 0);
+      };
+
+      const finalScheduledDays = parseScheduledDays(scheduled_days);
+      const normStart = normalizeTime(scheduled_start_time);
+      const normEnd = normalizeTime(scheduled_end_time);
+
+      // Required schedule fields: enforce presence and basic validity
+      if (!finalScheduledDays || finalScheduledDays.length === 0) {
+        return res.status(400).json({ success: false, message: 'scheduled_days is required and cannot be empty' });
+      }
+      if (!normStart) {
+        return res.status(400).json({ success: false, message: 'scheduled_start_time is required (expected HH:MM or HH:MM:SS)' });
+      }
+      if (!normEnd) {
+        return res.status(400).json({ success: false, message: 'scheduled_end_time is required (expected HH:MM or HH:MM:SS)' });
+      }
+      if (toSec(normEnd) <= toSec(normStart)) {
+        return res.status(400).json({ success: false, message: 'scheduled_end_time must be after scheduled_start_time' });
+      }
+      // Note: For full-time employees, the UI auto-calculates end time as start + 9 hours (8h work + 1h lunch)
+      // Backend does not auto-derive and expects a valid end time to be provided.
+
       // Sub-role is optional now when creating admin or supervisor.
       // If sub_role is provided, validate it matches department mapping.
       if ((userRole === "admin" || userRole === "supervisor") && sub_role && department_id) {
@@ -586,7 +645,6 @@ export const createEmployee = async (req, res, next) => {
             if (p.default_salary != null) {
               finalCurrentSalary = Number(p.default_salary);
             }
-            if (p.salary_unit) finalSalaryUnit = p.salary_unit;
             if (p.employment_type) finalEmploymentType = p.employment_type;
           }
         } catch (posErr) {
@@ -596,18 +654,19 @@ export const createEmployee = async (req, res, next) => {
 
       // Fallback to request-provided values if position defaults not available
       if (finalCurrentSalary == null) {
-        if (finalEmploymentType === 'regular') {
+        if (finalWorkType === 'full-time') {
           finalCurrentSalary = reqMonthlySalary != null ? Number(reqMonthlySalary) : 0;
-          finalSalaryUnit = finalSalaryUnit || 'monthly';
+          finalSalaryUnit = 'monthly';
         } else {
           finalCurrentSalary = reqHourlyRate != null ? Number(reqHourlyRate) : 0;
-          finalSalaryUnit = finalSalaryUnit || 'hourly';
+          finalSalaryUnit = 'hourly';
         }
       }
 
       // Ensure numeric defaults
       finalCurrentSalary = finalCurrentSalary != null ? Number(finalCurrentSalary) : 0;
-      finalSalaryUnit = finalSalaryUnit || (finalEmploymentType === 'regular' ? 'monthly' : 'hourly');
+      // Align salary unit with work_type
+      finalSalaryUnit = finalSalaryUnit || (finalWorkType === 'full-time' ? 'monthly' : 'hourly');
 
       // Insert employee without code first
       const tempEmployeeId = await db.transactionInsert("employees", {
@@ -630,6 +689,10 @@ export const createEmployee = async (req, res, next) => {
         employment_type: finalEmploymentType,
         probation_end_date: finalProbationEndDate,
         fingerprint_id: fingerprintIdValue,
+        work_type: finalWorkType,
+        scheduled_days: finalScheduledDays ? JSON.stringify(finalScheduledDays) : null,
+        scheduled_start_time: normStart,
+        scheduled_end_time: normEnd,
         created_by,
       });
 
@@ -1055,6 +1118,17 @@ export const updateEmployee = async (req, res, next) => {
           updates.employment_type = allowed.includes(normalized) ? normalized : undefined;
         }
 
+        // Validate/normalize work_type if provided
+        if (Object.prototype.hasOwnProperty.call(updates, 'work_type')) {
+          const wt = (typeof updates.work_type === 'string' && updates.work_type.trim()) ? updates.work_type.trim().toLowerCase() : null;
+          const allowedWT = ['full-time','part-time'];
+          if (!allowedWT.includes(wt || '')) {
+            return res.status(400).json({ success: false, message: "Invalid work_type. Must be 'full-time' or 'part-time'" });
+          }
+          updates.work_type = wt;
+        }
+
+        // Normalize monthly_salary/hourly_rate into current_salary/salary_unit as before
         // Normalize numeric salary inputs if present in payload, but do not write legacy columns
         if (Object.prototype.hasOwnProperty.call(updates, 'monthly_salary')) {
           const ms = updates.monthly_salary;
@@ -1080,6 +1154,72 @@ export const updateEmployee = async (req, res, next) => {
           } else {
             delete updates.hourly_rate;
           }
+        }
+
+        // Normalize schedule fields if present
+        const allowedDays = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+        const parseScheduledDays = (value) => {
+          if (value == null) return null;
+          let arr = value;
+          if (typeof value === 'string') {
+            try { arr = JSON.parse(value); } catch { return null; }
+          }
+          if (!Array.isArray(arr)) return null;
+          const norm = arr
+            .map((d) => (typeof d === 'string' ? d.trim().toLowerCase() : ''))
+            .filter((d) => allowedDays.includes(d));
+          return norm.length > 0 ? norm : [];
+        };
+
+        const timeRe = /^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/;
+        const normalizeTime = (t) => {
+          if (!t || typeof t !== 'string') return null;
+          const v = t.trim();
+          const m = v.match(timeRe);
+          if (!m) return null;
+          const hh = m[1];
+          const mm = m[2];
+          const ss = m[3] ?? '00';
+          return `${hh}:${mm}:${ss}`;
+        };
+        const toSec = (ts) => {
+          const [h, m, s] = ts.split(':').map((x) => parseInt(x, 10));
+          return h * 3600 + m * 60 + (s || 0);
+        };
+
+        if (Object.prototype.hasOwnProperty.call(updates, 'scheduled_days')) {
+          const parsed = parseScheduledDays(updates.scheduled_days);
+          if (updates.scheduled_days != null && parsed == null) {
+            return res.status(400).json({ success: false, message: 'scheduled_days must be an array of weekdays' });
+          }
+          if (parsed && Array.isArray(parsed) && parsed.length === 0) {
+            return res.status(400).json({ success: false, message: 'scheduled_days cannot be empty' });
+          }
+          updates.scheduled_days = parsed ? JSON.stringify(parsed) : null;
+        }
+
+        let normStartU = null, normEndU = null;
+        if (Object.prototype.hasOwnProperty.call(updates, 'scheduled_start_time')) {
+          normStartU = normalizeTime(updates.scheduled_start_time);
+          if (updates.scheduled_start_time && !normStartU) {
+            return res.status(400).json({ success: false, message: 'Invalid scheduled_start_time (expected HH:MM or HH:MM:SS)' });
+          }
+          updates.scheduled_start_time = normStartU;
+        }
+        if (Object.prototype.hasOwnProperty.call(updates, 'scheduled_end_time')) {
+          normEndU = normalizeTime(updates.scheduled_end_time);
+          if (updates.scheduled_end_time && !normEndU) {
+            return res.status(400).json({ success: false, message: 'Invalid scheduled_end_time (expected HH:MM or HH:MM:SS)' });
+          }
+          updates.scheduled_end_time = normEndU;
+        }
+        if (normStartU && normEndU && toSec(normEndU) <= toSec(normStartU)) {
+          return res.status(400).json({ success: false, message: 'scheduled_end_time must be after scheduled_start_time' });
+        }
+
+        // If work_type provided, align salary_unit accordingly
+        if (Object.prototype.hasOwnProperty.call(updates, 'work_type')) {
+          updates.salary_unit = updates.work_type === 'full-time' ? 'monthly' : 'hourly';
         }
 
         const updatesWithAudit = {

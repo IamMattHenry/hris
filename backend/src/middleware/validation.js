@@ -55,6 +55,26 @@ export const validateEmployee = [
     .optional()
     .matches(/^09\d{9}$/)
     .withMessage('Invalid Philippine phone format'),
+  // Work type and schedule (required fields for schedule)
+  body('work_type')
+    .optional()
+    .isIn(['full-time','part-time'])
+    .withMessage('Invalid work_type'),
+  body('scheduled_days')
+    .custom((value) => {
+      let arr = value;
+      if (typeof value === 'string') { try { arr = JSON.parse(value); } catch { return false; } }
+      if (!Array.isArray(arr) || arr.length === 0) return false;
+      const allowed = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+      return arr.every((d) => typeof d === 'string' && allowed.includes(d.trim().toLowerCase()));
+    })
+    .withMessage('scheduled_days is required and must be a non-empty array of weekdays'),
+  body('scheduled_start_time')
+    .matches(/^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/)
+    .withMessage('scheduled_start_time is required (HH:MM or HH:MM:SS)'),
+  body('scheduled_end_time')
+    .matches(/^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/)
+    .withMessage('scheduled_end_time is required (HH:MM or HH:MM:SS)'),
   handleValidationErrors
 ];
 

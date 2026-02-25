@@ -37,13 +37,17 @@ export function validateStep1(
 
 /**
  * Validates Step 2 - Job Information
- * Checks: departmentId, positionId, hireDate, shift
+ * Checks: departmentId, positionId, hireDate, salary
  */
 export const validateStep2 = (
   departmentId: number | null,
   positionId: number | null,
   hireDate: string,
-  salary: number
+  salary: number,
+  workType: string,
+  scheduledDays?: string[],
+  scheduledStartTime?: string,
+  scheduledEndTime?: string
 ): ValidationErrors => {
   const errors: ValidationErrors = {};
 
@@ -69,9 +73,48 @@ export const validateStep2 = (
       errors.hireDate = "Hire date cannot be in the future";
     }
   }
-  if(salary <= 0) errors.salary = "Salary must be greater than 0";
+  if (salary <= 0) errors.salary = "Salary must be greater than 0";
 
-  // shift removed from step2 validation
+  // Work type required and must be valid
+  const normalizedWT = (workType || "").trim().toLowerCase();
+  if (!normalizedWT) {
+    errors.workType = "Work type is required";
+  } else if (!["full-time","part-time"].includes(normalizedWT)) {
+    errors.workType = "Invalid work type";
+  }
+  // Schedule fields are required
+  const allowedDays = [
+    "monday","tuesday","wednesday","thursday","friday","saturday","sunday"
+  ];
+  if (!scheduledDays || !Array.isArray(scheduledDays) || scheduledDays.length === 0) {
+    errors.scheduledDays = "Please select at least one scheduled day";
+  } else {
+    const allValid = scheduledDays.every((d) => typeof d === 'string' && allowedDays.includes(d.toLowerCase()));
+    if (!allValid) {
+      errors.scheduledDays = "scheduled_days must be valid weekdays";
+    }
+  }
+
+  const timeRe = /^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/;
+  const toSec = (ts: string) => {
+    const [h,m,s] = ts.split(':');
+    return parseInt(h||'0')*3600 + parseInt(m||'0')*60 + parseInt((s||'0'));
+  };
+  if (!scheduledStartTime || !timeRe.test(scheduledStartTime)) {
+    errors.scheduledStartTime = !scheduledStartTime
+      ? "Start time is required"
+      : "Invalid start time (HH:MM or HH:MM:SS)";
+  }
+  if (!scheduledEndTime || !timeRe.test(scheduledEndTime)) {
+    errors.scheduledEndTime = !scheduledEndTime
+      ? "End time is required"
+      : "Invalid end time (HH:MM or HH:MM:SS)";
+  }
+  if (scheduledStartTime && scheduledEndTime && timeRe.test(scheduledStartTime) && timeRe.test(scheduledEndTime)) {
+    if (toSec(scheduledEndTime) <= toSec(scheduledStartTime)) {
+      errors.scheduledEndTime = "End time must be after start time";
+    }
+  }
 
   return errors;
 };

@@ -111,6 +111,11 @@ export interface Employee {
   updated_at: string;
   created_by?: number;
   updated_by?: number;
+  // Work schedule fields
+  work_type?: 'full-time' | 'part-time';
+  scheduled_days?: string[] | null;
+  scheduled_start_time?: string | null;
+  scheduled_end_time?: string | null;
   // Associated data
   position_name?: string;
   department_name?: string;
@@ -165,6 +170,11 @@ export interface CreateEmployeeRequest {
   supervisor_id?: number;
   email?: string;
   contact_number?: string;
+  // Work schedule fields
+  work_type: 'full-time' | 'part-time';
+  scheduled_days: string[];
+  scheduled_start_time: string;
+  scheduled_end_time: string;
   // Address fields
   region_code?: string;
   province_code?: string;

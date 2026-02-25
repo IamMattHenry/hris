@@ -178,7 +178,11 @@ export const validateEmployeeForm = (
   civilStatus: string,
   emails: ContactEmail[],
   contactNumbers: ContactNumber[],
-  dependents: Dependent[]
+  dependents: Dependent[],
+  workType: string,
+  scheduledDays: string[],
+  scheduledStartTime: string,
+  scheduledEndTime: string
 ): ValidationErrors => {
   const errors: ValidationErrors = {};
 
@@ -199,7 +203,7 @@ export const validateEmployeeForm = (
     errors.position = "Position is required";
   }
 
-  // shift removed from validation
+  
 
   if (!employmentStatus) {
     errors.employmentStatus = "Employment status is required";
@@ -244,6 +248,36 @@ export const validateEmployeeForm = (
   // Dependents validation
   if (dependents.length === 0) {
     errors.dependents = "At least one dependent is required";
+  }
+
+  // Work schedule required
+  const allowedDays = [
+    'monday','tuesday','wednesday','thursday','friday','saturday','sunday'
+  ];
+  if (!scheduledDays || !Array.isArray(scheduledDays) || scheduledDays.length === 0) {
+    errors.scheduledDays = 'Please select at least one scheduled day';
+  } else {
+    const allValid = scheduledDays.every((d) => typeof d === 'string' && allowedDays.includes(d.toLowerCase()));
+    if (!allValid) {
+      errors.scheduledDays = 'scheduled_days must be valid weekdays';
+    }
+  }
+
+  const timeRe = /^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/;
+  const toSec = (ts: string) => {
+    const [h,m,s] = ts.split(':');
+    return parseInt(h||'0')*3600 + parseInt(m||'0')*60 + parseInt((s||'0'));
+  };
+  if (!scheduledStartTime || !timeRe.test(scheduledStartTime)) {
+    errors.scheduledStartTime = !scheduledStartTime ? 'Start time is required' : 'Invalid start time (HH:MM or HH:MM:SS)';
+  }
+  if (!scheduledEndTime || !timeRe.test(scheduledEndTime)) {
+    errors.scheduledEndTime = !scheduledEndTime ? 'End time is required' : 'Invalid end time (HH:MM or HH:MM:SS)';
+  }
+  if (scheduledStartTime && scheduledEndTime && timeRe.test(scheduledStartTime) && timeRe.test(scheduledEndTime)) {
+    if (toSec(scheduledEndTime) <= toSec(scheduledStartTime)) {
+      errors.scheduledEndTime = 'End time must be after start time';
+    }
   }
 
   return errors;
