@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Plus, Save } from "lucide-react";
+import { X, Save } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import FormInput from "@/components/forms/FormInput";
 import ActionButton from "@/components/buttons/ActionButton";
@@ -13,32 +13,35 @@ interface AddJobModalProps {
     onClose: () => void;
 }
 
-export default function AddJobModal({ isOpen, onClose }: AddJobModalProps) {
+export default function AddJobModal({
+    isOpen,
+    onClose,
+}: AddJobModalProps) {
     const [jobTitle, setJobTitle] = useState("");
     const [jobDescription, setJobDescription] = useState("");
     const [department, setDepartment] = useState("");
     const [departments, setDepartments] = useState<any[]>([]);
-    const [availability, setAvailability] = useState("0");
+    const [availability, setAvailability] = useState<number | "">("");
     const [employmentType, setEmploymentType] = useState("regular");
-    const [defaultSalary, setDefaultSalary] = useState("");
+    const [defaultSalary, setDefaultSalary] = useState<number | "">("");
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState<{
         jobTitle: string;
         jobDescription: string;
         department: string;
         defaultSalary: string;
+        availability: string;
     }>({
         jobTitle: "",
         jobDescription: "",
         department: "",
         defaultSalary: "",
+        availability: "",
     });
 
-    // Fetch departments on mount
+    // Fetch departments
     useEffect(() => {
-        if (isOpen) {
-            fetchDepartments();
-        }
+        if (isOpen) fetchDepartments();
     }, [isOpen]);
 
     const fetchDepartments = async () => {
@@ -48,56 +51,111 @@ export default function AddJobModal({ isOpen, onClose }: AddJobModalProps) {
         }
     };
 
-    // ✅ Reset fields when modal closes
+    // Reset modal state
     useEffect(() => {
         if (!isOpen) {
             setJobTitle("");
             setJobDescription("");
             setDepartment("");
-            setAvailability("0");
+            setAvailability("");
+            setEmploymentType("regular");
+            setDefaultSalary("");
             setErrors({
                 jobTitle: "",
                 jobDescription: "",
                 department: "",
                 defaultSalary: "",
+                availability: "",
             });
         }
     }, [isOpen]);
 
-    // ✅ Validation function
+    // Salary handler
+    const handleSalaryChange = (value: string) => {
+        if (value === "") {
+            setDefaultSalary("");
+            return;
+        }
+
+        const numericValue = Number(value);
+
+        if (!isNaN(numericValue) && numericValue >= 0 && numericValue <= 1000000) {
+            setDefaultSalary(numericValue);
+        }
+    };
+
+    // Availability handler
+    const handleAvailabilityChange = (value: string) => {
+        if (value === "") {
+            setAvailability("");
+            return;
+        }
+
+        const numericValue = Number(value);
+
+        if (!isNaN(numericValue) && numericValue >= 0 && numericValue <= 1000) {
+            setAvailability(numericValue);
+        }
+    };
+
+
+    const validateNameFormat = (
+        value: string,
+        setValue: (v: string) => void,
+        maxLength: number = 30
+    ) => {
+        
+        if (!/^[A-Za-zñÑ\s]*$/.test(value)) return;
+        if (value.length > maxLength) return;
+        const formattedValue = value
+            .toLowerCase()
+            .replace(/(^|\s)[a-zñ]/g, (char) => char.toUpperCase());
+
+        setValue(formattedValue);
+    };
+
+    // Validation
     const validate = () => {
         let valid = true;
+
         const newErrors = {
             jobTitle: "",
             jobDescription: "",
             department: "",
             defaultSalary: "",
+            availability: "",
         };
 
-        // Job Title
         if (!jobTitle.trim()) {
             newErrors.jobTitle = "Job title is required.";
             valid = false;
-        } else if (jobTitle.trim().split(" ").length > 50) {
-            newErrors.jobTitle = "Job title must not exceed 50 words.";
+        }
+
+        if (!jobDescription.trim()) {
+            newErrors.jobDescription = "Job description is required.";
             valid = false;
         }
 
-        // Job Description (optional)
-        if (jobDescription.trim() && jobDescription.trim().split(" ").length > 100) {
-            newErrors.jobDescription = "Job description must not exceed 100 words.";
-            valid = false;
-        }
-
-        // Department
-        if (!department.trim()) {
+        if (!department) {
             newErrors.department = "Department is required.";
             valid = false;
         }
 
-        // Default salary
-        if (!defaultSalary || isNaN(Number(defaultSalary))) {
-            newErrors.defaultSalary = "Default salary is required and must be a number.";
+        if (defaultSalary === "") {
+            newErrors.defaultSalary = "Default salary is required.";
+            valid = false;
+        } else if (defaultSalary < 0 || defaultSalary > 1000000) {
+            newErrors.defaultSalary =
+                "Salary must be between ₱0 and ₱1,000,000.";
+            valid = false;
+        }
+
+        if (availability === "") {
+            newErrors.availability = "Availability is required.";
+            valid = false;
+        } else if (availability < 0 || availability > 1000) {
+            newErrors.availability =
+                "Availability must be between 0 and 1000.";
             valid = false;
         }
 
@@ -105,6 +163,7 @@ export default function AddJobModal({ isOpen, onClose }: AddJobModalProps) {
         return valid;
     };
 
+    // Save handler
     const handleSave = async () => {
         if (!validate()) return;
 
@@ -114,10 +173,11 @@ export default function AddJobModal({ isOpen, onClose }: AddJobModalProps) {
             position_name: jobTitle,
             position_desc: jobDescription || undefined,
             department_id: parseInt(department),
-            availability: parseInt(availability),
+            availability: typeof availability === 'number' ? availability : parseInt(availability as string),
             employment_type: employmentType as 'regular' | 'probationary',
-            default_salary: Number(defaultSalary),
-            salary_unit: employmentType === 'regular' ? 'monthly' : 'hourly',
+            default_salary: typeof defaultSalary === 'number' ? defaultSalary : Number(defaultSalary),
+            salary_unit:
+                employmentType === "regular" ? "monthly" : "hourly",
         });
 
         setLoading(false);
@@ -147,88 +207,115 @@ export default function AddJobModal({ isOpen, onClose }: AddJobModalProps) {
                     >
                         {/* Header */}
                         <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-xl font-bold text-[#3b2b1c]">Add Job Role</h2>
+                            <h2 className="text-xl font-bold text-[#3b2b1c]">
+                                Add Job Role
+                            </h2>
                             <button onClick={onClose}>
                                 <X className="text-[#3b2b1c]" />
                             </button>
                         </div>
 
-                        {/* Form */}
                         <div className="space-y-4 text-[#3b2b1c]">
                             {/* Job Title */}
                             <FormInput
                                 type="text"
                                 label="Job Title"
-                                placeholder="Enter job title"
                                 value={jobTitle}
-                                onChange={(e) => setJobTitle(e.target.value)}
+                                onChange={(e) => validateNameFormat(e.target.value, setJobTitle, 50)}
                                 error={errors.jobTitle}
                             />
 
                             {/* Job Description */}
                             <div>
-                                <label className="block text-sm font-medium text-[#3b2b1c] mb-1">
+                                <label className="block text-sm font-medium mb-1">
                                     Job Description
                                 </label>
+
                                 <textarea
                                     value={jobDescription}
-                                    onChange={(e) => setJobDescription(e.target.value)}
-                                    className={`w-full p-2 border rounded-lg focus:outline-none focus:ring-2 ${errors.jobDescription
-                                            ? "border-red-400 focus:ring-red-400"
-                                            : "border-[#d6c3aa] focus:ring-[#3b2b1c]"
-                                        }`}
+                                    onChange={(e) =>
+                                        validateNameFormat(e.target.value, setJobDescription, 200)
+                                    }
+                                    rows={4}
+                                    className="w-full p-3 border border-[#d6c3aa] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b2b1c] resize-none"
                                     placeholder="Enter job description"
-                                    rows={3}
                                 />
-                                {errors.jobDescription && (
-                                    <p className="text-red-500 text-xs mt-1">
-                                        {errors.jobDescription}
-                                    </p>
-                                )}
                             </div>
-
-                            {/* Employment Type & Default Salary */}
-                            <div className="flex gap-3">
+                            
+                            {/* Employment + Salary */}
+                            <div className="flex gap-4">
+                                {/* Employment Type */}
                                 <div className="w-1/2">
-                                    <label className="block text-sm font-medium text-[#3b2b1c] mb-1">Employment Type</label>
+                                    <label className="block text-sm font-medium mb-1">
+                                        Employment Type
+                                    </label>
                                     <select
                                         value={employmentType}
-                                        onChange={(e) => setEmploymentType(e.target.value)}
-                                        className="w-full p-2 border rounded-lg focus:outline-none border-[#d6c3aa] focus:ring-2 focus:ring-[#3b2b1c]"
+                                        onChange={(e) =>
+                                            setEmploymentType(e.target.value)
+                                        }
+                                        className="w-full h-[42px] px-3 border rounded-lg border-[#d6c3aa] focus:ring-2 focus:ring-[#3b2b1c]"
                                     >
                                         <option value="regular">Regular</option>
-                                        <option value="probationary">Probationary</option>
+                                        <option value="probationary">
+                                            Probationary
+                                        </option>
                                     </select>
                                 </div>
 
+                                {/* Salary */}
                                 <div className="w-1/2">
-                                    <FormInput
-                                        type="number"
-                                        label={`Default Salary (${employmentType === 'regular' ? 'per month' : 'per hour'})`}
-                                        placeholder="Enter default salary"
-                                        value={defaultSalary}
-                                        onChange={(e) => setDefaultSalary(e.target.value)}
-                                        error={errors.defaultSalary}
-                                    />
+                                    <label className="block text-sm font-medium mb-1">
+                                        Default Salary (
+                                        {employmentType === "regular"
+                                            ? "per month"
+                                            : "per hour"}
+                                        )
+                                    </label>
+
+                                    <div className="relative">
+                                        <span className="absolute inset-y-0 left-3 flex items-center text-gray-500 text-sm">
+                                            ₱
+                                        </span>
+
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={1000000}
+                                            value={defaultSalary}
+                                            onChange={(e) =>
+                                                handleSalaryChange(e.target.value)
+                                            }
+                                            className="w-full h-[42px] pl-8 pr-3 border rounded-lg border-[#d6c3aa] focus:outline-none focus:ring-2 focus:ring-[#3b2b1c]"
+                                        />
+                                    </div>
+
+                                    {errors.defaultSalary && (
+                                        <p className="text-red-500 text-xs mt-1">
+                                            {errors.defaultSalary}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
 
                             {/* Department */}
                             <div>
-                                <label className="block text-sm font-medium text-[#3b2b1c] mb-1">
+                                <label className="block text-sm font-medium mb-1">
                                     Department
                                 </label>
                                 <select
                                     value={department}
-                                    onChange={(e) => setDepartment(e.target.value)}
-                                    className={`w-full p-2 border rounded-lg focus:outline-none focus:ring-2 ${errors.department
-                                            ? "border-red-400 focus:ring-red-400"
-                                            : "border-[#d6c3aa] focus:ring-[#3b2b1c]"
-                                        }`}
+                                    onChange={(e) =>
+                                        setDepartment(e.target.value)
+                                    }
+                                    className="w-full p-2 border border-[#d6c3aa] rounded-lg focus:ring-2 focus:ring-[#3b2b1c]"
                                 >
                                     <option value="">Select Department</option>
                                     {departments.map((dept) => (
-                                        <option key={dept.department_id} value={dept.department_id}>
+                                        <option
+                                            key={dept.department_id}
+                                            value={dept.department_id}
+                                        >
                                             {dept.department_name}
                                         </option>
                                     ))}
@@ -242,26 +329,32 @@ export default function AddJobModal({ isOpen, onClose }: AddJobModalProps) {
 
                             {/* Availability */}
                             <div>
-                                <label className="block text-sm font-medium text-[#3b2b1c] mb-1">
+                                <label className="block text-sm font-medium mb-1">
                                     Available Slots
                                 </label>
                                 <input
                                     type="number"
-                                    min="0"
+                                    min={0}
+                                    max={1000}
                                     value={availability}
-                                    onChange={(e) => setAvailability(e.target.value)}
-                                    className="w-full p-2 border border-[#d6c3aa] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b2b1c]"
-                                    placeholder="Enter number of available slots"
+                                    onChange={(e) =>
+                                        handleAvailabilityChange(e.target.value)
+                                    }
+                                    className="w-full p-2 border border-[#d6c3aa] rounded-lg focus:ring-2 focus:ring-[#3b2b1c]"
                                 />
+                                {errors.availability && (
+                                    <p className="text-red-500 text-xs mt-1">
+                                        {errors.availability}
+                                    </p>
+                                )}
                             </div>
 
-                            {/* Save Button */}
+                            {/* Save */}
                             <div className="flex justify-end mt-6">
                                 <ActionButton
                                     onClick={handleSave}
                                     label={loading ? "Saving..." : "Save"}
                                     icon={Save}
-                                    className="hover:opacity-90 transition"
                                     disabled={loading}
                                 />
                             </div>
