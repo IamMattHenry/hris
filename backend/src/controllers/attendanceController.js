@@ -837,9 +837,9 @@ export const markAbsences = async (req, res, next) => {
       return res.json({ success: true, message: 'No eligible past dates to process', data: { processed: [] } });
     }
 
-    // Only active employees
+    // Only active employees (with hire_date and scheduled_days for filtering)
     const employees = await db.getAll(
-      `SELECT e.employee_id
+      `SELECT e.employee_id, e.hire_date, e.scheduled_days
        FROM employees e
        WHERE e.status = 'active'`
     );
@@ -852,6 +852,9 @@ export const markAbsences = async (req, res, next) => {
     for (const targetDate of dates) {
       let inserted = 0;
       for (const emp of employees) {
+        // Skip if target date is before employee's hire date
+        if (targetDate < emp.hire_date.split('T')[0]) continue;
+
         // Skip if attendance exists for target date
         const existing = await db.getOne(
           'SELECT attendance_id FROM attendance WHERE employee_id = ? AND date = ?',
@@ -869,6 +872,20 @@ export const markAbsences = async (req, res, next) => {
           [emp.employee_id, targetDate]
         );
         if (onLeave) continue;
+
+        // Skip if employee is not scheduled to work on this day
+        if (emp.scheduled_days) {
+          try {
+            const scheduledDays = JSON.parse(emp.scheduled_days);
+            const targetDateObj = new Date(`${targetDate}T00:00:00`);
+            const dayName = targetDateObj.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+            if (!scheduledDays.includes(dayName)) continue;
+          } catch (e) {
+            // If scheduled_days is invalid JSON, skip this employee
+            logger.warn(`Invalid scheduled_days JSON for employee ${emp.employee_id}: ${emp.scheduled_days}`);
+            continue;
+          }
+        }
 
         const attendanceId = await db.insert('attendance', {
           employee_id: emp.employee_id,
