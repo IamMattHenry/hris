@@ -22,7 +22,12 @@ export default function AddJobModal({ isOpen, onClose }: AddJobModalProps) {
     const [employmentType, setEmploymentType] = useState("regular");
     const [defaultSalary, setDefaultSalary] = useState("");
     const [loading, setLoading] = useState(false);
-    const [errors, setErrors] = useState({
+    const [errors, setErrors] = useState<{
+        jobTitle: string;
+        jobDescription: string;
+        department: string;
+        defaultSalary: string;
+    }>({
         jobTitle: "",
         jobDescription: "",
         department: "",
@@ -54,6 +59,7 @@ export default function AddJobModal({ isOpen, onClose }: AddJobModalProps) {
                 jobTitle: "",
                 jobDescription: "",
                 department: "",
+                defaultSalary: "",
             });
         }
     }, [isOpen]);
@@ -65,6 +71,7 @@ export default function AddJobModal({ isOpen, onClose }: AddJobModalProps) {
             jobTitle: "",
             jobDescription: "",
             department: "",
+            defaultSalary: "",
         };
 
         // Job Title
@@ -108,7 +115,7 @@ export default function AddJobModal({ isOpen, onClose }: AddJobModalProps) {
             position_desc: jobDescription || undefined,
             department_id: parseInt(department),
             availability: parseInt(availability),
-            employment_type: employmentType,
+            employment_type: employmentType as 'regular' | 'probationary',
             default_salary: Number(defaultSalary),
             salary_unit: employmentType === 'regular' ? 'monthly' : 'hourly',
         });
