@@ -105,6 +105,7 @@ export default function AddJobModal({
         maxLength: number = 30
     ) => {
         if (value.length > maxLength) return;
+        setValue(value);
     };
 
     // Validation
