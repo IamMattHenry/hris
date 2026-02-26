@@ -21,7 +21,7 @@ export default function AddJobModal({
     const [jobDescription, setJobDescription] = useState("");
     const [department, setDepartment] = useState("");
     const [departments, setDepartments] = useState<any[]>([]);
-    const [availability, setAvailability] = useState<number | "">("");
+    const [availability, setAvailability] = useState<number | "">(1);
     const [employmentType, setEmploymentType] = useState("regular");
     const [defaultSalary, setDefaultSalary] = useState<number | "">("");
     const [loading, setLoading] = useState(false);
