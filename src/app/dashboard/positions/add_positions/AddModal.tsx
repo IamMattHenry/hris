@@ -104,14 +104,7 @@ export default function AddJobModal({
         setValue: (v: string) => void,
         maxLength: number = 30
     ) => {
-        
-        if (!/^[A-Za-zñÑ\s]*$/.test(value)) return;
         if (value.length > maxLength) return;
-        const formattedValue = value
-            .toLowerCase()
-            .replace(/(^|\s)[a-zñ]/g, (char) => char.toUpperCase());
-
-        setValue(formattedValue);
     };
 
     // Validation
