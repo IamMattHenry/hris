@@ -14,7 +14,7 @@ const ActivityLogTab = () => {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const itemsPerPage = 4;
+  const itemsPerPage = 5;
   const [currentPage, setCurrentPage] = useState(1);
 
   const [sortBy, setSortBy] = useState<"log_id" | "name" | "date">("date");
