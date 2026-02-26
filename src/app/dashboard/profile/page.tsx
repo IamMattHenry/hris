@@ -19,7 +19,6 @@ type FormattedData = {
     civilStatus: string;
     status: string;
     hireDate: string;
-    shift: string;
     leaveCredit: number;
     address: { region: string; province: string; city: string; homeAddress: string };
     contacts: ContactItem[];
@@ -60,7 +59,7 @@ const mockEmployeeData = {
         civilStatus: 'Married',
         status: 'Active',
         hireDate: '2020-01-15',
-        shift: 'Morning',
+        // shift removed
         leaveCredit: 15,
         address: {
             region: 'NCR',
@@ -176,6 +175,9 @@ const Profile = () => {
         );
     }
 
+    // Check if user has employee record
+    const hasEmployeeRecord = userData.employee_id != null;
+
     const formattedData: FormattedData = {
         personal: {
             photo: null,
@@ -189,7 +191,7 @@ const Profile = () => {
             civilStatus: userData.civil_status ? userData.civil_status.charAt(0).toUpperCase() + userData.civil_status.slice(1) : "",
             status: userData.status ? userData.status.charAt(0).toUpperCase() + userData.status.slice(1) : "",
             hireDate: userData.hire_date || "",
-            shift: userData.shift ? userData.shift.charAt(0).toUpperCase() + userData.shift.slice(1) : "",
+            // shift removed (DB column no longer present)
             leaveCredit: userData.leave_credit || 0,
             address: {
                 region: userData.region || "",
@@ -266,6 +268,25 @@ const Profile = () => {
                         <X size={24} />
                     </button>
 
+                    {/* Warning Banner for users without employee record */}
+                    {!hasEmployeeRecord && (
+                        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded mb-6">
+                            <div className="flex">
+                                <div className="flex-shrink-0">
+                                    <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div className="ml-3">
+                                    <p className="text-sm text-yellow-700">
+                                        <strong>Incomplete Profile:</strong> Your account does not have an associated employee record.
+                                        Some profile information may be missing. Please contact your system administrator.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* PERSONAL SECTION */}
                     {activeSection === "personal" && (
                         <>
@@ -298,12 +319,7 @@ const Profile = () => {
                                                 {formattedData.personal.employeeCode}
                                             </span>
                                         </div>
-                                        <div>
-                                            <span className="text-gray-500">Shift:</span>{" "}
-                                            <span className="font-medium">
-                                                {formattedData.personal.shift}
-                                            </span>
-                                        </div>
+                                        {/* Shift removed per schema change */}
                                         <div>
                                             <span className="text-gray-500">Status:</span>{" "}
                                             <span className="inline-block px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">

@@ -10,7 +10,6 @@ interface EmployeeQRData {
   first_name: string;
   last_name: string;
   position_name: string;
-  shift: string;
   schedule_time: string; // "08:00" for morning, "17:00" for night
 }
 

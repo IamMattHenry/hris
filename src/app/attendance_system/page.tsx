@@ -12,7 +12,6 @@ interface EmployeeQRData {
   first_name: string;
   last_name: string;
   position_name: string;
-  shift: string;
   schedule_time: string;
 }
 
@@ -112,7 +111,6 @@ export default function AttendanceSystemPage() {
           first_name: res.data.first_name,
           last_name: res.data.last_name,
           position_name: res.data.position_name,
-          shift: res.data.shift || data.shift,
           schedule_time: data.schedule_time,
         };
         setEmployeeData(normalized);
@@ -316,8 +314,7 @@ export default function AttendanceSystemPage() {
                 </div>
                 <div className="text-base space-y-4">
                   <p>
-                    <strong>Schedule:</strong> {formatTime(employeeData.schedule_time)} (
-                    {employeeData.shift === "night" ? "Night Shift" : "Morning Shift"})
+                    <strong>Schedule:</strong> {formatTime(employeeData.schedule_time)}
                   </p>
                   <p>
                     <strong>Status:</strong>{" "}

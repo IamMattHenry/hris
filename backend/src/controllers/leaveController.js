@@ -15,12 +15,27 @@ export const getLeaveRequests = async (req, res, next) => {
         e.leave_credit,
         jp.position_name,
         d.department_name,
-        u.role AS requester_role
+        u.role AS requester_role,
+        -- HR pre-approver info (when available)
+        hre.first_name AS hr_approver_first_name,
+        hre.last_name AS hr_approver_last_name,
+        -- Final approver info (approved_by)
+        he.first_name AS approver_first_name,
+        he.last_name AS approver_last_name,
+        -- Supervisor info (for final stage timestamp convenience)
+        se.first_name AS supervisor_approver_first_name,
+        se.last_name AS supervisor_approver_last_name
       FROM leaves l
       LEFT JOIN employees e ON l.employee_id = e.employee_id
       LEFT JOIN users u ON e.user_id = u.user_id
       LEFT JOIN job_positions jp ON e.position_id = jp.position_id
       LEFT JOIN departments d ON e.department_id = d.department_id
+      LEFT JOIN users hru ON l.hr_approved_by = hru.user_id
+      LEFT JOIN employees hre ON hre.user_id = hru.user_id
+      LEFT JOIN users hu ON l.approved_by = hu.user_id
+      LEFT JOIN employees he ON he.user_id = hu.user_id
+      LEFT JOIN users su ON l.supervisor_approved_by = su.user_id
+      LEFT JOIN employees se ON se.user_id = su.user_id
       WHERE 1=1
     `;
     const params = [];
@@ -111,7 +126,7 @@ export const applyLeave = async (req, res, next) => {
 
     // Prevent probationary employees from submitting leave requests
     const targetEmployee = await db.getOne(
-      'SELECT employee_id, employment_type, probation_end_date, leave_credit, hire_date, gender FROM employees WHERE employee_id = ? LIMIT 1',
+      'SELECT employee_id, employment_type, probation_end_date, leave_credit, hire_date, gender, civil_status FROM employees WHERE employee_id = ? LIMIT 1',
       [targetEmployeeId]
     );
     if (!targetEmployee) {
@@ -164,13 +179,15 @@ export const applyLeave = async (req, res, next) => {
     const days = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
 
     const leaveLimits = {
-      maternity: 105,
-      maternity_solo: 120,
-      maternity_miscarriage: 60,
-      paternity: 7,
-      sil: 5,
-      special_women: 60,
-      bereavement: 5,
+      maternity: 105,                 // RA 11210: 105-Day Expanded Maternity Leave Act
+      maternity_solo: 120,            // RA 11210 + RA 8972 (Solo Parents' Welfare Act)
+      maternity_miscarriage: 60,      // RA 11210 (miscarriage/emergency termination)
+      paternity: 7,                   // RA 8187: Paternity Leave Act of 1996
+      sil: 5,                         // Labor Code Art. 95: Service Incentive Leave
+      special_women: 60,              // RA 9710: Magna Carta of Women (gynecological surgery)
+      bereavement: 5,                 // Company policy (if applicable)
+      solo_parent: 7,                 // RA 8972: Solo Parent Leave (7 days/year)
+      vawc: 10,                       // RA 9262: VAWC leave (10 days, extendable by court)
     };
 
     // Determine effective leave type key and validate
@@ -189,6 +206,93 @@ export const applyLeave = async (req, res, next) => {
       }
     }
 
+    // Statutory eligibility checks per Philippine Labor Standards
+    const gender = (targetEmployee.gender || '').toLowerCase();
+    const isFemale = gender === 'female' || gender === 'f';
+    const isMale = gender === 'male' || gender === 'm';
+    const hired = targetEmployee.hire_date ? new Date(targetEmployee.hire_date) : null;
+    const msSinceHire = hired ? (new Date().getTime() - hired.getTime()) : 0;
+    const monthsOfService = msSinceHire / (1000 * 60 * 60 * 24 * 30.4375);
+    const yearsOfService = msSinceHire / (1000 * 60 * 60 * 24 * 365);
+
+    // Maternity (RA 11210)
+    if (effectiveType.startsWith('maternity')) {
+      if (!isFemale) {
+        return res.status(400).json({ success: false, message: 'Maternity leave is available to female employees only (RA 11210).' });
+      }
+      if (effectiveType === 'maternity_solo' && !req.body?.solo_parent_id) {
+        return res.status(400).json({ success: false, message: 'Maternity leave (solo parent) requires a valid Solo Parent ID (RA 11210, RA 8972).' });
+      }
+      if (!req.body?.pregnancy_doc_ref) {
+        return res.status(400).json({ success: false, message: 'Maternity leave requires pregnancy/birth documentation (RA 11210).' });
+      }
+    }
+
+    // Paternity (RA 8187)
+    if (effectiveType === 'paternity') {
+      if (!isMale) {
+        return res.status(400).json({ success: false, message: 'Paternity leave is available to male employees only (RA 8187).' });
+      }
+      // Must be legally married per RA 8187 (best-effort check using civil_status and required doc)
+      const civil = (targetEmployee.civil_status || '').toLowerCase();
+      if (civil !== 'married') {
+        return res.status(400).json({ success: false, message: 'Paternity leave requires the employee to be legally married (RA 8187).' });
+      }
+      const prior = await db.getOne(
+        'SELECT COUNT(*) AS cnt FROM leaves WHERE employee_id = ? AND leave_type = ? AND status IN (?,?)',
+        [targetEmployeeId, 'paternity', 'approved', 'pending']
+      );
+      if ((prior?.cnt || 0) >= 4) {
+        return res.status(400).json({ success: false, message: 'Paternity leave is limited to the first 4 deliveries (RA 8187).' });
+      }
+      if (!req.body?.marriage_cert_no) {
+        return res.status(400).json({ success: false, message: 'Paternity leave requires a marriage certificate number (RA 8187).' });
+      }
+    }
+
+    // SIL (Labor Code Art. 95)
+    if (effectiveType === 'sil') {
+      if (!hired || msSinceHire < 365 * 24 * 60 * 60 * 1000) {
+        return res.status(400).json({ success: false, message: 'Service Incentive Leave (SIL) is available after one (1) year of service (Labor Code Art. 95).' });
+      }
+      if (days > (targetEmployee.leave_credit || 0)) {
+        return res.status(400).json({ success: false, message: 'Insufficient SIL leave credits (Labor Code Art. 95).' });
+      }
+    }
+
+    // Solo parent leave (RA 8972)
+    if (effectiveType === 'solo_parent') {
+      if (!hired || msSinceHire < 365 * 24 * 60 * 60 * 1000) {
+        return res.status(400).json({ success: false, message: 'Solo Parent Leave requires at least one (1) year of service (RA 8972).' });
+      }
+      if (!req.body?.solo_parent_id) {
+        return res.status(400).json({ success: false, message: 'Solo Parent Leave requires a valid Solo Parent ID (RA 8972).' });
+      }
+    }
+
+    // VAWC leave (RA 9262) – female only
+    if (effectiveType === 'vawc') {
+      if (!isFemale) {
+        return res.status(400).json({ success: false, message: 'VAWC leave is available to female employees only (RA 9262).' });
+      }
+      if (!req.body?.vawc_cert_ref) {
+        return res.status(400).json({ success: false, message: 'VAWC leave requires a barangay/police certification reference (RA 9262).' });
+      }
+    }
+
+    // Special leave for women (RA 9710) – female only, 6 months service
+    if (effectiveType === 'special_women') {
+      if (!isFemale) {
+        return res.status(400).json({ success: false, message: 'Special leave for women is available to female employees only (RA 9710).' });
+      }
+      if (monthsOfService < 6) {
+        return res.status(400).json({ success: false, message: 'Special leave for women requires at least six (6) months of service (RA 9710).' });
+      }
+      if (!req.body?.medical_cert_no) {
+        return res.status(400).json({ success: false, message: 'Special leave for women requires a medical certificate number (RA 9710).' });
+      }
+    }
+
     // Additional checks: paternity requires male gender, maternity requires female
     if (effectiveType.startsWith('maternity')) {
       if ((targetEmployee.gender || '').toLowerCase() !== 'female') {
@@ -202,15 +306,16 @@ export const applyLeave = async (req, res, next) => {
     }
 
     // Service Incentive Leave (SIL) check: ensure at least 1 year of service
-    if (effectiveType === 'sil') {
-      const hired = targetEmployee.hire_date ? new Date(targetEmployee.hire_date) : null;
-      if (!hired || ((new Date() - hired) < 365 * 24 * 60 * 60 * 1000)) {
-        return res.status(400).json({ success: false, message: 'SIL is available after one year of service' });
-      }
-      if (days > (targetEmployee.leave_credit || 0)) {
-        return res.status(400).json({ success: false, message: 'Insufficient leave credits for SIL' });
-      }
-    }
+    // Note: Additional SIL checks already handled above with legal references
+
+    // Capture supporting documentation in a JSON blob for audit/compliance
+    const supportingDocs = {};
+    if (req.body?.maternity_type) supportingDocs.maternity_type = req.body.maternity_type;
+    if (req.body?.pregnancy_doc_ref) supportingDocs.pregnancy_doc_ref = req.body.pregnancy_doc_ref;
+    if (req.body?.marriage_cert_no) supportingDocs.marriage_cert_no = req.body.marriage_cert_no;
+    if (req.body?.solo_parent_id) supportingDocs.solo_parent_id = req.body.solo_parent_id;
+    if (req.body?.vawc_cert_ref) supportingDocs.vawc_cert_ref = req.body.vawc_cert_ref;
+    if (req.body?.medical_cert_no) supportingDocs.medical_cert_no = req.body.medical_cert_no;
 
     const leaveId = await db.insert('leaves', {
       employee_id: targetEmployeeId,
@@ -219,6 +324,7 @@ export const applyLeave = async (req, res, next) => {
       end_date,
       status: 'pending',
       remarks,
+      supporting_docs: Object.keys(supportingDocs).length ? JSON.stringify(supportingDocs) : null,
       created_by: createdBy,
     });
 
@@ -269,17 +375,7 @@ export const approveLeave = async (req, res, next) => {
     );
 
     if (!leave) {
-      return res.status(404).json({
-        success: false,
-        message: 'Leave request not found',
-      });
-    }
-
-    if (leave.status !== 'pending') {
-      return res.status(400).json({
-        success: false,
-        message: 'Only pending leave requests can be approved',
-      });
+      return res.status(404).json({ success: false, message: 'Leave request not found' });
     }
 
     const approverRole = req.user?.role;
@@ -291,106 +387,113 @@ export const approveLeave = async (req, res, next) => {
       [approverUserId]
     );
 
-    const requesterRole = leave.requester_role;
-
-    // New approval policy: Only HR can approve leave requests.
-    // NOTE: using 'superadmin' as a placeholder for HR role — replace with 'hr' when ready.
-    if (approverRole !== 'superadmin') {
-      return res.status(403).json({ success: false, message: 'Only HR can approve leave requests' });
-    }
-    if (approver && approver.employee_id === leave.emp_id) {
-      return res.status(403).json({ success: false, message: 'You cannot approve your own leave request' });
-    }
-
-    // Determine deduction rule: 1 credit per leave (except sick leave = 0)
-    const isSickLeave = leave.leave_type === 'sick';
-
-    // Validate dates (still required)
-    const start = new Date(leave.start_date);
-    const end = new Date(leave.end_date);
-    const today = new Date();
-    const diffMs = end.getTime() - start.getTime();
-    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
-
-    if (!Number.isFinite(days) || days <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid leave date range',
-      });
-    }
-
-    // Check if the leave request date has already ended
-
-    if (end < today) {
-      return res.status(400).json({
-        success: false,
-        message: 'End date of the leave request has ended already.'
-      });
-    }
-
-    // Check available leave credits (only for non-sick leaves)
-    const availableCredits = Number(leave.emp_leave_credit ?? 0);
-    const isNonPaid = !isSickLeave && availableCredits < 1;
-
-    // Start transaction for atomic operations
-    await db.beginTransaction();
-
-    try {
-      // Update leave status to approved (append non-paid note if applicable)
-      const newRemarks = isNonPaid
-        ? (leave.remarks ? `${leave.remarks} [NON-PAID]` : '[NON-PAID]')
-        : leave.remarks;
-      await db.transactionUpdate(
-        'leaves',
-        {
-          status: 'approved',
-          approved_by: approverUserId,
-          updated_by: approverUserId,
-          remarks: newRemarks,
-        },
-        'leave_id = ?',
-        [id]
-      );
-
-      // Deduct leave credits per policy and set employee status to on-leave
-      const employeeUpdate = (isSickLeave || isNonPaid)
-        ? { status: 'on-leave' }
-        : { status: 'on-leave', leave_credit: availableCredits - 1 };
-      await db.transactionUpdate(
-        'employees',
-        employeeUpdate,
-        'employee_id = ?',
-        [leave.emp_id]
-      );
-
-      await db.commit();
-
-      logger.info(
-        `Leave request approved: ${id}, Employee ${leave.emp_id} set to on-leave, ${isSickLeave ? 'no credit deducted (sick leave)' : isNonPaid ? 'approved as non-paid (0 credits)' : 'deducted 1 credit'}`
-      );
-
-      // Create activity log entry (outside transaction)
-      try {
-        await db.insert('activity_logs', {
-          user_id: approverUserId || 1,
-          action: 'UPDATE',
-          module: 'leaves',
-          description: `Approved leave request ${leave.leave_code} for employee ID ${leave.emp_id}; ${isSickLeave ? 'no credit deducted (sick leave)' : isNonPaid ? 'approved as non-paid (0 credits)' : 'deducted 1 credit'}`,
-          created_by: approverUserId || 1,
-        });
-      } catch (logError) {
-        logger.error('Failed to create activity log:', logError);
+    // Single-stage HR approval: HR (superadmin) finalizes to 'approved' with deductions
+    if (approverRole === 'superadmin') {
+      if (approver && approver.employee_id === leave.emp_id) {
+        return res.status(403).json({ success: false, message: 'You cannot approve your own leave request' });
       }
 
-      res.json({
-        success: true,
-        message: `Leave request approved; ${isSickLeave ? 'no credit deducted (sick leave)' : isNonPaid ? 'approved as non-paid (0 credits)' : 'deducted 1 credit'}`,
-        data: { leave_id: id, employee_id: leave.emp_id, deducted_credits: (isSickLeave || isNonPaid) ? 0 : 1 },
-      });
-    } catch (error) {
-      await db.rollback();
-      throw error;
+      // Allow HR to finalize from current/new/legacy intermediate states
+      const allowedStatuses = ['pending', 'hr_approved', 'supervisor_approved'];
+      if (!allowedStatuses.includes(leave.status)) {
+        return res.status(400).json({ success: false, message: 'Only pending (or legacy pre-approved) leave requests can be approved by HR' });
+      }
+
+      // Determine deduction rules per leave type
+      const type = (leave.leave_type || '').toLowerCase();
+      const isSickLeave = type === 'sick';
+      const isSIL = type === 'sil';
+      const isStatNoDeduction = ['maternity','paternity','vawc','special_women','solo_parent','bereavement'].includes(type);
+
+      // Validate date range
+      const start = new Date(leave.start_date);
+      const end = new Date(leave.end_date);
+      const today = new Date();
+      const diffMs = end.getTime() - start.getTime();
+      const days = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
+      if (!Number.isFinite(days) || days <= 0) {
+        return res.status(400).json({ success: false, message: 'Invalid leave date range' });
+      }
+      if (end < today) {
+        return res.status(400).json({ success: false, message: 'End date of the leave request has ended already.' });
+      }
+
+      const availableCredits = Number(leave.emp_leave_credit ?? 0);
+      const deductsCredits = !isSickLeave && !isStatNoDeduction && !isSIL;
+      const isNonPaid = deductsCredits && availableCredits < 1;
+
+      await db.beginTransaction();
+      try {
+        const newRemarks = isNonPaid
+          ? (leave.remarks ? `${leave.remarks} [NON-PAID]` : '[NON-PAID]')
+          : leave.remarks;
+        await db.transactionUpdate(
+          'leaves',
+          {
+            status: 'approved',
+            approved_by: approverUserId,
+            hr_approved_at: new Date(), // record HR approval timestamp
+            updated_by: approverUserId,
+            remarks: newRemarks,
+          },
+          'leave_id = ?',
+          [id]
+        );
+
+        let deducted = 0;
+        let newCredits = availableCredits;
+        if (isSIL) {
+          deducted = days; // SIL: deduct actual days
+          newCredits = availableCredits - days;
+        } else if (deductsCredits && !isNonPaid) {
+          deducted = 1; // Company-policy leaves: 1 credit per leave
+          newCredits = availableCredits - 1;
+        }
+
+        const employeeUpdate = deducted > 0
+          ? { status: 'on-leave', leave_credit: newCredits }
+          : { status: 'on-leave' };
+        await db.transactionUpdate('employees', employeeUpdate, 'employee_id = ?', [leave.emp_id]);
+
+        await db.commit();
+
+        const deductionMsg = isSIL
+          ? `deducted ${days} credit(s) (SIL)`
+          : isSickLeave
+            ? 'no credit deducted (sick leave)'
+            : isStatNoDeduction
+              ? 'no credit deducted (statutory leave)'
+              : isNonPaid
+                ? 'approved as non-paid (0 credits)'
+                : 'deducted 1 credit';
+
+        // Activity log
+        try {
+          await db.insert('activity_logs', {
+            user_id: approverUserId || 1,
+            action: 'UPDATE',
+            module: 'leaves',
+            description: `HR approved leave request ${leave.leave_code} (employee ID ${leave.emp_id}); ${deductionMsg}`,
+            created_by: approverUserId || 1,
+          });
+        } catch (logError) {
+          logger.error('Failed to create activity log:', logError);
+        }
+
+        return res.json({ success: true, message: `Leave request approved; ${deductionMsg}` });
+      } catch (error) {
+        await db.rollback();
+        throw error;
+      }
     }
+
+    // Supervisors no longer approve in the new policy
+    if (approverRole === 'supervisor' || approverRole === 'admin') {
+      return res.status(403).json({ success: false, message: 'Only HR can approve leave requests' });
+    }
+
+    // Any other role cannot approve
+    return res.status(403).json({ success: false, message: 'You do not have permission to approve at this stage' });
   } catch (error) {
     logger.error('Approve leave error:', error);
     next(error);
@@ -421,13 +524,6 @@ export const rejectLeave = async (req, res, next) => {
       });
     }
 
-    if (leave.status !== 'pending') {
-      return res.status(400).json({
-        success: false,
-        message: 'Only pending leave requests can be rejected',
-      });
-    }
-
     const approverRole = req.user?.role;
     const approverUserId = req.user?.user_id;
 
@@ -437,55 +533,25 @@ export const rejectLeave = async (req, res, next) => {
       [approverUserId]
     );
 
-    const requesterRole = leave.requester_role;
+    // Two-stage rejection policy (reversed flow)
+    if (approverRole === 'superadmin') {
+      // HR can reject at the first stage (pending)
+      if (!(leave.status === 'pending' || leave.status === 'supervisor_approved')) {
+        return res.status(400).json({ success: false, message: 'HR can only reject pending (or legacy supervisor-approved) leave requests' });
+      }
+      if (approver && approver.employee_id === leave.emp_id) {
+        return res.status(403).json({ success: false, message: 'You cannot reject your own leave request' });
+      }
 
-    // Enforce rejection hierarchy (Option A)
-    if (requesterRole === 'employee') {
-      // Only same-department supervisors (not self)
-      if (approverRole !== 'supervisor') {
-        return res.status(403).json({ success: false, message: 'Only same-department supervisors can reject employee leave requests' });
-      }
-      if (!approver) {
-        return res.status(403).json({ success: false, message: 'Approver is not linked to an employee record' });
-      }
-      if (approver.department_id !== leave.emp_department_id) {
-        return res.status(403).json({ success: false, message: 'Supervisors can only reject leave requests within their department' });
-      }
-      if (approver.employee_id === leave.emp_id) {
-        return res.status(403).json({ success: false, message: 'You cannot reject your own leave request' });
-      }
-    } else if (requesterRole === 'supervisor') {
-      // Only admin or superadmin can reject
-      if (!(approverRole === 'admin' || approverRole === 'superadmin')) {
-        return res.status(403).json({ success: false, message: 'Only admin or superadmin can reject supervisor leave requests' });
-      }
-      if (approver && approver.employee_id === leave.emp_id) {
-        return res.status(403).json({ success: false, message: 'You cannot reject your own leave request' });
-      }
-    } else if (requesterRole === 'admin') {
-      // Only superadmin can reject
-      if (approverRole !== 'superadmin') {
-        return res.status(403).json({ success: false, message: 'Only superadmin can reject admin leave requests' });
-      }
-      if (approver && approver.employee_id === leave.emp_id) {
-        return res.status(403).json({ success: false, message: 'You cannot reject your own leave request' });
-      }
+      const newRemarks = remarks ? `[HR REJECTED] ${remarks}` : '[HR REJECTED]';
+      await db.update('leaves', { status: 'rejected', remarks: newRemarks, updated_by: approverUserId }, 'leave_id = ?', [id]);
+    } else if (approverRole === 'supervisor' || approverRole === 'admin') {
+      return res.status(403).json({ success: false, message: 'Only HR can reject leave requests' });
     } else {
-      return res.status(403).json({ success: false, message: 'No rejection policy configured for this requester role' });
+      return res.status(403).json({ success: false, message: 'You do not have permission to reject at this stage' });
     }
 
-    await db.update(
-      'leaves',
-      {
-        status: 'rejected',
-        remarks: remarks || null,
-        updated_by: approverUserId,
-      },
-      'leave_id = ?',
-      [id]
-    );
-
-    logger.info(`Leave request rejected: ${id}`);
+    logger.info(`Leave request rejected: ${id} by ${approverRole}`);
 
     // Create activity log entry
     try {
@@ -493,7 +559,7 @@ export const rejectLeave = async (req, res, next) => {
         user_id: approverUserId || 1,
         action: 'UPDATE',
         module: 'leaves',
-        description: `Rejected leave request ${leave.leave_code} for employee ID ${leave.emp_id}`,
+        description: `Rejected leave request ${leave.leave_code} for employee ID ${leave.emp_id} (${leave.status})`,
         created_by: approverUserId || 1,
       });
     } catch (logError) {

@@ -73,9 +73,31 @@ export default function Dashboard() {
       try {
         const res = await fetch("/data/ph_locations.json");
         if (!res.ok) throw new Error(`Failed to fetch PH locations: ${res.status}`);
-        const data = await res.json();
-        setPhLocationsData(data);
-        setRegions(data.map((r: any) => r.region));
+        const rawData = await res.json();
+
+        const processedData = rawData.map((region: any) => {
+          const finalProvinces = (region.provinces || []).map((prov: any) => ({
+            name: prov.name,
+            cities: (prov.cities || []).map((city: any) => ({
+              name: city.name,
+              barangays: (city.barangays || []).map((b: any) => ({ name: b.name }))
+            }))
+          }));
+
+          if (region.cities && region.cities.length > 0) {
+            const directCities = region.cities.map((city: any) => ({
+              name: city.name,
+              barangays: (city.barangays || []).map((b: any) => ({ name: b.name }))
+            }));
+
+            const dummyProvinceName = region.name === "NCR" ? "Metro Manila" : "Independent Cities";
+            finalProvinces.push({ name: dummyProvinceName, cities: directCities });
+          }
+          return { name: region.name, provinces: finalProvinces };
+        });
+
+        setPhLocationsData(processedData);
+        setRegions(processedData.map((r: any) => r.name));
       } catch (err) {
         console.error(err);
         setRegions([]);
@@ -87,9 +109,9 @@ export default function Dashboard() {
   // Update provinces on region change
   useEffect(() => {
     if (formData.region) {
-      const regionObj = phLocationsData.find((r: any) => r.region === formData.region);
+      const regionObj = phLocationsData.find((r: any) => r.name === formData.region);
       if (regionObj) {
-        setProvinces(regionObj.provinces.map((p: any) => p.province));
+        setProvinces(regionObj.provinces.map((p: any) => p.name));
         setCities([]);
       } else {
         setProvinces([]);
@@ -104,10 +126,10 @@ export default function Dashboard() {
   // Update cities on province change
   useEffect(() => {
     if (formData.region && formData.province) {
-      const regionObj = phLocationsData.find((r: any) => r.region === formData.region);
+      const regionObj = phLocationsData.find((r: any) => r.name === formData.region);
       if (regionObj) {
-        const provinceObj = regionObj.provinces.find((p: any) => p.province === formData.province);
-        setCities(provinceObj?.cities || []);
+        const provinceObj = regionObj.provinces.find((p: any) => p.name === formData.province);
+        setCities(provinceObj?.cities ? provinceObj.cities.map((c: any) => (typeof c === 'string' ? c : c.name)) : []);
       }
     } else {
       setCities([]);

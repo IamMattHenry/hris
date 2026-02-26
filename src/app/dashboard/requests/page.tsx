@@ -11,8 +11,23 @@ import ViewLeaveModal from "./view_request/ViewModal";
 import { toast } from "react-hot-toast";
 
 type TabKey = "Leave Request" | "History";
-type LeaveType = "vacation" | "sick" | "personal" | "parental" | "bereavement" | "emergency" | "half_day" | "others";
-type LeaveStatus = "pending" | "approved" | "rejected";
+type LeaveType =
+  | "vacation"
+  | "sick"
+  | "emergency"
+  | "half_day"
+  | "others"
+  | "maternity"
+  | "paternity"
+  | "sil"
+  | "special_women"
+  | "bereavement"
+  | "solo_parent"
+  | "vawc"
+  // Legacy
+  | "personal"
+  | "parental";
+type LeaveStatus = "pending" | "hr_approved" | "approved" | "rejected" | "supervisor_approved"; // include legacy
 
 interface Leave {
   leave_id: number;
@@ -30,6 +45,14 @@ interface Leave {
   remarks?: string;
   leave_credit?: number;
   requester_role?: string;
+  // Optional approver info
+  supervisor_approved_by?: number | null;
+  supervisor_approved_at?: string | null;
+  supervisor_approver_first_name?: string;
+  supervisor_approver_last_name?: string;
+  approver_first_name?: string;
+  approver_last_name?: string;
+  hr_approved_at?: string | null;
 }
 
 const tabs: TabKey[] = ["Leave Request", "History"];
@@ -37,12 +60,19 @@ const tabs: TabKey[] = ["Leave Request", "History"];
 const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
   vacation: "Vacation Leave",
   sick: "Sick Leave",
-  personal: "Personal Leave",
-  parental: "Parental Leave",
-  bereavement: "Bereavement Leave",
   emergency: "Emergency Leave",
   half_day: "Half Day",
   others: "Others",
+  maternity: "Maternity Leave",
+  paternity: "Paternity Leave",
+  sil: "Service Incentive Leave (SIL)",
+  special_women: "Special Leave for Women",
+  bereavement: "Bereavement Leave",
+  solo_parent: "Solo Parent Leave",
+  vawc: "VAWC Leave",
+  // Legacy
+  personal: "Personal Leave",
+  parental: "Parental Leave",
 };
 
 export default function RequestsPage() {
@@ -64,8 +94,9 @@ export default function RequestsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10; // change page size here
 
-  // Check if user is supervisor (view-only access for CRUD, but can approve/reject)
+  // Role helpers
   const isSupervisor = user?.role === "supervisor";
+  const isSuperadmin = user?.role === "superadmin";
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -110,12 +141,21 @@ export default function RequestsPage() {
   const getFilteredLeaves = () => {
     let filtered = leaves;
 
-    // Filter by tab
-    if (activeTab === "Leave Request") {
+    // Filter by tab and role-specific stage
+  if (activeTab === "Leave Request") {
+    if (isSupervisor) {
+      // Supervisors view-only; show pending requests for awareness
       filtered = filtered.filter(l => l.status === "pending");
+    } else if (isSuperadmin) {
+      // HR acts on pending requests (and legacy supervisor_approved for backward compatibility)
+      filtered = filtered.filter(l => l.status === "pending" || l.status === "supervisor_approved");
     } else {
-      filtered = filtered.filter(l => l.status !== "pending");
+      // Others see both stages
+      filtered = filtered.filter(l => l.status === "pending" || l.status === "hr_approved");
     }
+  } else {
+    filtered = filtered.filter(l => !(l.status === "pending" || l.status === "hr_approved"));
+  }
 
     // Filter by search
     if (searchRequest) {
@@ -296,7 +336,9 @@ export default function RequestsPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 >
                   <option value="">All Status</option>
-                  <option value="pending">Pending</option>
+                  <option value="pending">Pending HR Review</option>
+                  <option value="hr_approved">HR Pre-Approved</option>
+                  <option value="supervisor_approved">Pending HR Review (legacy)</option>
                   <option value="approved">Approved</option>
                   <option value="rejected">Rejected</option>
                 </select>
@@ -348,14 +390,25 @@ export default function RequestsPage() {
                     <td className="py-3 px-4">{new Date(leave.end_date).toLocaleDateString()}</td>
                     <td className="py-3 px-4">
                       <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold ${leave.status === "approved"
-                          ? "bg-green-100 text-green-800"
-                          : leave.status === "rejected"
+                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          leave.status === "approved"
+                            ? "bg-green-100 text-green-800"
+                            : leave.status === "rejected"
                             ? "bg-red-100 text-red-800"
-                            : "bg-yellow-100 text-yellow-800"
-                          }`}
+                            : leave.status === "hr_approved"
+                            ? "bg-blue-100 text-blue-800" // Pending Supervisor Review
+                            : leave.status === "supervisor_approved"
+                            ? "bg-blue-100 text-blue-800" // legacy
+                            : "bg-yellow-100 text-yellow-800" // pending for HR
+                        }`}
                       >
-                        {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
+                        {leave.status === "hr_approved"
+                          ? "HR Pre-Approved"
+                          : leave.status === "pending"
+                          ? "Pending HR Review"
+                          : leave.status === "supervisor_approved"
+                          ? "Pending HR Review"
+                          : leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-center relative">

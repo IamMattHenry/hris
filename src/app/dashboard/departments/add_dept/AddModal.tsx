@@ -46,9 +46,8 @@ export default function AddDepartmentModal({ isOpen, onClose, onSave }: AddDepar
     const fetchSupervisors = async () => {
         const result = await employeeApi.getAll();
         if (result.success && result.data) {
-            // Filter only supervisors
-            const supervisorList = result.data.filter((emp: any) => emp.role === 'supervisor');
-            setSupervisors(supervisorList);
+                // Allow selecting any employee as supervisor (backend will handle promotion/validation)
+                setSupervisors(result.data);
         }
     };
 

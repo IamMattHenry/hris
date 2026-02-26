@@ -49,6 +49,8 @@ export default function ViewJobModal({ isOpen, onClose, job }: ViewJobModalProps
               <InfoBox label="Position Name" value={job.position_name} />
               <InfoBox label="Description" value={job.position_desc || "N/A"} />
               <InfoBox label="Department" value={job.department_name || "N/A"} />
+              <InfoBox label="Employment Type" value={(job as any).employment_type || 'N/A'} />
+              <InfoBox label="Default Salary" value={((job as any).default_salary != null) ? `${(job as any).default_salary} / ${((job as any).salary_unit) || 'month'}` : 'N/A'} />
               <InfoBox label="Available Slots" value={job.availability?.toString() || "0"} />
             </div>
 

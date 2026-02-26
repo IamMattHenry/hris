@@ -67,15 +67,6 @@ const formatCivilStatusForDisplay = (value?: string | null) => {
   return map[v] || value;
 };
 
-const formatShiftForDisplay = (value?: string | null) => {
-  if (!value) return "";
-  const v = value.toLowerCase();
-  const map: Record<string, string> = {
-    morning: "Morning",
-    night: "Night",
-  };
-  return map[v] || value;
-};
 
 function normalizeName(name: string) {
   return name
@@ -96,6 +87,21 @@ interface EditEmployeeModalProps {
   id: number | null;
 }
 
+interface EmployeeDocuments {
+  document_id?: number;
+  employee_id: number;
+  sss: boolean;
+  pagIbig: boolean;
+  tin: boolean;
+  philhealth: boolean;
+  cedula: boolean;
+  birthCert: boolean;
+  policeClearance: boolean;
+  barangayClearance: boolean;
+  medicalCert: boolean;
+  others: boolean;
+}
+
 interface EmployeeData {
   employee_id: number;
   first_name: string;
@@ -108,7 +114,6 @@ interface EmployeeData {
   region: string;
   department_id: number;
   position_id: number;
-  shift: string;
   email: string;
   civil_status?: string;
   supervisor_id?: number;
@@ -116,6 +121,7 @@ interface EmployeeData {
   emails?: Array<{ email_id: number; email: string }>;
   contact_numbers?: Array<{ contact_id: number; contact_number: string }>;
   dependents?: Array<any>;
+  documents?: EmployeeDocuments;
   role?: string;
   sub_role?: string;
   user_id?: number;
@@ -155,7 +161,13 @@ export default function EditEmployeeModal({
   const [departmentId, setDepartmentId] = useState<number | null>(null);
   const [positionId, setPositionId] = useState<number | null>(null);
   const [supervisorId, setSupervisorId] = useState<number | null>(null);
-  const [shift, setShift] = useState("");
+  const [employmentType, setEmploymentType] = useState<string | null>(null);
+  const [salaryDisplay, setSalaryDisplay] = useState<string>("");
+  // New: Work type and schedule
+  const [workType, setWorkType] = useState<string>("");
+  const [scheduledDays, setScheduledDays] = useState<string[]>([]);
+  const [scheduledStartTime, setScheduledStartTime] = useState<string>("");
+  const [scheduledEndTime, setScheduledEndTime] = useState<string>("");
   const [homeAddress, setHomeAddress] = useState("");
   const [barangay, setBarangay] = useState("");
   const [city, setCity] = useState("");
@@ -188,6 +200,24 @@ export default function EditEmployeeModal({
   const [dependentProvince, setDependentProvince] = useState("");
   const [dependentCity, setDependentCity] = useState("");
   const [dependentErrors, setDependentErrors] = useState<ValidationErrors>({});
+
+  // Documents state
+  const DOCUMENTS = [
+    { key: "sss", label: "SSS" },
+    { key: "pagIbig", label: "PAG-IBIG" },
+    { key: "tin", label: "TIN ID" },
+    { key: "philhealth", label: "PHILHEALTH" },
+    { key: "cedula", label: "CEDULA" },
+    { key: "birthCert", label: "BIRTH CERTIFICATE" },
+    { key: "policeClearance", label: "POLICE CLEARANCE" },
+    { key: "barangayClearance", label: "BARANGAY CLEARANCE" },
+    { key: "medicalCert", label: "MEDICAL CERTIFICATE" },
+    { key: "others", label: "OTHERS" }
+  ] as const;
+
+  const [documents, setDocuments] = useState<Record<string, boolean>>(
+    Object.fromEntries(DOCUMENTS.map(doc => [doc.key, false]))
+  );
 
 
   // Dropdown options
@@ -235,10 +265,33 @@ const [cityCode, setCityCode] = useState("");
         setExtensionName(res.data.extension_name || "");
         setDepartmentId(res.data.department_id);
         setPositionId(res.data.position_id);
-        setSupervisorId(res.data.supervisor_id || null);
-  setShift(formatShiftForDisplay(res.data.shift));
-  // Salary (as stored) - keep as string for editing (treated as per-hour value)
-  setSalary(res.data.salary !== undefined && res.data.salary !== null ? String(res.data.salary) : "");
+          setSupervisorId(res.data.supervisor_id || null);
+
+          // Salary and employment type: prefer canonical fields if present
+          const empType = (res.data.employment_type) ? res.data.employment_type : (res.data.monthly_salary ? 'regular' : (res.data.hourly_rate ? 'probationary' : null));
+          setEmploymentType(empType);
+
+          const cs = res.data.current_salary ?? res.data.monthly_salary ?? res.data.hourly_rate ?? res.data.salary;
+          setSalary(cs !== undefined && cs !== null ? String(cs) : "");
+          const unit = res.data.salary_unit || (empType === 'regular' ? 'monthly' : 'hourly');
+          setSalaryDisplay(cs ? `${cs} / ${unit === 'monthly' ? 'month' : 'hr'}` : "");
+
+          // Work type and schedule
+          const wt = (res.data.work_type || 'full-time').toLowerCase();
+          setWorkType(wt === 'part-time' ? 'Part-time' : 'Full-time');
+          try {
+            let days: any = res.data.scheduled_days;
+            if (typeof days === 'string') {
+              days = JSON.parse(days);
+            }
+            const dd = Array.isArray(days) ? days.map((d: any) => String(d).toLowerCase()) : [];
+            setScheduledDays(dd);
+          } catch {
+            setScheduledDays([]);
+          }
+          const normTime = (t?: string | null) => (t && t.length >= 5 ? t.slice(0,5) : "");
+          setScheduledStartTime(normTime(res.data.scheduled_start_time));
+          setScheduledEndTime(normTime(res.data.scheduled_end_time));
         setHomeAddress(res.data.home_address || "");
         setBarangay(res.data.barangay || ""); 
         setCity(res.data.city || "");
@@ -297,6 +350,24 @@ const [cityCode, setCityCode] = useState("");
           setDependents([]);
         }
 
+        // Set documents from the fetched data
+        if (res.data.documents) {
+          setDocuments({
+            sss: res.data.documents.sss || false,
+            pagIbig: res.data.documents.pagIbig || false,
+            tin: res.data.documents.tin || false,
+            philhealth: res.data.documents.philhealth || false,
+            cedula: res.data.documents.cedula || false,
+            birthCert: res.data.documents.birthCert || false,
+            policeClearance: res.data.documents.policeClearance || false,
+            barangayClearance: res.data.documents.barangayClearance || false,
+            medicalCert: res.data.documents.medicalCert || false,
+            others: res.data.documents.others || false,
+          });
+        } else {
+          setDocuments(Object.fromEntries(DOCUMENTS.map(doc => [doc.key, false])));
+        }
+
         // Set role management state
         if (res.data.role === "admin") {
           setGrantAdminPrivilege(true);
@@ -331,6 +402,49 @@ const [cityCode, setCityCode] = useState("");
       setSupervisors([]);
     }
   }, [departmentId]);
+
+  // Default schedule based on work type (non-destructive for existing schedules)
+  useEffect(() => {
+    const wt = (workType || '').toLowerCase();
+    if (wt === 'full-time' && scheduledDays.length === 0) {
+      setScheduledDays(['monday','tuesday','wednesday','thursday','friday']);
+    } else if (wt === 'part-time' && scheduledDays.length === 0) {
+      setScheduledDays([]);
+    }
+  }, [workType]);
+
+  // Auto-calc end time for full-time when start time changes (start + 9 hours)
+  useEffect(() => {
+    const wt = (workType || '').toLowerCase();
+    if (wt !== 'full-time') return;
+    if (!scheduledStartTime) return;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const calcEnd = (start: string) => {
+      const [hh, mm] = start.split(':').map((x) => parseInt(x || '0', 10));
+      const totalMin = (hh * 60 + mm + 9 * 60) % (24 * 60);
+      const nh = Math.floor(totalMin / 60);
+      const nm = totalMin % 60;
+      return `${pad(nh)}:${pad(nm)}`;
+    };
+    setScheduledEndTime(calcEnd(scheduledStartTime));
+  }, [workType, scheduledStartTime]);
+
+  // Auto-populate salary and employment type when position changes
+  useEffect(() => {
+    if (positionId && positions.length > 0) {
+      const selected = positions.find((p) => p.position_id === positionId);
+      if (selected) {
+        const def = (selected as any).default_salary;
+        const unit = (selected as any).salary_unit || (((selected as any).employment_type === 'regular') ? 'monthly' : 'hourly');
+        const empType = (selected as any).employment_type || (unit === 'monthly' ? 'regular' : 'probationary');
+        if (def != null) {
+          setSalary(String(def));
+          setSalaryDisplay(`${def} / ${unit === 'monthly' ? 'month' : 'hr'}`);
+        }
+        setEmploymentType(empType);
+      }
+    }
+  }, [positionId, positions]);
 
   const fetchDepartments = async () => {
     try {
@@ -668,7 +782,6 @@ useEffect(() => {
       extensionName,
       departmentId,
       positionId,
-      shift,
       employmentStatus,
       homeAddress,
       barangay,
@@ -678,7 +791,11 @@ useEffect(() => {
       civilStatus,
       emails,
       contactNumbers,
-      dependents
+      dependents,
+      workType,
+      scheduledDays,
+      scheduledStartTime,
+      scheduledEndTime
     );
 
     console.log("Validation result:", Object.keys(formErrors).length === 0);
@@ -715,7 +832,6 @@ useEffect(() => {
         department_id: departmentId,
         position_id: positionId,
         supervisor_id: supervisorId || null,
-        shift: shift ? shift.toLowerCase() : null,
         home_address: homeAddress,
         barangay: barangay,
         city: city,
@@ -727,13 +843,37 @@ useEffect(() => {
           .map((c) => c.contact_number.replace(/\s/g, ""))
           .filter((c) => c && c.trim()),
         dependents: dependents,
+        documents: documents,
+        // Work & schedule
+        work_type: workType ? workType.toLowerCase() : undefined,
+        scheduled_days: scheduledDays,
+        scheduled_start_time: scheduledStartTime || undefined,
+        scheduled_end_time: scheduledEndTime || undefined,
       };
 
-      // Include salary if provided
+      // Include salary and employment type if provided
+      let numericSalary: number | null = null;
       if (salary !== undefined && salary !== null && String(salary).trim() !== "") {
-        const numeric = Number(String(salary).replace(/,/g, ""));
-        if (!Number.isNaN(numeric)) {
-          updatedData.salary = numeric;
+        numericSalary = Number(String(salary).replace(/,/g, ""));
+        if (!Number.isNaN(numericSalary)) {
+          updatedData.current_salary = numericSalary;
+        } else {
+          numericSalary = null;
+        }
+      }
+
+      if (employmentType) {
+        updatedData.employment_type = employmentType.toLowerCase();
+      }
+
+      // Align salary fields to work_type
+      if (numericSalary != null) {
+        if ((workType || '').toLowerCase() === 'part-time') {
+          updatedData.hourly_rate = numericSalary;
+          updatedData.salary_unit = 'hourly';
+        } else {
+          updatedData.monthly_salary = numericSalary;
+          updatedData.salary_unit = 'monthly';
         }
       }
 
@@ -834,6 +974,7 @@ useEffect(() => {
             { id: "address", label: "Address Information" },
             { id: "contact", label: "Contact Information" },
             { id: "dependent", label: "Dependent Information" },
+            { id: "documents", label: "Documents" },
             { id: "roles", label: "User Roles" },
             { id: "fingerprint", label: "Fingerprint Registration" },
           ].map((tab) => (
@@ -995,13 +1136,16 @@ useEffect(() => {
                       </p>
                     </div>
 
-                    <FormSelect
-                      label="Shift"
-                      value={shift}
-                      onChange={(e) => setShift(e.target.value)}
-                      options={["Morning", "Night"]}
-                      error={errors.shift}
-                    />
+                    {/* */}
+
+                    {salaryDisplay && (
+                      <div className="md:col-span-3 mt-2">
+                        <div className="text-sm text-[#3b2b1c]">Salary Preview:</div>
+                        <div className="mt-1 inline-block px-3 py-2 bg-white border rounded-lg text-[#3b2b1c] font-semibold">
+                          {salaryDisplay}
+                        </div>
+                      </div>
+                    )}
 
                     <FormSelect
                       label="Employment Status"
@@ -1014,23 +1158,71 @@ useEffect(() => {
                       error={errors.employmentStatus}
                     />
 
-                    {/* Salary (per hour) - fetched as-is and editable */}
+                    {/* Work Type */}
+                    <FormSelect
+                      label="Work Type"
+                      value={workType}
+                      onChange={(e) => setWorkType(e.target.value)}
+                      options={["Full-time","Part-time"]}
+                    />
+
+                    {/* Salary - label aligns with Work Type */}
                     <div>
                       <FormInput
-                        label="Salary (per hour)"
+                        label={workType?.toLowerCase() === 'part-time' ? "Salary (Hourly Rate)" : "Salary (Monthly)"}
                         type="text"
                         value={salary}
                         onChange={(e) => {
                           const val = e.target.value;
-                          // allow digits, commas and dot (no conversion requested)
                           if (/^[0-9,]*\.?[0-9]{0,2}$/.test(val) || val === "") {
                             setSalary(val);
                           }
                         }}
-                        placeholder="Enter hourly salary as stored"
+                        placeholder={workType?.toLowerCase() === 'part-time' ? "Enter hourly rate" : "Enter monthly salary"}
                         error={errors.salary}
                       />
                     </div>
+
+                        {/* Schedule: Days */}
+                        <div className="md:col-span-3">
+                          <label className="block text-[#3b2b1c] mb-1 font-medium">Scheduled Days <span className="text-red-500">*</span></label>
+                      <div className="flex flex-wrap gap-3">
+                        {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map((day) => {
+                          const key = day.toLowerCase();
+                          const checked = scheduledDays.includes(key);
+                          return (
+                            <label key={day} className="inline-flex items-center gap-2 text-sm text-[#3b2b1c]">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  setScheduledDays((prev) => {
+                                    if (e.target.checked) return Array.from(new Set([...prev, key]));
+                                    return prev.filter((d) => d !== key);
+                                  });
+                                }}
+                              />
+                              {day}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                        {/* Schedule: Times */}
+                        <FormInput
+                          label="Scheduled Start Time:"
+                      type="time"
+                      value={scheduledStartTime}
+                      onChange={(e) => setScheduledStartTime(e.target.value)}
+                    />
+                        <FormInput
+                          label="Scheduled End Time:"
+                      type="time"
+                      value={scheduledEndTime}
+                      onChange={(e) => setScheduledEndTime(e.target.value)}
+                          disabled={(workType || '').toLowerCase() === 'full-time'}
+                    />
                   </div>
                 </section>
               )}
@@ -1502,6 +1694,60 @@ useEffect(() => {
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/*================= Documents Section ================= */}
+            {activeTab === "documents" && (
+              <div className="pt-6 mt-8">
+                <h3 className="text-[#3b2b1c] font-semibold mb-4">Document Checklist</h3>
+                <p className="text-sm text-[#6b5344] mb-6">
+                  Check the documents that have been submitted by the employee.
+                </p>
+
+                <div className="grid grid-cols-2 gap-4">
+                  {DOCUMENTS.map((doc) => (
+                    <div
+                      key={doc.key}
+                      className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all cursor-pointer ${
+                        documents[doc.key]
+                          ? "bg-green-50 border-green-300"
+                          : "bg-gray-50 border-gray-300"
+                      }`}
+                      onClick={() => setDocuments({ ...documents, [doc.key]: !documents[doc.key] })}
+                    >
+                      <input
+                        type="checkbox"
+                        id={`doc-${doc.key}`}
+                        checked={documents[doc.key]}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          setDocuments({ ...documents, [doc.key]: e.target.checked });
+                        }}
+                        className="w-5 h-5 text-green-600 bg-white border-gray-300 rounded focus:ring-green-500 focus:ring-2 cursor-pointer"
+                      />
+                      <label
+                        htmlFor={`doc-${doc.key}`}
+                        className={`font-medium cursor-pointer select-none flex-1 ${
+                          documents[doc.key] ? "text-green-700" : "text-gray-600"
+                        }`}
+                      >
+                        {doc.label}
+                      </label>
+                      {documents[doc.key] && (
+                        <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-6 p-4 bg-blue-50 border-l-4 border-blue-400 rounded">
+                  <p className="text-sm text-blue-700">
+                    <span className="font-semibold">Note:</span> These checkboxes indicate which documents have been submitted by the employee.
+                  </p>
+                </div>
               </div>
             )}
 

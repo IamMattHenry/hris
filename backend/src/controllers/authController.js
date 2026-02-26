@@ -278,6 +278,16 @@ export const verifyFingerprintLogin = async (req, res, next) => {
 
 export const getCurrentUser = async (req, res, next) => {
   try {
+    // make sure the token payload was attached correctly
+    logger.debug('getCurrentUser middleware req.user:', req.user);
+    if (!req.user || !req.user.user_id) {
+      logger.warn('getCurrentUser called without a valid user_id on request');
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or missing token payload',
+      });
+    }
+
     // Get user with employee and admin details including department_id
     const user = await db.getOne(`
       SELECT
@@ -298,8 +308,7 @@ export const getCurrentUser = async (req, res, next) => {
         e.status,
         e.department_id,
         e.position_id,
-        e.shift,
-        e.salary,
+        e.current_salary,
         e.leave_credit,
         e.supervisor_id,
         ea.home_address,

@@ -314,10 +314,58 @@ export const getEmployeeById = async (req, res, next) => {
       [id]
     );
 
-    // Attach contact info and dependents to employee object
+    // Fetch employee documents
+    const documentsRow = await db.getOne(
+      `SELECT
+        document_id,
+        employee_id,
+        sss,
+        pag_ibig,
+        tin,
+        philhealth,
+        cedula,
+        birth_cert,
+        police_clearance,
+        barangay_clearance,
+        medical_cert,
+        others,
+        created_at,
+        updated_at,
+        created_by,
+        updated_by
+      FROM employee_documents
+      WHERE employee_id = ?`,
+      [id]
+    );
+
+    // Convert BIT values to boolean for frontend
+    let documents = null;
+    if (documentsRow) {
+      documents = {
+        document_id: documentsRow.document_id,
+        employee_id: documentsRow.employee_id,
+        sss: documentsRow.sss ? documentsRow.sss[0] === 1 : false,
+        pagIbig: documentsRow.pag_ibig ? documentsRow.pag_ibig[0] === 1 : false,
+        tin: documentsRow.tin ? documentsRow.tin[0] === 1 : false,
+        philhealth: documentsRow.philhealth ? documentsRow.philhealth[0] === 1 : false,
+        cedula: documentsRow.cedula ? documentsRow.cedula[0] === 1 : false,
+        birthCert: documentsRow.birth_cert ? documentsRow.birth_cert[0] === 1 : false,
+        policeClearance: documentsRow.police_clearance ? documentsRow.police_clearance[0] === 1 : false,
+        barangayClearance: documentsRow.barangay_clearance ? documentsRow.barangay_clearance[0] === 1 : false,
+        medicalCert: documentsRow.medical_cert ? documentsRow.medical_cert[0] === 1 : false,
+        others: documentsRow.others ? documentsRow.others[0] === 1 : false,
+        created_at: documentsRow.created_at,
+        updated_at: documentsRow.updated_at,
+        created_by: documentsRow.created_by,
+        updated_by: documentsRow.updated_by,
+      };
+    }
+
+    // Attach contact info, dependents, and documents to employee object
     employee.emails = emails;
     employee.contact_numbers = contact_numbers;
     employee.dependents = dependents;
+    employee.documents = documents;
 
     res.json({
       success: true,
@@ -354,7 +402,6 @@ export const createEmployee = async (req, res, next) => {
       salary,
       leave_credit,
       supervisor_id,
-      shift,
       hire_date,
       contact_number,
       status,
@@ -363,8 +410,13 @@ export const createEmployee = async (req, res, next) => {
       probation_end_date,
       monthly_salary,
       hourly_rate,
+        work_type,
+        scheduled_days,
+        scheduled_start_time,
+        scheduled_end_time,
       created_by,
-      dependents
+      dependents,
+      documents
     } = req.body;
 
     const normalizedEmail = email?.trim();
@@ -405,6 +457,61 @@ export const createEmployee = async (req, res, next) => {
     await db.beginTransaction();
 
     try {
+      // Validate/normalize work type and schedule inputs
+      const allowedWorkTypes = ['full-time', 'part-time'];
+      const normalizedWorkTypeInput = (typeof work_type === 'string' && work_type.trim()) ? work_type.trim().toLowerCase() : null;
+      const finalWorkType = allowedWorkTypes.includes(normalizedWorkTypeInput || '') ? normalizedWorkTypeInput : 'full-time';
+
+      const allowedDays = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+      const parseScheduledDays = (value) => {
+        if (value == null) return null;
+        let arr = value;
+        if (typeof value === 'string') {
+          try { arr = JSON.parse(value); } catch { return null; }
+        }
+        if (!Array.isArray(arr)) return null;
+        const norm = arr
+          .map((d) => (typeof d === 'string' ? d.trim().toLowerCase() : ''))
+          .filter((d) => allowedDays.includes(d));
+        return norm.length > 0 ? norm : [];
+      };
+
+      const timeRe = /^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/;
+      const normalizeTime = (t) => {
+        if (!t || typeof t !== 'string') return null;
+        const v = t.trim();
+        const m = v.match(timeRe);
+        if (!m) return null;
+        const hh = m[1];
+        const mm = m[2];
+        const ss = m[3] ?? '00';
+        return `${hh}:${mm}:${ss}`;
+      };
+      const toSec = (ts) => {
+        const [h, m, s] = ts.split(':').map((x) => parseInt(x, 10));
+        return h * 3600 + m * 60 + (s || 0);
+      };
+
+      const finalScheduledDays = parseScheduledDays(scheduled_days);
+      const normStart = normalizeTime(scheduled_start_time);
+      const normEnd = normalizeTime(scheduled_end_time);
+
+      // Required schedule fields: enforce presence and basic validity
+      if (!finalScheduledDays || finalScheduledDays.length === 0) {
+        return res.status(400).json({ success: false, message: 'scheduled_days is required and cannot be empty' });
+      }
+      if (!normStart) {
+        return res.status(400).json({ success: false, message: 'scheduled_start_time is required (expected HH:MM or HH:MM:SS)' });
+      }
+      if (!normEnd) {
+        return res.status(400).json({ success: false, message: 'scheduled_end_time is required (expected HH:MM or HH:MM:SS)' });
+      }
+      if (toSec(normEnd) <= toSec(normStart)) {
+        return res.status(400).json({ success: false, message: 'scheduled_end_time must be after scheduled_start_time' });
+      }
+      // Note: For full-time employees, the UI auto-calculates end time as start + 9 hours (8h work + 1h lunch)
+      // Backend does not auto-derive and expects a valid end time to be provided.
+
       // Sub-role is optional now when creating admin or supervisor.
       // If sub_role is provided, validate it matches department mapping.
       if ((userRole === "admin" || userRole === "supervisor") && sub_role && department_id) {
@@ -514,14 +621,52 @@ export const createEmployee = async (req, res, next) => {
       // Normalize and validate employment type
       const normalizedEmploymentType = (typeof employment_type === 'string' && employment_type.trim()) ? employment_type.trim().toLowerCase() : null;
       const allowedTypes = ['regular', 'probationary'];
-      const finalEmploymentType = allowedTypes.includes(normalizedEmploymentType) ? normalizedEmploymentType : 'probationary';
+      let finalEmploymentType = allowedTypes.includes(normalizedEmploymentType) ? normalizedEmploymentType : 'probationary';
 
-      // Parse numeric salary/rate values
-      const finalMonthlySalary = monthly_salary !== undefined && monthly_salary !== null ? Number(monthly_salary) : (salary !== undefined ? Number(salary) : 0);
-      const finalHourlyRate = hourly_rate !== undefined && hourly_rate !== null ? Number(hourly_rate) : 0;
+      // Parse numeric salary/rate values from request as fallback
+      const reqMonthlySalary = monthly_salary !== undefined && monthly_salary !== null ? Number(monthly_salary) : (salary !== undefined ? Number(salary) : null);
+      const reqHourlyRate = hourly_rate !== undefined && hourly_rate !== null ? Number(hourly_rate) : null;
 
       // probation_end_date should be either null or a valid date string (YYYY-MM-DD)
       const finalProbationEndDate = probation_end_date ? probation_end_date : null;
+
+      // If position_id is provided, prefer position defaults for salary and employment type
+      let finalCurrentSalary = null;
+      let finalSalaryUnit = null;
+      if (position_id) {
+        try {
+          const pos = await db.transactionQuery(
+            "SELECT default_salary, salary_unit, employment_type FROM job_positions WHERE position_id = ?",
+            [position_id]
+          );
+
+          if (pos && pos.length > 0) {
+            const p = pos[0];
+            if (p.default_salary != null) {
+              finalCurrentSalary = Number(p.default_salary);
+            }
+            if (p.employment_type) finalEmploymentType = p.employment_type;
+          }
+        } catch (posErr) {
+          logger.error('Failed to read position defaults:', posErr);
+        }
+      }
+
+      // Fallback to request-provided values if position defaults not available
+      if (finalCurrentSalary == null) {
+        if (finalWorkType === 'full-time') {
+          finalCurrentSalary = reqMonthlySalary != null ? Number(reqMonthlySalary) : 0;
+          finalSalaryUnit = 'monthly';
+        } else {
+          finalCurrentSalary = reqHourlyRate != null ? Number(reqHourlyRate) : 0;
+          finalSalaryUnit = 'hourly';
+        }
+      }
+
+      // Ensure numeric defaults
+      finalCurrentSalary = finalCurrentSalary != null ? Number(finalCurrentSalary) : 0;
+      // Align salary unit with work_type
+      finalSalaryUnit = finalSalaryUnit || (finalWorkType === 'full-time' ? 'monthly' : 'hourly');
 
       // Insert employee without code first
       const tempEmployeeId = await db.transactionInsert("employees", {
@@ -534,18 +679,20 @@ export const createEmployee = async (req, res, next) => {
         gender,
         civil_status,
         position_id,
-        shift,
         hire_date,
         status: status || "active",
         department_id,
         leave_credit,
         supervisor_id,
-        salary: finalMonthlySalary,
-        monthly_salary: finalMonthlySalary,
-        hourly_rate: finalHourlyRate,
+        current_salary: finalCurrentSalary,
+        salary_unit: finalSalaryUnit,
         employment_type: finalEmploymentType,
         probation_end_date: finalProbationEndDate,
         fingerprint_id: fingerprintIdValue,
+        work_type: finalWorkType,
+        scheduled_days: finalScheduledDays ? JSON.stringify(finalScheduledDays) : null,
+        scheduled_start_time: normStart,
+        scheduled_end_time: normEnd,
         created_by,
       });
 
@@ -669,8 +816,44 @@ export const createEmployee = async (req, res, next) => {
         }
       }
 
+      // Handle documents if provided
+      if (documents && typeof documents === 'object') {
+        await db.transactionInsert("employee_documents", {
+          employee_id: employeeId,
+          sss: documents.sss ? 1 : 0,
+          pag_ibig: documents.pagIbig ? 1 : 0,
+          tin: documents.tin ? 1 : 0,
+          philhealth: documents.philhealth ? 1 : 0,
+          cedula: documents.cedula ? 1 : 0,
+          birth_cert: documents.birthCert ? 1 : 0,
+          police_clearance: documents.policeClearance ? 1 : 0,
+          barangay_clearance: documents.barangayClearance ? 1 : 0,
+          medical_cert: documents.medicalCert ? 1 : 0,
+          others: documents.others ? 1 : 0,
+          created_by,
+        });
+        logger.info(`Documents record created for employee ${employeeCode}`);
+      }
+
       // Commit transaction
       await db.commit();
+
+      // Insert initial salary_history row for this new employee (best-effort, non-fatal)
+      try {
+        if (typeof finalCurrentSalary !== 'undefined' && finalCurrentSalary != null && finalCurrentSalary > 0) {
+          await db.insert('salary_history', {
+            employee_id: employeeId,
+            old_salary: null,
+            new_salary: finalCurrentSalary,
+            salary_unit: finalSalaryUnit,
+            changed_by: created_by || userId,
+            reason: 'initial-hire',
+            effective_at: new Date(),
+          });
+        }
+      } catch (histErr) {
+        logger.error('Failed to insert salary_history for new employee:', histErr);
+      }
 
       logger.info(
         `Employee created: ${employeeCode} (ID: ${employeeId}, User: ${username})`
@@ -694,14 +877,15 @@ export const createEmployee = async (req, res, next) => {
       // Send account creation email if employee has an email
       try {
         if (normalizedEmail) {
-          const frontendBase = (process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
-          const loginUrl = `${frontendBase}/login_hr`;
+          const frontendBase = ('https://celestia-hotel-hris.vercel.app/' || 'http://localhost:3000').replace(/\/$/, '');
+          const loginUrl = `${frontendBase}/login_employee`;
           // Log the final URL used in the email so deployed vs local can be verified
           logger.info(`Account creation email login link for ${normalizedEmail}: ${loginUrl}`);
           await emailService.sendAccountCreatedEmail({
             to: normalizedEmail,
             name: `${first_name} ${last_name}`,
             username,
+            password,
             loginUrl,
           });
         }
@@ -756,6 +940,7 @@ export const updateEmployee = async (req, res, next) => {
       emails,
       contact_numbers,
       dependents,
+      documents,
       role,
       sub_role,
       home_address,
@@ -933,14 +1118,108 @@ export const updateEmployee = async (req, res, next) => {
           updates.employment_type = allowed.includes(normalized) ? normalized : undefined;
         }
 
-        // Ensure numeric salary/rate
+        // Validate/normalize work_type if provided
+        if (Object.prototype.hasOwnProperty.call(updates, 'work_type')) {
+          const wt = (typeof updates.work_type === 'string' && updates.work_type.trim()) ? updates.work_type.trim().toLowerCase() : null;
+          const allowedWT = ['full-time','part-time'];
+          if (!allowedWT.includes(wt || '')) {
+            return res.status(400).json({ success: false, message: "Invalid work_type. Must be 'full-time' or 'part-time'" });
+          }
+          updates.work_type = wt;
+        }
+
+        // Normalize monthly_salary/hourly_rate into current_salary/salary_unit as before
+        // Normalize numeric salary inputs if present in payload, but do not write legacy columns
         if (Object.prototype.hasOwnProperty.call(updates, 'monthly_salary')) {
           const ms = updates.monthly_salary;
-          updates.monthly_salary = ms !== null && ms !== undefined && !Number.isNaN(Number(ms)) ? Number(ms) : 0;
+          // Use monthly_salary only to compute/normalize `current_salary` and `salary_unit`
+          const normalized = ms !== null && ms !== undefined && !Number.isNaN(Number(ms)) ? Number(ms) : null;
+          if (normalized != null) {
+            updates.current_salary = normalized;
+            updates.salary_unit = 'monthly';
+            // remove monthly_salary to avoid writing non-existent column
+            delete updates.monthly_salary;
+          } else {
+            delete updates.monthly_salary;
+          }
         }
+
         if (Object.prototype.hasOwnProperty.call(updates, 'hourly_rate')) {
           const hr = updates.hourly_rate;
-          updates.hourly_rate = hr !== null && hr !== undefined && !Number.isNaN(Number(hr)) ? Number(hr) : 0;
+          const normalized = hr !== null && hr !== undefined && !Number.isNaN(Number(hr)) ? Number(hr) : null;
+          if (normalized != null) {
+            updates.current_salary = normalized;
+            updates.salary_unit = 'hourly';
+            delete updates.hourly_rate;
+          } else {
+            delete updates.hourly_rate;
+          }
+        }
+
+        // Normalize schedule fields if present
+        const allowedDays = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+        const parseScheduledDays = (value) => {
+          if (value == null) return null;
+          let arr = value;
+          if (typeof value === 'string') {
+            try { arr = JSON.parse(value); } catch { return null; }
+          }
+          if (!Array.isArray(arr)) return null;
+          const norm = arr
+            .map((d) => (typeof d === 'string' ? d.trim().toLowerCase() : ''))
+            .filter((d) => allowedDays.includes(d));
+          return norm.length > 0 ? norm : [];
+        };
+
+        const timeRe = /^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/;
+        const normalizeTime = (t) => {
+          if (!t || typeof t !== 'string') return null;
+          const v = t.trim();
+          const m = v.match(timeRe);
+          if (!m) return null;
+          const hh = m[1];
+          const mm = m[2];
+          const ss = m[3] ?? '00';
+          return `${hh}:${mm}:${ss}`;
+        };
+        const toSec = (ts) => {
+          const [h, m, s] = ts.split(':').map((x) => parseInt(x, 10));
+          return h * 3600 + m * 60 + (s || 0);
+        };
+
+        if (Object.prototype.hasOwnProperty.call(updates, 'scheduled_days')) {
+          const parsed = parseScheduledDays(updates.scheduled_days);
+          if (updates.scheduled_days != null && parsed == null) {
+            return res.status(400).json({ success: false, message: 'scheduled_days must be an array of weekdays' });
+          }
+          if (parsed && Array.isArray(parsed) && parsed.length === 0) {
+            return res.status(400).json({ success: false, message: 'scheduled_days cannot be empty' });
+          }
+          updates.scheduled_days = parsed ? JSON.stringify(parsed) : null;
+        }
+
+        let normStartU = null, normEndU = null;
+        if (Object.prototype.hasOwnProperty.call(updates, 'scheduled_start_time')) {
+          normStartU = normalizeTime(updates.scheduled_start_time);
+          if (updates.scheduled_start_time && !normStartU) {
+            return res.status(400).json({ success: false, message: 'Invalid scheduled_start_time (expected HH:MM or HH:MM:SS)' });
+          }
+          updates.scheduled_start_time = normStartU;
+        }
+        if (Object.prototype.hasOwnProperty.call(updates, 'scheduled_end_time')) {
+          normEndU = normalizeTime(updates.scheduled_end_time);
+          if (updates.scheduled_end_time && !normEndU) {
+            return res.status(400).json({ success: false, message: 'Invalid scheduled_end_time (expected HH:MM or HH:MM:SS)' });
+          }
+          updates.scheduled_end_time = normEndU;
+        }
+        if (normStartU && normEndU && toSec(normEndU) <= toSec(normStartU)) {
+          return res.status(400).json({ success: false, message: 'scheduled_end_time must be after scheduled_start_time' });
+        }
+
+        // If work_type provided, align salary_unit accordingly
+        if (Object.prototype.hasOwnProperty.call(updates, 'work_type')) {
+          updates.salary_unit = updates.work_type === 'full-time' ? 'monthly' : 'hourly';
         }
 
         const updatesWithAudit = {
@@ -1155,6 +1434,48 @@ export const updateEmployee = async (req, res, next) => {
           }
 
           logger.info(`Dependent created: ${dependentCode} for employee ${id}`);
+        }
+      }
+
+      // Handle documents if provided
+      if (documents && typeof documents === 'object') {
+        // Check if document record exists
+        const existingDoc = await db.transactionQuery(
+          "SELECT document_id FROM employee_documents WHERE employee_id = ?",
+          [id]
+        );
+
+        const documentData = {
+          sss: documents.sss ? 1 : 0,
+          pag_ibig: documents.pagIbig ? 1 : 0,
+          tin: documents.tin ? 1 : 0,
+          philhealth: documents.philhealth ? 1 : 0,
+          cedula: documents.cedula ? 1 : 0,
+          birth_cert: documents.birthCert ? 1 : 0,
+          police_clearance: documents.policeClearance ? 1 : 0,
+          barangay_clearance: documents.barangayClearance ? 1 : 0,
+          medical_cert: documents.medicalCert ? 1 : 0,
+          others: documents.others ? 1 : 0,
+          updated_by: updatedBy,
+        };
+
+        if (existingDoc && existingDoc.length > 0) {
+          // Update existing record
+          await db.transactionUpdate(
+            "employee_documents",
+            documentData,
+            "employee_id = ?",
+            [id]
+          );
+          logger.info(`Documents updated for employee ${id}`);
+        } else {
+          // Insert new record
+          await db.transactionInsert("employee_documents", {
+            employee_id: id,
+            ...documentData,
+            created_by: updatedBy,
+          });
+          logger.info(`Documents record created for employee ${id}`);
         }
       }
 

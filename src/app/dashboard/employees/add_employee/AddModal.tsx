@@ -23,6 +23,7 @@ import {
 import { toast } from "react-hot-toast";
 
 import { b, s } from "framer-motion/client";
+import { Slabo_13px } from "next/font/google";
 
 interface EmployeeModalProps {
   isOpen: boolean;
@@ -50,7 +51,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [step, setStep] = useState(1);
 
   // Fingerprint enrollment
- 
+
   const [newEmployeeId, setNewEmployeeId] = useState<number | null>(null);
 
 
@@ -75,10 +76,14 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [salary, setSalary] = useState("");
   const [leaveCredit, setLeaveCredit] = useState("15");
   const [employmentType, setEmploymentType] = useState("");
+  // New: Work type and schedule
+  const [workType, setWorkType] = useState<string>("Full-time");
+  const [scheduledDays, setScheduledDays] = useState<string[]>([]);
+  const [scheduledStartTime, setScheduledStartTime] = useState<string>("");
+  const [scheduledEndTime, setScheduledEndTime] = useState<string>("");
   const [supervisorId, setSupervisorId] = useState<number | null>(null);
   const [hireDate, setHireDate] = useState("");
-  const [shift, setShift] = useState("");
-  const [salaryDisplay, setSalaryDisplay] = useState("");
+  // const [salaryDisplay, setSalaryDisplay] = useState("");
   const [email, setEmail] = useState("");
   const [contactNumber, setContactNumber] = useState("");
   const [username, setUsername] = useState("");
@@ -121,9 +126,18 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [dependentBarangays, setDependentBarangays] = useState<string[]>([]);
   const [dependentErrors, setDependentErrors] = useState<{ [key: string]: string }>({});
   const today = new Date().toISOString().split("T")[0];
+  const salaryDisplay =
+    salary && employmentType
+      ? `${salary} / ${employmentType === "regular" ? "month" : "hr"}`
+      : "";
 
   const [usernameEdited, setUsernameEdited] = useState(false);
   const [passwordEdited, setPasswordEdited] = useState(false);
+
+  const [sss, setSss] = useState<boolean>(false);
+  const [pagIbig, setPagIbig] = useState<boolean>(false);
+  const [tin, setTIN] = useState<boolean>(false);
+  const [philhealth, setPhilhealth] = useState<boolean>(false);
 
   const DOCUMENTS = [
     { key: "sss", label: "SSS" },
@@ -138,11 +152,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     { key: "others", label: "OTHERS" }
   ] as const;
 
-  const [sss, setSss] = useState<boolean>(false);
-  const [pagIbig, setPagIbig] = useState<boolean>(false);
-  const [philhealth, setPhilhealth] = useState<boolean>(false);
 
-  
   const [documents, setDocuments] = useState<Record<string, boolean>>(
     Object.fromEntries(DOCUMENTS.map(doc => [doc.key, false]))
   );
@@ -191,19 +201,44 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     }
   }, [firstName, usernameEdited, passwordEdited]);
 
+  // Default schedule based on work type
+  useEffect(() => {
+    const wt = (workType || '').toLowerCase();
+    if (wt === 'full-time') {
+      setScheduledDays(['monday','tuesday','wednesday','thursday','friday']);
+    } else if (wt === 'part-time') {
+      setScheduledDays([]);
+    }
+  }, [workType]);
+
+  // Auto-calculate end time for full-time as start + 9 hours (8h work + 1h lunch)
+  useEffect(() => {
+    const wt = (workType || '').toLowerCase();
+    if (wt !== 'full-time') return;
+    if (!scheduledStartTime) return;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const calcEnd = (start: string) => {
+      const [hh, mm] = start.split(':').map((x) => parseInt(x || '0', 10));
+      const totalMin = (hh * 60 + mm + 9 * 60) % (24 * 60);
+      const nh = Math.floor(totalMin / 60);
+      const nm = totalMin % 60;
+      return `${pad(nh)}:${pad(nm)}`;
+    };
+    setScheduledEndTime(calcEnd(scheduledStartTime));
+  }, [workType, scheduledStartTime]);
 
 
-/* LOCATIONS */
+
 
 
   // Load PH locations data from JSON file
- useEffect(() => {
+  useEffect(() => {
     async function loadPhLocationsData() {
       try {
         console.log("Fetching ph_locations.json...");
         // 1. FETCH THE RAW JSON
         const res = await fetch("/data/ph_locations.json");
-        
+
         if (!res.ok) {
           throw new Error(`Failed to fetch: ${res.status}`);
         }
@@ -212,7 +247,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
         // 2. NORMALIZE THE DATA (The Critical Step)
         const processedData = rawData.map((region: any) => {
-          
+
           // A. Process standard provinces (if any)
           let finalProvinces = region.provinces.map((prov: any) => ({
             name: prov.name,
@@ -248,7 +283,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
         console.log("Data processed successfully");
         setPhLocationsData(processedData);
-        
+
         // 3. SET INITIAL REGIONS LIST
         setRegions(processedData.map((r: any) => r.name));
 
@@ -272,7 +307,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       if (selectedRegion) {
         const provinceNames = selectedRegion.provinces.map((p: any) => p.name);
         setProvinces(provinceNames);
-        setCities([]); 
+        setCities([]);
         setBarangays([]); // Reset lower levels
       }
     } else {
@@ -287,12 +322,15 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   useEffect(() => {
     if (region && province) {
       const selectedRegion = phLocationsData.find((r: any) => r.name === region);
-      const selectedProvince = selectedRegion?.provinces.find((p: any) => p.name === province);
-
-      if (selectedProvince) {
-        setCities(selectedProvince.cities.map((c: any) => c.name));
-      } else {
-        setCities([]);
+      if (selectedRegion) {
+        const selectedProvince = selectedRegion.provinces.find((p: any) => p.name === province);
+        if (selectedProvince) {
+          setCities(selectedProvince.cities.map((c: any) =>
+            typeof c === 'string' ? c : c.name
+          ));
+        } else {
+          setCities([]);
+        }
       }
     } else {
       setCities([]);
@@ -303,13 +341,13 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
   // Load Barangays (Home)
   useEffect(() => {
-    if (region && province && city) {
-      const selectedRegion = phLocationsData.find((r: any) => r.name === region);
-      const selectedProvince = selectedRegion?.provinces.find((p: any) => p.name === province);
-      const selectedCity = selectedProvince?.cities.find((c: any) => c.name === city);
+    if (region && province && city && phLocationsData.length > 0) {
+      const r = phLocationsData.find((x: any) => x.name === region);
+      const p = r?.provinces.find((x: any) => x.name === province);
+      const c = p?.cities.find((x: any) => (typeof x === 'string' ? x : x.name) === city);
 
-      if (selectedCity && selectedCity.barangays) {
-        setBarangays(selectedCity.barangays.map((b: any) => b.name));
+      if (c && c.barangays) {
+        setBarangays(c.barangays.map((b: any) => (typeof b === 'string' ? b : b.name)));
       } else {
         setBarangays([]);
       }
@@ -357,7 +395,9 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
       if (selectedProvince) {
         setDependentCities(
-          selectedProvince.cities.map((c: any) => c.name)
+          selectedProvince.cities.map((c: any) =>
+            typeof c === "string" ? c : c.name
+          )
         );
       } else {
         setDependentCities([]);
@@ -375,18 +415,19 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       dependentProvince &&
       dependentCity
     ) {
-      const selectedRegion = phLocationsData.find(
-        (r: any) => r.name === dependentRegion
+      const r = phLocationsData.find(
+        (x: any) => x.name === dependentRegion
       );
-      const selectedProvince = selectedRegion?.provinces.find(
-        (p: any) => p.name === dependentProvince
+      const p = r?.provinces.find(
+        (x: any) => x.name === dependentProvince
       );
-      const selectedCity = selectedProvince?.cities.find(
-        (c: any) => c.name === dependentCity
+      const c = p?.cities.find(
+        (x: any) =>
+          (typeof x === 'string' ? x : x.name) === dependentCity
       );
 
-      if (selectedCity && selectedCity.barangays) {
-        setDependentBarangays(selectedCity.barangays.map((b: any) => b.name));
+      if (c && c.barangays) {
+        setDependentBarangays(c.barangays.map((b: any) => (typeof b === 'string' ? b : b.name)));
       } else {
         setDependentBarangays([]);
       }
@@ -421,11 +462,16 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   // Auto-populate salary when position is selected
   useEffect(() => {
     if (positionId && positions.length > 0) {
-      const selectedPosition = positions.find(
-        (p) => p.position_id === positionId
-      );
-      if (selectedPosition && selectedPosition.salary) {
-        setSalary(selectedPosition.salary.toString());
+      const selectedPosition = positions.find((p) => p.position_id === positionId);
+      if (selectedPosition) {
+        const def = (selectedPosition as any).default_salary;
+        const unit = (selectedPosition as any).salary_unit || ((selectedPosition as any).employment_type === 'regular' ? 'monthly' : 'hourly');
+        const empType = (selectedPosition as any).employment_type || (unit === 'monthly' ? 'regular' : 'probationary');
+        if (def != null) {
+          setSalary(String(def));
+          //setSalaryDisplay(`${def} / ${unit === 'monthly' ? 'month' : 'hr'}`);
+        }
+        setEmploymentType(empType);
       }
     }
   }, [positionId, positions]);
@@ -448,6 +494,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       const result = await positionApi.getAll(deptId);
       if (result.success && result.data) {
         setPositions(result.data);
+        console.log(result.data);
       }
     } catch (error) {
       console.error("Error fetching positions:", error);
@@ -456,9 +503,9 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
   const fetchSupervisors = async (deptId: number) => {
     try {
+      // Fetch all active employees in the department so we can assign/promote any of them
       const result = await employeeApi.getAll({
         department_id: deptId,
-        role: "supervisor",
         status: "active",
       });
       if (result.success && result.data) {
@@ -502,6 +549,27 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
     return mapped ? [mapped] : [];
   };
+
+
+  useEffect(() => {
+    if (!positionId || positions.length === 0) return;
+
+    const selectedPosition = positions.find(
+      (p) => p.position_id === positionId
+    );
+
+    if (!selectedPosition) return;
+
+    const def = selectedPosition.default_salary;
+    const unit =
+      selectedPosition.salary_unit ||
+      (employmentType === "regular" ? "monthly" : "hourly");
+
+    if (def != null) {
+      setSalary(String(def));
+
+    }
+  }, [positionId, employmentType, positions]);
 
   // Check if department already has a supervisor
   const checkDepartmentSupervisor = async (deptId: number) => {
@@ -580,7 +648,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
     if (input === "") {
       setSalary("");
-      setSalaryDisplay("");
+      //setSalaryDisplay("");
       return;
     }
 
@@ -595,7 +663,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
     // Format with commas for display
     const formatted = numericValue.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-    setSalaryDisplay(formatted);
+    //setSalaryDisplay(formatted);
   };
 
   // handle dependent contact info with formatting (similar to contact number)
@@ -632,8 +700,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     setLeaveCredit("15");
     setSupervisorId(null);
     setHireDate("");
-    setShift("");
-    setSalaryDisplay("");
+    //setSalaryDisplay("");
     setEmail("");
     setContactNumber("");
     setDependents([]);
@@ -654,7 +721,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     setErrors({});
     setMessage(null);
     setNewEmployeeId(null);
-  
+
   };
 
   // ─── Validation ───────────────────────────────
@@ -679,7 +746,16 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
     // Step 2 - Job Info
     if (step === 2) {
-      newErrors = validateStep2(departmentId, positionId, hireDate, shift, salary);
+      newErrors = validateStep2(
+        departmentId,
+        positionId,
+        hireDate,
+        parseInt(salary || "0"),
+        workType,
+        scheduledDays,
+        scheduledStartTime,
+        scheduledEndTime
+      );
     }
 
     // Step 3 - Contact Info & Dependents
@@ -779,17 +855,27 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         position_id: positionId,
         department_id: departmentId,
         salary: salary ? parseFloat(salary) : null,
+        employment_type: employmentType ? employmentType.toLowerCase() : undefined,
+        work_type: workType ? workType.toLowerCase() : undefined,
+        // Align salary fields to work_type
+        monthly_salary: workType && workType.toLowerCase() === 'full-time' ? (salary ? parseFloat(salary) : null) : undefined,
+        hourly_rate: workType && workType.toLowerCase() === 'part-time' ? (salary ? parseFloat(salary) : null) : undefined,
         leave_credit: leaveCredit ? parseInt(leaveCredit) : 15,
         supervisor_id: supervisorId || null,
-        shift: shift ? shift.toLowerCase() : null,
         hire_date: hireDate,
         email: email,
         contact_number: contactNumber ? contactNumber.replace(/\s/g, "") : null,
         status: "active" as const,
+        // Schedule fields
+        scheduled_days: scheduledDays,
+        scheduled_start_time: scheduledStartTime,
+        scheduled_end_time: scheduledEndTime,
         // Audit fields
         created_by: user?.user_id || null,
         // Dependents
         dependents: dependents,
+        // Documents
+        documents: documents,
       };
 
       // Add sub_role if admin or supervisor privilege is granted
@@ -893,11 +979,11 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
           </div>
 
 
-        {/* Form Sections 
+          {/* Form Sections 
            FIX THIS CONTENT STEPS
         */}
 
-        
+
           {/* Step Content */}
           <AnimatePresence mode="wait">
             {step === 1 && (
@@ -1133,36 +1219,96 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                     </div>
                   </div>
 
-                  <FormInput label="Hire Date:" type="date" max={today} value={hireDate} onChange={(e) => setHireDate(e.target.value)} error={errors.hireDate} />
-                  <FormSelect label="Shift:" value={shift} onChange={(e) => setShift(e.target.value)} options={["Morning", "Night"]} error={errors.shift} />
-            
-                  <FormSelect label="Employment Type: " value={employmentType} onChange={(e) => setEmploymentType(e.target.value)} options={[
-                    { label: "Full Time", value: "FULL_TIME" },
-                    { label: "Part Time", value: "PART_TIME" }
-                  ]} error={errors.employmentType} />
-
-                  {employmentType === "PART_TIME" && (
-                    <div>
-                      <label className="block text-[#3b2b1c] mb-1">
-                        Salary (Hourly Rate):
-                      </label>
-
-                      <div className="flex items-center border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] overflow-hidden">
-                        <span className="px-3 py-2 text-[#3b2b1c] font-semibold">₱</span>
-                        <input
-                          type="text"
-                          value={salaryDisplay}
-                          onChange={handleSalaryChange}
-                          placeholder="0.00"
-                          className="flex-1 px-3 py-2 bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14] focus:ring-inset"
-                        />
+                  {/* Salary preview (read-only) */}
+                  {salaryDisplay && (
+                    <div className="md:col-span-3 mt-2">
+                      <div className="text-sm text-[#3b2b1c]">Salary Preview:</div>
+                      <div className="mt-1 inline-block px-3 py-2 bg-white border rounded-lg text-[#3b2b1c] font-semibold">
+                        {salaryDisplay}
                       </div>
-
-                      {errors.salary && (
-                        <p className="text-red-500 text-xs mt-1">{errors.salary}</p>
-                      )}
                     </div>
                   )}
+
+                  <FormInput label="Hire Date:" type="date" max={today} value={hireDate} onChange={(e) => setHireDate(e.target.value)} error={errors.hireDate} />
+
+                  <FormSelect label="Employment Type: " value={employmentType} onChange={(e) => setEmploymentType(e.target.value)} options={[
+                    { label: "Regular", value: "Regular" },
+                    { label: "Probationary", value: "Probationary" }
+                  ]} error={errors.employmentType} />
+
+                  {/* Work Type */}
+                  <FormSelect
+                    label="Work Type:"
+                    value={workType}
+                    onChange={(e) => setWorkType(e.target.value)}
+                    options={["Full-time", "Part-time"]}
+                    error={errors.workType}
+                  />
+
+                  {/* Salary input aligns with Work Type */}
+                  <div>
+                    <label className="block text-[#3b2b1c] mb-1">
+                      {workType?.toLowerCase() === "part-time" ? "Salary (Hourly Rate):" : "Salary (Monthly):"}
+                    </label>
+
+                    <div className="flex items-center border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] overflow-hidden">
+                      <span className="px-3 py-2 text-[#3b2b1c] font-semibold">₱</span>
+                      <input
+                        type="text"
+                        value={salary}
+                        onChange={handleSalaryChange}
+                        placeholder="0.00"
+                        className="flex-1 px-3 py-2 bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14] focus:ring-inset"
+                      />
+                    </div>
+
+                    {errors.salary && (
+                      <p className="text-red-500 text-xs mt-1">{errors.salary}</p>
+                    )}
+                  </div>
+
+                  {/* Schedule: Days */}
+                  <div className="md:col-span-3">
+                    <label className="block text-[#3b2b1c] mb-1 font-medium">Scheduled Days <span className="text-red-500">*</span></label>
+                    <div className="flex flex-wrap gap-3">
+                      {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map((day) => {
+                        const key = day.toLowerCase();
+                        const checked = scheduledDays.includes(key);
+                        return (
+                          <label key={day} className="inline-flex items-center gap-2 text-sm text-[#3b2b1c]">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                setScheduledDays((prev) => {
+                                  if (e.target.checked) return Array.from(new Set([...prev, key]));
+                                  return prev.filter((d) => d !== key);
+                                });
+                              }}
+                            />
+                            {day}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Schedule: Times */}
+                  <FormInput
+                    label="Scheduled Start Time:"
+                    type="time"
+                    value={scheduledStartTime}
+                    onChange={(e) => setScheduledStartTime(e.target.value)}
+                    error={errors.scheduledStartTime}
+                  />
+                  <FormInput
+                    label="Scheduled End Time:"
+                    type="time"
+                    value={scheduledEndTime}
+                    onChange={(e) => setScheduledEndTime(e.target.value)}
+                    disabled={(workType || '').toLowerCase() === 'full-time'}
+                    error={errors.scheduledEndTime}
+                  />
 
 
                   {/* Supervisor Dropdown - Filtered by Department */}
@@ -1535,7 +1681,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
             {step === 5 && (
               <motion.div
-                key="step5"
+                key="step4"
                 initial={{ opacity: 0, x: 40 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -40 }}
@@ -1597,6 +1743,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
               </motion.div>
             )}
 
+            {/*}
             {step === 5 && (
               <motion.div
                 key="step5"
@@ -1640,12 +1787,14 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                   </div>
                 </div>
               </motion.div>
-            )}
+            )} */}
           </AnimatePresence>
         </div>
-          
+
 
         {/* Footer Section - Progress Bar and Buttons */}
+
+
         <div className="border-t border-[#e6d2b5] p-8 mt-4r bg-[#f9ecd7] rounded-b-2xl">
           {/* Progress Bar (Clickable) */}
           <div className="flex justify-between items-center w-3/4 mx-auto mb-6">

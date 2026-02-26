@@ -276,9 +276,9 @@ export default function DepartmentsPage() {
       <AddDepartmentModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        onSave={(newDept) => {
-          // Add new department to the departments list
-          setDepartments([...departments, newDept]);
+        onSave={async (newDept) => {
+          // Refresh departments to ensure supervisor names and counts are correct
+          await fetchDepartments();
         }}
       />
       <ViewDepartmentModal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} department={selectedDepartment} />

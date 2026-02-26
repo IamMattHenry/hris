@@ -59,6 +59,28 @@ export interface UserRole {
 }
 
 /**
+ * Employee Documents entity
+ */
+export interface EmployeeDocuments {
+  document_id?: number;
+  employee_id: number;
+  sss: boolean;
+  pagIbig: boolean;
+  tin: boolean;
+  philhealth: boolean;
+  cedula: boolean;
+  birthCert: boolean;
+  policeClearance: boolean;
+  barangayClearance: boolean;
+  medicalCert: boolean;
+  others: boolean;
+  created_at?: string;
+  updated_at?: string;
+  created_by?: number;
+  updated_by?: number;
+}
+
+/**
  * Employee entity
  */
 export interface Employee {
@@ -80,7 +102,6 @@ export interface Employee {
   province_city?: string;
   position_id?: number;
   department_id?: number;
-  shift?: 'morning' | 'night';
   salary?: number;
   hire_date: string;
   status: 'active' | 'resigned' | 'terminated' | 'on-leave';
@@ -90,6 +111,11 @@ export interface Employee {
   updated_at: string;
   created_by?: number;
   updated_by?: number;
+  // Work schedule fields
+  work_type?: 'full-time' | 'part-time';
+  scheduled_days?: string[] | null;
+  scheduled_start_time?: string | null;
+  scheduled_end_time?: string | null;
   // Associated data
   position_name?: string;
   department_name?: string;
@@ -98,6 +124,7 @@ export interface Employee {
   contact_numbers?: string[];
   address?: EmployeeAddress;
   dependents?: Dependent[];
+  documents?: EmployeeDocuments;
   // Associated user info
   username?: string;
   role?: string;
@@ -137,13 +164,17 @@ export interface CreateEmployeeRequest {
   civil_status?: 'single' | 'married' | 'divorced' | 'widowed';
   position_id?: number;
   department_id?: number;
-  shift?: 'morning' | 'night';
   salary?: number;
   hire_date: string;
   leave_credit?: number;
   supervisor_id?: number;
   email?: string;
   contact_number?: string;
+  // Work schedule fields
+  work_type: 'full-time' | 'part-time';
+  scheduled_days: string[];
+  scheduled_start_time: string;
+  scheduled_end_time: string;
   // Address fields
   region_code?: string;
   province_code?: string;
@@ -196,12 +227,15 @@ export interface Department {
  */
 export interface Position {
   position_id: number;
-  position_name: string;
   position_code: string;
+  // Human-friendly name for the position (kept for compatibility)
+  position_name?: string;
   position_desc?: string;
   department_id: number;
   department_name?: string;
-  salary?: number;
+  default_salary?: number;
+  employment_type?: 'regular' | 'probationary';
+  salary_unit?: 'monthly' | 'hourly';
   availability?: number;
   created_at: string;
   updated_at: string;
@@ -276,17 +310,36 @@ export interface Leave {
   employee_code?: string;
   first_name?: string;
   last_name?: string;
-  leave_type: 'vacation' | 'sick' | 'emergency' | 'half_day' | 'others' | 'maternity' | 'paternity' | 'sil' | 'special_women' | 'bereavement';
+  leave_type: 'vacation' | 'sick' | 'emergency' | 'half_day' | 'others' | 'maternity' | 'paternity' | 'sil' | 'special_women' | 'bereavement' | 'solo_parent' | 'vawc';
   start_date: string;
   end_date: string;
-  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  status: 'pending' | 'hr_approved' | 'approved' | 'rejected' | 'cancelled' | 'supervisor_approved';
   remarks?: string;
   approved_by?: number;
   approved_by_name?: string;
+  // Two-stage approval metadata (optional)
+  hr_approved_by?: number | null;
+  supervisor_approved_by?: number | null;
+  supervisor_approved_at?: string | null;
+  hr_approved_at?: string | null;
+  hr_approver_first_name?: string;
+  hr_approver_last_name?: string;
+  supervisor_approver_first_name?: string;
+  supervisor_approver_last_name?: string;
+  approver_first_name?: string;
+  approver_last_name?: string;
   created_at: string;
   updated_at: string;
   created_by?: number;
   updated_by?: number;
+  // Statutory fields (optional; may be present in request/response)
+  maternity_type?: 'live_birth' | 'solo' | 'miscarriage';
+  pregnancy_doc_ref?: string;
+  marriage_cert_no?: string;
+  solo_parent_id?: string;
+  vawc_cert_ref?: string;
+  medical_cert_no?: string;
+  supporting_docs?: string | null;
 }
 
 /**

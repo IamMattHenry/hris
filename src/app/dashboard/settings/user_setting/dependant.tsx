@@ -40,6 +40,7 @@ const DependantsSection = () => {
   const [loadingData, setLoadingData] = useState(true);
   const [saving, setSaving] = useState(false);
   const [generalError, setGeneralError] = useState<string | null>(null);
+  const [userData, setUserData] = useState<any>(null);
 
   const [phLocationsData, setPhLocationsData] = useState<any[]>([]);
   const [regions, setRegions] = useState<string[]>([]);
@@ -56,11 +57,34 @@ const DependantsSection = () => {
           fetch("/data/ph_locations.json"),
           authApi.getCurrentUser(),
         ]);
-        const locations = await locationsRes.json();
-        setPhLocationsData(locations);
-        setRegions(locations.map((r: any) => r.region));
+        const rawLocations = await locationsRes.json();
+        const processedData = rawLocations.map((region: any) => {
+          const finalProvinces = (region.provinces || []).map((prov: any) => ({
+            name: prov.name,
+            cities: (prov.cities || []).map((city: any) => ({
+              name: city.name,
+              barangays: (city.barangays || []).map((b: any) => ({ name: b.name }))
+            }))
+          }));
+
+          if (region.cities && region.cities.length > 0) {
+            const directCities = region.cities.map((city: any) => ({
+              name: city.name,
+              barangays: (city.barangays || []).map((b: any) => ({ name: b.name }))
+            }));
+
+            const dummyProvinceName = region.name === "NCR" ? "Metro Manila" : "Independent Cities";
+            finalProvinces.push({ name: dummyProvinceName, cities: directCities });
+          }
+
+          return { name: region.name, provinces: finalProvinces };
+        });
+
+        setPhLocationsData(processedData);
+        setRegions(processedData.map((r: any) => r.name));
 
         if (userRes.success && userRes.data) {
+          setUserData(userRes.data);
           const mapped = (userRes.data.dependents || []).map((dep: any): DependentForm => {
             const relationshipRaw = dep.relationship || "";
             const normalized = relationshipRaw
@@ -97,8 +121,8 @@ const DependantsSection = () => {
   // Update provinces & cities
   useEffect(() => {
     if (dependentRegion) {
-      const regionObj = phLocationsData.find((r: any) => r.region === dependentRegion);
-      setDependentProvinces(regionObj ? regionObj.provinces.map((p: any) => p.province) : []);
+      const regionObj = phLocationsData.find((r: any) => r.name === dependentRegion);
+      setDependentProvinces(regionObj ? regionObj.provinces.map((p: any) => p.name) : []);
       setDependentProvince("");
       setDependentCity("");
       setDependentCities([]);
@@ -107,9 +131,9 @@ const DependantsSection = () => {
 
   useEffect(() => {
     if (dependentProvince && dependentRegion) {
-      const regionObj = phLocationsData.find((r: any) => r.region === dependentRegion);
-      const provObj = regionObj?.provinces.find((p: any) => p.province === dependentProvince);
-      setDependentCities(provObj ? provObj.cities : []);
+      const regionObj = phLocationsData.find((r: any) => r.name === dependentRegion);
+      const provObj = regionObj?.provinces.find((p: any) => p.name === dependentProvince);
+      setDependentCities(provObj ? provObj.cities.map((c: any) => (typeof c === 'string' ? c : c.name)) : []);
       setDependentCity("");
     }
   }, [dependentProvince, dependentRegion, phLocationsData]);
@@ -247,6 +271,12 @@ const DependantsSection = () => {
 
 
   const handleSave = async () => {
+    // Check if user has an employee record
+    if (!userData?.employee_id) {
+      alert("Cannot update dependents: No employee record found for your account. Please contact your administrator.");
+      return;
+    }
+
     if (dependents.length === 0) {
       alert("Please add at least one dependent before saving.");
       return;
@@ -274,6 +304,25 @@ const DependantsSection = () => {
       {loadingData && <div className="py-8 text-center text-[#4B0B14] font-medium">Loading dependents...</div>}
       {generalError && <div className="py-4 text-center text-red-600 text-sm font-medium">{generalError}</div>}
 
+      {/* Warning Banner for users without employee record */}
+      {!loadingData && !userData?.employee_id && (
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-yellow-700">
+                <strong>Dependent management is disabled.</strong> Your account does not have an associated employee record.
+                Please contact your system administrator to create an employee profile for your account.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="border-t-2 border-[#e6d2b5] pt-6 pb-24">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-[#3b2b1c] font-semibold">Employee Dependent Information <span className="text-red-500">*</span></h3>
@@ -285,7 +334,10 @@ const DependantsSection = () => {
           <button
             type="button"
             onClick={() => setShowModal(true)}
-            className="bg-[#4b0b14] text-white px-3 py-2 rounded-md text-sm cursor-pointer hover:bg-[#6b0b1f] transition"
+            disabled={!userData?.employee_id}
+            className={`bg-[#4b0b14] text-white px-3 py-2 rounded-md text-sm transition ${
+              !userData?.employee_id ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-[#6b0b1f]'
+            }`}
           >
             Add Dependent
           </button>
@@ -457,8 +509,8 @@ const DependantsSection = () => {
           onClick={handleSave}
           label={saving ? "Saving..." : "Save Dependents"}
           icon={saving ? undefined : Save}
-          disabled={saving}
-          className={`bg-[#4B0B14] hover:opacity-90 transition ${saving ? "opacity-75 cursor-not-allowed" : ""}`}
+          disabled={saving || !userData?.employee_id}
+          className={`bg-[#4B0B14] hover:opacity-90 transition ${saving || !userData?.employee_id ? "opacity-75 cursor-not-allowed" : ""}`}
         />
       </div>
     </div>

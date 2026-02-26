@@ -38,6 +38,21 @@ interface Dependent {
   city_name?: string;
 }
 
+interface EmployeeDocuments {
+  document_id?: number;
+  employee_id: number;
+  sss: boolean;
+  pagIbig: boolean;
+  tin: boolean;
+  philhealth: boolean;
+  cedula: boolean;
+  birthCert: boolean;
+  policeClearance: boolean;
+  barangayClearance: boolean;
+  medicalCert: boolean;
+  others: boolean;
+}
+
 interface EmployeeData {
   employee_id: number;
   employee_code: string;
@@ -56,7 +71,7 @@ interface EmployeeData {
   emails?: ContactEmail[];
   contact_numbers?: ContactNumber[];
   dependents?: Dependent[];
-  shift: string;
+  documents?: EmployeeDocuments;
   sub_role?: string;
   status: string;
   image_url?: string;
@@ -67,7 +82,7 @@ interface EmployeeData {
   salary?: string;
 }
 
-type TabType = "profile" | "job" | "beneficiaries" | "authentication";
+type TabType = "profile" | "job" | "beneficiaries" | "documents" | "authentication";
 
 export default function ViewEmployeeModal({
   isOpen,
@@ -128,6 +143,7 @@ export default function ViewEmployeeModal({
     { id: "profile" as TabType, label: "Profile & Contacts" },
     { id: "job" as TabType, label: "Job Information" },
     { id: "beneficiaries" as TabType, label: "Beneficiaries" },
+    { id: "documents" as TabType, label: "Documents" },
     { id: "authentication" as TabType, label: "Authentication" },
   ];
 
@@ -219,7 +235,6 @@ export default function ViewEmployeeModal({
                   <div className="text-left space-y-1">
                     <p className="text-sm text-[#8b7355]">Job Title: <span className="text-[#3b2b1c] font-medium">{employee.position_name}</span></p>
                     <p className="text-sm text-[#8b7355]">Department: <span className="text-[#3b2b1c] font-medium">{employee.department_name}</span></p>
-                    <p className="text-sm text-[#8b7355]">Shift: <span className="text-[#3b2b1c] font-medium">{capitalizeFirstChar(employee.shift)}</span></p>
                   </div>
                 </div>
 
@@ -285,9 +300,8 @@ export default function ViewEmployeeModal({
 
                 {activeTab === "job" && (
                   <div className="space-y-6">
-                    <div className="grid grid-cols-3 gap-4">
+                      <div className="grid grid-cols-3 gap-4">
                       <InfoBox label="Hired Date" value={formatDate(employee.hire_date)} />
-                      <InfoBox label="Shift" value={capitalizeFirstChar(employee.shift) || "N/A"} />
                       <InfoBox label="Department" value={employee.department_name || "N/A"} />
                       <InfoBox label="Position" value={employee.position_name || "N/A"} />
                       <InfoBox label="Leave Credits (Remaining)" value={(employee.leave_credit ?? 0).toString()} />
@@ -322,6 +336,64 @@ export default function ViewEmployeeModal({
                   </div>
                 )}
 
+                {activeTab === "documents" && (
+                  <div className="space-y-6">
+                    <h3 className="text-lg font-semibold text-[#3b2b1c] mb-4">Document Checklist</h3>
+                    {employee.documents ? (
+                      <div className="grid grid-cols-2 gap-4">
+                        {[
+                          { key: "sss", label: "SSS" },
+                          { key: "pagIbig", label: "PAG-IBIG" },
+                          { key: "tin", label: "TIN ID" },
+                          { key: "philhealth", label: "PHILHEALTH" },
+                          { key: "cedula", label: "CEDULA" },
+                          { key: "birthCert", label: "BIRTH CERTIFICATE" },
+                          { key: "policeClearance", label: "POLICE CLEARANCE" },
+                          { key: "barangayClearance", label: "BARANGAY CLEARANCE" },
+                          { key: "medicalCert", label: "MEDICAL CERTIFICATE" },
+                          { key: "others", label: "OTHERS" }
+                        ].map((doc) => (
+                          <div
+                            key={doc.key}
+                            className={`flex items-center gap-3 p-4 rounded-lg border-2 ${
+                              employee.documents![doc.key as keyof EmployeeDocuments]
+                                ? "bg-green-50 border-green-300"
+                                : "bg-gray-50 border-gray-300"
+                            }`}
+                          >
+                            <div
+                              className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                                employee.documents![doc.key as keyof EmployeeDocuments]
+                                  ? "bg-green-500"
+                                  : "bg-gray-300"
+                              }`}
+                            >
+                              {employee.documents![doc.key as keyof EmployeeDocuments] && (
+                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                            </div>
+                            <span className={`font-medium ${
+                              employee.documents![doc.key as keyof EmployeeDocuments]
+                                ? "text-green-700"
+                                : "text-gray-600"
+                            }`}>
+                              {doc.label}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+                        <p className="text-sm text-yellow-700">
+                          No document information available for this employee.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {activeTab === "authentication" && (
                   <div className="space-y-6">
                     <div className="grid grid-cols-3 gap-4">
@@ -342,8 +414,7 @@ export default function ViewEmployeeModal({
                               first_name: employee.first_name,
                               last_name: employee.last_name,
                               position_name: employee.position_name || "N/A",
-                              shift: employee.shift || "N/A",
-                              schedule_time: employee.shift === "morning" ? "08:00" : "17:00",
+                              schedule_time: "08:00",
                             }}
                             size={200}
                           />
@@ -357,12 +428,11 @@ export default function ViewEmployeeModal({
                           </p>
                           <div className="text-xs text-[#8b7355] bg-[#fff7ec] p-3 rounded-md border border-[#d4c5b9]">
                             <p className="font-semibold mb-1">QR Code Data:</p>
-                            <ul className="list-disc list-inside space-y-1">
+                              <ul className="list-disc list-inside space-y-1">
                               <li>Employee ID: {employee.employee_id}</li>
                               <li>Employee Code: {employee.employee_code}</li>
                               <li>Name: {employee.first_name} {employee.last_name}</li>
                               <li>Position: {employee.position_name || "N/A"}</li>
-                              <li>Shift: {employee.shift || "N/A"}</li>
                             </ul>
                           </div>
                         </div>
