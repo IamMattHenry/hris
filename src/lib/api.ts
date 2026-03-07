@@ -489,6 +489,54 @@ export const passwordRecoveryApi = {
   },
 };
 
+// ============ RBAC API FUNCTIONS ============
+
+export interface UserPermissions {
+  roles: string[];
+  permissions: string[];
+  is_superadmin: boolean;
+}
+
+export const rbacApi = {
+  /**
+   * Get current user's permissions and RBAC roles
+   */
+  getMyPermissions: async () => {
+    return apiCall<UserPermissions>('/rbac/my-permissions', {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get all roles (admin only)
+   */
+  getRoles: async () => {
+    return apiCall<any[]>('/rbac/roles', {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Assign a role to a user
+   */
+  assignRole: async (userId: number, roleKey: string) => {
+    return apiCall<any>('/rbac/assign-role', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, role_key: roleKey }),
+    });
+  },
+
+  /**
+   * Revoke a role from a user
+   */
+  revokeRole: async (userId: number, roleKey: string) => {
+    return apiCall<any>('/rbac/revoke-role', {
+      method: 'DELETE',
+      body: JSON.stringify({ user_id: userId, role_key: roleKey }),
+    });
+  },
+};
+
 // ============ DEPARTMENT API FUNCTIONS ============
 
 export const departmentApi = {

@@ -173,6 +173,7 @@ export default function EditEmployeeModal({
   const [city, setCity] = useState("");
   const [region, setRegion] = useState("");
   const [province, setProvince] = useState("");
+  const [originalBarangay, setOriginalBarangay] = useState<string>("");
   const [civilStatus, setCivilStatus] = useState("");
  // const [barangay, setBarangay] = useState("");
   const [barangays, setBarangays] = useState<string[]>([]);
@@ -293,11 +294,12 @@ const [cityCode, setCityCode] = useState("");
           setScheduledStartTime(normTime(res.data.scheduled_start_time));
           setScheduledEndTime(normTime(res.data.scheduled_end_time));
         setHomeAddress(res.data.home_address || "");
-        setBarangay(res.data.barangay || ""); 
         setCity(res.data.city || "");
         setRegion(res.data.region || "");
         setProvince(res.data.province || "");
-        setBarangay(res.data.barangay || "");
+        // Store original barangay to sync after barangays list is populated
+        setOriginalBarangay(res.data.barangay || "");
+        // Don't set barangay directly - let useEffect handle it after barangays list is populated
         setCivilStatus(formatCivilStatusForDisplay(res.data.civil_status));
         setEmploymentStatus(formatStatusForDisplay(res.data.status));
 
@@ -652,6 +654,25 @@ useEffect(() => {
       setBarangays([]);
     }
   }, [region, province, city, phLocationsData]);
+
+  // Sync barangay value after barangays list is populated
+  useEffect(() => {
+    if (originalBarangay && barangays.length > 0) {
+      // Exact match first
+      if (barangays.includes(originalBarangay)) {
+        setBarangay(originalBarangay);
+        setOriginalBarangay("");
+        return;
+      }
+      // Case-insensitive fallback
+      const lowerOrig = originalBarangay.trim().toLowerCase();
+      const match = barangays.find(b => b.trim().toLowerCase() === lowerOrig);
+      if (match) {
+        setBarangay(match);
+        setOriginalBarangay("");
+      }
+    }
+  }, [barangays, originalBarangay]);
 
   // --- DEPENDENT ADDRESS LOGIC (Repeat of above structure) ---
 

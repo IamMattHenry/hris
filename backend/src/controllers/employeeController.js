@@ -7,6 +7,7 @@ import {
 } from "../utils/codeGenerator.js";
 import { deleteFingerprintTemplate } from "../services/fingerprintService.js";
 import emailService from "../utils/emailService.js";
+import { hasPermission } from "../middleware/rbac.js";
 
 const mapDepartmentToSubRole = (departmentName = "") => {
   const normalized = departmentName.trim().toLowerCase();
@@ -175,7 +176,19 @@ export const getAllEmployees = async (req, res, next) => {
     let parsedDeptId = queryDeptId ? parseInt(queryDeptId, 10) : null;
     if (Number.isNaN(parsedDeptId)) parsedDeptId = null;
 
-    if (currentUser && currentUser.role === 'admin') {
+    // RBAC-aware data scoping:
+    // - employees.read → full list (or dept-scoped for legacy admin)
+    // - employees.read_own → only own record
+    // - no permission → empty
+    const canReadAll = hasPermission(req, 'employees.read');
+    const canReadOwn = hasPermission(req, 'employees.read_own');
+
+    if (!canReadAll && canReadOwn) {
+      // Only return their own employee record
+      whereClauses.push('e.user_id = ?');
+      params.push(currentUser.user_id);
+    } else if (currentUser && currentUser.role === 'admin' && canReadAll) {
+      // Legacy admin: scoped to own department
       const adminEmployee = await db.getOne(
         'SELECT department_id FROM employees WHERE user_id = ?',
         [currentUser.user_id]
@@ -230,10 +243,19 @@ export const getAllEmployees = async (req, res, next) => {
 
     const employees = await db.getAll(sql, params);
 
+    // Strip sensitive fields if user lacks employees.view_sensitive permission
+    const canViewSensitive = hasPermission(req, 'employees.view_sensitive');
+    const sanitizedEmployees = canViewSensitive
+      ? employees
+      : employees.map(emp => {
+          const { fingerprint_id, current_salary, salary_unit, ...safe } = emp;
+          return safe;
+        });
+
     res.json({
       success: true,
-      data: employees,
-      count: employees.length,
+      data: sanitizedEmployees,
+      count: sanitizedEmployees.length,
     });
   } catch (error) {
     logger.error('Get all employees error:', error);
@@ -498,15 +520,19 @@ export const createEmployee = async (req, res, next) => {
 
       // Required schedule fields: enforce presence and basic validity
       if (!finalScheduledDays || finalScheduledDays.length === 0) {
+        await db.rollback();
         return res.status(400).json({ success: false, message: 'scheduled_days is required and cannot be empty' });
       }
       if (!normStart) {
+        await db.rollback();
         return res.status(400).json({ success: false, message: 'scheduled_start_time is required (expected HH:MM or HH:MM:SS)' });
       }
       if (!normEnd) {
+        await db.rollback();
         return res.status(400).json({ success: false, message: 'scheduled_end_time is required (expected HH:MM or HH:MM:SS)' });
       }
       if (toSec(normEnd) <= toSec(normStart)) {
+        await db.rollback();
         return res.status(400).json({ success: false, message: 'scheduled_end_time must be after scheduled_start_time' });
       }
       // Note: For full-time employees, the UI auto-calculates end time as start + 9 hours (8h work + 1h lunch)

@@ -2,6 +2,7 @@ import express from 'express';
 import { body } from 'express-validator';
 import { handleValidationErrors, validateLeave } from '../middleware/validation.js';
 import { verifyToken, verifyRole } from '../middleware/auth.js';
+import { requirePermission, loadPermissions } from '../middleware/rbac.js';
 import {
   getLeaveRequests,
   getLeaveByEmployee,
@@ -30,11 +31,11 @@ router.post(
   applyLeave
 );
 
-// Check and revert leave status (admin only)
+// Check and revert leave status (requires elevated leave status management permission)
 router.post(
   '/check-revert-status',
   verifyToken,
-  verifyRole(['admin']),
+  requirePermission('leave.manage_status'),
   checkAndRevertLeaveStatus
 );
 
@@ -60,27 +61,28 @@ router.get('/employee/:employee_id', verifyToken, getLeaveByEmployee);
 
 // ============ GENERIC ROUTES (must come after specific routes) ============
 
-// Approve leave (supervisor, admin, superadmin)
+// Approve leave (requires leave.approve permission)
 router.put(
   '/:id/approve',
   verifyToken,
-  verifyRole(['supervisor', 'admin', 'superadmin']),
+  requirePermission('leave.approve'),
   approveLeave
 );
 
-// Reject leave (supervisor, admin, superadmin)
+// Reject leave (requires leave.reject permission)
 router.put(
   '/:id/reject',
   verifyToken,
-  verifyRole(['supervisor', 'admin', 'superadmin']),
+  requirePermission('leave.reject'),
   rejectLeave
 );
 
 // Delete leave (admin and superadmin only)
+// Delete leave (requires leave.delete permission)
 router.delete(
   '/:id',
   verifyToken,
-  verifyRole(['admin', 'superadmin']),
+  requirePermission('leave.delete'),
   deleteLeave
 );
 

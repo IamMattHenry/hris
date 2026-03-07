@@ -14,15 +14,18 @@ import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
 import ViewEmployeeModal from "./view_employee/ViewModal";
 import EditEmployeeModal from "./edit_employee/EditModal";
+import LeaveDetailsModal from "@/components/dashboard/LeaveDetailsModal";
 import { employeeApi } from "@/lib/api";
 import { Employee } from "@/types/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "react-hot-toast";
 
 
 
 export default function EmployeeTable() {
   const { user } = useAuth();
+  const { can, canAny, loading: permLoading } = usePermissions();
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -31,6 +34,7 @@ export default function EmployeeTable() {
   const [selectedMenu, setSelectedMenu] = useState<number | null>(null);
   const [employeeToView, setEmployeeToView] = useState<number | null>(null);
   const [employeeToEdit, setEmployeeToEdit] = useState<number | null>(null);
+  const [leaveDetailEmployee, setLeaveDetailEmployee] = useState<{ id: number; name: string } | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [sortBy, setSortBy] = useState<string>("");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
@@ -39,10 +43,13 @@ export default function EmployeeTable() {
   const itemsPerPage = 10; // change page size here
 
 
-  // Check if user is supervisor (view-only access)
-  const isSupervisor = user?.role === "supervisor";
+  // RBAC permission checks (replaces hardcoded role checks)
+  const canCreate = can('employees.create');
+  const canEdit = can('employees.update');
+  const canDelete = can('employees.delete');
+  const canViewLeave = canAny('leave.read', 'leave.read_department');
 
-  // Check if user is admin (department-restricted access)
+  // Legacy fallbacks for department scoping
   const isAdmin = user?.role === "admin";
   const userDepartmentId = user?.department_id;
 
@@ -288,8 +295,8 @@ export default function EmployeeTable() {
             )}
           </div>
 
-          {/* Add Button - Disabled for supervisors */}
-          {!isSupervisor && (
+          {/* Add Button - only shown when user has employees.create permission */}
+          {canCreate && (
             <ActionButton
               label="Add Employee"
               onClick={() => setIsModalOpen(true)}
@@ -337,14 +344,46 @@ export default function EmployeeTable() {
                   <td className="py-3 px-4">{emp.department_name || "N/A"}</td>
                   <td className="py-3 px-4">
                     <span
-                      className={`px-3 py-2 rounded-full text-xs font-medium ${emp.status === "active"
-                        ? "bg-green-100 text-green-700"
-                        : emp.status === "resigned"
-                          ? "bg-yellow-100 text-yellow-700"
-                          : "bg-red-100 text-red-700"
-                        }`}
+                      onClick={() => {
+                        if (emp.status === "on-leave") {
+                          setLeaveDetailEmployee({
+                            id: emp.employee_id,
+                            name: `${emp.first_name} ${emp.last_name}`,
+                          });
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (
+                          emp.status === "on-leave" &&
+                          (e.key === "Enter" || e.key === " ")
+                        ) {
+                          e.preventDefault();
+                          setLeaveDetailEmployee({
+                            id: emp.employee_id,
+                            name: `${emp.first_name} ${emp.last_name}`,
+                          });
+                        }
+                      }}
+                      role={emp.status === "on-leave" ? "button" : undefined}
+                      tabIndex={emp.status === "on-leave" ? 0 : -1}
+                      aria-label={
+                        emp.status === "on-leave"
+                          ? `View leave details for ${emp.first_name} ${emp.last_name}`
+                          : undefined
+                      }
+                      className={`px-3 py-2 rounded-full text-xs font-medium inline-block ${
+                        emp.status === "active"
+                          ? "bg-green-100 text-green-700"
+                          : emp.status === "resigned"
+                            ? "bg-yellow-100 text-yellow-700"
+                            : emp.status === "on-leave"
+                              ? "bg-blue-100 text-blue-700 cursor-pointer hover:shadow-md transition"
+                              : "bg-red-100 text-red-700"
+                      }`}
                     >
-                      {emp.status.charAt(0).toUpperCase() + emp.status.slice(1)}
+                      {emp.status === "on-leave" ? "🔗 " : ""}
+                      {emp.status.charAt(0).toUpperCase() +
+                        emp.status.slice(1).replace("-", " ")}
                     </span>
                   </td>
                   <td className="py-3 px-4 text-left relative">
@@ -361,11 +400,11 @@ export default function EmployeeTable() {
                     {selectedMenu === emp.employee_id && (
                       <div className="absolute right-4 top-10 bg-[#FFF2E0] rounded-lg shadow-lg w-36 z-50 employee-dropdown">
                         <button onClick={() => handleView(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-gray-50">View</button>
-                        {!isSupervisor && (
-                          <>
-                            <button onClick={() => handleEdit(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-gray-50">Edit</button>
-                            <button onClick={() => handleDelete(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-red-100 text-red-600">Delete</button>
-                          </>
+                        {canEdit && (
+                          <button onClick={() => handleEdit(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-gray-50">Edit</button>
+                        )}
+                        {canDelete && (
+                          <button onClick={() => handleDelete(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-red-100 text-red-600">Delete</button>
                         )}
                       </div>
                     )}
@@ -433,6 +472,12 @@ export default function EmployeeTable() {
       <AddModal isOpen={isModalOpen} onClose={handleModalClose} />
       <ViewEmployeeModal isOpen={employeeToView !== null} onClose={() => setEmployeeToView(null)} id={employeeToView!} />
       <EditEmployeeModal isOpen={employeeToEdit !== null} onClose={() => setEmployeeToEdit(null)} id={employeeToEdit!} />
+      <LeaveDetailsModal
+        isOpen={leaveDetailEmployee !== null}
+        onClose={() => setLeaveDetailEmployee(null)}
+        employeeId={leaveDetailEmployee?.id || 0}
+        employeeName={leaveDetailEmployee?.name || ""}
+      />
     </div>
   );
 }

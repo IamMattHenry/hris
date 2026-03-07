@@ -91,9 +91,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [grantAdminPrivilege, setGrantAdminPrivilege] = useState(false);
-  const [grantSupervisorPrivilege, setGrantSupervisorPrivilege] = useState(false);
-  const [subRole, setSubRole] = useState("");
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [finishedSteps, setFinishedSteps] = useState<number[]>([]);
@@ -517,41 +514,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     }
   };
 
-  const mapDepartmentToSubRole = (departmentName?: string | null) => {
-    if (!departmentName) return null;
-
-    const normalized = departmentName.toLowerCase();
-
-    if (
-      normalized === "it" ||
-      normalized.includes("information technology") ||
-      normalized.includes("i.t.")
-    ) {
-      return "it";
-    }
-
-    if (
-      normalized === "hr" ||
-      normalized.includes("human resource") ||
-      normalized.includes("human-resource")
-    ) {
-      return "hr";
-    }
-
-    return null;
-  };
-
-  // Get valid sub_roles based on department
-  const getValidSubRoles = (deptId: number | null) => {
-    if (!deptId) return [];
-
-    const dept = departments.find((d) => d.department_id === deptId);
-    const mapped = mapDepartmentToSubRole(dept?.department_name);
-
-    return mapped ? [mapped] : [];
-  };
-
-
   useEffect(() => {
     if (!positionId || positions.length === 0) return;
 
@@ -571,43 +533,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
     }
   }, [positionId, employmentType, positions]);
-
-  // Check if department already has a supervisor
-  const checkDepartmentSupervisor = async (deptId: number) => {
-    try {
-      const result = await employeeApi.getAll({
-        department_id: deptId,
-        role: "supervisor",
-      });
-      if (result.success && result.data) {
-        return result.data.length > 0;
-      }
-    } catch (error) {
-      console.error("Error checking department supervisor:", error);
-    }
-    return false;
-  };
-
-  useEffect(() => {
-    if (!(grantAdminPrivilege || grantSupervisorPrivilege)) {
-      if (subRole !== "") setSubRole("");
-      return;
-    }
-
-    if (!departmentId) {
-      if (subRole !== "") setSubRole("");
-      return;
-    }
-
-    const dept = departments.find((d) => d.department_id === departmentId);
-    const mapped = mapDepartmentToSubRole(dept?.department_name);
-
-    if (mapped) {
-      if (subRole !== mapped) setSubRole(mapped);
-    } else if (subRole !== "") {
-      setSubRole("");
-    }
-  }, [departmentId, departments, grantAdminPrivilege, grantSupervisorPrivilege]);
 
   if (!isOpen) return null;
 
@@ -715,9 +640,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     setUsername("");
     setPassword("");
     setConfirmPassword("");
-    setGrantAdminPrivilege(false);
-    setGrantSupervisorPrivilege(false);
-    setSubRole("");
+
     setStep(1);
     setErrors({});
     setMessage(null);
@@ -778,28 +701,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
     // Step 5 - Authentication
     if (step === 5) {
-      newErrors = validateStep4(username, password, confirmPassword, grantAdminPrivilege || grantSupervisorPrivilege, subRole);
-
-      // Additional validation for supervisor role
-      if (grantSupervisorPrivilege && departmentId) {
-        const hasSupervisor = await checkDepartmentSupervisor(departmentId);
-        if (hasSupervisor) {
-          newErrors.supervisor = "This department already has a supervisor. Only one supervisor is allowed per department.";
-        }
-      }
-
-      // Validate sub_role matches department
-      if ((grantAdminPrivilege || grantSupervisorPrivilege) && departmentId && subRole) {
-        const validRoles = getValidSubRoles(departmentId);
-        const normalizedSubRole = subRole.toLowerCase();
-        const isValid = validRoles.some(role => role.toLowerCase() === normalizedSubRole);
-
-        if (!isValid) {
-          const deptName = departments.find(d => d.department_id === departmentId)?.department_name;
-          const allowed = validRoles[0]?.toLowerCase() || "hr";
-          newErrors.subRole = `${deptName ?? "This"} department employees can only have '${allowed}' as sub_role.`;
-        }
-      }
+      newErrors = validateStep4(username, password, confirmPassword, false, "");
     }
 
     setErrors(newErrors);
@@ -841,7 +743,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       const employeeData: any = {
         username,
         password,
-        role: grantAdminPrivilege ? "admin" : grantSupervisorPrivilege ? "supervisor" : "employee",
+        role: "employee",
         first_name: firstName,
         last_name: lastName,
         middle_name: middleName || null,
@@ -850,6 +752,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         gender: gender ? gender.toLowerCase() : null,
         civil_status: civilStatus ? civilStatus.toLowerCase() : null,
         home_address: homeAddress || null,
+        barangay: barangay || null,
         city: city || null,
         region: region || null,
         province: province || null,
@@ -879,10 +782,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         documents: documents,
       };
 
-      // Add sub_role if admin or supervisor privilege is granted
-      if ((grantAdminPrivilege || grantSupervisorPrivilege) && subRole) {
-        employeeData.sub_role = subRole.toLowerCase();
-      }
+
 
       const result = await employeeApi.create(employeeData);
 

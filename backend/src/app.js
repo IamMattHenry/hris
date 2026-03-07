@@ -19,6 +19,7 @@ import activityRoutes from './routes/activity.js';
 import ticketRoutes from './routes/tickets.js';
 import fingerprintRoutes from './routes/fingerprint.js';
 import passwordRecoveryRoutes from './routes/passwordRecovery.js';
+import rbacRoutes from './routes/rbac.js';
 
 dotenv.config();
 
@@ -81,6 +82,7 @@ app.use('/api/activity', activityRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/fingerprint', fingerprintRoutes);
 app.use('/api/password', passwordRecoveryRoutes);
+app.use('/api/rbac', rbacRoutes);
 
 // ============ ERROR HANDLING ============
 

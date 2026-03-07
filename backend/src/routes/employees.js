@@ -1,6 +1,7 @@
 import express from 'express';
 import { body } from 'express-validator';
 import { verifyToken, verifyRole } from '../middleware/auth.js';
+import { requirePermission, loadPermissions } from '../middleware/rbac.js';
 import { validateEmployee, handleValidationErrors } from '../middleware/validation.js';
 import {
   getAllEmployees,
@@ -14,19 +15,19 @@ import {
 const router = express.Router();
 
 // Get employee availability status (protected)
-router.get('/availability', verifyToken, getEmployeeAvailability);
+router.get('/availability', verifyToken, requirePermission('employees.read', 'employees.read_own'), getEmployeeAvailability);
 
 // Get all employees (protected)
-router.get('/', verifyToken, getAllEmployees);
+router.get('/', verifyToken, requirePermission('employees.read', 'employees.read_own'), getAllEmployees);
 
 // Get employee by ID (protected)
-router.get('/:id', verifyToken, getEmployeeById);
+router.get('/:id', verifyToken, requirePermission('employees.read', 'employees.read_own'), getEmployeeById);
 
-// Create employee (admin and superadmin only) with enhanced validation
+// Create employee (requires employees.create permission)
 router.post(
   '/',
   verifyToken,
-  verifyRole(['admin', 'superadmin']),
+  requirePermission('employees.create'),
   [
     // User validation
     body('username').trim().isLength({ min: 3, max: 50 }).matches(/^[a-zA-Z0-9_]+$/).withMessage('Invalid username format'),
@@ -108,11 +109,11 @@ router.post(
     updateEmployee
   );
 
-// Delete employee (admin and superadmin only)
+// Delete employee (requires employees.delete permission)
 router.delete(
   '/:id',
   verifyToken,
-  verifyRole(['admin', 'superadmin']),
+  requirePermission('employees.delete'),
   deleteEmployee
 );
 

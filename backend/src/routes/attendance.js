@@ -1,5 +1,6 @@
 import express from 'express';
 import { verifyToken, verifyRole } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/rbac.js';
 import { body } from 'express-validator';
 import { validateAttendance, handleValidationErrors } from '../middleware/validation.js';
 import {
@@ -81,11 +82,11 @@ router.put(
   updateAttendanceStatus
 );
 
-// Mark absences for a date (admin/superadmin)
+// Mark absences for a date (requires attendance.mark_absences permission)
 router.post(
   '/mark-absences',
   verifyToken,
-  verifyRole(['admin', 'superadmin']),
+  requirePermission('attendance.mark_absences'),
   markAbsences
 );
 
