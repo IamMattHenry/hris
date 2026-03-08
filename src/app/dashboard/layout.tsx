@@ -91,6 +91,12 @@ export default function DashboardLayout({
   return (
     <AuthProvider
       allowedRoles={['admin', 'supervisor', 'superadmin']}
+      allowedRbacRoles={[
+        'hr_manager',
+        'hr_supervisor',
+        'leave_attendance_officer',
+        'recruitment_officer',
+      ]}
       redirectTo="/login_hr"
       unauthorizedRedirectTo="/"
     >

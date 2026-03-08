@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
 
-const handleLogin = async (req, res, next, { allowedRoles, deniedMessage }) => {
+const handleLogin = async (req, res, next, { allowedRoles, allowedRoleKeys = [], deniedMessage }) => {
   try {
     const { username, password } = req.body;
 
@@ -18,6 +18,17 @@ const handleLogin = async (req, res, next, { allowedRoles, deniedMessage }) => {
       'SELECT * FROM users WHERE username = ?',
       [username]
     );
+
+    // Fetch RBAC role keys from user_role_assignments
+    if (user) {
+      const rbacRows = await db.getAll(
+        `SELECT r.role_key FROM user_role_assignments ura
+         JOIN roles r ON ura.role_id = r.role_id
+         WHERE ura.user_id = ?`,
+        [user.user_id]
+      );
+      user.rbac_roles = rbacRows.map(r => r.role_key);
+    }
 
     if (!user) {
       logger.warn(`Login attempt with non-existent username: ${username}`);
@@ -37,7 +48,10 @@ const handleLogin = async (req, res, next, { allowedRoles, deniedMessage }) => {
       });
     }
 
-    if (!allowedRoles.includes(user.role)) {
+    const roleAllowed    = allowedRoles.includes(user.role);
+    const rbacAllowed    = user.rbac_roles?.some(key => allowedRoleKeys.includes(key));
+
+    if (!roleAllowed && !rbacAllowed) {
       return res.status(401).json({
         success: false,
         message: deniedMessage,
@@ -101,6 +115,7 @@ const handleLogin = async (req, res, next, { allowedRoles, deniedMessage }) => {
         user_id: user.user_id,
         username: user.username,
         role: user.role,
+        rbac_roles: user.rbac_roles || [],
         employee_id: user.employee_id,
       },
       process.env.JWT_SECRET,
@@ -126,6 +141,7 @@ const handleLogin = async (req, res, next, { allowedRoles, deniedMessage }) => {
       user_id: user.user_id,
       username: user.username,
       role: user.role,
+      rbac_roles: user.rbac_roles || [],
       employee_id: user.employee_id,
     };
 
@@ -149,10 +165,19 @@ const handleLogin = async (req, res, next, { allowedRoles, deniedMessage }) => {
   }
 };
 
+// HR-specific RBAC role keys that are permitted to access the admin portal
+const HR_PORTAL_ROLE_KEYS = [
+  'hr_manager',
+  'hr_supervisor',
+  'leave_attendance_officer',
+  'recruitment_officer',
+];
+
 export const login = async (req, res, next) =>
   handleLogin(req, res, next, {
     allowedRoles: ['admin', 'supervisor', 'superadmin'],
-    deniedMessage: 'Only admins, supervisors, and superadmins are allowed to access this portal',
+    allowedRoleKeys: HR_PORTAL_ROLE_KEYS,
+    deniedMessage: 'Only admins, supervisors, superadmins, and HR staff are allowed to access this portal',
   });
 
 export const loginEmployeePortal = async (req, res, next) =>
@@ -230,12 +255,22 @@ export const verifyFingerprintLogin = async (req, res, next) => {
       });
     }
 
+    // Fetch RBAC role keys for the full token
+    const rbacRows = await db.getAll(
+      `SELECT r.role_key FROM user_role_assignments ura
+       JOIN roles r ON ura.role_id = r.role_id
+       WHERE ura.user_id = ?`,
+      [user.user_id]
+    );
+    const rbacRoles = rbacRows.map(r => r.role_key);
+
     // Fingerprint verified - issue full token
     const token = jwt.sign(
       {
         user_id: user.user_id,
         username: user.username,
         role: user.role,
+        rbac_roles: rbacRoles,
         employee_id: user.employee_id,
       },
       process.env.JWT_SECRET,
@@ -266,6 +301,7 @@ export const verifyFingerprintLogin = async (req, res, next) => {
           user_id: user.user_id,
           username: user.username,
           role: user.role,
+          rbac_roles: rbacRoles,
           employee_id: user.employee_id,
         },
       },
@@ -372,6 +408,15 @@ export const getCurrentUser = async (req, res, next) => {
       );
       user.dependents = dependents;
     }
+
+    // Fetch RBAC role keys for this user
+    const rbacRows = await db.getAll(
+      `SELECT r.role_key, r.role_name FROM user_role_assignments ura
+       JOIN roles r ON ura.role_id = r.role_id
+       WHERE ura.user_id = ?`,
+      [user.user_id]
+    );
+    user.rbac_roles = rbacRows.map(r => r.role_key);
 
     res.json({
       success: true,

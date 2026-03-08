@@ -5,7 +5,8 @@ import { X } from "lucide-react";
 import { motion } from "framer-motion";
 import FormInput from "@/components/forms/FormInput";
 import FormSelect from "@/components/forms/FormSelect";
-import { departmentApi, positionApi, employeeApi, fingerprintApi } from "@/lib/api";
+import { departmentApi, positionApi, employeeApi, fingerprintApi, rbacApi } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   validateEmployeeForm,
   validateDependent,
@@ -123,6 +124,7 @@ interface EmployeeData {
   documents?: EmployeeDocuments;
   role?: string;
   user_id?: number;
+  department_name?: string;
   status?: string;
   fingerprint_id?: number | null;
 }
@@ -149,7 +151,19 @@ export default function EditEmployeeModal({
   onClose,
   id,
 }: EditEmployeeModalProps) {
+  const { user: currentUser } = useAuth();
   const [employee, setEmployee] = useState<EmployeeData | null>(null);
+
+  // HR RBAC roles state
+  const HR_ROLES = [
+    { key: 'hr_manager',               label: 'HR Manager',                description: 'Full HR management access — can access admin portal' },
+    { key: 'hr_supervisor',            label: 'HR Supervisor',             description: 'Supervision and leave/attendance approvals' },
+    { key: 'leave_attendance_officer', label: 'Leave & Attendance Officer', description: 'Manage leave requests and attendance records' },
+    { key: 'recruitment_officer',      label: 'Recruitment Officer',       description: 'Manage recruitment and hiring processes' },
+  ] as const;
+
+  const [employeeRbacRoles, setEmployeeRbacRoles] = useState<string[]>([]);
+  const [rbacTogglingRoles, setRbacTogglingRoles] = useState<Set<string>>(new Set());
 
   // Editable fields
   const [firstName, setFirstName] = useState("");
@@ -365,6 +379,18 @@ const [cityCode, setCityCode] = useState("");
 
         // Set fingerprint ID
         setCurrentFingerprintId(res.data.fingerprint_id || null);
+
+        // Fetch RBAC roles for this employee's user account
+        if (res.data.user_id && currentUser?.role === 'superadmin') {
+          try {
+            const rbacRes = await rbacApi.getUserRoles(res.data.user_id);
+            if (rbacRes.success && Array.isArray(rbacRes.data)) {
+              setEmployeeRbacRoles(rbacRes.data.map((r: any) => r.role_key));
+            }
+          } catch {
+            setEmployeeRbacRoles([]);
+          }
+        }
       }
     } catch (error) {
       console.error("Error fetching employee:", error);
@@ -894,6 +920,7 @@ useEffect(() => {
             { id: "dependent", label: "Dependent Information" },
             { id: "documents", label: "Documents" },
             { id: "fingerprint", label: "Fingerprint Registration" },
+            ...(currentUser?.role === 'superadmin' ? [{ id: "hr-roles", label: "HR Roles" }] : []),
           ].map((tab) => (
             <button
               key={tab.id}
@@ -1669,6 +1696,106 @@ useEffect(() => {
             )}
 
 
+
+            {/*================ HR Roles Section (superadmin only) ================*/}
+            {activeTab === "hr-roles" && currentUser?.role === 'superadmin' && (
+              <div className="pt-6 mt-8">
+                <h3 className="text-[#3b2b1c] font-semibold mb-1">HR Portal Role Assignment</h3>
+                <p className="text-sm text-[#6b5344] mb-6">
+                  Assign RBAC roles that grant this HR employee access to the admin portal and specific HR functions.
+                </p>
+
+                {employee?.department_name &&
+                  !['human resource', 'human resources', 'hr'].includes(
+                    (employee.department_name || '').toLowerCase()
+                  ) && (
+                  <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm text-yellow-800">
+                      ⚠️ This employee is not in the HR department. Assigning HR roles to non-HR employees is unusual.
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  {HR_ROLES.map((hrRole) => {
+                    const isAssigned = employeeRbacRoles.includes(hrRole.key);
+                    const isToggling = rbacTogglingRoles.has(hrRole.key);
+
+                    return (
+                      <div
+                        key={hrRole.key}
+                        className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all ${
+                          isAssigned
+                            ? 'bg-green-50 border-green-300'
+                            : 'bg-gray-50 border-gray-200'
+                        }`}
+                      >
+                        <div className="flex-1">
+                          <p className={`font-semibold text-sm ${
+                            isAssigned ? 'text-green-800' : 'text-[#3b2b1c]'
+                          }`}>
+                            {hrRole.label}
+                          </p>
+                          <p className="text-xs text-[#6b5344] mt-0.5">{hrRole.description}</p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={isToggling}
+                          onClick={async () => {
+                            if (!employee?.user_id) return;
+                            setRbacTogglingRoles((prev) => new Set(prev).add(hrRole.key));
+                            try {
+                              let result;
+                              if (isAssigned) {
+                                result = await rbacApi.revokeRole(employee.user_id, hrRole.key);
+                              } else {
+                                result = await rbacApi.assignRole(employee.user_id, hrRole.key);
+                              }
+                              if (result.success) {
+                                setEmployeeRbacRoles((prev) =>
+                                  isAssigned
+                                    ? prev.filter((k) => k !== hrRole.key)
+                                    : [...prev, hrRole.key]
+                                );
+                                toast.success(
+                                  isAssigned
+                                    ? `Role "${hrRole.label}" revoked`
+                                    : `Role "${hrRole.label}" assigned`
+                                );
+                              } else {
+                                toast.error(result.message || 'Failed to update role');
+                              }
+                            } catch {
+                              toast.error('Failed to update role');
+                            } finally {
+                              setRbacTogglingRoles((prev) => {
+                                const next = new Set(prev);
+                                next.delete(hrRole.key);
+                                return next;
+                              });
+                            }
+                          }}
+                          className={`ml-4 px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                            isAssigned
+                              ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                              : 'bg-[#4b0b14] text-white hover:bg-[#6b0b1f]'
+                          }`}
+                        >
+                          {isToggling ? '...' : isAssigned ? 'Revoke' : 'Assign'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-6 p-4 bg-blue-50 border-l-4 border-blue-400 rounded">
+                  <p className="text-sm text-blue-700">
+                    <span className="font-semibold">Note:</span> HR roles allow employees to log in to the Admin Portal.
+                    Changes take effect on the employee's next login.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/*================ Fingerprint Registration Section ================*/}
             {activeTab === "fingerprint" && (

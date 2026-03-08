@@ -517,6 +517,15 @@ export const rbacApi = {
   },
 
   /**
+   * Get RBAC role assignments for a specific user
+   */
+  getUserRoles: async (userId: number) => {
+    return apiCall<any[]>(`/rbac/user-roles/${userId}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
    * Assign a role to a user
    */
   assignRole: async (userId: number, roleKey: string) => {

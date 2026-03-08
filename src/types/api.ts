@@ -18,6 +18,7 @@ export interface User {
   user_id: number;
   username: string;
   role: 'admin' | 'employee' | 'supervisor' | 'superadmin';
+  rbac_roles?: string[];
   is_active: boolean;
   created_at: string;
   updated_at: string;

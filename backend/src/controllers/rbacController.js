@@ -88,6 +88,29 @@ export const getMyPermissions = async (req, res, next) => {
 };
 
 /**
+ * GET /api/rbac/user-roles/:userId
+ * Get RBAC role assignments for a specific user (superadmin/admin only)
+ */
+export const getUserRoles = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+
+    const assignments = await db.getAll(
+      `SELECT r.role_id, r.role_key, r.role_name, r.description, ura.created_at
+       FROM user_role_assignments ura
+       JOIN roles r ON ura.role_id = r.role_id
+       WHERE ura.user_id = ?`,
+      [userId]
+    );
+
+    res.json({ success: true, data: assignments });
+  } catch (error) {
+    logger.error('Get user roles error:', error);
+    next(error);
+  }
+};
+
+/**
  * GET /api/rbac/roles
  * List all roles with their permissions (admin/superadmin only)
  */
