@@ -18,7 +18,7 @@ export default function Sidebar() {
         { name: "Departments", icon: Building, path: "/dashboard/departments" }
     ];
 
-    if (user?.role === "superadmin" || user?.sub_role === "it") {
+    if (user?.role === "superadmin" || user?.role === "admin") {
         links.push({ name: "Activity Log", icon: LogsIcon, path: "/dashboard/activity_log" });
         links.push({ name: "Technical Support", icon: CogIcon, path: "/dashboard/tech_support" });
     }

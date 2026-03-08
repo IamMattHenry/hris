@@ -701,7 +701,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
     // Step 5 - Authentication
     if (step === 5) {
-      newErrors = validateStep4(username, password, confirmPassword, false, "");
+      newErrors = validateStep4(username, password, confirmPassword);
     }
 
     setErrors(newErrors);

@@ -40,7 +40,6 @@ export interface User {
   dependents?: Dependent[];
   // Associated user role info (if exists)
   user_role_id?: number;
-  sub_role?: 'hr' | 'it';
 }
 
 /**
@@ -49,13 +48,11 @@ export interface User {
 export interface UserRole {
   user_role_id: number;
   user_id: number;
-  sub_role: 'hr' | 'it' | 'manager' | 'supervisor';
   created_at: string;
   updated_at: string;
   created_by?: number;
   updated_by?: number;
   requester_role?: string;
-  requester_sub_role?: string | null;
 }
 
 /**
@@ -154,7 +151,6 @@ export interface CreateEmployeeRequest {
   username: string;
   password: string;
   role?: 'admin' | 'employee' | 'supervisor';
-  sub_role?: 'hr' | 'it' | 'manager' | 'supervisor';
   first_name: string;
   last_name: string;
   middle_name?: string;

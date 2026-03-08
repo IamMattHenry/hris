@@ -8,26 +8,67 @@ import {
 import { deleteFingerprintTemplate } from "../services/fingerprintService.js";
 import emailService from "../utils/emailService.js";
 import { hasPermission } from "../middleware/rbac.js";
+import { invalidatePermissionCache } from "../middleware/rbac.js";
 
-const mapDepartmentToSubRole = (departmentName = "") => {
-  const normalized = departmentName.trim().toLowerCase();
-
-  if (!normalized) return null;
-
-  if (
-    normalized === "it" ||
-    normalized.includes("information technology") ||
-    normalized.includes("i.t.")
-  ) {
-    return "it";
-  }
-
-  if (normalized === "hr" || normalized.includes("human resources")) {
-    return "hr";
-  }
-
-  return null;
+/**
+ * Position-name → RBAC role_key mapping for HR department (department_id = 1).
+ * When an employee is in the HR department and their position matches one of
+ * these names, the system auto-assigns the corresponding RBAC role.
+ */
+const POSITION_TO_RBAC_ROLE = {
+  'hr manager': 'hr_manager',
+  'leave & attendance officer': 'leave_attendance_officer',
+  'recruitment officer': 'recruitment_officer',
+  'hr supervisor': 'hr_supervisor',
 };
+
+/**
+ * Auto-assign RBAC role based on department + position.
+ * Only applies to department_id = 1 (HR) with specific position names.
+ * @param {number} userId - The user_id to assign the role to
+ * @param {number} departmentId - The employee's department_id
+ * @param {number} positionId - The employee's position_id
+ * @param {number|null} assignedBy - The user performing the action
+ */
+async function autoAssignRbacRole(userId, departmentId, positionId, assignedBy = null) {
+  try {
+    // Only auto-assign for HR department (department_id = 1)
+    if (departmentId !== 1) return;
+
+    // Look up position name
+    const position = await db.getOne(
+      'SELECT position_name FROM job_positions WHERE position_id = ?',
+      [positionId]
+    );
+    if (!position) return;
+
+    const roleKey = POSITION_TO_RBAC_ROLE[position.position_name.toLowerCase().trim()];
+    if (!roleKey) return;
+
+    // Look up role_id for this role_key
+    const role = await db.getOne(
+      'SELECT role_id FROM roles WHERE role_key = ?',
+      [roleKey]
+    );
+    if (!role) {
+      logger.warn(`RBAC role '${roleKey}' not found in roles table — skipping auto-assign`);
+      return;
+    }
+
+    // Insert assignment (IGNORE to skip if already assigned)
+    await db.query(
+      `INSERT IGNORE INTO user_role_assignments (user_id, role_id, assigned_by)
+       VALUES (?, ?, ?)`,
+      [userId, role.role_id, assignedBy]
+    );
+
+    invalidatePermissionCache();
+    logger.info(`RBAC auto-assigned role '${roleKey}' to user ${userId} (position: ${position.position_name})`);
+  } catch (err) {
+    // Non-blocking: log but don't fail the request
+    logger.error('autoAssignRbacRole error:', err);
+  }
+}
 
 /**
  * Get employee availability status
@@ -276,7 +317,6 @@ export const getEmployeeById = async (req, res, next) => {
     d.department_code,
     u.username,
     u.role,
-    ur.sub_role,
     ea.home_address,
     ea.barangay_name AS barangay,
     ea.city_name AS city,
@@ -286,7 +326,6 @@ export const getEmployeeById = async (req, res, next) => {
   LEFT JOIN job_positions jp ON e.position_id = jp.position_id
   LEFT JOIN departments d ON e.department_id = d.department_id
   LEFT JOIN users u ON e.user_id = u.user_id
-  LEFT JOIN user_roles ur ON u.user_id = ur.user_id
   LEFT JOIN employee_addresses ea ON e.employee_id = ea.employee_id
   WHERE e.employee_id = ?
 `,
@@ -405,7 +444,6 @@ export const createEmployee = async (req, res, next) => {
       username,
       password,
       role,
-      sub_role,
       first_name,
       last_name,
       middle_name,
@@ -538,31 +576,8 @@ export const createEmployee = async (req, res, next) => {
       // Note: For full-time employees, the UI auto-calculates end time as start + 9 hours (8h work + 1h lunch)
       // Backend does not auto-derive and expects a valid end time to be provided.
 
-      // Sub-role is optional now when creating admin or supervisor.
-      // If sub_role is provided, validate it matches department mapping.
-      if ((userRole === "admin" || userRole === "supervisor") && sub_role && department_id) {
-        const deptResult = await db.transactionQuery(
-          "SELECT department_name FROM departments WHERE department_id = ?",
-          [department_id]
-        );
-
-        if (deptResult && deptResult.length > 0) {
-          const deptName = deptResult[0].department_name;
-          const validDeptSubRole = mapDepartmentToSubRole(deptName);
-
-          if (validDeptSubRole && sub_role !== validDeptSubRole) {
-            await db.rollback();
-            return res.status(400).json({
-              success: false,
-              message: `${deptName} department employees can only have '${validDeptSubRole}' as sub_role.`,
-            });
-          }
-        }
-      }
-
-      // Superadmin doesn't need sub_role or department validation
+      // Superadmin doesn't need department validation
       if (userRole === "superadmin") {
-        // Superadmin can be created without sub_role or department restrictions
         logger.info("Creating superadmin user - no department restrictions");
       }
 
@@ -765,21 +780,6 @@ export const createEmployee = async (req, res, next) => {
         });
       }
 
-      // If role is 'admin' or 'supervisor' and sub_role provided, create user_role record
-      let userRoleId = null;
-      if ((userRole === "admin" || userRole === "supervisor") && sub_role) {
-        // Insert user role record
-        userRoleId = await db.transactionInsert("user_roles", {
-          user_id: userId,
-          sub_role: sub_role,
-          created_by,
-        });
-
-        logger.info(
-          `User role created: ${userRole} (ID: ${userRoleId}, Sub-role: ${sub_role})`
-        );
-      }
-
       // Handle dependents if provided
       if (dependents && Array.isArray(dependents) && dependents.length > 0) {
         for (const dependent of dependents) {
@@ -885,6 +885,9 @@ export const createEmployee = async (req, res, next) => {
         `Employee created: ${employeeCode} (ID: ${employeeId}, User: ${username})`
       );
 
+      // Auto-assign RBAC role based on department + position (non-blocking)
+      await autoAssignRbacRole(userId, department_id, position_id, created_by);
+
       // Create activity log entry (outside transaction)
       try {
         const activityUserId = created_by || userId; // Use created_by if provided, otherwise use the new user's ID
@@ -929,12 +932,6 @@ export const createEmployee = async (req, res, next) => {
         role: userRole,
       };
 
-      // Add role data if applicable
-      if ((userRole === "admin" || userRole === "supervisor") && userRoleId) {
-        responseData.user_role_id = userRoleId;
-        responseData.sub_role = sub_role;
-      }
-
       if (fingerprintIdValue !== null) {
         responseData.fingerprint_id = fingerprintIdValue;
       }
@@ -968,7 +965,6 @@ export const updateEmployee = async (req, res, next) => {
       dependents,
       documents,
       role,
-      sub_role,
       home_address,
       barangay,
       city,
@@ -1019,7 +1015,7 @@ export const updateEmployee = async (req, res, next) => {
 
     // Check if employee exists
     const employee = await db.getOne(
-      "SELECT e.*, u.user_id, u.role as current_role, ur.sub_role as current_sub_role FROM employees e LEFT JOIN users u ON e.user_id = u.user_id LEFT JOIN user_roles ur ON u.user_id = ur.user_id WHERE e.employee_id = ?",
+      "SELECT e.*, u.user_id, u.role as current_role FROM employees e LEFT JOIN users u ON e.user_id = u.user_id WHERE e.employee_id = ?",
       [id]
     );
     if (!employee) {
@@ -1033,7 +1029,7 @@ export const updateEmployee = async (req, res, next) => {
     const updatedBy = req.user?.user_id;
     const targetEmployeeId = Number(employee.employee_id);
 
-    // Validate role and sub_role if provided
+    // Validate role if provided
     if (role) {
       const validRoles = ['admin', 'employee', 'supervisor', 'superadmin'];
       if (!validRoles.includes(role)) {
@@ -1041,27 +1037,6 @@ export const updateEmployee = async (req, res, next) => {
           success: false,
           message: `Invalid role. Role must be 'admin', 'employee', 'supervisor', or 'superadmin'`,
         });
-      }
-
-      // Sub-role is optional when updating role; validate only when provided.
-      if ((role === 'admin' || role === 'supervisor') && sub_role && updates.department_id) {
-        const department = await db.getOne(
-          "SELECT department_name FROM departments WHERE department_id = ?",
-          [updates.department_id]
-        );
-
-        if (department) {
-          const deptName = department.department_name;
-          const normalizedSubRole = sub_role.toLowerCase();
-          const validDeptSubRole = mapDepartmentToSubRole(deptName);
-
-          if (validDeptSubRole && normalizedSubRole !== validDeptSubRole) {
-            return res.status(400).json({
-              success: false,
-              message: `${deptName} department employees can only have '${validDeptSubRole}' as sub_role.`,
-            });
-          }
-        }
       }
 
       // Check one-supervisor-per-department rule
@@ -1344,7 +1319,7 @@ export const updateEmployee = async (req, res, next) => {
         }
       }
 
-      // Handle role and sub_role updates if provided
+      // Handle role update if provided
       if (role && employee.user_id) {
         // Update role in users table
         await db.transactionUpdate(
@@ -1357,45 +1332,7 @@ export const updateEmployee = async (req, res, next) => {
           [employee.user_id]
         );
 
-        // Handle sub_role in user_roles table
-        if (role === 'admin' || role === 'supervisor') {
-          // Admin and supervisor roles require sub_role
-          if (sub_role) {
-            // Check if user_role record exists
-            const existingUserRole = await db.transactionQuery(
-              "SELECT user_role_id FROM user_roles WHERE user_id = ?",
-              [employee.user_id]
-            );
-
-            if (existingUserRole && existingUserRole.length > 0) {
-              // Update existing user_role
-              await db.transactionUpdate(
-                "user_roles",
-                {
-                  sub_role: sub_role.toLowerCase(),
-                  updated_by: updatedBy,
-                },
-                "user_id = ?",
-                [employee.user_id]
-              );
-            } else {
-              // Insert new user_role
-              await db.transactionInsert("user_roles", {
-                user_id: employee.user_id,
-                sub_role: sub_role.toLowerCase(),
-                created_by: updatedBy,
-              });
-            }
-          }
-        } else if (role === 'employee') {
-          // Regular employee role - delete user_role record if exists
-          await db.transactionQuery(
-            "DELETE FROM user_roles WHERE user_id = ?",
-            [employee.user_id]
-          );
-        }
-
-        logger.info(`User role updated for employee ${id}: ${role}${sub_role ? ` (${sub_role})` : ''}`);
+        logger.info(`User role updated for employee ${id}: ${role}`);
       }
 
       // Handle dependents if provided
@@ -1517,9 +1454,6 @@ export const updateEmployee = async (req, res, next) => {
         // Add role change information to description
         if (role && role !== employee.current_role) {
           description += ` - Role changed from '${employee.current_role}' to '${role}'`;
-          if (sub_role) {
-            description += ` with sub_role '${sub_role}'`;
-          }
         }
 
         await db.insert("activity_logs", {
@@ -1532,6 +1466,13 @@ export const updateEmployee = async (req, res, next) => {
       } catch (logError) {
         // Log the error but don't fail the request
         logger.error("Failed to create activity log:", logError);
+      }
+
+      // Auto-assign RBAC role based on department + position (non-blocking)
+      const finalDeptId = updates.department_id || employee.department_id;
+      const finalPosId = updates.position_id || employee.position_id;
+      if (employee.user_id && finalDeptId && finalPosId) {
+        await autoAssignRbacRole(employee.user_id, finalDeptId, finalPosId, updatedBy);
       }
 
       res.json({

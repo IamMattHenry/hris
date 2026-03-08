@@ -72,7 +72,7 @@ interface EmployeeData {
   contact_numbers?: ContactNumber[];
   dependents?: Dependent[];
   documents?: EmployeeDocuments;
-  sub_role?: string;
+
   status: string;
   image_url?: string;
   province?: string;
@@ -399,7 +399,7 @@ export default function ViewEmployeeModal({
                     <div className="grid grid-cols-3 gap-4">
                       <InfoBox label="Username" value={employee.username || "N/A"} />
                       <InfoBox label="Role" value={employee.role || "Employee"} />
-                      <InfoBox label="Sub-Role" value={employee.sub_role || "N/A"} />
+
                     </div>
 
                     {/* QR Code Section */}

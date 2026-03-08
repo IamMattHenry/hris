@@ -316,15 +316,12 @@ export const getCurrentUser = async (req, res, next) => {
         ea.region_name AS region,
         ea.province_name AS province,
         d.department_name,
-        jp.position_name,
-        ur.user_role_id,
-        ur.sub_role
+        jp.position_name
       FROM users u
       LEFT JOIN employees e ON u.user_id = e.user_id
       LEFT JOIN employee_addresses ea ON e.employee_id = ea.employee_id
       LEFT JOIN departments d ON e.department_id = d.department_id
       LEFT JOIN job_positions jp ON e.position_id = jp.position_id
-      LEFT JOIN user_roles ur ON u.user_id = ur.user_id
       WHERE u.user_id = ?
     `, [req.user.user_id]);
 

@@ -174,14 +174,12 @@ export const validateStep3 = (
 
 /**
  * Validates Step 4 - Authentication
- * Checks: username, password, confirmPassword, subRole (if admin)
+ * Checks: username, password, confirmPassword
  */
 export const validateStep4 = (
   username: string,
   password: string,
-  confirmPassword: string,
-  grantAdminPrivilege: boolean,
-  subRole: string
+  confirmPassword: string
 ): ValidationErrors => {
   const errors: ValidationErrors = {};
 

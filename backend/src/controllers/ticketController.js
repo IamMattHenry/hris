@@ -1,5 +1,6 @@
 import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
+import { hasPermission } from '../middleware/rbac.js';
 import { generateTicketCode } from '../utils/codeGenerator.js';
 import { sendTicketResolutionEmail } from '../utils/emailService.js';
 
@@ -47,19 +48,11 @@ export const getAllTickets = async (req, res, next) => {
       params.push(user_id);
     }
 
-    // If user is not superadmin, apply filtering based on their access level
+    // If user is not superadmin, apply filtering based on their RBAC permissions
     if (req.user && req.user.role !== 'superadmin') {
-      // Get user's sub-role
-      const userSubrole = await db.getOne(
-        `SELECT sub_role FROM user_roles WHERE user_id = ?`,
-        [req.user.user_id]
-      );
-
-      const subRole = userSubrole?.sub_role || null;
-      
-      // If user has IT sub-role, show all tickets
-      if (subRole !== 'it') {
-        // For non-IT users, only show their own tickets
+      const canReadAll = await hasPermission(req, 'tickets.read');
+      if (!canReadAll) {
+        // Users without tickets.read only see their own tickets
         conditions.push('t.user_id = ?');
         params.push(req.user.user_id);
       }
@@ -125,16 +118,8 @@ export const getTicketById = async (req, res, next) => {
 
     // If user is not superadmin, check if they have permission to view this ticket
     if (req.user && req.user.role !== 'superadmin') {
-      // Get user's sub-role
-      const userSubrole = await db.getOne(
-        `SELECT sub_role FROM user_roles WHERE user_id = ?`,
-        [req.user.user_id]
-      );
-
-      const subRole = userSubrole?.sub_role || null;
-      
-      // If user doesn't have IT sub-role and doesn't own the ticket, deny access
-      if (subRole !== 'it' && ticket.user_id !== req.user.user_id) {
+      const canReadAll = await hasPermission(req, 'tickets.read');
+      if (!canReadAll && ticket.user_id !== req.user.user_id) {
         return res.status(403).json({
           success: false,
           message: 'Access denied: You do not have permission to view this ticket',
@@ -354,18 +339,10 @@ export const updateTicketStatus = async (req, res, next) => {
       });
     }
 
-    // If user is not superadmin, check permissions
+    // If user is not superadmin, check RBAC permissions
     if (req.user && req.user.role !== 'superadmin') {
-      // Get user's sub-role
-      const userSubrole = await db.getOne(
-        `SELECT sub_role FROM user_roles WHERE user_id = ?`,
-        [req.user.user_id]
-      );
-
-      const subRole = userSubrole?.sub_role || null;
-      
-      // Only IT users or ticket owners can update ticket status
-      if (subRole !== 'it' && ticket.user_id !== req.user.user_id) {
+      const canUpdate = await hasPermission(req, 'tickets.update');
+      if (!canUpdate && ticket.user_id !== req.user.user_id) {
         return res.status(403).json({
           success: false,
           message: 'Access denied: You do not have permission to update this ticket',
@@ -476,18 +453,10 @@ export const updateTicket = async (req, res, next) => {
       });
     }
 
-    // If user is not superadmin, check permissions
+    // If user is not superadmin, check RBAC permissions
     if (req.user && req.user.role !== 'superadmin') {
-      // Get user's sub-role
-      const userSubrole = await db.getOne(
-        `SELECT sub_role FROM user_roles WHERE user_id = ?`,
-        [req.user.user_id]
-      );
-
-      const subRole = userSubrole?.sub_role || null;
-      
-      // Only IT users or ticket owners can update ticket
-      if (subRole !== 'it' && ticket.user_id !== req.user.user_id) {
+      const canUpdate = await hasPermission(req, 'tickets.update');
+      if (!canUpdate && ticket.user_id !== req.user.user_id) {
         return res.status(403).json({
           success: false,
           message: 'Access denied: You do not have permission to update this ticket',
@@ -561,18 +530,10 @@ export const deleteTicket = async (req, res, next) => {
       });
     }
 
-    // If user is not superadmin, check permissions
+    // If user is not superadmin, check RBAC permissions
     if (req.user && req.user.role !== 'superadmin') {
-      // Get user's sub-role
-      const userSubrole = await db.getOne(
-        `SELECT sub_role FROM user_roles WHERE user_id = ?`,
-        [req.user.user_id]
-      );
-
-      const subRole = userSubrole?.sub_role || null;
-      
-      // Only IT users or ticket owners can delete ticket
-      if (subRole !== 'it' && ticket.user_id !== req.user.user_id) {
+      const canDelete = await hasPermission(req, 'tickets.delete');
+      if (!canDelete && ticket.user_id !== req.user.user_id) {
         return res.status(403).json({
           success: false,
           message: 'Access denied: You do not have permission to delete this ticket',

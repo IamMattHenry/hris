@@ -22,7 +22,7 @@ interface Leave {
   status: LeaveStatus;
   remarks?: string;
   requester_role?: string;
-  requester_sub_role?: string | null;
+
   // Optional approver info (may be provided as approved_by_name or approver_first/last fields)
   approved_by?: number;
   approved_by_name?: string;
@@ -137,7 +137,7 @@ export default function ViewLeaveModal({
           <InfoBox label="Employee" value={`${leave.first_name} ${leave.last_name}`} />
           <InfoBox label="Department" value={leave.department_name || (leave.department_id ? `Department #${leave.department_id}` : 'N/A')} />
           {leave.requester_role && (
-            <InfoBox label="Requested role" value={leave.requester_role + (leave.requester_sub_role ? ` — ${leave.requester_sub_role}` : '')} />
+            <InfoBox label="Requested role" value={leave.requester_role || 'N/A'} />
           )}
           <InfoBox label="Leave Type" value={LEAVE_TYPE_LABELS[leave.leave_type]} />
           <InfoBox label="Start Date" value={new Date(leave.start_date).toLocaleDateString()} />

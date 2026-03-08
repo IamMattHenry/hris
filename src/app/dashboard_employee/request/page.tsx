@@ -24,7 +24,7 @@ interface Leave {
   remarks?: string;
   leave_credit?: number;
   requester_role?: string;
-  requester_sub_role?: string | null;
+
 }
 
 const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
@@ -368,7 +368,7 @@ export default function RequestsPage() {
                         {leave.leave_code}
                       </td>
                           <td className="px-6 py-4 text-sm text-gray-500">
-                            {leave.requester_role || '-'}{leave.requester_sub_role ? ` — ${leave.requester_sub_role}` : ''}
+                            {leave.requester_role || '-'}
                           </td>
                       <td className="px-6 py-4 text-sm text-gray-500">
                         {LEAVE_TYPE_LABELS[leave.leave_type]}

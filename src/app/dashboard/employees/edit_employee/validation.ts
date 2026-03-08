@@ -283,24 +283,7 @@ export const validateEmployeeForm = (
   return errors;
 };
 
-/**
- * Validates role management (admin/supervisor privileges)
- */
-export const validateRoleManagement = (
-  grantAdminPrivilege: boolean,
-  grantSupervisorPrivilege: boolean,
-  subRole: string,
-  departmentId: number | null,
-  validSubRoles: string[],
-  departmentName?: string
-): ValidationErrors => {
-  const errors: ValidationErrors = {};
 
-  // Edit flow: relax sub-role validation. Allow granting admin/supervisor privilege
-  // without enforcing a sub-role or department-specific sub-role restrictions.
-  // Returning empty errors means the form won't be blocked here.
-  return errors;
-};
 
 /**
  * Formats Philippine phone numbers

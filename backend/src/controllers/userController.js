@@ -17,12 +17,9 @@ export const getAllUsers = async (req, res, next) => {
         e.employee_id,
         e.employee_code,
         e.first_name,
-        e.last_name,
-        ur.user_role_id,
-        ur.sub_role
+        e.last_name
       FROM users u
       LEFT JOIN employees e ON u.user_id = e.user_id
-      LEFT JOIN user_roles ur ON u.user_id = ur.user_id
       ORDER BY u.user_id DESC
     `);
 
@@ -57,12 +54,9 @@ export const getUserById = async (req, res, next) => {
         e.last_name,
         e.birthdate,
         e.hire_date,
-        e.status,
-        ur.user_role_id,
-        ur.sub_role
+        e.status
       FROM users u
       LEFT JOIN employees e ON u.user_id = e.user_id
-      LEFT JOIN user_roles ur ON u.user_id = ur.user_id
       WHERE u.user_id = ?
     `, [id]);
 
@@ -272,13 +266,10 @@ export const deleteUser = async (req, res, next) => {
     // Check if user has associated employee record
     const employee = await db.getOne('SELECT employee_id, employee_code FROM employees WHERE user_id = ?', [id]);
 
-    // Check if user has associated user_role record
-    const userRole = await db.getOne('SELECT user_role_id, sub_role FROM user_roles WHERE user_id = ?', [id]);
-
     // Get user ID from JWT token for audit trail
     const deletedBy = req.user?.user_id;
 
-    // Delete user (will cascade to employees and user_roles due to foreign key constraints)
+    // Delete user (will cascade to employees due to foreign key constraints)
     const affectedRows = await db.deleteRecord('users', 'user_id = ?', [id]);
 
     logger.warn(`User deleted: ${id} (username: ${user.username}, role: ${user.role})`);

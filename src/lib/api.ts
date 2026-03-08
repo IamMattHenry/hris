@@ -337,7 +337,7 @@ export const employeeApi = {
     username: string;
     password: string;
     role?: 'admin' | 'employee';
-    sub_role?: 'hr' | 'manager' | 'finance' | 'it';
+
     first_name: string;
     last_name: string;
     birthdate: string;

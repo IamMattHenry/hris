@@ -1,13 +1,11 @@
 import express from 'express';
-import { verifyToken, verifyRole, verifyAccess } from '../middleware/auth.js';
+import { verifyToken } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/rbac.js';
 import { getActivityLogs } from '../controllers/activityController.js';
 
 const router = express.Router();
 
-router.get("/", verifyToken, verifyAccess({
-  roles: ["admin", "superadmin"],
-  subRoles: ["it"],
-}), getActivityLogs);
+router.get("/", verifyToken, requirePermission('activity.read'), getActivityLogs);
 
 
 

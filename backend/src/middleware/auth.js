@@ -75,7 +75,7 @@ export const verifyRole = (allowedRoles) => {
   };
 };
 
-export const verifyAccess = ({ roles = [], subRoles = [], departments = [] }) => {
+export const verifyAccess = ({ roles = [], departments = [] }) => {
   return async (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({
@@ -97,27 +97,6 @@ export const verifyAccess = ({ roles = [], subRoles = [], departments = [] }) =>
         success: false,
         message: "Access denied: Role not permitted.",
       });
-    }
-
-    // Load sub-role from user_roles table
-    const userSubrole = await db.getOne(
-      `SELECT sub_role FROM user_roles WHERE user_id = ?`,
-      [user.user_id]
-    );
-
-    const it = userSubrole?.sub_role || null;
-
-    // For subRoles check, make sure superadmin is not restricted by subRoles
-    if (subRoles.length > 0 && !subRoles.includes(it)) {
-      // But still allow superadmin to pass regardless of subRole
-      if (user.role !== "superadmin") {
-        return res.status(403).json({
-          success: false,
-          message: "Access denied: Sub-role not permitted.",
-          sub_role: it,
-          user: user,
-        });
-      }
     }
 
     // Load department through employees table

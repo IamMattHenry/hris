@@ -13,7 +13,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
   
 
-  // Format role display: Show role (and sub_role if exists)
+  // Format role display
   const formatRole = (role?: string) => {
     if (!role) return "USER";
     if (role === "superadmin") return "SUPERADMIN";
@@ -23,15 +23,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     return role.toUpperCase();
   };
 
-  const formatSubRole = (subRole?: string) => {
-    if (!subRole) return "";
-    if (subRole === "hr") return "HR";
-    if (subRole === "it") return "IT";
-    if (subRole === "front_desk") return "Front Desk";
-    return subRole.toUpperCase();
-  };
-
-  // Display department name for admin/supervisor, sub_role for others
+  // Display department name for admin/supervisor
   const getRoleDisplay = () => {
     if (!user?.role) return "USER";
 
@@ -45,11 +37,6 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     // For superadmin, just show role
     if (user.role === "superadmin") {
       return roleLabel;
-    }
-
-    // For others with sub_role, show formatted sub_role
-    if (user.sub_role) {
-      return `${roleLabel} - ${formatSubRole(user.sub_role)}`;
     }
 
     return roleLabel;

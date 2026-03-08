@@ -36,7 +36,7 @@ type FormattedData = {
   account: {
     username: string;
     role: string;
-    subRoles: string[];
+
     isActive: boolean;
     isSuperAdmin: boolean;
     lastUpdated: string;
@@ -88,7 +88,7 @@ const mockEmployeeData = {
     account: {
         username: 'juan.delacruz',
         role: 'employee',
-        subRoles: ['HR Manager', 'Team Lead'],
+
         isActive: true,
         isSuperAdmin: false,
         lastUpdated: '2024-10-15T10:30:00'
@@ -214,7 +214,7 @@ const Profile = () => {
         account: {
             username: userData.username || "",
             role: userData.role || "",
-            subRoles: userData.sub_role ? [String(userData.sub_role).toUpperCase()] : [],
+
             isActive: userData.status === "active",
             isSuperAdmin: userData.role === "superadmin",
             lastUpdated: userData.created_at || "",
@@ -536,21 +536,7 @@ const Profile = () => {
                                         {formattedData.account.role}
                                     </p>
                                 </div>
-                                <div>
-                                    <label className="block text-sm text-gray-600 mb-1">
-                                        Sub-Roles
-                                    </label>
-                                    <div className="flex gap-2 flex-wrap">
-                                        {formattedData.account.subRoles.map((role, idx) => (
-                                            <span
-                                                key={idx}
-                                                className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm"
-                                            >
-                                                {role}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
+
                                 <div>
                                     <label className="block text-sm text-gray-600 mb-1">
                                         Account Status

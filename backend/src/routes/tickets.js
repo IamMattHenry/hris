@@ -1,7 +1,8 @@
 import express from 'express';
 import { body, query } from 'express-validator';
 import { handleValidationErrors } from '../middleware/validation.js';
-import { verifyToken, verifyRole, verifyAccess } from '../middleware/auth.js';
+import { verifyToken } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/rbac.js';
 import {
   getAllTickets,
   getTicketById,
@@ -14,14 +15,11 @@ import {
 
 const router = express.Router();
 
-// Get all tickets (protected - IT staff, admin, superadmin)
+// Get all tickets (protected - users with tickets.read permission, or superadmin)
 router.get(
   '/',
   verifyToken,
-  verifyAccess({
-    roles: ['admin', 'superadmin'],
-    subRoles: ['it'],
-  }),
+  requirePermission('tickets.read'),
   getAllTickets
 );
 
@@ -64,14 +62,11 @@ router.post(
   createPublicTicket
 );
 
-// Update ticket status (protected - IT staff, admin, superadmin)
+// Update ticket status (protected - users with tickets.update permission)
 router.put(
   '/:id/status',
   verifyToken,
-  verifyAccess({
-    roles: ['admin', 'superadmin'],
-    subRoles: ['it'],
-  }),
+  requirePermission('tickets.update'),
   [
     body('status')
       .isIn(['open', 'in_progress', 'resolved', 'closed'])
@@ -89,14 +84,11 @@ router.put(
   updateTicketStatus
 );
 
-// Update ticket (protected - IT staff, admin, superadmin)
+// Update ticket (protected - users with tickets.update permission)
 router.put(
   '/:id',
   verifyToken,
-  verifyAccess({
-    roles: ['admin', 'superadmin'],
-    subRoles: ['it'],
-  }),
+  requirePermission('tickets.update'),
   [
     body('title')
       .optional()
@@ -114,11 +106,11 @@ router.put(
   updateTicket
 );
 
-// Delete ticket (admin and superadmin only)
+// Delete ticket (users with tickets.delete permission)
 router.delete(
   '/:id',
   verifyToken,
-  verifyRole(['admin', 'superadmin']),
+  requirePermission('tickets.delete'),
   deleteTicket
 );
 

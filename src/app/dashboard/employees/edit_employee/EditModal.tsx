@@ -9,7 +9,6 @@ import { departmentApi, positionApi, employeeApi, fingerprintApi } from "@/lib/a
 import {
   validateEmployeeForm,
   validateDependent,
-  validateRoleManagement,
   formatPhoneNumber,
   generateClientId,
   type ContactEmail,
@@ -123,7 +122,6 @@ interface EmployeeData {
   dependents?: Array<any>;
   documents?: EmployeeDocuments;
   role?: string;
-  sub_role?: string;
   user_id?: number;
   status?: string;
   fingerprint_id?: number | null;
@@ -180,11 +178,6 @@ export default function EditEmployeeModal({
   const [employmentStatus, setEmploymentStatus] = useState("");
   const [emails, setEmails] = useState<ContactEmail[]>([]);
   const [contactNumbers, setContactNumbers] = useState<ContactNumber[]>([]);
-
-  // Role management state
-  const [grantAdminPrivilege, setGrantAdminPrivilege] = useState(false);
-  const [grantSupervisorPrivilege, setGrantSupervisorPrivilege] = useState(false);
-  const [subRole, setSubRole] = useState("");
 
   // Dependents state
   const [dependents, setDependents] = useState<Dependent[]>([]);
@@ -370,19 +363,6 @@ const [cityCode, setCityCode] = useState("");
           setDocuments(Object.fromEntries(DOCUMENTS.map(doc => [doc.key, false])));
         }
 
-        // Set role management state
-        if (res.data.role === "admin") {
-          setGrantAdminPrivilege(true);
-          setGrantSupervisorPrivilege(false);
-        } else if (res.data.role === "supervisor") {
-          setGrantAdminPrivilege(false);
-          setGrantSupervisorPrivilege(true);
-        } else {
-          setGrantAdminPrivilege(false);
-          setGrantSupervisorPrivilege(false);
-        }
-        setSubRole(res.data.sub_role || "");
-
         // Set fingerprint ID
         setCurrentFingerprintId(res.data.fingerprint_id || null);
       }
@@ -479,59 +459,6 @@ const [cityCode, setCityCode] = useState("");
       }
     } catch (error) {
       console.error("Error fetching supervisors:", error);
-    }
-  };
-
-  /* ---------- Valid sub roles ---------- */
-  const mapDepartmentToSubRole = (departmentName?: string | null) => {
-    if (!departmentName) return null;
-
-    const normalized = departmentName.toLowerCase();
-
-    if (
-      normalized === "it" ||
-      normalized.includes("information technology") ||
-      normalized.includes("i.t.")
-    ) {
-      return "it";
-    }
-
-    if (
-      normalized === "hr" ||
-      normalized.includes("human resource") ||
-      normalized.includes("human-resource")
-    ) {
-      return "hr";
-    }
-
-    return null;
-  };
-
-  const getValidSubRoles = (deptId: number | null) => {
-    if (!deptId) return [];
-
-    const dept = departments.find((d) => d.department_id === deptId);
-    const mapped = mapDepartmentToSubRole(dept?.department_name);
-
-    return mapped ? [mapped] : [];
-  };
-
-  const checkDepartmentSupervisor = async (
-    deptId: number
-  ): Promise<boolean> => {
-    try {
-      const res = await employeeApi.getAll({
-        department_id: deptId,
-        role: "supervisor",
-        exclude_employee_id: id || "",
-      });
-      if (res.success && res.data) {
-        return res.data.length > 0;
-      }
-      return false;
-    } catch (error) {
-      console.error("Error checking department supervisor:", error);
-      return false;
     }
   };
 
@@ -776,25 +703,6 @@ useEffect(() => {
   const handleSubmit = async () => {
     console.log("Save Changes clicked");
 
-    // Validate role management
-    const roleErrors = validateRoleManagement(
-      grantAdminPrivilege,
-      grantSupervisorPrivilege,
-      subRole,
-      departmentId,
-      getValidSubRoles(departmentId),
-      departments.find((d) => d.department_id === departmentId)?.department_name
-    );
-
-    // Check if department already has supervisor
-    if (grantSupervisorPrivilege && departmentId) {
-      const hasSupervisor = await checkDepartmentSupervisor(departmentId);
-      if (hasSupervisor) {
-        roleErrors.supervisor =
-          "This department already has a supervisor. Only one supervisor is allowed per department.";
-      }
-    }
-
     // Validate employee form - NOW INCLUDING PROVINCE
     const formErrors = validateEmployeeForm(
       firstName,
@@ -822,7 +730,7 @@ useEffect(() => {
     console.log("Validation result:", Object.keys(formErrors).length === 0);
     console.log("Current errors:", formErrors);
 
-    const allErrors = { ...roleErrors, ...formErrors };
+    const allErrors = { ...formErrors };
 
     if (Object.keys(allErrors).length > 0 || !employee) {
       setErrors(allErrors);
@@ -903,18 +811,7 @@ useEffect(() => {
         updatedData.status = normalizedStatus;
       }
 
-      // Only include role and sub_role if employee has a user account
-      if (employee.user_id) {
-        updatedData.role = grantAdminPrivilege
-          ? "admin"
-          : grantSupervisorPrivilege
-            ? "supervisor"
-            : "employee";
 
-        if ((grantAdminPrivilege || grantSupervisorPrivilege) && subRole) {
-          updatedData.sub_role = subRole.toLowerCase();
-        }
-      }
 
       console.log("Submitting update:", updatedData);
       const result = await employeeApi.update(employee.employee_id, updatedData);
@@ -996,7 +893,6 @@ useEffect(() => {
             { id: "contact", label: "Contact Information" },
             { id: "dependent", label: "Dependent Information" },
             { id: "documents", label: "Documents" },
-            { id: "roles", label: "User Roles" },
             { id: "fingerprint", label: "Fingerprint Registration" },
           ].map((tab) => (
             <button
@@ -1772,100 +1668,7 @@ useEffect(() => {
               </div>
             )}
 
-            {/*================= Role Management Section ================= */}
-            {activeTab === "roles" && (
-              <div className="pt-6 mt-8">
-                <h3 className="text-[#3b2b1c] font-semibold mb-4">Role Management</h3>
 
-                {/* Admin Privilege Checkbox */}
-                <div className="col-span-2 flex items-center gap-3 mt-4 p-4 bg-[#FFF2E0] rounded-lg border border-[#e6d2b5]">
-                  <input
-                    type="checkbox"
-                    id="grantAdminPrivilege"
-                    checked={grantAdminPrivilege}
-                    onChange={(e) => {
-                      setGrantAdminPrivilege(e.target.checked);
-                      if (e.target.checked) {
-                        setGrantSupervisorPrivilege(false);
-                      }
-                      if (!e.target.checked) {
-                        setSubRole("");
-                        setErrors((prev) => ({
-                          ...prev,
-                          subRole: "",
-                          supervisor: "",
-                        }));
-                      }
-                    }}
-                    className="w-5 h-5 text-[#4b0b14] bg-white border-[#3b2b1c] rounded focus:ring-[#4b0b14] focus:ring-2 cursor-pointer"
-                  />
-                  <label
-                    htmlFor="grantAdminPrivilege"
-                    className="text-[#3b2b1c] font-semibold cursor-pointer select-none"
-                  >
-                    Grant Admin Privilege
-                  </label>
-                </div>
-
-                {/* Supervisor Privilege Checkbox */}
-                <div className="col-span-2 flex items-center gap-3 mt-2 p-4 bg-[#E8F5E9] rounded-lg border border-[#c8e6c9]">
-                  <input
-                    type="checkbox"
-                    id="grantSupervisorPrivilege"
-                    checked={grantSupervisorPrivilege}
-                    onChange={(e) => {
-                      setGrantSupervisorPrivilege(e.target.checked);
-                      if (e.target.checked) {
-                        setGrantAdminPrivilege(false);
-                      }
-                      if (!e.target.checked) {
-                        setSubRole("");
-                        setErrors((prev) => ({
-                          ...prev,
-                          subRole: "",
-                          supervisor: "",
-                        }));
-                      }
-                    }}
-                    className="w-5 h-5 text-[#2e7d32] bg-white border-[#1b5e20] rounded focus:ring-[#2e7d32] focus:ring-2 cursor-pointer"
-                  />
-                  <label
-                    htmlFor="grantSupervisorPrivilege"
-                    className="text-[#1b5e20] font-semibold cursor-pointer select-none"
-                  >
-                    Grant Supervisor Privilege
-                  </label>
-                </div>
-
-                {(grantAdminPrivilege || grantSupervisorPrivilege) && (
-                  <div className="mt-4">
-                    {!departmentId ? (
-                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <p className="text-sm text-yellow-800">
-                          ⚠️ Please select a department first to choose the sub-role
-                        </p>
-                      </div>
-                    ) : subRole ? (
-                      <div className="p-3 bg-[#FFF2E0] border border-[#e6d2b5] rounded-lg">
-                        <p className="text-sm text-[#3b2b1c]">
-                          Auto-assigned sub-role: <span className="font-semibold uppercase">{subRole}</span>
-                        </p>
-                      </div>
-                    ) : (
-                      // No sub-role configured: allow granting privileges without blocking the user.
-                      <></>
-                    )}
-                    {errors.subRole && (
-                      <p className="text-red-500 text-xs mt-2">{errors.subRole}</p>
-                    )}
-                  </div>
-                )}
-
-                {errors.supervisor && (
-                  <p className="text-red-500 text-xs mt-2">{errors.supervisor}</p>
-                )}
-              </div>
-            )}
 
             {/*================ Fingerprint Registration Section ================*/}
             {activeTab === "fingerprint" && (
