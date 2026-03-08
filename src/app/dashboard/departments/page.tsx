@@ -13,9 +13,11 @@ import { departmentApi } from "@/lib/api";
 import SearchBar from "@/components/forms/FormSearch";
 import { toast } from "react-hot-toast";
 import ConfirmModal from "@/components/modals/ConfirmModal";
+import { usePermissions } from "@/hooks/usePermissions";
 
 export default function DepartmentsPage() {
   const { user } = useAuth();
+  const { can, loading: permissionLoading } = usePermissions();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -31,8 +33,9 @@ export default function DepartmentsPage() {
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [sortOrder, setSortOrder] = useState<"default" | "asc" | "desc">("default");
 
-  // Check if user is supervisor (view-only access)
-  const isSupervisor = user?.role === "supervisor";
+  const canCreateDepartment = can('departments.create');
+  const canUpdateDepartment = can('departments.update');
+  const canDeleteDepartment = can('departments.delete');
 
   // Fetch departments on mount
   useEffect(() => {
@@ -186,7 +189,7 @@ export default function DepartmentsPage() {
            <SearchBar placeholder="Search Department Code, Name, Supervisor" value={searchTerm} onChange={handleSearch} />
 
 
-          {!isSupervisor && (
+          {!permissionLoading && canCreateDepartment && (
             <ActionButton
               label="Add Department"
               onClick={() => setIsAddModalOpen(true)}
@@ -209,8 +212,8 @@ export default function DepartmentsPage() {
         <DepartmentTable
           departments={currentDepartments}
           onView={handleView}
-          onEdit={!isSupervisor ? handleEdit : undefined}
-          onDelete={!isSupervisor ? handleDelete : undefined}
+          onEdit={!permissionLoading && canUpdateDepartment ? handleEdit : undefined}
+          onDelete={!permissionLoading && canDeleteDepartment ? handleDelete : undefined}
         />
       )}
 

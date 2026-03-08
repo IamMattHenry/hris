@@ -36,6 +36,7 @@ export interface User {
   status?: 'active' | 'resigned' | 'terminated' | 'on-leave';
   department_id?: number;
   department_name?: string;
+  position_name?: string;
   emails?: string[];
   contact_numbers?: string[];
   dependents?: Dependent[];

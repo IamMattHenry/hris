@@ -1,5 +1,6 @@
 import express from 'express';
-import { verifyToken, verifyRole } from '../middleware/auth.js';
+import { verifyToken } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/rbac.js';
 import {
   getAllDepartments,
   getDepartmentById,
@@ -10,20 +11,20 @@ import {
 
 const router = express.Router();
 
-// Get all departments (protected)
-router.get('/', verifyToken, getAllDepartments);
+// Get all departments
+router.get('/', verifyToken, requirePermission('departments.read'), getAllDepartments);
 
-// Get department by ID (protected)
-router.get('/:id', verifyToken, getDepartmentById);
+// Get department by ID
+router.get('/:id', verifyToken, requirePermission('departments.read'), getDepartmentById);
 
-// Create department (admin only)
-router.post('/', verifyToken, verifyRole(['admin', 'superadmin']), createDepartment);
+// Create department
+router.post('/', verifyToken, requirePermission('departments.create'), createDepartment);
 
-// Update department (admin only)
-router.put('/:id', verifyToken, verifyRole(['admin', 'superadmin']), updateDepartment);
+// Update department
+router.put('/:id', verifyToken, requirePermission('departments.update'), updateDepartment);
 
-// Delete department (admin only)
-router.delete('/:id', verifyToken, verifyRole(['admin', 'superadmin']), deleteDepartment);
+// Delete department
+router.delete('/:id', verifyToken, requirePermission('departments.delete'), deleteDepartment);
 
 export default router;
 

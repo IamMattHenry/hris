@@ -10,9 +10,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { positionApi } from "@/lib/api";
 import SearchBar from "@/components/forms/FormSearch";
 import { toast } from "react-hot-toast";
+import { usePermissions } from "@/hooks/usePermissions";
 
 export default function PositionTable() {
   const { user } = useAuth();
+  const { can, loading: permissionLoading } = usePermissions();
   const [isInsertOpen, setInsertIsOpen] = useState(false);
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -34,8 +36,9 @@ export default function PositionTable() {
 
   const itemsPerPage = 10;
 
-  // Check if user is supervisor (view-only access)
-  const isSupervisor = user?.role === "supervisor";
+  const canCreatePosition = can('positions.create');
+  const canUpdatePosition = can('positions.update');
+  const canDeletePosition = can('positions.delete');
 
   // Fetch positions from API
   useEffect(() => {
@@ -271,7 +274,7 @@ export default function PositionTable() {
 
           <SearchBar placeholder="Search Position" value={searchTerm} onChange={handleSearch} />
 
-          {!isSupervisor && (
+          {!permissionLoading && canCreatePosition && (
             <ActionButton
               label="Add Position"
               icon={Plus}
@@ -353,27 +356,31 @@ export default function PositionTable() {
                   <Eye size={16} /> View
                 </button>
 
-                {!isSupervisor && (
+                {(!permissionLoading && (canUpdatePosition || canDeletePosition)) && (
                   <>
-                    <button
-                      onClick={() => {
-                        handleEdit(currentPositions[menuState.index]);
-                        setMenuState(null);
-                      }}
-                      className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#fdf4e7] text-[#3b2b1c]"
-                    >
-                      <Pencil size={16} /> Edit
-                    </button>
+                    {canUpdatePosition && (
+                      <button
+                        onClick={() => {
+                          handleEdit(currentPositions[menuState.index]);
+                          setMenuState(null);
+                        }}
+                        className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#fdf4e7] text-[#3b2b1c]"
+                      >
+                        <Pencil size={16} /> Edit
+                      </button>
+                    )}
 
-                    <button
-                      onClick={() => {
-                        handleDelete(currentPositions[menuState.index].position_id);
-                        setMenuState(null);
-                      }}
-                      className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#ffe5e5] text-[#b91c1c] rounded-b-lg"
-                    >
-                      <Trash2 size={16} /> Delete
-                    </button>
+                    {canDeletePosition && (
+                      <button
+                        onClick={() => {
+                          handleDelete(currentPositions[menuState.index].position_id);
+                          setMenuState(null);
+                        }}
+                        className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#ffe5e5] text-[#b91c1c] rounded-b-lg"
+                      >
+                        <Trash2 size={16} /> Delete
+                      </button>
+                    )}
                   </>
                 )}
               </div>

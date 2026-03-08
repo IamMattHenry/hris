@@ -22,6 +22,18 @@ let permissionCache = new Map(); // Map<role_key, Set<permission_key>>
 let cacheTimestamp = 0;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+const EMPLOYEE_DEFAULT_PERMISSIONS = [
+  'employees.read_own',
+  'employees.update_own',
+  'leave.apply',
+  'leave.read_own',
+  'attendance.read_own',
+  'attendance.clock',
+  'tickets.create',
+  'tickets.read_own',
+  'dashboard.read_own',
+];
+
 /**
  * Load all role→permission mappings into cache
  */
@@ -93,6 +105,12 @@ async function getUserPermissions(userId, legacyRole) {
       for (const perm of rolePerms) {
         permissions.add(perm);
       }
+    }
+  }
+
+  if (permissions.size === 0 && legacyRole === 'employee') {
+    for (const permissionKey of EMPLOYEE_DEFAULT_PERMISSIONS) {
+      permissions.add(permissionKey);
     }
   }
 
