@@ -2,6 +2,15 @@ import jwt from 'jsonwebtoken';
 import logger from '../utils/logger.js';
 import * as db from '../config/db.js';
 
+const hasRbacRole = (user, roleKey) => {
+  if (!user || !Array.isArray(user.rbac_roles)) return false;
+  return user.rbac_roles.includes(roleKey);
+};
+
+const isSuperadminUser = (user) => {
+  return user?.role === 'superadmin' || hasRbacRole(user, 'superadmin');
+};
+
 export const verifyToken = (req, res, next) => {
   try {
     // Log the authorization header for debugging
@@ -62,7 +71,11 @@ export const verifyRole = (allowedRoles) => {
       });
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
+    const allowedByLegacyRole = allowedRoles.includes(req.user.role);
+    const allowedByRbacSuperadmin =
+      allowedRoles.includes('superadmin') && hasRbacRole(req.user, 'superadmin');
+
+    if (!allowedByLegacyRole && !allowedByRbacSuperadmin) {
       logger.warn(`Access denied: User ${req.user.username} (ID: ${req.user.user_id}) with role '${req.user.role}' attempted to access endpoint requiring roles: [${allowedRoles.join(', ')}]`);
       return res.status(403).json({
         success: false,
@@ -87,12 +100,15 @@ export const verifyAccess = ({ roles = [], departments = [] }) => {
     const user = req.user; // user from JWT
 
     // Superadmin bypasses all restrictions
-    if (user.role === "superadmin") {
+    if (isSuperadminUser(user)) {
       return next();
     }
 
     // Check role
-    if (roles.length > 0 && !roles.includes(user.role)) {
+    const allowedByRole = roles.length === 0 || roles.includes(user.role);
+    const allowedByRbacSuperadmin = roles.includes('superadmin') && hasRbacRole(user, 'superadmin');
+
+    if (!allowedByRole && !allowedByRbacSuperadmin) {
       return res.status(403).json({
         success: false,
         message: "Access denied: Role not permitted.",
@@ -109,7 +125,7 @@ export const verifyAccess = ({ roles = [], departments = [] }) => {
 
     if (departments.length > 0 && !departments.includes(userDepartment)) {
       // Allow superadmin to bypass department restrictions
-      if (user.role !== "superadmin") {
+      if (!isSuperadminUser(user)) {
         return res.status(403).json({
           success: false,
           message: "Access denied: Not allowed for this department.",
