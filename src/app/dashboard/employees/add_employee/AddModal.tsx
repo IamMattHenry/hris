@@ -1550,6 +1550,29 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                   )}
 
                   <div className="space-y-3 pl-2">
+                    <label
+                        className="flex items-center space-x-3 cursor-pointer mb-4"
+                      >
+                        <input
+                          type="checkbox"
+                          onChange={(e) => {
+                            const isChecked = e.target.checked;
+                            const newDocumentsState = { ...documents };
+                            for (const doc of DOCUMENTS) {
+                              newDocumentsState[doc.key] = isChecked;
+                            }
+                            setDocuments(newDocumentsState);
+                             if (errors.documents) {
+                              setErrors(prev => ({ ...prev, documents: "" }));
+                            }
+                          }}
+                          checked={Object.values(documents).every(
+                            (isChecked) => isChecked
+                          )}
+                          className="w-5 h-5 accent-[#4b0b14] cursor-pointer"
+                        />
+                        <span className="text-[#3b2b1c] font-semibold">Check All</span>
+                      </label>
                     {DOCUMENTS.map(doc => (
                       <label
                         key={doc.key}
