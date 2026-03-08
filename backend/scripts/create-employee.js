@@ -390,6 +390,46 @@ async function main() {
     );
     console.log(`📩  Email saved        (${email})`);
 
+    // ── Auto-assign RBAC role for HR department employees ───────────────────
+    // Maps position name (lowercase) → RBAC role_key
+    const HR_POSITION_ROLE_MAP = {
+      'hr manager':                    'hr_manager',
+      'leave & attendance officer':    'leave_attendance_officer',
+      'recruitment officer':           'recruitment_officer',
+      'hr supervisor':                 'hr_supervisor',
+    };
+
+    const isHrDept = departmentName &&
+      (departmentName.toLowerCase().includes('human resource') ||
+       departmentName.toLowerCase() === 'hr');
+
+    if (isHrDept && positionName) {
+      const posKey     = positionName.trim().toLowerCase();
+      const rbacRoleKey = HR_POSITION_ROLE_MAP[posKey];
+
+      if (rbacRoleKey) {
+        try {
+          const [roleRows] = await connection.execute(
+            'SELECT role_id FROM roles WHERE role_key = ?',
+            [rbacRoleKey]
+          );
+          if (roleRows.length > 0) {
+            await connection.execute(
+              'INSERT IGNORE INTO user_role_assignments (user_id, role_id, assigned_by) VALUES (?, ?, ?)',
+              [userId, roleRows[0].role_id, userId]
+            );
+            console.log(`🔑  RBAC role assigned  (${rbacRoleKey})`);
+          } else {
+            console.warn(`⚠️   RBAC role '${rbacRoleKey}' not found — run migration 002 first`);
+          }
+        } catch (rbacErr) {
+          console.warn(`⚠️   Could not assign RBAC role: ${rbacErr.message}`);
+        }
+      } else {
+        console.log(`ℹ️   HR dept but no role mapping for position "${positionName}" — assign manually if needed`);
+      }
+    }
+
     // ── Activity log ────────────────────────────────────────────────────────
     try {
       await connection.execute(
