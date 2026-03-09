@@ -160,6 +160,39 @@ export const validateContactNumbers = (
 };
 
 /**
+ * Validates role management settings
+ */
+export const validateRoleManagement = (
+  grantAdminPrivilege: boolean,
+  grantSupervisorPrivilege: boolean,
+  subRole: string,
+  departmentId: number | null,
+  validSubRoles: string[],
+  departmentName?: string | null
+): ValidationErrors => {
+  const errors: ValidationErrors = {};
+
+  // Cannot grant both admin and supervisor privileges
+  if (grantAdminPrivilege && grantSupervisorPrivilege) {
+    errors.roleConflict = "Cannot grant both Admin and Supervisor privileges";
+  }
+
+  // If granting supervisor privilege, must have a department
+  if (grantSupervisorPrivilege && !departmentId) {
+    errors.supervisor = "Department is required to grant Supervisor privilege";
+  }
+
+  // If granting admin or supervisor, validate sub_role if applicable
+  if ((grantAdminPrivilege || grantSupervisorPrivilege) && subRole) {
+    if (validSubRoles.length > 0 && !validSubRoles.includes(subRole.toLowerCase())) {
+      errors.subRole = `Sub role '${subRole}' is not valid for department '${departmentName}'`;
+    }
+  }
+
+  return errors;
+};
+
+/**
  * Validates employee form data
  */
 export const validateEmployeeForm = (

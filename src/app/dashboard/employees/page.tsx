@@ -17,14 +17,12 @@ import EditEmployeeModal from "./edit_employee/EditModal";
 import LeaveDetailsModal from "@/components/dashboard/LeaveDetailsModal";
 import { employeeApi } from "@/lib/api";
 import { Employee } from "@/types/api";
-import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "react-hot-toast";
 
 
 
 export default function EmployeeTable() {
-  const { user } = useAuth();
   const { can, canAny, loading: permLoading } = usePermissions();
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -48,10 +46,6 @@ export default function EmployeeTable() {
   const canEdit = can('employees.update');
   const canDelete = can('employees.delete');
   const canViewLeave = canAny('leave.read', 'leave.read_department');
-
-  // Legacy fallbacks for department scoping
-  const isAdmin = user?.role === "admin";
-  const userDepartmentId = user?.department_id;
 
   // 🔹 Close menus when clicking outside
   useEffect(() => {
@@ -136,15 +130,8 @@ export default function EmployeeTable() {
       return 0;
     });
   };
-
-
-  // 🔹 Filter employees by search and department (for admins)
+  // 🔹 Filter employees by search
   const filtered = employees.filter((e) => {
-    // If admin, only show employees from same department
-    if (isAdmin && userDepartmentId && e.department_id !== userDepartmentId) {
-      return false;
-    }
-
     const fullName = `${e.first_name} ${e.last_name}`.toLowerCase();
     const employeeCode = e.employee_code?.toLowerCase() || "";
     const position = e.position_name?.toLowerCase() || "";
@@ -352,25 +339,6 @@ export default function EmployeeTable() {
                           });
                         }
                       }}
-                      onKeyDown={(e) => {
-                        if (
-                          emp.status === "on-leave" &&
-                          (e.key === "Enter" || e.key === " ")
-                        ) {
-                          e.preventDefault();
-                          setLeaveDetailEmployee({
-                            id: emp.employee_id,
-                            name: `${emp.first_name} ${emp.last_name}`,
-                          });
-                        }
-                      }}
-                      role={emp.status === "on-leave" ? "button" : undefined}
-                      tabIndex={emp.status === "on-leave" ? 0 : -1}
-                      aria-label={
-                        emp.status === "on-leave"
-                          ? `View leave details for ${emp.first_name} ${emp.last_name}`
-                          : undefined
-                      }
                       className={`px-3 py-2 rounded-full text-xs font-medium inline-block ${
                         emp.status === "active"
                           ? "bg-green-100 text-green-700"

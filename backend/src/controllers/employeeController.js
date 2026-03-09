@@ -82,8 +82,18 @@ export const getEmployeeAvailability = async (req, res, next) => {
     // Use provided date or today's date in YYYY-MM-DD format
     const targetDate = date || new Date().toISOString().split('T')[0];
 
+    const canReadAll = hasPermission(req, 'employees.read');
+    const canReadOwn = hasPermission(req, 'employees.read_own');
+
+    if (!canReadAll && !canReadOwn) {
+      return res.status(403).json({
+        success: false,
+        message: 'Insufficient permissions to view employee availability',
+      });
+    }
+
     // Get all active employees with their basic info
-    const employees = await db.getAll(`
+    let employeeSql = `
       SELECT
         e.employee_id,
         e.employee_code,
@@ -100,8 +110,17 @@ export const getEmployeeAvailability = async (req, res, next) => {
       LEFT JOIN job_positions jp ON e.position_id = jp.position_id
       LEFT JOIN departments d ON e.department_id = d.department_id
       WHERE e.status IN ('active', 'on-leave')
-      ORDER BY e.employee_code
-    `);
+    `;
+    const employeeParams = [];
+
+    if (!canReadAll && canReadOwn) {
+      employeeSql += ' AND e.user_id = ?';
+      employeeParams.push(req.user.user_id);
+    }
+
+    employeeSql += ' ORDER BY e.employee_code';
+
+    const employees = await db.getAll(employeeSql, employeeParams);
 
     // Get attendance records for the target date
     const attendanceRecords = await db.getAll(
@@ -218,9 +237,8 @@ export const getAllEmployees = async (req, res, next) => {
     if (Number.isNaN(parsedDeptId)) parsedDeptId = null;
 
     // RBAC-aware data scoping:
-    // - employees.read → full list (or dept-scoped for legacy admin)
+    // - employees.read → full list
     // - employees.read_own → only own record
-    // - no permission → empty
     const canReadAll = hasPermission(req, 'employees.read');
     const canReadOwn = hasPermission(req, 'employees.read_own');
 
@@ -228,34 +246,28 @@ export const getAllEmployees = async (req, res, next) => {
       // Only return their own employee record
       whereClauses.push('e.user_id = ?');
       params.push(currentUser.user_id);
-    } else if (currentUser && currentUser.role === 'admin' && canReadAll) {
-      // Legacy admin: scoped to own department
-      const adminEmployee = await db.getOne(
+    } else if (!canReadAll && !canReadOwn) {
+      return res.status(403).json({
+        success: false,
+        message: 'Insufficient permissions to view employees',
+      });
+    } else if (parsedDeptId) {
+      whereClauses.push('e.department_id = ?');
+      params.push(parsedDeptId);
+    }
+
+    if (!canReadAll && parsedDeptId) {
+      const ownEmployee = await db.getOne(
         'SELECT department_id FROM employees WHERE user_id = ?',
         [currentUser.user_id]
       );
 
-      const adminDeptId = adminEmployee?.department_id;
-
-      if (!adminDeptId) {
+      if (ownEmployee?.department_id && parsedDeptId !== ownEmployee.department_id) {
         return res.status(403).json({
           success: false,
-          message: 'Admin is not associated with any department',
+          message: 'You can only access employees within your scope',
         });
       }
-
-      if (parsedDeptId && parsedDeptId !== adminDeptId) {
-        return res.status(403).json({
-          success: false,
-          message: 'Admins can only access employees within their department',
-        });
-      }
-
-      whereClauses.push('e.department_id = ?');
-      params.push(adminDeptId);
-    } else if (parsedDeptId) {
-      whereClauses.push('e.department_id = ?');
-      params.push(parsedDeptId);
     }
 
     if (queryRole) {
@@ -307,6 +319,45 @@ export const getAllEmployees = async (req, res, next) => {
 export const getEmployeeById = async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    const canReadAll = hasPermission(req, 'employees.read');
+    const canReadOwn = hasPermission(req, 'employees.read_own');
+
+    if (!canReadAll && !canReadOwn) {
+      return res.status(403).json({
+        success: false,
+        message: 'Insufficient permissions to view employee details',
+      });
+    }
+
+    if (!canReadAll && canReadOwn) {
+      const currentUserId = req.user?.user_id;
+      if (!currentUserId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required',
+        });
+      }
+
+      const ownEmployee = await db.getOne(
+        'SELECT employee_id FROM employees WHERE user_id = ?',
+        [currentUserId]
+      );
+
+      if (!ownEmployee) {
+        return res.status(404).json({
+          success: false,
+          message: 'Employee record not found for current user',
+        });
+      }
+
+      if (Number(ownEmployee.employee_id) !== Number(id)) {
+        return res.status(403).json({
+          success: false,
+          message: 'You can only view your own employee record',
+        });
+      }
+    }
 
     const employee = await db.getOne(
       `

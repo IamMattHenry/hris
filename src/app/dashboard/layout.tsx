@@ -40,14 +40,7 @@ if (currentPage === "tech_support") {
 
   // Display department name for admin/supervisor
   const getRoleDisplay = () => {
-    if (!user) return "USER";
-
-    if (user.position_name) {
-      if (user.department_name) {
-        return `${user.position_name} - ${user.department_name}`;
-      }
-      return user.position_name;
-    }
+    if (!user?.role) return "USER";
 
     const roleLabel = formatRole(user.role);
 

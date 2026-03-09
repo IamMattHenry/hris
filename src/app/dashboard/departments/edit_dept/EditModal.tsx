@@ -55,24 +55,17 @@ export default function EditDepartmentModal({
   }, [department]);
 
   const fetchEmployees = async (deptId: number) => {
-    // Fetch department employees for the list
+    // Fetch employees in the selected department and use the same list
+    // for assigning the department supervisor.
     const deptResult = await employeeApi.getAll({
       department_id: deptId,
-      status: 'active',
     });
-
-    // Fetch all active employees to populate the supervisor select (allow promoting/assigning)
-    const allResult = await employeeApi.getAll({ status: 'active' });
 
     if (deptResult.success && Array.isArray(deptResult.data)) {
       setEmployeesList(deptResult.data);
+      setSupervisors(deptResult.data);
     } else {
       setEmployeesList([]);
-    }
-
-    if (allResult.success && Array.isArray(allResult.data)) {
-      setSupervisors(allResult.data);
-    } else {
       setSupervisors([]);
     }
   };
