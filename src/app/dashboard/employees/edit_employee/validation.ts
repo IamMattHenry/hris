@@ -165,10 +165,7 @@ export const validateContactNumbers = (
 export const validateRoleManagement = (
   grantAdminPrivilege: boolean,
   grantSupervisorPrivilege: boolean,
-  subRole: string,
   departmentId: number | null,
-  validSubRoles: string[],
-  departmentName?: string | null
 ): ValidationErrors => {
   const errors: ValidationErrors = {};
 
@@ -180,13 +177,6 @@ export const validateRoleManagement = (
   // If granting supervisor privilege, must have a department
   if (grantSupervisorPrivilege && !departmentId) {
     errors.supervisor = "Department is required to grant Supervisor privilege";
-  }
-
-  // If granting admin or supervisor, validate sub_role if applicable
-  if ((grantAdminPrivilege || grantSupervisorPrivilege) && subRole) {
-    if (validSubRoles.length > 0 && !validSubRoles.includes(subRole.toLowerCase())) {
-      errors.subRole = `Sub role '${subRole}' is not valid for department '${departmentName}'`;
-    }
   }
 
   return errors;

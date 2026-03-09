@@ -479,6 +479,25 @@ export const getEmployeeById = async (req, res, next) => {
     employee.dependents = dependents;
     employee.documents = documents;
 
+    // Fetch RBAC role assignments for this employee's user account
+    if (employee.user_id) {
+      try {
+        const rbacRows = await db.getAll(
+          `SELECT r.role_id, r.role_key, r.role_name, r.description
+           FROM user_role_assignments ura
+           JOIN roles r ON ura.role_id = r.role_id
+           WHERE ura.user_id = ?`,
+          [employee.user_id]
+        );
+        employee.rbac_roles = rbacRows || [];
+      } catch (rbacErr) {
+        logger.error('Failed to fetch RBAC roles for employee:', rbacErr);
+        employee.rbac_roles = [];
+      }
+    } else {
+      employee.rbac_roles = [];
+    }
+
     res.json({
       success: true,
       data: employee,
