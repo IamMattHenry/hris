@@ -223,7 +223,9 @@ export const getAllEmployees = async (req, res, next) => {
         d.department_name,
         d.department_code,
         u.username,
-        u.role
+        u.role,
+        (SELECT COUNT(*) FROM employee_positions ep
+         WHERE ep.employee_id = e.employee_id AND ep.is_primary = 0) AS extra_position_count
       FROM employees e
       LEFT JOIN job_positions jp ON e.position_id = jp.position_id
       LEFT JOIN departments d ON e.department_id = d.department_id
@@ -473,11 +475,25 @@ export const getEmployeeById = async (req, res, next) => {
       };
     }
 
+    // Fetch all positions (primary + secondary) from employee_positions table
+    const employeePositions = await db.getAll(
+      `SELECT ep.id, ep.position_id, ep.salary, ep.salary_unit, ep.is_primary,
+              jp.position_name, jp.position_code, jp.department_id,
+              d.department_name
+       FROM employee_positions ep
+       JOIN job_positions jp ON ep.position_id = jp.position_id
+       LEFT JOIN departments d ON jp.department_id = d.department_id
+       WHERE ep.employee_id = ?
+       ORDER BY ep.is_primary DESC, ep.id ASC`,
+      [id]
+    );
+
     // Attach contact info, dependents, and documents to employee object
     employee.emails = emails;
     employee.contact_numbers = contact_numbers;
     employee.dependents = dependents;
     employee.documents = documents;
+    employee.positions = employeePositions;
 
     // Fetch RBAC role assignments for this employee's user account
     if (employee.user_id) {
@@ -820,6 +836,16 @@ export const createEmployee = async (req, res, next) => {
 
       const employeeId = tempEmployeeId;
 
+      // Sync primary position to employee_positions junction table
+      if (position_id) {
+        await db.transactionQuery(
+          `INSERT IGNORE INTO employee_positions
+             (employee_id, position_id, salary, salary_unit, is_primary)
+           VALUES (?, ?, ?, ?, 1)`,
+          [employeeId, position_id, finalCurrentSalary || null, finalSalaryUnit || 'monthly']
+        );
+      }
+
       // Add contact number if provided
       if (contact_number) {
         await db.transactionInsert("employee_contact_numbers", {
@@ -1040,6 +1066,7 @@ export const updateEmployee = async (req, res, next) => {
       city,
       region,
       province,
+      extra_positions,
       ...updates
     } = req.body;
 
@@ -1512,6 +1539,54 @@ export const updateEmployee = async (req, res, next) => {
         }
       }
 
+      // Sync primary position in employee_positions junction table
+      const syncPosId = Object.prototype.hasOwnProperty.call(updates, 'position_id')
+        ? updates.position_id
+        : employee.position_id;
+      const syncSalary = Object.prototype.hasOwnProperty.call(updates, 'current_salary')
+        ? updates.current_salary
+        : employee.current_salary;
+      const syncSalaryUnit = Object.prototype.hasOwnProperty.call(updates, 'salary_unit')
+        ? updates.salary_unit
+        : (employee.salary_unit || 'monthly');
+
+      if (syncPosId) {
+        // Clear current primary flag, then upsert primary row
+        await db.transactionQuery(
+          'UPDATE employee_positions SET is_primary = 0 WHERE employee_id = ?',
+          [id]
+        );
+        await db.transactionQuery(
+          `INSERT INTO employee_positions (employee_id, position_id, salary, salary_unit, is_primary)
+           VALUES (?, ?, ?, ?, 1)
+           ON DUPLICATE KEY UPDATE salary = VALUES(salary), salary_unit = VALUES(salary_unit), is_primary = 1`,
+          [id, syncPosId, syncSalary || null, syncSalaryUnit]
+        );
+      }
+
+      // Handle extra (secondary) positions if provided
+      if (Array.isArray(extra_positions)) {
+        // Remove all non-primary positions first
+        await db.transactionQuery(
+          'DELETE FROM employee_positions WHERE employee_id = ? AND is_primary = 0',
+          [id]
+        );
+        for (const ep of extra_positions) {
+          const epPosId = Number(ep.position_id);
+          if (!epPosId) continue;
+          const epSalary = ep.salary != null ? Number(ep.salary) : null;
+          const epUnit = ep.salary_unit || 'monthly';
+          // Skip if same as primary (should not be duplicated)
+          if (syncPosId && epPosId === Number(syncPosId)) continue;
+          await db.transactionQuery(
+            `INSERT INTO employee_positions (employee_id, position_id, salary, salary_unit, is_primary)
+             VALUES (?, ?, ?, ?, 0)
+             ON DUPLICATE KEY UPDATE salary = VALUES(salary), salary_unit = VALUES(salary_unit)`,
+            [id, epPosId, epSalary, epUnit]
+          );
+        }
+      }
+
       // Commit transaction
       await db.commit();
 
@@ -1556,6 +1631,124 @@ export const updateEmployee = async (req, res, next) => {
     }
   } catch (error) {
     logger.error("Update employee error:", error);
+    next(error);
+  }
+};
+
+/**
+ * GET /employees/:id/positions
+ * Returns the full list of positions assigned to an employee.
+ */
+export const getEmployeePositions = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const employee = await db.getOne(
+      'SELECT employee_id FROM employees WHERE employee_id = ?',
+      [id]
+    );
+    if (!employee) {
+      return res.status(404).json({ success: false, message: 'Employee not found' });
+    }
+
+    const positions = await db.getAll(
+      `SELECT ep.id, ep.position_id, ep.salary, ep.salary_unit, ep.is_primary,
+              jp.position_name, jp.position_code, jp.department_id,
+              d.department_name
+       FROM employee_positions ep
+       JOIN job_positions jp ON ep.position_id = jp.position_id
+       LEFT JOIN departments d ON jp.department_id = d.department_id
+       WHERE ep.employee_id = ?
+       ORDER BY ep.is_primary DESC, ep.id ASC`,
+      [id]
+    );
+
+    res.json({ success: true, data: positions });
+  } catch (error) {
+    logger.error('Get employee positions error:', error);
+    next(error);
+  }
+};
+
+/**
+ * PUT /employees/:id/positions
+ * Replace all positions for an employee.
+ * Body: { primary_position_id, primary_salary?, primary_salary_unit?, extra_positions: [{position_id, salary?, salary_unit?}] }
+ * The primary_position_id also updates employees.position_id for backward compat.
+ */
+export const setEmployeePositions = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { primary_position_id, primary_salary, primary_salary_unit, extra_positions } = req.body;
+
+    if (!primary_position_id) {
+      return res.status(400).json({ success: false, message: 'primary_position_id is required' });
+    }
+
+    const employee = await db.getOne(
+      'SELECT employee_id, current_salary, salary_unit FROM employees WHERE employee_id = ?',
+      [id]
+    );
+    if (!employee) {
+      return res.status(404).json({ success: false, message: 'Employee not found' });
+    }
+
+    const updatedBy = req.user?.user_id;
+    const salary = primary_salary != null ? Number(primary_salary) : employee.current_salary;
+    const salaryUnit = primary_salary_unit || employee.salary_unit || 'monthly';
+
+    await db.beginTransaction();
+    try {
+      // Update primary position in employees table (backward compat)
+      await db.transactionUpdate(
+        'employees',
+        { position_id: primary_position_id, current_salary: salary, salary_unit: salaryUnit, updated_by: updatedBy },
+        'employee_id = ?',
+        [id]
+      );
+
+      // Rebuild employee_positions: clear all, insert primary, then extras
+      await db.transactionQuery('DELETE FROM employee_positions WHERE employee_id = ?', [id]);
+
+      await db.transactionQuery(
+        `INSERT INTO employee_positions (employee_id, position_id, salary, salary_unit, is_primary)
+         VALUES (?, ?, ?, ?, 1)`,
+        [id, primary_position_id, salary || null, salaryUnit]
+      );
+
+      if (Array.isArray(extra_positions)) {
+        for (const ep of extra_positions) {
+          const epPosId = Number(ep.position_id);
+          if (!epPosId || epPosId === Number(primary_position_id)) continue;
+          const epSalary = ep.salary != null ? Number(ep.salary) : null;
+          const epUnit = ep.salary_unit || 'monthly';
+          await db.transactionQuery(
+            `INSERT IGNORE INTO employee_positions (employee_id, position_id, salary, salary_unit, is_primary)
+             VALUES (?, ?, ?, ?, 0)`,
+            [id, epPosId, epSalary, epUnit]
+          );
+        }
+      }
+
+      await db.commit();
+
+      // Activity log (non-fatal)
+      try {
+        await db.insert('activity_logs', {
+          user_id: updatedBy || 1,
+          action: 'UPDATE',
+          module: 'employees',
+          description: `Updated positions for employee ID ${id}`,
+          created_by: updatedBy || 1,
+        });
+      } catch (_) {}
+
+      res.json({ success: true, message: 'Employee positions updated successfully' });
+    } catch (err) {
+      await db.rollback();
+      throw err;
+    }
+  } catch (error) {
+    logger.error('Set employee positions error:', error);
     next(error);
   }
 };

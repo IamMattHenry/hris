@@ -173,6 +173,9 @@ export default function EditEmployeeModal({
   const [departmentId, setDepartmentId] = useState<number | null>(null);
   const [positionId, setPositionId] = useState<number | null>(null);
   const [supervisorId, setSupervisorId] = useState<number | null>(null);
+  // Extra (secondary) positions
+  const [extraPositions, setExtraPositions] = useState<{ position_id: number; salary: string; salary_unit: string }[]>([]);
+  const [allPositions, setAllPositions] = useState<any[]>([]);  // all positions across all departments
   const [employmentType, setEmploymentType] = useState<string | null>(null);
   const [salaryDisplay, setSalaryDisplay] = useState<string>("");
   // New: Work type and schedule
@@ -401,6 +404,20 @@ const [cityCode, setCityCode] = useState("");
 
         // Set fingerprint ID
         setCurrentFingerprintId(res.data.fingerprint_id || null);
+
+        // Load extra (secondary) positions from positions array
+        if (Array.isArray(res.data.positions)) {
+          const extras = res.data.positions
+            .filter((p: any) => !p.is_primary)
+            .map((p: any) => ({
+              position_id: p.position_id,
+              salary: p.salary != null ? String(p.salary) : "",
+              salary_unit: p.salary_unit || "monthly",
+            }));
+          setExtraPositions(extras);
+        } else {
+          setExtraPositions([]);
+        }
       }
     } catch (error) {
       console.error("Error fetching employee:", error);
@@ -409,7 +426,13 @@ const [cityCode, setCityCode] = useState("");
 
   /* ---------- Departments & positions ---------- */
   useEffect(() => {
-    if (isOpen) fetchDepartments();
+    if (isOpen) {
+      fetchDepartments();
+      // Fetch all positions for the extra-positions selector
+      positionApi.getAll().then((res: any) => {
+        if (res.success && res.data) setAllPositions(res.data);
+      }).catch(() => {});
+    }
   }, [isOpen]);
   useEffect(() => {
     if (departmentId) {
@@ -935,6 +958,15 @@ useEffect(() => {
       // The backend auto-assigns RBAC roles based on department/position.
 
       console.log("Submitting update:", updatedData);
+      // Include extra positions in update payload
+      updatedData.extra_positions = extraPositions
+        .filter((ep) => ep.position_id)
+        .map((ep) => ({
+          position_id: ep.position_id,
+          salary: ep.salary !== "" && ep.salary != null ? Number(String(ep.salary).replace(/,/g, "")) : null,
+          salary_unit: ep.salary_unit || "monthly",
+        }));
+
       const result = await employeeApi.update(employee.employee_id, updatedData);
       console.log("Update result:", result);
 
@@ -1205,6 +1237,110 @@ useEffect(() => {
                       options={["Full-time","Part-time"]}
                     />
 
+                  </div>
+
+                  {/* ---- Additional (Secondary) Positions ---- */}
+                  <div className="mt-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-medium text-[#3b2b1c]">Additional Positions</h3>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExtraPositions((prev) => [
+                            ...prev,
+                            { position_id: 0, salary: "", salary_unit: "monthly" },
+                          ])
+                        }
+                        className="text-xs px-3 py-1 rounded bg-[#4b0b14] text-white hover:bg-[#7b1e2a] transition"
+                      >
+                        + Add Position
+                      </button>
+                    </div>
+
+                    {extraPositions.length === 0 && (
+                      <p className="text-sm text-[#8b7355] italic">No additional positions assigned.</p>
+                    )}
+
+                    {extraPositions.map((ep, idx) => (
+                      <div
+                        key={idx}
+                        className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 p-3 bg-[#FFF2E0] rounded-lg border border-[#e6d2b5]"
+                      >
+                        {/* Position selector */}
+                        <div>
+                          <label className="block text-xs text-[#3b2b1c] mb-1">Position</label>
+                          <select
+                            value={ep.position_id || ""}
+                            onChange={(e) => {
+                              const v = Number(e.target.value);
+                              setExtraPositions((prev) =>
+                                prev.map((x, i) => (i === idx ? { ...x, position_id: v } : x))
+                              );
+                            }}
+                            className="w-full px-2 py-2 text-sm border border-[#e6d2b5] rounded bg-white text-[#3b2b1c]"
+                          >
+                            <option value="">Select Position</option>
+                            {allPositions
+                              .filter((p) => p.position_id !== positionId)
+                              .map((p) => (
+                                <option key={p.position_id} value={p.position_id}>
+                                  {p.position_name}{p.department_name ? ` (${p.department_name})` : ""}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                        {/* Salary */}
+                        <div>
+                          <label className="block text-xs text-[#3b2b1c] mb-1">Salary</label>
+                          <input
+                            type="text"
+                            value={ep.salary}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (/^[0-9,]*\.?[0-9]{0,2}$/.test(val) || val === "") {
+                                setExtraPositions((prev) =>
+                                  prev.map((x, i) => (i === idx ? { ...x, salary: val } : x))
+                                );
+                              }
+                            }}
+                            placeholder="e.g. 15000"
+                            className="w-full px-2 py-2 text-sm border border-[#e6d2b5] rounded bg-white text-[#3b2b1c]"
+                          />
+                        </div>
+                        {/* Salary unit + remove */}
+                        <div className="flex gap-2 items-end">
+                          <div className="flex-1">
+                            <label className="block text-xs text-[#3b2b1c] mb-1">Unit</label>
+                            <select
+                              value={ep.salary_unit}
+                              onChange={(e) =>
+                                setExtraPositions((prev) =>
+                                  prev.map((x, i) =>
+                                    i === idx ? { ...x, salary_unit: e.target.value } : x
+                                  )
+                                )
+                              }
+                              className="w-full px-2 py-2 text-sm border border-[#e6d2b5] rounded bg-white text-[#3b2b1c]"
+                            >
+                              <option value="monthly">Monthly</option>
+                              <option value="hourly">Hourly</option>
+                            </select>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExtraPositions((prev) => prev.filter((_, i) => i !== idx))
+                            }
+                            className="mb-0.5 px-3 py-2 text-xs bg-red-100 text-red-600 rounded hover:bg-red-200 transition"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
                     {/* Salary - label aligns with Work Type */}
                     <div>
                       <FormInput

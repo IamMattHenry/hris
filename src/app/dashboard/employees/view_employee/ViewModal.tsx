@@ -66,6 +66,16 @@ interface EmployeeData {
   region: string;
   department_name: string;
   position_name: string;
+  positions?: {
+    id: number;
+    position_id: number;
+    position_name: string;
+    position_code?: string;
+    department_name?: string;
+    salary?: number | null;
+    salary_unit?: string;
+    is_primary: boolean;
+  }[];
   leave_credit?: number;
   hire_date: string;
   emails?: ContactEmail[];
@@ -300,11 +310,46 @@ export default function ViewEmployeeModal({
 
                 {activeTab === "job" && (
                   <div className="space-y-6">
-                      <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
                       <InfoBox label="Hired Date" value={formatDate(employee.hire_date)} />
                       <InfoBox label="Department" value={employee.department_name || "N/A"} />
-                      <InfoBox label="Position" value={employee.position_name || "N/A"} />
                       <InfoBox label="Leave Credits (Remaining)" value={(employee.leave_credit ?? 0).toString()} />
+                    </div>
+
+                    {/* Positions */}
+                    <div>
+                      <h3 className="text-md font-semibold text-gray-900 mb-3">Positions</h3>
+                      {(employee.positions && employee.positions.length > 0) ? (
+                        <div className="space-y-2">
+                          {employee.positions.map((pos) => (
+                            <div
+                              key={pos.id}
+                              className={`flex flex-wrap items-center gap-4 px-4 py-3 rounded-lg border ${
+                                pos.is_primary
+                                  ? "bg-[#f4e6cf] border-[#c9a87c]"
+                                  : "bg-white border-[#e6d2b5]"
+                              }`}
+                            >
+                              <div className="flex-1 min-w-[160px]">
+                                <p className="text-sm font-medium text-[#3b2b1c]">{pos.position_name}</p>
+                                {pos.department_name && (
+                                  <p className="text-xs text-[#8b7355]">{pos.department_name}</p>
+                                )}
+                              </div>
+                              {pos.salary != null && (
+                                <p className="text-sm text-[#3b2b1c]">
+                                  ₱{Number(pos.salary).toLocaleString()} / {pos.salary_unit === "hourly" ? "hr" : "month"}
+                                </p>
+                              )}
+                              {pos.is_primary && (
+                                <span className="text-xs px-2 py-0.5 bg-[#4b0b14] text-white rounded-full">Primary</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <InfoBox label="Position" value={employee.position_name || "N/A"} />
+                      )}
                     </div>
                   </div>
                 )}

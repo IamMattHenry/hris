@@ -398,6 +398,32 @@ export const employeeApi = {
       method: 'DELETE',
     });
   },
+
+  /**
+   * Get all positions assigned to an employee
+   */
+  getPositions: async (id: number) => {
+    return apiCall<any[]>(`/employees/${id}/positions`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Replace all positions for an employee
+   * primary_position_id is required (kept in sync with employees.position_id)
+   * extra_positions: array of { position_id, salary?, salary_unit? }
+   */
+  setPositions: async (id: number, payload: {
+    primary_position_id: number;
+    primary_salary?: number | null;
+    primary_salary_unit?: string;
+    extra_positions?: { position_id: number; salary?: number | null; salary_unit?: string }[];
+  }) => {
+    return apiCall<any>(`/employees/${id}/positions`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  },
 };
 
 // ============ AUTH API FUNCTIONS ============

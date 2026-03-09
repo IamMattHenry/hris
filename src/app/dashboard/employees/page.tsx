@@ -327,7 +327,14 @@ export default function EmployeeTable() {
                     </div>
                     <span>{emp.first_name} {emp.last_name}</span>
                   </td>
-                  <td className="py-3 px-4">{emp.position_name || "N/A"}</td>
+                  <td className="py-3 px-4">
+                    <span>{emp.position_name || "N/A"}</span>
+                    {emp.extra_position_count > 0 && (
+                      <span className="ml-1 text-xs px-1.5 py-0.5 bg-[#e6d2b5] text-[#4b0b14] rounded-full font-medium">
+                        +{emp.extra_position_count}
+                      </span>
+                    )}
+                  </td>
                   <td className="py-3 px-4">{emp.department_name || "N/A"}</td>
                   <td className="py-3 px-4">
                     <span

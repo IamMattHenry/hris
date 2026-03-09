@@ -10,6 +10,8 @@ import {
   updateEmployee,
   deleteEmployee,
   getEmployeeAvailability,
+  getEmployeePositions,
+  setEmployeePositions,
 } from '../controllers/employeeController.js';
 
 const router = express.Router();
@@ -115,6 +117,22 @@ router.delete(
   verifyToken,
   requirePermission('employees.delete'),
   deleteEmployee
+);
+
+// Get all positions for an employee
+router.get(
+  '/:id/positions',
+  verifyToken,
+  requirePermission('employees.read', 'employees.read_own'),
+  getEmployeePositions
+);
+
+// Replace all positions for an employee
+router.put(
+  '/:id/positions',
+  verifyToken,
+  requirePermission('employees.update'),
+  setEmployeePositions
 );
 
 export default router;
