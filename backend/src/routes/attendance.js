@@ -79,7 +79,7 @@ router.post(
 router.put(
   '/:id/overtime',
   verifyToken,
-  requirePermission('attendance.update'),
+  requirePermission('attendance.manage', 'attendance.update'),
   [
     body('overtime_hours')
       .isFloat({ min: 0, max: 8 })
@@ -93,7 +93,7 @@ router.put(
 router.put(
   '/:id/status',
   verifyToken,
-  requirePermission('attendance.update'),
+  requirePermission('attendance.manage', 'attendance.update'),
   [
     body('status').isIn(['present', 'absent', 'late', 'early_leave', 'half_day', 'on_leave', 'work_from_home', 'overtime', 'others']).withMessage('Invalid status'),
   ],
@@ -101,11 +101,11 @@ router.put(
   updateAttendanceStatus
 );
 
-// Mark absences for a date (requires attendance.mark_absences permission)
+// Mark absences for a date (requires attendance.manage or attendance.mark_absences)
 router.post(
   '/mark-absences',
   verifyToken,
-  requirePermission('attendance.mark_absences'),
+  requirePermission('attendance.manage', 'attendance.mark_absences'),
   markAbsences
 );
 
