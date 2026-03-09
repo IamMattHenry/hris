@@ -36,6 +36,8 @@ export interface User {
   status?: 'active' | 'resigned' | 'terminated' | 'on-leave';
   department_id?: number;
   department_name?: string;
+  position_id?: number;
+  position_name?: string;
   emails?: string[];
   contact_numbers?: string[];
   dependents?: Dependent[];
@@ -126,6 +128,19 @@ export interface Employee {
   // Associated user info
   username?: string;
   role?: string;
+  // Multi-position support
+  extra_position_count?: number;
+  positions?: {
+    id: number;
+    position_id: number;
+    position_name: string;
+    position_code?: string;
+    department_id?: number;
+    department_name?: string;
+    salary?: number | null;
+    salary_unit?: string;
+    is_primary: number;
+  }[];
 }
 
 /**

@@ -38,26 +38,8 @@ if (currentPage === "tech_support") {
     return role.toUpperCase();
   };
 
-  // Display department name for admin/supervisor
-  const getRoleDisplay = () => {
-    if (!user?.role) return "USER";
-
-    const roleLabel = formatRole(user.role);
-
-    // For admin and supervisor, show department name
-    if ((user.role === "admin" || user.role === "supervisor") && user.department_name) {
-      return `${roleLabel} - ${user.department_name}`;
-    }
-
-    // For superadmin, just show role
-    if (user.role === "superadmin") {
-      return roleLabel;
-    }
-
-    return roleLabel;
-  };
-
-  const adminType = getRoleDisplay();
+  // Show position name below the employee name; fall back to role label
+  const adminType = user?.position_name || formatRole(user?.role);
 
   if (isLoading) {
     return (

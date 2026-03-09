@@ -175,7 +175,6 @@ export default function EditEmployeeModal({
   const [supervisorId, setSupervisorId] = useState<number | null>(null);
   // Extra (secondary) positions
   const [extraPositions, setExtraPositions] = useState<{ position_id: number; salary: string; salary_unit: string }[]>([]);
-  const [allPositions, setAllPositions] = useState<any[]>([]);  // all positions across all departments
   const [employmentType, setEmploymentType] = useState<string | null>(null);
   const [salaryDisplay, setSalaryDisplay] = useState<string>("");
   // New: Work type and schedule
@@ -426,13 +425,7 @@ const [cityCode, setCityCode] = useState("");
 
   /* ---------- Departments & positions ---------- */
   useEffect(() => {
-    if (isOpen) {
-      fetchDepartments();
-      // Fetch all positions for the extra-positions selector
-      positionApi.getAll().then((res: any) => {
-        if (res.success && res.data) setAllPositions(res.data);
-      }).catch(() => {});
-    }
+    if (isOpen) fetchDepartments();
   }, [isOpen]);
   useEffect(() => {
     if (departmentId) {
@@ -1280,11 +1273,11 @@ useEffect(() => {
                             className="w-full px-2 py-2 text-sm border border-[#e6d2b5] rounded bg-white text-[#3b2b1c]"
                           >
                             <option value="">Select Position</option>
-                            {allPositions
+                            {positions
                               .filter((p) => p.position_id !== positionId)
                               .map((p) => (
                                 <option key={p.position_id} value={p.position_id}>
-                                  {p.position_name}{p.department_name ? ` (${p.department_name})` : ""}
+                                  {p.position_name}
                                 </option>
                               ))}
                           </select>
