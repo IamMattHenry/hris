@@ -10,6 +10,7 @@ interface SelectOption {
 interface FormSelectProps {
   label: string;
   value: string;
+  className?: string;
   onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
   options: Array<string | SelectOption>;
   error?: string;
@@ -19,6 +20,7 @@ interface FormSelectProps {
 export default function FormSelect({
   label,
   value,
+  className,
   onChange,
   options,
   error,
@@ -27,7 +29,7 @@ export default function FormSelect({
   const id = label.toLowerCase().replace(/\s+/g, "-");
 
   return (
-    <div className="flex flex-col">
+    <div className={`flex flex-col ${className}`}>
       <label htmlFor={id} className="block text-[#3b2b1c] mb-1 font-medium">
         {label}
       </label>

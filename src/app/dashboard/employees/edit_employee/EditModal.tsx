@@ -46,15 +46,12 @@ const normalizeStatusForPayload = (status: string) => {
   if (!status) return null;
   const normalized = status.trim().toLowerCase();
 
-  // Database expects 'on-leave' with hyphen, not underscore
   if (normalized === "on leave") {
     return "on-leave";
   }
 
-  // For other statuses (active, resigned, terminated), just return lowercase
   return normalized;
 };
-
 
 const formatCivilStatusForDisplay = (value?: string | null) => {
   if (!value) return "";
@@ -67,7 +64,6 @@ const formatCivilStatusForDisplay = (value?: string | null) => {
   };
   return map[v] || value;
 };
-
 
 function normalizeName(name: string) {
   return name
@@ -146,7 +142,6 @@ interface RegionData {
   provinces: ProvinceData[];
 }
 
-
 /* ---------- Component ---------- */
 export default function EditEmployeeModal({
   isOpen,
@@ -171,7 +166,6 @@ export default function EditEmployeeModal({
   const [supervisorId, setSupervisorId] = useState<number | null>(null);
   const [employmentType, setEmploymentType] = useState<string | null>(null);
   const [salaryDisplay, setSalaryDisplay] = useState<string>("");
-  // New: Work type and schedule
   const [workType, setWorkType] = useState<string>("");
   const [scheduledDays, setScheduledDays] = useState<string[]>([]);
   const [scheduledStartTime, setScheduledStartTime] = useState<string>("");
@@ -183,7 +177,6 @@ export default function EditEmployeeModal({
   const [province, setProvince] = useState("");
   const [originalBarangay, setOriginalBarangay] = useState<string>("");
   const [civilStatus, setCivilStatus] = useState("");
- // const [barangay, setBarangay] = useState("");
   const [barangays, setBarangays] = useState<string[]>([]);
   const [employmentStatus, setEmploymentStatus] = useState("");
   const [emails, setEmails] = useState<ContactEmail[]>([]);
@@ -223,15 +216,13 @@ export default function EditEmployeeModal({
     Object.fromEntries(DOCUMENTS.map(doc => [doc.key, false]))
   );
 
-
   // Dropdown options
   const [departments, setDepartments] = useState<any[]>([]);
   const [positions, setPositions] = useState<any[]>([]);
   const [supervisors, setSupervisors] = useState<any[]>([]);
-  const [regions, setRegions] = useState<any[]>([]);            // objects (PSGC)
-  const [provinces, setProvinces] = useState<any[]>([]);        // objects
-  const [cities, setCities] = useState<any[]>([]);              // objects
-  ///const [barangays, setBarangays] = useState<any[]>([]);        // objects
+  const [regions, setRegions] = useState<any[]>([]);
+  const [provinces, setProvinces] = useState<any[]>([]);
+  const [cities, setCities] = useState<any[]>([]);
 
   const [dependentProvinces, setDependentProvinces] = useState<string[]>([]);
   const [dependantBarangays, setDependantBarangays] = useState<string[]>([]);
@@ -244,12 +235,12 @@ export default function EditEmployeeModal({
   const [showFingerprintEnrollment, setShowFingerprintEnrollment] = useState(false);
   const [currentFingerprintId, setCurrentFingerprintId] = useState<number | null>(null);
 
-  // psgc contexts
+  // psgc contexts (unused but kept for compatibility)
   const [regionCode, setRegionCode] = useState("");
-const [provinceCode, setProvinceCode] = useState("");
-const [cityCode, setCityCode] = useState("");
+  const [provinceCode, setProvinceCode] = useState("");
+  const [cityCode, setCityCode] = useState("");
 
-  //active tab
+  // Active tab
   const [activeTab, setActiveTab] = useState("personal");
 
   const loadEmployeeRbacRoles = async (userId: number) => {
@@ -315,44 +306,39 @@ const [cityCode, setCityCode] = useState("");
         setExtensionName(res.data.extension_name || "");
         setDepartmentId(res.data.department_id);
         setPositionId(res.data.position_id);
-          setSupervisorId(res.data.supervisor_id || null);
+        setSupervisorId(res.data.supervisor_id || null);
 
-          // Salary and employment type: prefer canonical fields if present
-          const empType = (res.data.employment_type) ? res.data.employment_type : (res.data.monthly_salary ? 'regular' : (res.data.hourly_rate ? 'probationary' : null));
-          setEmploymentType(empType);
+        const empType = (res.data.employment_type) ? res.data.employment_type : (res.data.monthly_salary ? 'regular' : (res.data.hourly_rate ? 'probationary' : null));
+        setEmploymentType(empType);
 
-          const cs = res.data.current_salary ?? res.data.monthly_salary ?? res.data.hourly_rate ?? res.data.salary;
-          setSalary(cs !== undefined && cs !== null ? String(cs) : "");
-          const unit = res.data.salary_unit || (empType === 'regular' ? 'monthly' : 'hourly');
-          setSalaryDisplay(cs ? `${cs} / ${unit === 'monthly' ? 'month' : 'hr'}` : "");
+        const cs = res.data.current_salary ?? res.data.monthly_salary ?? res.data.hourly_rate ?? res.data.salary;
+        setSalary(cs !== undefined && cs !== null ? String(cs) : "");
+        const unit = res.data.salary_unit || (empType === 'regular' ? 'monthly' : 'hourly');
+        setSalaryDisplay(cs ? `${cs} / ${unit === 'monthly' ? 'month' : 'hr'}` : "");
 
-          // Work type and schedule
-          const wt = (res.data.work_type || 'full-time').toLowerCase();
-          setWorkType(wt === 'part-time' ? 'Part-time' : 'Full-time');
-          try {
-            let days: any = res.data.scheduled_days;
-            if (typeof days === 'string') {
-              days = JSON.parse(days);
-            }
-            const dd = Array.isArray(days) ? days.map((d: any) => String(d).toLowerCase()) : [];
-            setScheduledDays(dd);
-          } catch {
-            setScheduledDays([]);
-          }
-          const normTime = (t?: string | null) => (t && t.length >= 5 ? t.slice(0,5) : "");
-          setScheduledStartTime(normTime(res.data.scheduled_start_time));
-          setScheduledEndTime(normTime(res.data.scheduled_end_time));
+        const wt = (res.data.work_type || 'full-time').toLowerCase();
+        setWorkType(wt === 'part-time' ? 'Part-time' : 'Full-time');
+
+        try {
+          let days: any = res.data.scheduled_days;
+          if (typeof days === 'string') days = JSON.parse(days);
+          const dd = Array.isArray(days) ? days.map((d: any) => String(d).toLowerCase()) : [];
+          setScheduledDays(dd);
+        } catch {
+          setScheduledDays([]);
+        }
+        const normTime = (t?: string | null) => (t && t.length >= 5 ? t.slice(0,5) : "");
+        setScheduledStartTime(normTime(res.data.scheduled_start_time));
+        setScheduledEndTime(normTime(res.data.scheduled_end_time));
+
         setHomeAddress(res.data.home_address || "");
         setCity(res.data.city || "");
         setRegion(res.data.region || "");
         setProvince(res.data.province || "");
-        // Store original barangay to sync after barangays list is populated
         setOriginalBarangay(res.data.barangay || "");
-        // Don't set barangay directly - let useEffect handle it after barangays list is populated
         setCivilStatus(formatCivilStatusForDisplay(res.data.civil_status));
         setEmploymentStatus(formatStatusForDisplay(res.data.status));
 
-        // Set emails from the fetched data - normalize to include client id if missing
         if (res.data.emails && Array.isArray(res.data.emails)) {
           setEmails(
             res.data.emails.map((e: any) => ({
@@ -365,11 +351,7 @@ const [cityCode, setCityCode] = useState("");
           setEmails([]);
         }
 
-        // Set contact numbers from the fetched data - normalize
-        if (
-          res.data.contact_numbers &&
-          Array.isArray(res.data.contact_numbers)
-        ) {
+        if (res.data.contact_numbers && Array.isArray(res.data.contact_numbers)) {
           setContactNumbers(
             res.data.contact_numbers.map((c: any) => ({
               contact_id: c.contact_id ?? c.employee_id,
@@ -381,7 +363,6 @@ const [cityCode, setCityCode] = useState("");
           setContactNumbers([]);
         }
 
-        // Set dependents from the fetched data
         if (res.data.dependents && Array.isArray(res.data.dependents)) {
           const dMapped = res.data.dependents.map((d: any) => ({
             id: d.dependant_id ? `d-${d.dependant_id}` : generateClientId(),
@@ -401,7 +382,6 @@ const [cityCode, setCityCode] = useState("");
           setDependents([]);
         }
 
-        // Set documents from the fetched data
         if (res.data.documents) {
           setDocuments({
             sss: res.data.documents.sss || false,
@@ -419,10 +399,8 @@ const [cityCode, setCityCode] = useState("");
           setDocuments(Object.fromEntries(DOCUMENTS.map(doc => [doc.key, false])));
         }
 
-        // Set fingerprint ID
         setCurrentFingerprintId(res.data.fingerprint_id || null);
 
-        // Fetch RBAC roles for this employee's user account
         if (res.data.user_id && canAssignRoles) {
           await loadEmployeeRbacRoles(res.data.user_id);
         } else {
@@ -438,6 +416,7 @@ const [cityCode, setCityCode] = useState("");
   useEffect(() => {
     if (isOpen) fetchDepartments();
   }, [isOpen]);
+
   useEffect(() => {
     if (departmentId) {
       fetchPositions(departmentId);
@@ -453,7 +432,7 @@ const [cityCode, setCityCode] = useState("");
     loadEmployeeRbacRoles(employee.user_id);
   }, [isOpen, canAssignRoles, employee?.user_id]);
 
-  // Default schedule based on work type (non-destructive for existing schedules)
+  // Default schedule based on work type
   useEffect(() => {
     const wt = (workType || '').toLowerCase();
     if (wt === 'full-time' && scheduledDays.length === 0) {
@@ -463,7 +442,7 @@ const [cityCode, setCityCode] = useState("");
     }
   }, [workType]);
 
-  // Auto-calc end time for full-time when start time changes (start + 9 hours)
+  // Auto-calc end time for full-time
   useEffect(() => {
     const wt = (workType || '').toLowerCase();
     if (wt !== 'full-time') return;
@@ -479,7 +458,7 @@ const [cityCode, setCityCode] = useState("");
     setScheduledEndTime(calcEnd(scheduledStartTime));
   }, [workType, scheduledStartTime]);
 
-  // Auto-populate salary and employment type when position changes
+  // Auto-populate salary when position changes
   useEffect(() => {
     if (positionId && positions.length > 0) {
       const selected = positions.find((p) => p.position_id === positionId);
@@ -530,24 +509,16 @@ const [cityCode, setCityCode] = useState("");
     }
   };
 
-
-useEffect(() => {
+  /* ---------- Philippine Locations ---------- */
+  useEffect(() => {
     async function loadPhLocationsData() {
       try {
-        console.log("Fetching ph_locations.json...");
-        // 1. FETCH THE RAW JSON
         const res = await fetch("/data/ph_locations.json");
-        
-        if (!res.ok) {
-          throw new Error(`Failed to fetch: ${res.status}`);
-        }
+        if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`);
 
         const rawData = await res.json();
 
-        // 2. NORMALIZE THE DATA (The Critical Step)
         const processedData = rawData.map((region: any) => {
-          
-          // A. Process standard provinces (if any)
           let finalProvinces = region.provinces.map((prov: any) => ({
             name: prov.name,
             cities: prov.cities.map((city: any) => ({
@@ -556,57 +527,38 @@ useEffect(() => {
             }))
           }));
 
-          // B. Process direct cities (Like NCR in your snippet)
-          // If the region has cities directly attached, we move them to a dummy province.
           if (region.cities && region.cities.length > 0) {
             const directCities = region.cities.map((city: any) => ({
               name: city.name,
               barangays: city.barangays.map((b: any) => ({ name: b.name }))
             }));
 
-            // Create a "Metro Manila" province for NCR, or "Independent Cities" for others
             const dummyProvinceName = region.name === "NCR" ? "Metro Manila" : "Independent Cities";
-
-            finalProvinces.push({
-              name: dummyProvinceName,
-              cities: directCities
-            });
+            finalProvinces.push({ name: dummyProvinceName, cities: directCities });
           }
 
-          // Return the unified structure
-          return {
-            name: region.name,
-            provinces: finalProvinces
-          };
+          return { name: region.name, provinces: finalProvinces };
         });
 
-        console.log("Data processed successfully");
-        console.log(processedData);
-
         setPhLocationsData(processedData);
-        
-        // 3. SET INITIAL REGIONS LIST
         setRegions(processedData.map((r: any) => r.name));
-
       } catch (error) {
         console.error("Error loading PH locations:", error);
         setRegions([]);
       }
     }
-
     loadPhLocationsData();
   }, []);
 
-  // 2. Update provinces when region changes (Home)
+  // Update provinces when region changes (Home)
   useEffect(() => {
     if (region) {
-      // Match by 'name'
       const selectedRegion = phLocationsData.find((r: any) => r.name === region);
       if (selectedRegion) {
         const provinceNames = selectedRegion.provinces.map((p: any) => p.name);
         setProvinces(provinceNames);
-        setCities([]); 
-        setBarangays([]); // Reset lower levels
+        setCities([]);
+        setBarangays([]);
       }
     } else {
       setProvinces([]);
@@ -615,16 +567,15 @@ useEffect(() => {
     }
   }, [region, phLocationsData]);
 
-  // 3. Update cities when province changes (Home)
+  // Update cities when province changes (Home)
   useEffect(() => {
     if (region && province) {
       const selectedRegion = phLocationsData.find((r: any) => r.name === region);
       if (selectedRegion) {
         const selectedProvince = selectedRegion.provinces.find((p: any) => p.name === province);
         if (selectedProvince) {
-          // Map city names (API uses 'name')
           setCities(selectedProvince.cities.map((c: any) => c.name));
-          setBarangays([]); 
+          setBarangays([]);
         }
       }
     } else {
@@ -633,13 +584,12 @@ useEffect(() => {
     }
   }, [region, province, phLocationsData]);
 
-  // 4. Load Barangays (Home)
+  // Load Barangays (Home)
   useEffect(() => {
     if (region && province && city && phLocationsData.length > 0) {
       const r = phLocationsData.find((x: any) => x.name === region);
       const p = r?.provinces.find((x: any) => x.name === province);
       const c = p?.cities.find((x: any) => x.name === city);
-      
       if (c && c.barangays) {
         setBarangays(c.barangays.map((b: any) => b.name));
       } else {
@@ -650,16 +600,14 @@ useEffect(() => {
     }
   }, [region, province, city, phLocationsData]);
 
-  // Sync barangay value after barangays list is populated
+  // Sync original barangay
   useEffect(() => {
     if (originalBarangay && barangays.length > 0) {
-      // Exact match first
       if (barangays.includes(originalBarangay)) {
         setBarangay(originalBarangay);
         setOriginalBarangay("");
         return;
       }
-      // Case-insensitive fallback
       const lowerOrig = originalBarangay.trim().toLowerCase();
       const match = barangays.find(b => b.trim().toLowerCase() === lowerOrig);
       if (match) {
@@ -669,9 +617,7 @@ useEffect(() => {
     }
   }, [barangays, originalBarangay]);
 
-  // --- DEPENDENT ADDRESS LOGIC (Repeat of above structure) ---
-
-  // 5. Update dependent provinces
+  // Dependent address logic (identical structure)
   useEffect(() => {
     if (dependentRegion) {
       const selectedRegion = phLocationsData.find((r: any) => r.name === dependentRegion);
@@ -688,7 +634,6 @@ useEffect(() => {
     }
   }, [dependentRegion, phLocationsData]);
 
-  // 6. Update dependent cities
   useEffect(() => {
     if (dependentRegion && dependentProvince) {
       const selectedRegion = phLocationsData.find((r: any) => r.name === dependentRegion);
@@ -705,13 +650,11 @@ useEffect(() => {
     }
   }, [dependentRegion, dependentProvince, phLocationsData]);
 
-  // 7. Load Dependent Barangays
   useEffect(() => {
     if (dependentRegion && dependentProvince && dependentCity && phLocationsData.length > 0) {
       const r = phLocationsData.find((x: any) => x.name === dependentRegion);
       const p = r?.provinces.find((x: any) => x.name === dependentProvince);
       const c = p?.cities.find((x: any) => x.name === dependentCity);
-      
       if (c && c.barangays) {
         setDependantBarangays(c.barangays.map((b: any) => b.name));
       } else {
@@ -722,14 +665,8 @@ useEffect(() => {
     }
   }, [dependentRegion, dependentProvince, dependentCity, phLocationsData]);
 
-
-
-
-
-  /* ---------- Dependent formatting ---------- */
-  const handleDependentContactInfoChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  /* ---------- Helpers ---------- */
+  const handleDependentContactInfoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let input = e.target.value.replace(/\D/g, "");
     if (input.length > 11) input = input.slice(0, 11);
     const formatted = formatPhoneNumber(e.target.value);
@@ -742,25 +679,10 @@ useEffect(() => {
     contactNumbers: any[],
     setContactNumbers: React.Dispatch<React.SetStateAction<any[]>>
   ) => {
-    let value = e.target.value;
-
-    // keep digits only
-    value = value.replace(/\D/g, "");
-
-    // max 11 digits (09xxxxxxxxx)
-    value = value.slice(0, 11);
-
-    // auto prefix "09"
-    if (value.length > 0 && !value.startsWith("09")) {
-      value = "09" + value.slice(2);
-    }
-
-    // apply spacing: 09XX XXX XXXX
-    if (value.length > 7) {
-      value = value.replace(/^(\d{4})(\d{3})(\d{0,4}).*/, "$1 $2 $3");
-    } else if (value.length > 4) {
-      value = value.replace(/^(\d{4})(\d{0,3}).*/, "$1 $2");
-    }
+    let value = e.target.value.replace(/\D/g, "").slice(0, 11);
+    if (value.length > 0 && !value.startsWith("09")) value = "09" + value.slice(2);
+    if (value.length > 7) value = value.replace(/^(\d{4})(\d{3})(\d{0,4}).*/, "$1 $2 $3");
+    else if (value.length > 4) value = value.replace(/^(\d{4})(\d{0,3}).*/, "$1 $2");
 
     const updated = [...contactNumbers];
     updated[index].contact_number = value;
@@ -771,7 +693,6 @@ useEffect(() => {
   const handleSubmit = async () => {
     console.log("Save Changes clicked");
 
-    // Validate employee form - NOW INCLUDING PROVINCE
     const formErrors = validateEmployeeForm(
       firstName,
       middleName,
@@ -795,15 +716,10 @@ useEffect(() => {
       scheduledEndTime
     );
 
-    console.log("Validation result:", Object.keys(formErrors).length === 0);
-    console.log("Current errors:", formErrors);
-
     const allErrors = { ...formErrors };
 
     if (Object.keys(allErrors).length > 0 || !employee) {
       setErrors(allErrors);
-      console.log("Validation failed or no employee");
-
       const uniqueErrors = Array.from(new Set(Object.values(allErrors)));
       toast.error(
         <div>
@@ -841,21 +757,17 @@ useEffect(() => {
           .filter((c) => c && c.trim()),
         dependents: dependents,
         documents: documents,
-        // Work & schedule
         work_type: workType ? workType.toLowerCase() : undefined,
         scheduled_days: scheduledDays,
         scheduled_start_time: scheduledStartTime || undefined,
         scheduled_end_time: scheduledEndTime || undefined,
       };
 
-      // Include salary and employment type if provided
       let numericSalary: number | null = null;
       if (salary !== undefined && salary !== null && String(salary).trim() !== "") {
         numericSalary = Number(String(salary).replace(/,/g, ""));
         if (!Number.isNaN(numericSalary)) {
           updatedData.current_salary = numericSalary;
-        } else {
-          numericSalary = null;
         }
       }
 
@@ -863,7 +775,6 @@ useEffect(() => {
         updatedData.employment_type = employmentType.toLowerCase();
       }
 
-      // Align salary fields to work_type
       if (numericSalary != null) {
         if ((workType || '').toLowerCase() === 'part-time') {
           updatedData.hourly_rate = numericSalary;
@@ -875,15 +786,10 @@ useEffect(() => {
       }
 
       const normalizedStatus = normalizeStatusForPayload(employmentStatus);
-      if (normalizedStatus) {
-        updatedData.status = normalizedStatus;
-      }
-
-
+      if (normalizedStatus) updatedData.status = normalizedStatus;
 
       console.log("Submitting update:", updatedData);
       const result = await employeeApi.update(employee.employee_id, updatedData);
-      console.log("Update result:", result);
 
       if (result.success) {
         toast.success("Employee updated successfully!");
@@ -900,23 +806,13 @@ useEffect(() => {
     }
   };
 
-  // Reusable validation function
-  const validateName = (
-    value: string,
-    setValue: (v: string) => void,
-    maxLength: number = 50 // default limit = 50
-  ) => {
-    // Allow only letters, spaces, apostrophes, and hyphens, and limit to maxLength
+  const validateName = (value: string, setValue: (v: string) => void, maxLength: number = 50) => {
     if (/^[A-Za-z\s'-]*$/.test(value) && value.length <= maxLength) {
       setValue(value);
     }
   };
 
-  const validateExtension = (
-    value: string,
-    setValue: (v: string) => void,
-    maxLength: number = 10
-  ) => {
+  const validateExtension = (value: string, setValue: (v: string) => void, maxLength: number = 10) => {
     if (/^[A-Za-z0-9\s.'-]*$/.test(value) && value.length <= maxLength) {
       setValue(value);
     }
@@ -926,6 +822,7 @@ useEffect(() => {
     positions.find((p) => p.position_id === positionId)?.position_name ||
     employee?.position_name ||
     "";
+
   const expectedHrRole = POSITION_TO_HR_ROLE[selectedPositionName.trim().toLowerCase()];
   const hasExpectedHrRole = expectedHrRole
     ? employeeRbacRoles.includes(expectedHrRole.key)
@@ -940,24 +837,21 @@ useEffect(() => {
       employee.department_name.toLowerCase()
     );
 
-  // salary is used directly as the editable "salary" value (treated as per-hour here)
-
   if (!isOpen) return null;
 
-  /* ---------- JSX ---------- */
+  /* ---------- JSX (Fully Responsive) ---------- */
   return (
     <div
-      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.2 }}
-        className="bg-[#fdf3e2] w-full max-w-7xl p-10 rounded-2xl shadow-lg relative text-[#3b2b1c] overflow-y-auto max-h-[90vh]"
+        className="bg-[#fdf3e2] w-full max-w-full sm:max-w-3xl md:max-w-5xl lg:max-w-7xl p-6 sm:p-8 md:p-10 rounded-2xl shadow-lg relative text-[#3b2b1c] overflow-y-auto max-h-[95vh]"
         onClick={(e) => e.stopPropagation()}
       >
-
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-[#3b2b1c] hover:opacity-70"
@@ -966,12 +860,12 @@ useEffect(() => {
         </button>
 
         <h2 className="text-2xl font-semibold mb-1">Edit Employee</h2>
-        <p className="text-sm text-gray-600 mb-6">
+        <p className="text-sm text-gray-600 mb-6 truncate">
           {firstName} {middleName} {lastName}
         </p>
 
-        {/* INSERT TABS HERE */}
-        <div className="flex flex-wrap gap-2 border-b border-gray-300 mb-6 ">
+        {/* Responsive Tabs – horizontal scroll on mobile */}
+        <div className="flex overflow-x-auto border-b border-gray-300 mb-6 gap-2 pb-3 -mx-1 scrollbar-hide">
           {[
             { id: "personal", label: "Personal Information" },
             { id: "job", label: "Job Information" },
@@ -985,8 +879,8 @@ useEffect(() => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 cursor-pointer transition-all whitespace-nowrap
-          ${activeTab === tab.id
+              className={`px-4 py-2 text-sm font-medium border-b-2 whitespace-nowrap transition-all flex-shrink-0
+                ${activeTab === tab.id
                   ? "border-[#4b0b14] text-[#4b0b14]"
                   : "border-transparent text-gray-500 hover:text-[#4b0b14]"
                 }`}
@@ -997,325 +891,288 @@ useEffect(() => {
         </div>
 
         {employee ? (
-          <div>
-            <div className="space-y-10">
+          <div className="space-y-10">
 
-              {/* ========================== PERSONAL INFORMATION ========================== */}
-              {activeTab === "personal" && (
-                <section>
-                  <h2 className="text-lg font-semibold text-[#3b2b1c] mb-4">
-                    Personal Information
-                  </h2>
+            {/* ========================== PERSONAL INFORMATION ========================== */}
+            {activeTab === "personal" && (
+              <section>
+                <h2 className="text-lg font-semibold text-[#3b2b1c] mb-4">Personal Information</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <FormInput
+                    label="First Name"
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => validateName(e.target.value, setFirstName)}
+                    error={errors.firstName}
+                  />
+                  <FormInput
+                    label="Middle Name"
+                    type="text"
+                    value={middleName}
+                    onChange={(e) => validateName(e.target.value, setMiddleName)}
+                    placeholder="(optional)"
+                  />
+                  <FormInput
+                    label="Last Name"
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => validateName(e.target.value, setLastName)}
+                    error={errors.lastName}
+                  />
+                  <FormInput
+                    label="Extension Name"
+                    type="text"
+                    value={extensionName}
+                    onChange={(e) => validateExtension(e.target.value, setExtensionName)}
+                    placeholder="JR., SR., II, etc. (optional)"
+                  />
+                  <FormSelect
+                    label="Civil Status"
+                    value={civilStatus}
+                    onChange={(e) => setCivilStatus(e.target.value)}
+                    options={["Single", "Married", "Widowed", "Divorced"]}
+                    error={errors.civilStatus}
+                  />
+                </div>
+              </section>
+            )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <FormInput
-                      label="First Name"
-                      type="text"
-                      value={firstName}
-                      onChange={(e) => validateName(e.target.value, setFirstName)}
-                      error={errors.firstName}
-                    />
-
-                    <FormInput
-                      label="Middle Name"
-                      type="text"
-                      value={middleName}
-                      onChange={(e) => validateName(e.target.value, setMiddleName)}
-                      placeholder="(optional)"
-                    />
-
-                    <FormInput
-                      label="Last Name"
-                      type="text"
-                      value={lastName}
-                      onChange={(e) => validateName(e.target.value, setLastName)}
-                      error={errors.lastName}
-                    />
-
-                    <FormInput
-                      label="Extension Name"
-                      type="text"
-                      value={extensionName}
-                      onChange={(e) => validateExtension(e.target.value, setExtensionName)}
-                      placeholder="JR., SR., II, etc. (optional)"
-                    />
-
-                    <FormSelect
-                      label="Civil Status"
-                      value={civilStatus}
-                      onChange={(e) => setCivilStatus(e.target.value)}
-                      options={["Single", "Married", "Widowed", "Divorced"]}
-                      error={errors.civilStatus}
-                    />
-                  </div>
-                </section>
-              )}
-
-              {/* ========================== JOB INFORMATION ========================== */}
-              {activeTab === "job" && (
-                <section>
-                  <h2 className="text-lg font-semibold text-[#3b2b1c] mb-4">
-                    Job Information
-                  </h2>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-                    {/* Department */}
-                    <div>
-                      <label className="block text-[#3b2b1c] mb-1">Department</label>
-                      <select
-                        value={departmentId || ""}
-                        onChange={(e) => {
-                          const value = e.target.value ? Number(e.target.value) : null;
-                          setDepartmentId(value);
-                          setPositionId(null);
-                          setErrors((prev) => ({ ...prev, department: "" }));
-                        }}
-                        className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c]"
-                      >
-                        <option value="">Select Department</option>
-                        {departments.map((dept) => (
-                          <option key={dept.department_id} value={dept.department_id}>
-                            {dept.department_name}
-                          </option>
-                        ))}
-                      </select>
-                      {errors.department && (
-                        <p className="text-red-500 text-xs mt-1">{errors.department}</p>
-                      )}
-                    </div>
-
-                    {/* Position */}
-                    <div>
-                      <label className="block text-[#3b2b1c] mb-1">Position</label>
-                      <select
-                        value={positionId || ""}
-                        onChange={(e) => setPositionId(Number(e.target.value))}
-                        disabled={!departmentId}
-                        className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] disabled:opacity-50"
-                      >
-                        <option value="">
-                          {departmentId ? "Select Position" : "Select Department First"}
+            {/* ========================== JOB INFORMATION ========================== */}
+            {activeTab === "job" && (
+              <section>
+                <h2 className="text-lg font-semibold text-[#3b2b1c] mb-4">Job Information</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {/* Department */}
+                  <div>
+                    <label className="block text-[#3b2b1c] mb-1">Department</label>
+                    <select
+                      value={departmentId || ""}
+                      onChange={(e) => {
+                        const value = e.target.value ? Number(e.target.value) : null;
+                        setDepartmentId(value);
+                        setPositionId(null);
+                        setErrors((prev) => ({ ...prev, department: "" }));
+                      }}
+                      className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c]"
+                    >
+                      <option value="">Select Department</option>
+                      {departments.map((dept) => (
+                        <option key={dept.department_id} value={dept.department_id}>
+                          {dept.department_name}
                         </option>
-                        {positions.map((pos) => (
-                          <option key={pos.position_id} value={pos.position_id}>
-                            {pos.position_name}
-                          </option>
-                        ))}
-                      </select>
-                      {errors.position && (
-                        <p className="text-red-500 text-xs mt-1">{errors.position}</p>
-                      )}
-                    </div>
-
-                    {/* Supervisor */}
-                    <div>
-                      <label className="block text-[#3b2b1c] mb-1 font-medium">
-                        Reports To (Supervisor):
-                      </label>
-                      <select
-                        value={supervisorId || ""}
-                        onChange={(e) => {
-                          const value = e.target.value ? Number(e.target.value) : null;
-                          setSupervisorId(value);
-                          setErrors((prev) => ({ ...prev, supervisor: "" }));
-                        }}
-                        disabled={!departmentId}
-                        className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] focus:ring-2 focus:ring-[#4b0b14] disabled:opacity-50"
-                      >
-                        <option value="">
-                          {departmentId ? "No Supervisor (Optional)" : "Select Department First"}
-                        </option>
-                        {supervisors.map((sup) => (
-                          <option key={sup.employee_id} value={sup.employee_id}>
-                            {sup.employee_code} - {sup.first_name} {sup.last_name}
-                          </option>
-                        ))}
-                      </select>
-                      {errors.supervisor && (
-                        <p className="text-red-500 text-xs mt-1">{errors.supervisor}</p>
-                      )}
-                      <p className="text-xs text-[#6b5344] mt-1">
-                        Select who this employee reports to
-                      </p>
-                    </div>
-
-                    {/* */}
-
-                    {salaryDisplay && (
-                      <div className="md:col-span-3 mt-2">
-                        <div className="text-sm text-[#3b2b1c]">Salary Preview:</div>
-                        <div className="mt-1 inline-block px-3 py-2 bg-white border rounded-lg text-[#3b2b1c] font-semibold">
-                          {salaryDisplay}
-                        </div>
-                      </div>
+                      ))}
+                    </select>
+                    {errors.department && (
+                      <p className="text-red-500 text-xs mt-1">{errors.department}</p>
                     )}
+                  </div>
 
-                    <FormSelect
-                      label="Employment Status"
-                      value={employmentStatus}
+                  {/* Position */}
+                  <div>
+                    <label className="block text-[#3b2b1c] mb-1">Position</label>
+                    <select
+                      value={positionId || ""}
+                      onChange={(e) => setPositionId(Number(e.target.value))}
+                      disabled={!departmentId}
+                      className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] disabled:opacity-50"
+                    >
+                      <option value="">
+                        {departmentId ? "Select Position" : "Select Department First"}
+                      </option>
+                      {positions.map((pos) => (
+                        <option key={pos.position_id} value={pos.position_id}>
+                          {pos.position_name}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.position && (
+                      <p className="text-red-500 text-xs mt-1">{errors.position}</p>
+                    )}
+                  </div>
+
+                  {/* Supervisor */}
+                  <div>
+                    <label className="block text-[#3b2b1c] mb-1 font-medium">Reports To (Supervisor)</label>
+                    <select
+                      value={supervisorId || ""}
                       onChange={(e) => {
-                        setEmploymentStatus(e.target.value);
-                        setErrors((prev) => ({ ...prev, employmentStatus: "" }));
+                        const value = e.target.value ? Number(e.target.value) : null;
+                        setSupervisorId(value);
+                        setErrors((prev) => ({ ...prev, supervisor: "" }));
                       }}
-                      options={[...STATUS_OPTIONS]}
-                      error={errors.employmentStatus}
-                    />
+                      disabled={!departmentId}
+                      className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] focus:ring-2 focus:ring-[#4b0b14] disabled:opacity-50"
+                    >
+                      <option value="">
+                        {departmentId ? "No Supervisor (Optional)" : "Select Department First"}
+                      </option>
+                      {supervisors.map((sup) => (
+                        <option key={sup.employee_id} value={sup.employee_id}>
+                          {sup.employee_code} - {sup.first_name} {sup.last_name}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.supervisor && (
+                      <p className="text-red-500 text-xs mt-1">{errors.supervisor}</p>
+                    )}
+                  </div>
 
-                    {/* Work Type */}
-                    <FormSelect
-                      label="Work Type"
-                      value={workType}
-                      onChange={(e) => setWorkType(e.target.value)}
-                      options={["Full-time","Part-time"]}
-                    />
-
-                    {/* Salary - label aligns with Work Type */}
-                    <div>
-                      <FormInput
-                        label={workType?.toLowerCase() === 'part-time' ? "Salary (Hourly Rate)" : "Salary (Monthly)"}
-                        type="text"
-                        value={salary}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (/^[0-9,]*\.?[0-9]{0,2}$/.test(val) || val === "") {
-                            setSalary(val);
-                          }
-                        }}
-                        placeholder={workType?.toLowerCase() === 'part-time' ? "Enter hourly rate" : "Enter monthly salary"}
-                        error={errors.salary}
-                      />
-                    </div>
-
-                        {/* Schedule: Days */}
-                        <div className="md:col-span-3">
-                          <label className="block text-[#3b2b1c] mb-1 font-medium">Scheduled Days <span className="text-red-500">*</span></label>
-                      <div className="flex flex-wrap gap-3">
-                        {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map((day) => {
-                          const key = day.toLowerCase();
-                          const checked = scheduledDays.includes(key);
-                          return (
-                            <label key={day} className="inline-flex items-center gap-2 text-sm text-[#3b2b1c]">
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={(e) => {
-                                  setScheduledDays((prev) => {
-                                    if (e.target.checked) return Array.from(new Set([...prev, key]));
-                                    return prev.filter((d) => d !== key);
-                                  });
-                                }}
-                              />
-                              {day}
-                            </label>
-                          );
-                        })}
+                  {salaryDisplay && (
+                    <div className="sm:col-span-2 lg:col-span-3 mt-2">
+                      <div className="text-sm text-[#3b2b1c]">Salary Preview:</div>
+                      <div className="mt-1 inline-block px-3 py-2 bg-white border rounded-lg text-[#3b2b1c] font-semibold">
+                        {salaryDisplay}
                       </div>
                     </div>
-
-                        {/* Schedule: Times */}
-                        <FormInput
-                          label="Scheduled Start Time:"
-                      type="time"
-                      value={scheduledStartTime}
-                      onChange={(e) => setScheduledStartTime(e.target.value)}
-                    />
-                        <FormInput
-                          label="Scheduled End Time:"
-                      type="time"
-                      value={scheduledEndTime}
-                      onChange={(e) => setScheduledEndTime(e.target.value)}
-                          disabled={(workType || '').toLowerCase() === 'full-time'}
-                    />
-                  </div>
-                </section>
-              )}
-
-              {/* ========================== ADDRESS INFORMATION ========================== */}
-              {activeTab === "address" && (
-                <section>
-                  <h2 className="text-lg font-semibold text-[#3b2b1c] mb-4">
-                    Address Information
-                  </h2>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-                    <FormInput
-                      label="Home Address"
-                      type="text"
-                      value={homeAddress}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        if (value.length <= 100) setHomeAddress(value);
-                      }}
-                      error={errors.homeAddress}
-                    />
-
-                    <FormSelect
-                      label="Region"
-                      value={region}       // region = CODE only ("010000000")
-                      onChange={(e) => {
-                        setRegion(e.target.value);
-                        setProvince("");
-                        setCity("");
-                      }}
-                      options={regions}    // [{code, name}, ...]
-                      error={errors.region}
-                    />
-
-                    <FormSelect
-                      label="Province"
-                      value={province}     // province = CODE only
-                      onChange={(e) => {
-                        setProvince(e.target.value);
-                        setCity("");
-                      }}
-                      options={provinces}  // [{code, name}, ...]
-                      error={errors.province}
-                    />
-                    
-                    <FormSelect
-                      label="City"
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      options={cities}     // [{code, name}, ...]
-                      error={errors.city}
-                    />
-                    <FormSelect
-                      label="Barangay"
-                      value={barangay}
-                      onChange={(e) => setBarangay(e.target.value)}
-                      options={barangays}  // [{code, name}]
-                      error={errors.barangay}
-                    />
-
-
-                  </div>
-                </section>
-              )}
-            </div>
-
-            {/*============ Contact Tab ============== */}
-            {activeTab === "contact" && (
-              <div className="mt-8">
-                <h2 className="text-lg font-semibold text-[#3b2b1c] mb-4">
-                  Contact Information
-                </h2>
-
-                {/* Email Addresses Section */}
-                <div className="pt-6">
-                  <h3 className="text-lg font-semibold mb-4 text-[#3b2b1c]">
-                    Email Addresses
-                  </h3>
-                  {errors.emails && (
-                    <p className="text-red-500 text-sm mb-3">{errors.emails}</p>
                   )}
+
+                  <FormSelect
+                    label="Employment Status"
+                    value={employmentStatus}
+                    onChange={(e) => {
+                      setEmploymentStatus(e.target.value);
+                      setErrors((prev) => ({ ...prev, employmentStatus: "" }));
+                    }}
+                    options={[...STATUS_OPTIONS]}
+                    error={errors.employmentStatus}
+                  />
+
+                  <FormSelect
+                    label="Work Type"
+                    value={workType}
+                    onChange={(e) => setWorkType(e.target.value)}
+                    options={["Full-time", "Part-time"]}
+                  />
+
+                  <div>
+                    <FormInput
+                      label={workType?.toLowerCase() === 'part-time' ? "Salary (Hourly Rate)" : "Salary (Monthly)"}
+                      type="text"
+                      value={salary}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (/^[0-9,]*\.?[0-9]{0,2}$/.test(val) || val === "") {
+                          setSalary(val);
+                        }
+                      }}
+                      placeholder={workType?.toLowerCase() === 'part-time' ? "Enter hourly rate" : "Enter monthly salary"}
+                      error={errors.salary}
+                    />
+                  </div>
+
+                  {/* Schedule Days – full width */}
+                  <div className="sm:col-span-2 lg:col-span-3">
+                    <label className="block text-[#3b2b1c] mb-1 font-medium">Scheduled Days <span className="text-red-500">*</span></label>
+                    <div className="flex flex-wrap gap-3">
+                      {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map((day) => {
+                        const key = day.toLowerCase();
+                        const checked = scheduledDays.includes(key);
+                        return (
+                          <label key={day} className="inline-flex items-center gap-2 text-sm text-[#3b2b1c]">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                setScheduledDays((prev) => {
+                                  if (e.target.checked) return Array.from(new Set([...prev, key]));
+                                  return prev.filter((d) => d !== key);
+                                });
+                              }}
+                            />
+                            {day}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Schedule Times */}
+                  <FormInput
+                    label="Scheduled Start Time"
+                    type="time"
+                    value={scheduledStartTime}
+                    onChange={(e) => setScheduledStartTime(e.target.value)}
+                  />
+                  <FormInput
+                    label="Scheduled End Time"
+                    type="time"
+                    value={scheduledEndTime}
+                    onChange={(e) => setScheduledEndTime(e.target.value)}
+                    disabled={(workType || '').toLowerCase() === 'full-time'}
+                  />
+                </div>
+              </section>
+            )}
+
+            {/* ========================== ADDRESS INFORMATION ========================== */}
+            {activeTab === "address" && (
+              <section>
+                <h2 className="text-lg font-semibold text-[#3b2b1c] mb-4">Address Information</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <FormInput
+                    label="Home Address"
+                    type="text"
+                    value={homeAddress}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value.length <= 100) setHomeAddress(value);
+                    }}
+                    error={errors.homeAddress}
+                    className="sm:col-span-2 lg:col-span-3"
+                  />
+
+                  <FormSelect
+                    label="Region"
+                    value={region}
+                    onChange={(e) => {
+                      setRegion(e.target.value);
+                      setProvince("");
+                      setCity("");
+                    }}
+                    options={regions}
+                    error={errors.region}
+                  />
+
+                  <FormSelect
+                    label="Province"
+                    value={province}
+                    onChange={(e) => {
+                      setProvince(e.target.value);
+                      setCity("");
+                    }}
+                    options={provinces}
+                    error={errors.province}
+                  />
+
+                  <FormSelect
+                    label="City"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    options={cities}
+                    error={errors.city}
+                  />
+
+                  <FormSelect
+                    label="Barangay"
+                    value={barangay}
+                    onChange={(e) => setBarangay(e.target.value)}
+                    options={barangays}
+                    error={errors.barangay}
+                  />
+                </div>
+              </section>
+            )}
+
+            {/* ========================== CONTACT INFORMATION ========================== */}
+            {activeTab === "contact" && (
+              <div className="space-y-10">
+                {/* Emails */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-4 text-[#3b2b1c]">Email Addresses</h3>
+                  {errors.emails && <p className="text-red-500 text-sm mb-3">{errors.emails}</p>}
                   <div className="space-y-3">
                     {emails.map((emailItem, index) => (
-                      <div
-                        key={emailItem.id ?? `email-${index}`}
-                        className="flex gap-2 items-end"
-                      >
+                      <div key={emailItem.id ?? `email-${index}`} className="flex gap-2 items-end">
                         <div className="flex-1">
                           <input
                             type="email"
@@ -1331,9 +1188,7 @@ useEffect(() => {
                         </div>
                         <button
                           type="button"
-                          onClick={() =>
-                            setEmails((prev) => prev.filter((_, i) => i !== index))
-                          }
+                          onClick={() => setEmails((prev) => prev.filter((_, i) => i !== index))}
                           className="px-3 py-2 bg-red-500 text-white rounded-lg hover:opacity-80"
                         >
                           Remove
@@ -1343,46 +1198,32 @@ useEffect(() => {
                   </div>
                   <button
                     type="button"
-                    onClick={() =>
-                      setEmails((prev) => [...prev, { id: generateClientId(), email: "", isNew: true }])
-                    }
-                    className="mt-3 px-4 py-2 bg-[#3b2b1c] text-white rounded-lg hover:opacity-80"
+                    onClick={() => setEmails((prev) => [...prev, { id: generateClientId(), email: "" }])}
+                    className="mt-3 px-4 py-2 bg-[#3b2b1c] text-white rounded-lg hover:opacity-80 text-sm"
                   >
                     + Add Another Email
                   </button>
                 </div>
 
-                {/* Contact Numbers Section */}
-                <div className="mt-8 pt-6 border-t border-[#e6d2b5]">
+                {/* Contact Numbers */}
+                <div>
                   <h3 className="text-lg font-semibold mb-4 text-[#3b2b1c]">Contact Numbers</h3>
-
-                  {errors.contactNumbers && (
-                    <p className="text-red-500 text-sm mb-3">{errors.contactNumbers}</p>
-                  )}
-
+                  {errors.contactNumbers && <p className="text-red-500 text-sm mb-3">{errors.contactNumbers}</p>}
                   <div className="space-y-3">
                     {contactNumbers.map((contactItem, index) => (
-                      <div
-                        key={contactItem.id ?? `contact-${index}`}
-                        className="flex gap-2 items-end"
-                      >
+                      <div key={contactItem.id ?? `contact-${index}`} className="flex gap-2 items-end">
                         <div className="flex-1">
                           <input
                             type="text"
                             value={contactItem.contact_number}
-                            onChange={(e) =>
-                              handleContactNumberChange(e, index, contactNumbers, setContactNumbers)
-                            }
+                            onChange={(e) => handleContactNumberChange(e, index, contactNumbers, setContactNumbers)}
                             placeholder="Enter contact number"
                             className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c]"
                           />
                         </div>
-
                         <button
                           type="button"
-                          onClick={() =>
-                            setContactNumbers((prev) => prev.filter((_, i) => i !== index))
-                          }
+                          onClick={() => setContactNumbers((prev) => prev.filter((_, i) => i !== index))}
                           className="px-3 py-2 bg-red-500 text-white rounded-lg hover:opacity-80"
                         >
                           Remove
@@ -1390,16 +1231,10 @@ useEffect(() => {
                       </div>
                     ))}
                   </div>
-
                   <button
                     type="button"
-                    onClick={() =>
-                      setContactNumbers((prev) => [
-                        ...prev,
-                        { id: generateClientId(), contact_number: "", isNew: true },
-                      ])
-                    }
-                    className="mt-3 px-4 py-2 bg-[#3b2b1c] text-white rounded-lg hover:opacity-80"
+                    onClick={() => setContactNumbers((prev) => [...prev, { id: generateClientId(), contact_number: "" }])}
+                    className="mt-3 px-4 py-2 bg-[#3b2b1c] text-white rounded-lg hover:opacity-80 text-sm"
                   >
                     + Add Another Contact Number
                   </button>
@@ -1407,176 +1242,36 @@ useEffect(() => {
               </div>
             )}
 
-            {/* ============= Dependents Section ============= */}
+            {/* ========================== DEPENDENT INFORMATION ========================== */}
             {activeTab === "dependent" && (
-              <div className="pt-6 mt-8">
+              <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-[#3b2b1c] font-semibold">
-                    Employee Dependent Information{" "}
-                    <span className="text-red-500">*</span>
-                  </h3>
+                  <h3 className="text-[#3b2b1c] font-semibold">Employee Dependent Information <span className="text-red-500">*</span></h3>
                   <span className="text-xs text-[#6b5344]">({dependents.length} added)</span>
                 </div>
-                {errors.dependents && (
-                  <p className="text-red-500 text-xs mb-4">{errors.dependents}</p>
-                )}
+                {errors.dependents && <p className="text-red-500 text-xs mb-4">{errors.dependents}</p>}
 
                 {/* Add Dependent Form */}
-                <div className="bg-[#FFF2E0] p-4 rounded-lg mb-6">
+                <div className="bg-[#FFF2E0] p-4 sm:p-6 rounded-lg mb-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
-                    <FormInput
-                      label="First Name:"
-                      type="text"
-                      value={dependentFirstName}
-                      onChange={(e) => {
-                        setDependentFirstName(e.target.value);
-                        if (dependentErrors.firstName) {
-                          setDependentErrors((prev) => ({ ...prev, firstName: "" }));
-                        }
-                      }}
-                      placeholder="Enter first name"
-                      error={dependentErrors.firstName}
-                    />
-                    <FormInput
-                      label="Last Name:"
-                      type="text"
-                      value={dependentLastName}
-                      onChange={(e) => {
-                        setDependentLastName(e.target.value);
-                        if (dependentErrors.lastName) {
-                          setDependentErrors((prev) => ({ ...prev, lastName: "" }));
-                        }
-                      }}
-                      placeholder="Enter last name"
-                      error={dependentErrors.lastName}
-                    />
-                    <FormInput
-                      label="Email:"
-                      type="email"
-                      value={dependentEmail}
-                      onChange={(e) => {
-                        setDependentEmail(e.target.value);
-                        if (dependentErrors.email) {
-                          setDependentErrors((prev) => ({ ...prev, email: "" }));
-                        }
-                      }}
-                      placeholder="(use gmail)"
-                      error={dependentErrors.email}
-                    />
-                    <FormInput
-                      label="Contact Info:"
-                      type="text"
-                      value={dependentContactInfo}
-                      onChange={(e) => {
-                        handleDependentContactInfoChange(e);
-                        if (dependentErrors.contactInfo) {
-                          setDependentErrors((prev) => ({ ...prev, contactInfo: "" }));
-                        }
-                      }}
-                      placeholder="Phone number (required)"
-                      error={dependentErrors.contactInfo}
-                    />
-                    <FormSelect
-                      label="Relationship:"
-                      value={dependentRelationship}
-                      onChange={(e) => {
-                        setDependentRelationship(e.target.value);
-                        if (e.target.value !== "Other") {
-                          setDependentRelationshipSpecify("");
-                        }
-                        if (dependentErrors.relationship) {
-                          setDependentErrors((prev) => ({ ...prev, relationship: "" }));
-                        }
-                      }}
-                      options={["Spouse", "Child", "Parent", "Sibling", "Other"]}
-                      error={dependentErrors.relationship}
-                    />
+                    <FormInput label="First Name" type="text" value={dependentFirstName} onChange={(e) => setDependentFirstName(e.target.value)} error={dependentErrors.firstName} />
+                    <FormInput label="Last Name" type="text" value={dependentLastName} onChange={(e) => setDependentLastName(e.target.value)} error={dependentErrors.lastName} />
+                    <FormInput label="Email" type="email" value={dependentEmail} onChange={(e) => setDependentEmail(e.target.value)} error={dependentErrors.email} />
+                    <FormInput label="Contact Info" type="text" value={dependentContactInfo} onChange={handleDependentContactInfoChange} error={dependentErrors.contactInfo} />
+                    <FormSelect label="Relationship" value={dependentRelationship} onChange={(e) => setDependentRelationship(e.target.value)} options={["Spouse", "Child", "Parent", "Sibling", "Other"]} error={dependentErrors.relationship} />
                     {dependentRelationship === "Other" && (
-                      <FormInput
-                        label="Specify Relationship:"
-                        type="text"
-                        value={dependentRelationshipSpecify}
-                        onChange={(e) => {
-                          setDependentRelationshipSpecify(e.target.value);
-                          if (dependentErrors.relationshipSpecify) {
-                            setDependentErrors((prev) => ({ ...prev, relationshipSpecify: "" }));
-                          }
-                        }}
-                        placeholder="Please specify the relationship"
-                        error={dependentErrors.relationshipSpecify}
-                      />
+                      <FormInput label="Specify Relationship" type="text" value={dependentRelationshipSpecify} onChange={(e) => setDependentRelationshipSpecify(e.target.value)} error={dependentErrors.relationshipSpecify} />
                     )}
                   </div>
 
-                  {/* Home Address Section with Y-axis padding */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm py-4">
                     <div className="md:col-span-2">
-                      <FormInput
-                        label="Home Address:"
-                        type="text"
-                        value={dependentHomeAddress}
-                        onChange={(e) => {
-                          setDependentHomeAddress(e.target.value);
-                          if (dependentErrors.homeAddress) {
-                            setDependentErrors((prev) => ({ ...prev, homeAddress: "" }));
-                          }
-                        }}
-                        placeholder="Enter home address"
-                        error={dependentErrors.homeAddress}
-                      />
+                      <FormInput label="Home Address" type="text" value={dependentHomeAddress} onChange={(e) => setDependentHomeAddress(e.target.value)} error={dependentErrors.homeAddress} />
                     </div>
-                    <FormSelect
-                      label="Region:"
-                      value={dependentRegion}
-                      onChange={(e) => {
-                        setDependentRegion(e.target.value);
-                        setDependentProvince("");
-                        setDependentCity("");
-                        if (dependentErrors.region) {
-                          setDependentErrors((prev) => ({ ...prev, region: "" }));
-                        }
-                      }}
-                      options={regions}
-                      error={dependentErrors.region}
-                    />
-                    <FormSelect
-                      label="Province:"
-                      value={dependentProvince}
-                      onChange={(e) => {
-                        setDependentProvince(e.target.value);
-                        setDependentCity("");
-                        if (dependentErrors.province) {
-                          setDependentErrors((prev) => ({ ...prev, province: "" }));
-                        }
-                      }}
-                      options={dependentRegion ? dependentProvinces : []}
-                      error={dependentErrors.province}
-                    />
-                    <FormSelect
-                      label="City:"
-                      value={dependentCity}
-                      onChange={(e) => {
-                        setDependentCity(e.target.value);
-                        if (dependentErrors.city) {
-                          setDependentErrors((prev) => ({ ...prev, city: "" }));
-                        }
-                      }}
-                      options={dependentProvince ? dependentCities : []}
-                      error={dependentErrors.city}
-                    />
-
-                    <FormSelect
-                      label="Barangay:"
-                      value={dependentBarangay}
-                      onChange={(e) => {
-                        setDependentBarangay(e.target.value);
-                        if (dependentErrors.barangay) {
-                          setDependentErrors((prev) => ({ ...prev, barangay: "" }));
-                        }
-                      }}
-                      options={dependantBarangays}
-                      error={dependentErrors.barangay}
-                    />
+                    <FormSelect label="Region" value={dependentRegion} onChange={(e) => setDependentRegion(e.target.value)} options={regions} error={dependentErrors.region} />
+                    <FormSelect label="Province" value={dependentProvince} onChange={(e) => setDependentProvince(e.target.value)} options={dependentProvinces} error={dependentErrors.province} />
+                    <FormSelect label="City" value={dependentCity} onChange={(e) => setDependentCity(e.target.value)} options={dependentCities} error={dependentErrors.city} />
+                    <FormSelect label="Barangay" value={dependentBarangay} onChange={(e) => setDependentBarangay(e.target.value)} options={dependantBarangays} error={dependentErrors.barangay} />
                   </div>
 
                   <button
@@ -1595,26 +1290,21 @@ useEffect(() => {
                         dependentProvince,
                         dependentCity
                       );
-
                       if (Object.keys(newErrors).length > 0) {
                         setDependentErrors(newErrors);
-                        const uniqueErrors = Array.from(new Set(Object.values(newErrors)));
                         toast.error(
                           <div>
                             <p className="font-bold">Please fix the following errors:</p>
                             <ul className="list-disc pl-4 mt-1 text-sm">
-                              {uniqueErrors.map((err: any, i) => (
+                              {Array.from(new Set(Object.values(newErrors))).map((err: any, i) => (
                                 <li key={i}>{err}</li>
                               ))}
                             </ul>
-                          </div>,
-                          { duration: 5000 }
+                          </div>
                         );
                         return;
                       }
-
                       setDependentErrors({});
-
                       const newDependent: Dependent = {
                         id: generateClientId(),
                         firstName: dependentFirstName,
@@ -1622,14 +1312,14 @@ useEffect(() => {
                         email: dependentEmail,
                         contactInfo: dependentContactInfo,
                         relationship: dependentRelationship,
-                        relationshipSpecify:
-                          dependentRelationshipSpecify || undefined,
+                        relationshipSpecify: dependentRelationshipSpecify || undefined,
                         homeAddress: dependentHomeAddress,
                         region: dependentRegion,
                         province: dependentProvince,
                         city: dependentCity,
                       };
                       setDependents([...dependents, newDependent]);
+                      // Clear form
                       setDependentFirstName("");
                       setDependentLastName("");
                       setDependentEmail("");
@@ -1641,21 +1331,18 @@ useEffect(() => {
                       setDependentProvince("");
                       setDependentCity("");
                     }}
-                    className="w-full px-4 py-2 bg-[#4b0b14] text-white rounded-lg hover:bg-[#6b0b1f] transition-colors font-semibold"
+                    className="w-full px-4 py-3 bg-[#4b0b14] text-white rounded-lg hover:bg-[#6b0b1f] transition-colors font-semibold text-sm"
                   >
                     Add Dependent
                   </button>
                 </div>
 
-                {/* Dependents List */}
+                {/* Added Dependents List */}
                 {dependents.length > 0 && (
                   <div className="space-y-3">
                     <h4 className="text-[#3b2b1c] font-semibold">Added Dependents:</h4>
                     {dependents.map((dependent) => (
-                      <div
-                        key={dependent.id}
-                        className="bg-[#f5e6d3] p-4 rounded-lg border border-[#e6d2b5]"
-                      >
+                      <div key={dependent.id} className="bg-[#f5e6d3] p-4 rounded-lg border border-[#e6d2b5]">
                         <div className="flex justify-between items-start mb-2">
                           <div>
                             <p className="font-semibold text-[#3b2b1c]">
@@ -1663,35 +1350,23 @@ useEffect(() => {
                             </p>
                             <p className="text-xs text-[#6b5344]">
                               Relationship: {dependent.relationship}
-                              {dependent.relationshipSpecify &&
-                                ` (${dependent.relationshipSpecify})`}
+                              {dependent.relationshipSpecify && ` (${dependent.relationshipSpecify})`}
                             </p>
                           </div>
                           <button
                             type="button"
-                            onClick={() =>
-                              setDependents(dependents.filter((d) => d.id !== dependent.id))
-                            }
+                            onClick={() => setDependents(dependents.filter((d) => d.id !== dependent.id))}
                             className="text-red-500 hover:text-red-700 font-semibold text-sm"
                           >
                             Remove
                           </button>
                         </div>
-                        {dependent.email && (
-                          <p className="text-xs text-[#6b5344]">Email: {dependent.email}</p>
-                        )}
-                        {dependent.contactInfo && (
-                          <p className="text-xs text-[#6b5344]">Contact: {dependent.contactInfo}</p>
-                        )}
-                        {dependent.homeAddress && (
-                          <p className="text-xs text-[#6b5344]">Address: {dependent.homeAddress}</p>
-                        )}
+                        {dependent.email && <p className="text-xs text-[#6b5344]">Email: {dependent.email}</p>}
+                        {dependent.contactInfo && <p className="text-xs text-[#6b5344]">Contact: {dependent.contactInfo}</p>}
+                        {dependent.homeAddress && <p className="text-xs text-[#6b5344]">Address: {dependent.homeAddress}</p>}
                         {(dependent.city || dependent.province || dependent.region) && (
                           <p className="text-xs text-[#6b5344]">
-                            Location:{" "}
-                            {[dependent.city, dependent.province, dependent.region]
-                              .filter(Boolean)
-                              .join(", ")}
+                            Location: {[dependent.city, dependent.province, dependent.region].filter(Boolean).join(", ")}
                           </p>
                         )}
                       </div>
@@ -1701,22 +1376,18 @@ useEffect(() => {
               </div>
             )}
 
-            {/*================= Documents Section ================= */}
+            {/* ========================== DOCUMENTS ========================== */}
             {activeTab === "documents" && (
-              <div className="pt-6 mt-8">
+              <div>
                 <h3 className="text-[#3b2b1c] font-semibold mb-4">Document Checklist</h3>
-                <p className="text-sm text-[#6b5344] mb-6">
-                  Check the documents that have been submitted by the employee.
-                </p>
+                <p className="text-sm text-[#6b5344] mb-6">Check the documents that have been submitted by the employee.</p>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {DOCUMENTS.map((doc) => (
                     <div
                       key={doc.key}
                       className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all cursor-pointer ${
-                        documents[doc.key]
-                          ? "bg-green-50 border-green-300"
-                          : "bg-gray-50 border-gray-300"
+                        documents[doc.key] ? "bg-green-50 border-green-300" : "bg-gray-50 border-gray-300"
                       }`}
                       onClick={() => setDocuments({ ...documents, [doc.key]: !documents[doc.key] })}
                     >
@@ -1728,13 +1399,11 @@ useEffect(() => {
                           e.stopPropagation();
                           setDocuments({ ...documents, [doc.key]: e.target.checked });
                         }}
-                        className="w-5 h-5 text-green-600 bg-white border-gray-300 rounded focus:ring-green-500 focus:ring-2 cursor-pointer"
+                        className="w-5 h-5 text-green-600 bg-white border-gray-300 rounded focus:ring-green-500"
                       />
                       <label
                         htmlFor={`doc-${doc.key}`}
-                        className={`font-medium cursor-pointer select-none flex-1 ${
-                          documents[doc.key] ? "text-green-700" : "text-gray-600"
-                        }`}
+                        className={`font-medium cursor-pointer select-none flex-1 ${documents[doc.key] ? "text-green-700" : "text-gray-600"}`}
                       >
                         {doc.label}
                       </label>
@@ -1755,127 +1424,83 @@ useEffect(() => {
               </div>
             )}
 
-
-
-            {/*================ HR Roles Section (permission-based) ================*/}
+            {/* ========================== HR ROLES ========================== */}
             {activeTab === "hr-roles" && canAssignRoles && isHrDepartment && (
-              <div className="pt-6 mt-8">
+              <div>
                 <h3 className="text-[#3b2b1c] font-semibold mb-1">HR Portal Role Assignment</h3>
-                <p className="text-sm text-[#6b5344] mb-6">
-                  Role suggestion is based on the employee's current position.
-                </p>
+                <p className="text-sm text-[#6b5344] mb-6">Role suggestion is based on the employee&apos;s current position.</p>
 
                 <div className="space-y-4">
                   <div className="p-4 rounded-lg border border-[#d9c2a8] bg-[#fff9f2]">
                     <p className="text-sm text-[#6b5344] mb-1">Detected Position</p>
-                    <p className="font-semibold text-[#3b2b1c]">
-                      {selectedPositionName || "No position selected"}
-                    </p>
+                    <p className="font-semibold text-[#3b2b1c]">{selectedPositionName || "No position selected"}</p>
                   </div>
 
-                  <div className={`p-4 rounded-lg border-2 ${
-                    expectedHrRole
-                      ? hasExpectedHrRole
-                        ? "bg-green-50 border-green-300"
-                        : "bg-amber-50 border-amber-300"
-                      : "bg-gray-50 border-gray-200"
-                  }`}>
+                  <div className={`p-4 rounded-lg border-2 ${expectedHrRole ? (hasExpectedHrRole ? "bg-green-50 border-green-300" : "bg-amber-50 border-amber-300") : "bg-gray-50 border-gray-200"}`}>
                     {expectedHrRole ? (
                       <>
-                        <p className="font-semibold text-[#3b2b1c]">
-                          Expected Role: {expectedHrRole.label}
-                        </p>
+                        <p className="font-semibold text-[#3b2b1c]">Expected Role: {expectedHrRole.label}</p>
                         <p className={`text-sm mt-1 ${hasExpectedHrRole ? "text-green-700" : "text-amber-700"}`}>
-                          {hasExpectedHrRole
-                            ? "This employee is already assigned to the expected role for this position."
-                            : "This employee is not yet assigned to the expected role for this position."}
+                          {hasExpectedHrRole ? "This employee is already assigned to the expected role." : "This employee is not yet assigned to the expected role."}
                         </p>
                         {!hasExpectedHrRole && (
                           <button
                             type="button"
                             disabled={rbacTogglingRoles.has(expectedHrRole.key)}
                             onClick={() => updateEmployeeRole(expectedHrRole.key, true)}
-                            className="mt-3 px-4 py-2 rounded-lg text-sm font-semibold bg-[#4b0b14] text-white hover:bg-[#6b0b1f] disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="mt-3 px-4 py-2 rounded-lg text-sm font-semibold bg-[#4b0b14] text-white hover:bg-[#6b0b1f] disabled:opacity-50"
                           >
                             {rbacTogglingRoles.has(expectedHrRole.key) ? "Assigning..." : "Assign Expected Role"}
                           </button>
                         )}
                       </>
                     ) : (
-                      <>
-                        <p className="font-semibold text-[#3b2b1c]">No mapped HR role for this position</p>
-                        <p className="text-sm mt-1 text-[#6b5344]">
-                          Update the employee position to a mapped HR position to enable automatic role suggestion.
-                        </p>
-                      </>
+                      <p className="text-sm text-[#6b5344]">No mapped HR role for this position.</p>
                     )}
                   </div>
 
                   {isCurrentUserSuperadmin && ["hr manager", "hr supervisor"].includes(selectedPositionName.trim().toLowerCase()) && (
                     <div className={`p-4 rounded-lg border-2 ${hasSuperadminRole ? "bg-purple-50 border-purple-300" : "bg-gray-50 border-gray-200"}`}>
                       <p className="font-semibold text-[#3b2b1c]">Superadmin Access</p>
-                      <p className="text-sm mt-1 text-[#6b5344]">
-                        {hasSuperadminRole
-                          ? "This employee currently has Superadmin role."
-                          : "Assign Superadmin only when full system control is required."}
-                      </p>
                       <button
                         type="button"
                         disabled={rbacTogglingRoles.has("superadmin")}
                         onClick={() => updateEmployeeRole("superadmin", !hasSuperadminRole)}
-                        className={`mt-3 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed ${
-                          hasSuperadminRole
-                            ? "bg-red-100 text-red-700 hover:bg-red-200"
-                            : "bg-[#4b0b14] text-white hover:bg-[#6b0b1f]"
-                        }`}
+                        className={`mt-3 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 ${hasSuperadminRole ? "bg-red-100 text-red-700" : "bg-[#4b0b14] text-white"}`}
                       >
                         {rbacTogglingRoles.has("superadmin")
                           ? "Updating..."
                           : hasSuperadminRole
-                            ? "Revoke Superadmin"
-                            : "Assign Superadmin"}
+                          ? "Revoke Superadmin"
+                          : "Assign Superadmin"}
                       </button>
                     </div>
                   )}
                 </div>
-
-                <div className="mt-6 p-4 bg-blue-50 border-l-4 border-blue-400 rounded">
-                  <p className="text-sm text-blue-700">
-                    <span className="font-semibold">Note:</span> Role assignment is based on position, and changes take effect on next login.
-                  </p>
-                </div>
               </div>
             )}
 
-            {/*================ Fingerprint Registration Section ================*/}
+            {/* ========================== FINGERPRINT ========================== */}
             {activeTab === "fingerprint" && (
-              <div className="pt-6 mt-8">
+              <div>
                 <h3 className="text-[#3b2b1c] font-semibold mb-4">Fingerprint Registration</h3>
-
                 {currentFingerprintId ? (
                   <div className="bg-[#FFF2E0] p-4 rounded-lg border border-[#e6d2b5]">
                     <p className="text-sm text-[#3b2b1c]">
                       <span className="font-semibold">Current Fingerprint ID:</span> {currentFingerprintId}
                     </p>
-                    <p className="text-xs text-[#6b5344] mt-1">
-                      This employee has a registered fingerprint for attendance tracking.
-                    </p>
                   </div>
                 ) : (
                   <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                       <div>
-                        <p className="text-sm text-yellow-800 font-semibold">
-                          No fingerprint registered
-                        </p>
-                        <p className="text-xs text-yellow-700 mt-1">
-                          This employee doesn't have a fingerprint registered yet. Register one to enable fingerprint attendance.
-                        </p>
+                        <p className="text-sm text-yellow-800 font-semibold">No fingerprint registered</p>
+                        <p className="text-xs text-yellow-700 mt-1">Register one to enable fingerprint attendance.</p>
                       </div>
                       <button
                         type="button"
                         onClick={() => setShowFingerprintEnrollment(true)}
-                        className="px-4 py-2 bg-[#8b7355] text-white rounded-lg hover:bg-[#6d5a43] transition-colors font-medium text-sm whitespace-nowrap"
+                        className="px-4 py-2 bg-[#8b7355] text-white rounded-lg hover:bg-[#6d5a43] whitespace-nowrap"
                       >
                         Register Fingerprint
                       </button>
@@ -1887,61 +1512,47 @@ useEffect(() => {
 
           </div>
         ) : (
-          <p className="text-center text-gray-600">Loading employee details...</p>
+          <p className="text-center text-gray-600 py-12">Loading employee details...</p>
         )}
 
+        {/* Save Button */}
         <div className="flex justify-end mt-10">
           <button
             onClick={handleSubmit}
             disabled={isSubmitting}
-            className="bg-[#4b0b14] text-white px-6 py-2 rounded-lg shadow-md hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-[#4b0b14] text-white px-8 py-3 rounded-lg shadow-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
           >
             {isSubmitting ? "Saving..." : "Save Changes"}
           </button>
         </div>
 
-        {/* Fingerprint Enrollment Overlay */}
-
-      </motion.div>
-
-
-      {showFingerprintEnrollment && employee && (
-        <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[999]"
-          onClick={() => setShowFingerprintEnrollment(false)}
-        >
+        {/* Fingerprint Overlay */}
+        {showFingerprintEnrollment && employee && (
           <div
-            className="bg-white w-full max-w-xl p-8 rounded-2xl shadow-xl relative max-h-[90vh] overflow-y-auto animate-[fadeIn_0.2s_ease]"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[999] p-4"
+            onClick={() => setShowFingerprintEnrollment(false)}
           >
-            <h2 className="text-2xl font-bold text-[#3b2b1c] mb-4">
-              Register Fingerprint
-            </h2>
+            <div
+              className="bg-white w-full max-w-xl p-6 sm:p-8 rounded-2xl shadow-xl relative max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-2xl font-bold text-[#3b2b1c] mb-4">Register Fingerprint</h2>
+              <p className="text-gray-600 mb-6">Register a fingerprint for attendance tracking.</p>
 
-            <p className="text-gray-600 mb-6">
-              Register a fingerprint for this employee to enable fingerprint-based attendance tracking.
-            </p>
-
-            <FingerprintEnrollment
-              employeeId={employee.employee_id}
-              onEnrollmentComplete={(fpId) => {
-                setCurrentFingerprintId(fpId);
-                setShowFingerprintEnrollment(false);
-                toast.success("Fingerprint registered successfully!");
-
-                setTimeout(() => {
-                  if (id) fetchEmployee(id);
-                }, 500);
-              }}
-              onSkip={() => {
-                setShowFingerprintEnrollment(false);
-              }}
-            />
+              <FingerprintEnrollment
+                employeeId={employee.employee_id}
+                onEnrollmentComplete={(fpId) => {
+                  setCurrentFingerprintId(fpId);
+                  setShowFingerprintEnrollment(false);
+                  toast.success("Fingerprint registered successfully!");
+                  setTimeout(() => id && fetchEmployee(id), 500);
+                }}
+                onSkip={() => setShowFingerprintEnrollment(false)}
+              />
+            </div>
           </div>
-        </div>
-      )}
-
-
+        )}
+      </motion.div>
     </div>
   );
 }
@@ -1949,14 +1560,8 @@ useEffect(() => {
 const POSITION_TO_HR_ROLE: Record<string, { key: string; label: string }> = {
   "hr manager": { key: "hr_manager", label: "HR Manager" },
   "hr supervisor": { key: "hr_supervisor", label: "HR Supervisor" },
-  "leave & attendance officer": {
-    key: "leave_attendance_officer",
-    label: "Leave & Attendance Officer",
-  },
-  "recruitment officer": {
-    key: "recruitment_officer",
-    label: "Recruitment Officer",
-  },
+  "leave & attendance officer": { key: "leave_attendance_officer", label: "Leave & Attendance Officer" },
+  "recruitment officer": { key: "recruitment_officer", label: "Recruitment Officer" },
 };
 
 const ROLE_LABELS: Record<string, string> = {

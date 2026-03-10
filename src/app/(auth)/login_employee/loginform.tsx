@@ -207,14 +207,14 @@ export default function LoginForm() {
           label="Username"
           placeholder="Username"
           value={username}
-          onChange={(e) => setUsername(e.target.value)}
+          onChange={(e) => setUsername(e.target.value.slice(0, 30))}
         />
 
         <PasswordBox
           label="Password"
           placeholder="Password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => setPassword(e.target.value.slice(0, 30))}
         />
 
         <div className="flex items-center justify-between mb-4 text-[#FFF2E0] text-sm font-poppins">

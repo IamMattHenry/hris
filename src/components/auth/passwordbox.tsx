@@ -13,7 +13,7 @@ export default function PasswordBox({
   placeholder?: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   error?: string;
-  labelColor?: string; // ✅ optional label color
+  labelColor?: string; 
 }) {
   const [showPassword, setShowPassword] = useState(false);
 
@@ -37,7 +37,7 @@ export default function PasswordBox({
               : "border border-[#E6D2B5] focus:ring-[#D4A056]"
           }`}
           value={value}
-          placeholder={placeholder}
+          placeholder={` Enter your ${placeholder} `}
           onChange={onChange}
           required
         />

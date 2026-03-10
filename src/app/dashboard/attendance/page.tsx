@@ -256,7 +256,7 @@ export default function AttendanceTable() {
   };
 
   return (
-    <div className="min-h-screen bg-[#fff7ec] p-8 space-y-6 text-gray-800 font-poppins z-30">
+    <div className="min-h-screen bg-[#fff7ec] p-4 sm:p-8 space-y-6 text-gray-800 font-poppins z-30">
       {/* Header */}
       <div className="flex flex-col gap-4">
 
@@ -344,7 +344,7 @@ export default function AttendanceTable() {
                     if (e.target === e.currentTarget) setIsDateModalOpen(false);
                   }}
                 >
-                  <div className="bg-white p-6 rounded-lg shadow-lg w-80">
+                  <div className="bg-white p-6 rounded-lg shadow-lg w-80 max-w-[90%]">
                     <h2 className="text-lg font-bold mb-4">Select Date</h2>
 
                     <input
@@ -388,10 +388,10 @@ export default function AttendanceTable() {
 
 
       {/* Attendance Table */}
-      <div className="w-full">
+      <div className="w-full overflow-x-auto">
         <h2 className="text-lg font-semibold mb-2">Attendance Records</h2>
         <table className="w-full text-sm">
-          <thead className="bg-[#3b2b1c] text-white text-left sticky top-0 z-20">
+          <thead className="bg-[#3b2b1c] text-white text-left sticky top-0 z-20 hidden md:table-header-group">
             <tr>
               <th className="py-4 px-4">Employee Code</th>
               <th className="py-4 px-4">Employee Name</th>
@@ -408,24 +408,26 @@ export default function AttendanceTable() {
               currentAttendance.map((record) => (
                 <tr
                   key={record.attendance_id ?? `offline-${record.employee_id}-${record.date}`}
-                  className="border-b border-[#eadfcd] hover:bg-[#fdf4e7] transition"
+                  className="border-b border-[#eadfcd] hover:bg-[#fdf4e7] transition md:table-row block mb-4 rounded-md shadow-sm bg-white"
                 >
-                  <td className="py-3 px-4">{record.employee_code}</td>
-                  <td className="py-3 px-4 flex items-center space-x-3">
-                    <div className="w-8 h-8 rounded-full bg-[#800000] flex items-center justify-center text-white text-sm font-semibold">
-                      {`${record.first_name} ${record.last_name}`
-                        .split(" ")
-                        .map((n: string) => n[0])
-                        .join("")
-                        .toUpperCase()}
+                  <td data-label="Employee Code" className="py-3 px-4 before:content-[attr(data-label)] before:font-semibold before:mr-2 before:text-gray-600 md:table-cell block">{record.employee_code}</td>
+                  <td data-label="Employee Name" className="py-3 px-4 before:content-[attr(data-label)] before:font-semibold before:mr-2 before:text-gray-600 md:table-cell block">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 rounded-full bg-[#800000] flex items-center justify-center text-white text-sm font-semibold">
+                        {`${record.first_name} ${record.last_name}`
+                          .split(" ")
+                          .map((n: string) => n[0])
+                          .join("")
+                          .toUpperCase()}
+                      </div>
+                      <span>{record.first_name} {record.last_name}</span>
                     </div>
-                    <span>{record.first_name} {record.last_name}</span>
                   </td>
-                  <td className="py-3 px-4">{record.department_name || "-"}</td>
-                  <td className="py-3 px-4">{new Date(record.date).toLocaleDateString()}</td>
-                  <td className="py-3 px-4">{record.time_in ? formatDateTimeTo12Hour(record.time_in) : "-"}</td>
-                  <td className="py-3 px-4">{record.time_out ? formatDateTimeTo12Hour(record.time_out) : "-"}</td>
-                  <td className="py-3 px-4">
+                  <td data-label="Department" className="py-3 px-4 before:content-[attr(data-label)] before:font-semibold before:mr-2 before:text-gray-600 md:table-cell block">{record.department_name || "-"}</td>
+                  <td data-label="Date" className="py-3 px-4 before:content-[attr(data-label)] before:font-semibold before:mr-2 before:text-gray-600 md:table-cell block">{new Date(record.date).toLocaleDateString()}</td>
+                  <td data-label="Time In" className="py-3 px-4 before:content-[attr(data-label)] before:font-semibold before:mr-2 before:text-gray-600 md:table-cell block">{record.time_in ? formatDateTimeTo12Hour(record.time_in) : "-"}</td>
+                  <td data-label="Time Out" className="py-3 px-4 before:content-[attr(data-label)] before:font-semibold before:mr-2 before:text-gray-600 md:table-cell block">{record.time_out ? formatDateTimeTo12Hour(record.time_out) : "-"}</td>
+                  <td data-label="Status" className="py-3 px-4 before:content-[attr(data-label)] before:font-semibold before:mr-2 before:text-gray-600 md:table-cell block">
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold ${record.status === "present" ? "bg-green-100 text-green-800" :
                       record.status === "absent" ? "bg-red-100 text-red-800" :
                         record.status === "late" ? "bg-yellow-100 text-yellow-800" :
@@ -439,7 +441,7 @@ export default function AttendanceTable() {
                       {STATUS_LABELS[record.status]}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-center">
+                  <td data-label="View" className="py-3 px-4 text-center before:content-[attr(data-label)] before:font-semibold before:mr-2 before:text-gray-600 md:table-cell block md:text-center text-left">
                     {record.status !== "offline" && record.attendance_id ? (
                       <button
                         onClick={() => handleViewAttendance(record.attendance_id!)}
@@ -454,8 +456,8 @@ export default function AttendanceTable() {
                 </tr>
               ))
             ) : (
-              <tr>
-                <td colSpan={8} className="py-8 text-center text-gray-500">
+              <tr className="md:table-row block">
+                <td colSpan={8} className="py-8 text-center text-gray-500 md:table-cell block">
                   No attendance records
                 </td>
               </tr>

@@ -233,7 +233,7 @@ export default function EmployeeTable() {
 
   // 🔹 UI
   return (
-    <div className="min-h-screen bg-[#fff7ec] p-8 space-y-6 text-gray-800 font-poppins">
+    <div className="min-h-screen bg-[#fff7ec] p-4 md:p-8 space-y-6 text-gray-800 font-poppins">
       {/* Header */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <h1 className="text-xl font-bold">{employees.length} {employees.length > 1 ? "employees" : "employee"} </h1>
@@ -245,7 +245,7 @@ export default function EmployeeTable() {
           <div className="relative filter-dropdown">
             <button
               onClick={() => setIsFilterOpen(!isFilterOpen)}
-              className="flex items-center bg-[#3b2b1c] text-white px-6 py-4 rounded-full mr-16 shadow-md hover:opacity-90 transition filter-button"
+              className="flex items-center bg-[#3b2b1c] text-white px-6 py-4 rounded-full shadow-md hover:opacity-90 transition filter-button"
             >
               
               <Filter size={16} className="mr-2" /> Sort
@@ -309,18 +309,18 @@ export default function EmployeeTable() {
       </div>
 
       {/* Table */}
-      <div className="w-full">
+      <div className="w-full overflow-x-auto">
         <h2 className="text-lg font-semibold mb-2">Employee Records</h2>
 
-        <table className="w-full text-sm table-fixed border-separate border-spacing-y-2">
+        <table className="w-full text-sm table-auto border-separate border-spacing-y-2">
           <thead className="bg-[#3b2b1c] text-white text-left sticky top-0 z-20">
             <tr>
               <th className="py-4 px-4 rounded-l-lg">ID</th>
               <th className="py-4 px-4">Name</th>
-              <th className="py-4 px-4">Position</th>
-              <th className="py-4 px-4">Department</th>
+              <th className="py-4 px-4 hidden md:table-cell">Position</th>
+              <th className="py-4 px-4 hidden lg:table-cell">Department</th>
               <th className="py-4 px-4">Status</th>
-              <th className="py-4 px-4">Actions</th>
+              <th className="py-4 px-4 rounded-r-lg">Actions</th>
             </tr>
           </thead>
 
@@ -340,8 +340,8 @@ export default function EmployeeTable() {
                     </div>
                     <span>{emp.first_name} {emp.last_name}</span>
                   </td>
-                  <td className="py-3 px-4">{emp.position_name || "N/A"}</td>
-                  <td className="py-3 px-4">{emp.department_name || "N/A"}</td>
+                  <td className="py-3 px-4 hidden md:table-cell">{emp.position_name || "N/A"}</td>
+                  <td className="py-3 px-4 hidden lg:table-cell">{emp.department_name || "N/A"}</td>
                   <td className="py-3 px-4">
                     <span
                       onClick={() => {
@@ -422,7 +422,7 @@ export default function EmployeeTable() {
         </table>
 
         {/* Pagination */}
-        <div className="flex justify-center items-center gap-4 mt-4 select-none">
+        <div className="flex justify-center items-center gap-2 md:gap-4 mt-4 select-none">
           <button
             onClick={() => goToPage(currentPage - 1)}
             disabled={currentPage === 1}

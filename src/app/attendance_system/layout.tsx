@@ -21,7 +21,7 @@ export default function AttendanceSystemLayout({
               alt="Logo"
               width={250}
               height={250}
-              className="object-contain"
+              className="object-contain w-48 h-48 sm:w-64 sm:h-64"
               priority
             />
           </div>

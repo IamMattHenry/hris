@@ -226,7 +226,14 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
 
 
+  const formatBirthDate = (date: string | Date) => {
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
 
+  return `${year}-${month}-${day}`; // YYYY-MM-DD
+};
 
   // Load PH locations data from JSON file
   useEffect(() => {
@@ -538,18 +545,26 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
   // handle birth date change with age validation
   const handleBirthDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const error = validateBirthDate(e.target.value);
+  const rawDate = e.target.value;
 
-    if (error) {
-      setErrors((prev) => ({
-        ...prev,
-        birthDate: error
-      }));
-    } else {
-      setErrors((prev) => ({ ...prev, birthDate: "" }));
-      setBirthDate(e.target.value);
-    }
-  };
+  const error = validateBirthDate(rawDate);
+
+  if (error) {
+    setErrors((prev) => ({
+      ...prev,
+      birthDate: error
+    }));
+  } else {
+    const formattedDate = formatBirthDate(rawDate);
+
+    setErrors((prev) => ({
+      ...prev,
+      birthDate: ""
+    }));
+
+    setBirthDate(formattedDate);
+  }
+};
 
   // handle contact number input with formatting
   const handleContactNumberChange = (
@@ -841,16 +856,24 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     setValue(formattedValue);
   };
 
+  const validateBirthDate = (date: string) => {
+  const regex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!regex.test(date)) {
+    return "Date must be in YYYY-MM-DD format";
+  }
+  return "";
+};
+
 
   // ─── UI ───────────────────────────────────────
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-0 sm:p-4">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.2 }}
-        className="bg-[#f9ecd7] w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-lg relative flex flex-col"
+        className="bg-[#f9ecd7] w-full max-w-4xl h-full sm:h-auto sm:max-h-[90vh] rounded-none sm:rounded-2xl shadow-lg relative flex flex-col"
       >
         <motion.button
           whileHover={{ scale: 1.2, rotate: 90 }}
@@ -870,12 +893,12 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         )}
 
         {/* Scrollable Content Area */}
-        <div className="flex-1 overflow-y-auto px-8 py-8">
+        <div className="flex-1 overflow-y-auto px-6 sm:px-8 py-8">
           {/* Header */}
           <div className="flex flex-col items-start mb-6 space-y-1">
-            <h2 className="text-2xl font-extrabold text-[#3b2b1c]">Add Employee</h2>
-            <h3 className="text-lg font-[300] text-[#3b2b1c]">
-              {["Basic Information", "Job Information", "Contact Information", "Authentication"][step - 1]}
+            <h2 className="text-xl sm:text-2xl font-extrabold text-[#3b2b1c]">Add Employee</h2>
+            <h3 className="text-base sm:text-lg font-[300] text-[#3b2b1c]">
+              {["Basic Information", "Job Information", "Contact Information", "Document Requirements", "Authentication"][step - 1]}
             </h3>
           </div>
 
@@ -900,6 +923,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                   <FormInput
                     label="First Name:"
                     type="text"
+                    className="col-span-2 md:col-span-1"
                     value={firstName}
                     onChange={(e) => {
                       validateNameFormat(e.target.value, setFirstName);
@@ -909,6 +933,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                   <FormInput
                     label="Last Name:"
                     type="text"
+                    className="col-span-2 md:col-span-1"
                     value={lastName}
                     onChange={(e) => {
                       validateNameFormat(e.target.value, setLastName);
@@ -918,6 +943,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                   <FormInput
                     label="Middle Name:"
                     type="text"
+                    className="col-span-2 md:col-span-1"
                     value={middleName}
                     onChange={(e) => {
                       validateNameFormat(e.target.value, setMiddleName);
@@ -936,6 +962,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                   <FormInput
                     label="Birth Date:"
                     type="date"
+                    className="col-span-2 md:col-span-1"
                     value={birthDate}
                     onChange={handleBirthDateChange}
                     error={errors.birthDate}
@@ -964,10 +991,11 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                     <div className="flex-grow border-t border-[#d6bfa3]"></div>
                   </div>
 
-                  <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-4 gap-6 flex">
 
                     {/* Address */}
                     <FormInput
+                      className="col-span-24 md:col-span-4"
                       label="Address:"
                       type="text"
                       value={homeAddress}
@@ -982,6 +1010,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
                     {/* Region */}
                     <FormSelect
+                      className="col-span-12 md:col-span-2"
                       label="Region:"
                       value={region}
                       onChange={(e) => {
@@ -996,6 +1025,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
                     {/* Province */}
                     <FormSelect
+                      className="col-span-12 md:col-span-2"
                       label="Province:"
                       value={province}
                       onChange={(e) => {
@@ -1009,6 +1039,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
                     {/* City */}
                     <FormSelect
+                      className="col-span-12 md:col-span-2"
                       label="City:"
                       value={city}
                       onChange={(e) => {
@@ -1021,6 +1052,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
                     {/* Barangay */}
                     <FormSelect
+                      className="col-span-12 md:col-span-2"
                       label="Barangay:"
                       value={barangay}
                       onChange={(e) => setBarangay(e.target.value)}
@@ -1113,7 +1145,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
                   <div className="flex flex-col items-center justify-center space-y-3">
                     {/* Profile Initial Circle */}
-                    <div className="w-32 h-32 rounded-full bg-[#800000] flex items-center justify-center text-white text-4xl font-bold">
+                    <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-[#800000] flex items-center justify-center text-white text-3xl md:text-4xl font-bold">
                       {firstName && lastName
                         ? `${firstName[0]}${lastName[0]}`.toUpperCase()
                         : "?"}
@@ -1325,7 +1357,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                           error={dependentErrors.email}
                         />
                         <FormInput
-                          label="Contact Info:"
+                          label="Contact Number:"
                           type="text"
                           value={dependentContactInfo}
                           onChange={(e) => {
@@ -1499,7 +1531,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                         <h4 className="text-[#3b2b1c] font-semibold">Added Dependents:</h4>
                         {dependents.map((dependent) => (
                           <div key={dependent.id} className="bg-[#f5e6d3] p-4 rounded-lg border border-[#e6d2b5]">
-                            <div className="flex justify-between items-start mb-2">
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2">
                               <div>
                                 <p className="font-semibold text-[#3b2b1c]">{dependent.firstName} {dependent.lastName}</p>
                                 <p className="text-xs text-[#6b5344]">
@@ -1510,7 +1542,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                               <button
                                 type="button"
                                 onClick={() => setDependents(dependents.filter(d => d.id !== dependent.id))}
-                                className="text-red-500 hover:text-red-700 font-semibold text-sm"
+                                className="text-red-500 hover:text-red-700 font-semibold text-sm self-start sm:self-auto mt-2 sm:mt-0"
                               >
                                 Remove
                               </button>
@@ -1541,10 +1573,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                 transition={{ duration: 0.3 }}
               >
                 <div className="flex flex-col space-y-4">
-                  <h3 className="text-lg font-semibold text-[#3b2b1c]">
-                    Document Requirements
-                  </h3>
-
                   {errors.documents && (
                     <p className="text-red-500 text-sm mt-2">{errors.documents}</p>
                   )}
@@ -1719,9 +1747,9 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         {/* Footer Section - Progress Bar and Buttons */}
 
 
-        <div className="border-t border-[#e6d2b5] p-8 mt-4r bg-[#f9ecd7] rounded-b-2xl">
+        <div className="border-t border-[#e6d2b5] px-6 sm:px-8 py-6 bg-[#f9ecd7] rounded-b-2xl">
           {/* Progress Bar (Clickable) */}
-          <div className="flex justify-between items-center w-3/4 mx-auto mb-6">
+          <div className="flex justify-between items-start w-full mx-auto mb-6">
             {[
               { id: 1, label: "Basic Information" },
               { id: 2, label: "Job Information" },
@@ -1747,7 +1775,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                 </div>
                 <span
                   className={`text-xs font-medium transition-colors duration-300 ${step >= item.id ? "text-[#4b0b14]" : "text-[#a18256]"
-                    }`}
+                    } hidden sm:block`}
                 >
                   {item.label}
                 </span>

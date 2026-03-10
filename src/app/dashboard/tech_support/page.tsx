@@ -241,8 +241,8 @@ const TechnicalSupportTab = () => {
 
   // ✅ Main Render
   return (
-    <div className="p-6 bg-[#FAF6F1] rounded-xl space-y-6 overflow-hidden h-[90vh] shadow-inner relative font-poppins">
-      <div className="flex justify-between items-center">
+    <div className="p-4 md:p-6 bg-[#FAF6F1] rounded-xl space-y-6 overflow-hidden h-[90vh] shadow-inner relative font-poppins flex flex-col">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
         <div>
           <h2 className="text-2xl font-bold text-[#3D1A0B] tracking-tight">
             Technical Support Tickets
@@ -251,72 +251,47 @@ const TechnicalSupportTab = () => {
             Review and manage system-related employee concerns efficiently.
           </p>
         </div>
-        <div className="flex items-center gap-4">
-          <SearchBar
-            placeholder="Search Ticket"
-            value={searchTerm}
-            onChange={handleSearch}
-          />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full md:w-auto">
+          <div className="w-full sm:w-auto">
+            <SearchBar
+              placeholder="Search Ticket"
+              value={searchTerm}
+              onChange={handleSearch}
+              className="w-full"
+            />
+          </div>
           <ActionButton label="Refresh" icon={RefreshCw} onClick={fetchTickets} />
         </div>
       </div>
 
-      <div className="border border-[#E8D9C4] rounded-xl shadow-md overflow-hidden bg-white">
-        <div className="grid grid-cols-[80px_1fr_1fr_120px_100px] md:grid-cols-[100px_1.5fr_1.5fr_1.5fr_150px_120px_100px] bg-[#3D1A0B] text-[#FFF8EE] font-semibold px-4 md:px-6 py-3 sticky top-0 z-10">
+      <div className="border border-[#E8D9C4] rounded-xl shadow-md overflow-hidden bg-white flex flex-col flex-1 min-h-0">
+        <div className="hidden md:grid md:grid-cols-[100px_1.5fr_1.5fr_1.5fr_150px_120px_100px] bg-[#3D1A0B] text-[#FFF8EE] font-semibold px-6 py-3 sticky top-0 z-10 shrink-0">
           <div>ID</div>
           <div>Employee</div>
           <div>Email</div>
-          <div className="hidden md:block">Concern</div>
-          <div className="hidden md:block">Date</div>
+          <div>Concern</div>
+          <div>Date</div>
           <div>Status</div>
           <div className="text-center">Action</div>
         </div>
 
-        <div className={currentTickets.length > 10 ? "max-h-[500px] overflow-y-auto" : ""}>
+        <div className="overflow-y-auto flex-1">
           {currentTickets.length === 0 ? (
             <div className="text-center py-12 text-gray-500">No tickets found</div>
           ) : (
             currentTickets.map((ticket, index) => (
               <div
                 key={ticket.ticket_id}
-                className={`grid grid-cols-[80px_1fr_1fr_120px_100px] md:grid-cols-[100px_1.5fr_1.5fr_1.5fr_150px_120px_100px] items-center px-4 md:px-6 py-4 border-b border-[#F3E5CF] ${
+                className={`grid grid-cols-2 gap-y-3 p-4 md:grid-cols-[100px_1.5fr_1.5fr_1.5fr_150px_120px_100px] md:gap-y-0 md:px-6 md:py-4 items-center border-b border-[#F3E5CF] ${
                   index % 2 === 0 ? "bg-[#FFFBF5]" : "bg-[#FFF4E6]"
                 } hover:bg-[#FFF0DC] transition-colors duration-150`}
               >
-                <div className="font-medium text-[#3D1A0B] truncate">
+                <div className="font-medium text-[#3D1A0B] truncate order-1 md:order-none">
+                  <span className="md:hidden text-xs text-gray-500 mr-2">ID:</span>
                   {ticket.ticket_code}
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 flex items-center justify-center rounded-full bg-[#3D1A0B] text-[#FFF8EE] font-semibold">
-                    {`${ticket.first_name} ${ticket.last_name}`
-                      .split(" ")
-                      .map((n: string) => n[0])
-                      .join("")
-                      .slice(0, 2)
-                      .toUpperCase()}
-                  </div>
-                  <div>
-                    <div className="font-semibold text-[#3D1A0B]">
-                      {ticket.first_name} {ticket.last_name}
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      {ticket.position_name || "N/A"}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="text-gray-700 truncate">{ticket.email || "N/A"}</div>
-                <div className="hidden md:block text-gray-700 truncate">
-                  {ticket.title}
-                </div>
-                <div className="hidden md:block">
-                  <span className="px-3 py-1 bg-[#F3E9DA] text-[#3D1A0B] rounded-full text-sm">
-                    {formatDate(ticket.created_at)}
-                  </span>
-                </div>
-
-                <div>
+                <div className="order-2 justify-self-end md:justify-self-start md:order-none">
                   <span
                     className={`px-4 py-1 rounded-full text-sm font-medium ${getStatusColor(
                       ticket.status
@@ -326,13 +301,50 @@ const TechnicalSupportTab = () => {
                   </span>
                 </div>
 
-                <div className="flex justify-center">
+                <div className="flex items-center gap-3 order-3 col-span-2 md:col-span-1 md:order-none">
+                  <div className="w-10 h-10 flex items-center justify-center rounded-full bg-[#3D1A0B] text-[#FFF8EE] font-semibold shrink-0">
+                    {`${ticket.first_name} ${ticket.last_name}`
+                      .split(" ")
+                      .map((n: string) => n[0])
+                      .join("")
+                      .slice(0, 2)
+                      .toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-semibold text-[#3D1A0B] truncate">
+                      {ticket.first_name} {ticket.last_name}
+                    </div>
+                    <div className="text-sm text-gray-600 truncate">
+                      {ticket.position_name || "N/A"}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-gray-700 truncate order-4 col-span-2 md:col-span-1 md:order-none">
+                  <span className="md:hidden text-xs text-gray-500 mr-2">Email:</span>
+                  {ticket.email || "N/A"}
+                </div>
+                
+                <div className="text-gray-700 truncate order-5 col-span-2 md:col-span-1 md:order-none">
+                  <span className="md:hidden text-xs text-gray-500 mr-2">Concern:</span>
+                  {ticket.title}
+                </div>
+                
+                <div className="order-6 col-span-2 md:col-span-1 md:order-none">
+                  <span className="md:hidden text-xs text-gray-500 mr-2">Date:</span>
+                  <span className="px-3 py-1 bg-[#F3E9DA] text-[#3D1A0B] rounded-full text-sm">
+                    {formatDate(ticket.created_at)}
+                  </span>
+                </div>
+
+                <div className="flex justify-end md:justify-center order-7 col-span-2 md:col-span-1 md:order-none">
                   <button
                     onClick={() => handleView(ticket)}
-                    className="p-2 hover:bg-[#F3E5CF] rounded-lg transition"
+                    className="p-2 hover:bg-[#F3E5CF] rounded-lg transition flex items-center gap-2 md:block"
                     title="View Ticket"
                     aria-label="View ticket details"
                   >
+                    <span className="md:hidden text-sm font-medium text-[#3D1A0B]">View Details</span>
                     <Eye className="w-5 h-5 text-[#3D1A0B]" />
                   </button>
                 </div>
@@ -341,7 +353,7 @@ const TechnicalSupportTab = () => {
           )}
         </div>
 
-        <div className="flex justify-center items-center px-4 md:px-6 py-3 bg-[#F3E5CF]">
+        <div className="flex justify-center items-center px-4 md:px-6 py-3 bg-[#F3E5CF] shrink-0">
           <div className="flex items-center gap-2">
             <button
               onClick={() => goToPage(currentPage - 1)}
@@ -378,7 +390,7 @@ const TechnicalSupportTab = () => {
         {showModal && selectedTicket && (
           <motion.div
             key={`ticket-details-${selectedTicket.ticket_id}`}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm p-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -388,7 +400,7 @@ const TechnicalSupportTab = () => {
             aria-describedby="modal-description"
           >
             <motion.div
-              className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg mx-4 relative border border-[#EAD7C4]"
+              className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg relative border border-[#EAD7C4] max-h-[90vh] overflow-y-auto"
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
@@ -497,7 +509,7 @@ const TechnicalSupportTab = () => {
           {showResolveModal && selectedTicket && (
             <motion.div
               key={`ticket-resolve-${selectedTicket.ticket_id}`}
-              className="fixed inset-0 bg-black/60 flex items-center justify-center z-60"
+              className="fixed inset-0 bg-black/60 flex items-center justify-center z-60 p-4"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -506,7 +518,7 @@ const TechnicalSupportTab = () => {
               aria-labelledby="resolve-title"
             >
               <motion.div
-                className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4 relative border border-[#EAD7C4]"
+                className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md relative border border-[#EAD7C4]"
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}

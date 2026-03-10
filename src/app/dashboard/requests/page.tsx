@@ -254,19 +254,24 @@ export default function RequestsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#fff7ec] p-6 text-[#3b2b1c] font-poppins">
+    <div className="min-h-screen bg-[#fff7ec] p-4 md:p-6 text-[#3b2b1c] font-poppins">
       {/* Header */}
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
         <h1 className="text-2xl font-extrabold">Requests</h1>
 
-        <div className="flex gap-2">
-          <SearchBar placeholder="Search Request" onChange={setSearchRequest} value={searchRequest} />
+        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+          <SearchBar
+            placeholder="Search Request"
+            onChange={setSearchRequest}
+            value={searchRequest}
+            className="w-full"
+          />
 
           {/* Refresh Button */}
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="px-2 py-2 rounded-lg bg-[#3b2b1c] hover:bg-[#3b2b1c]-600 disabled:bg-gray-400 text-white transition flex items-center gap-2"
+            className="px-2 py-2 rounded-lg bg-[#3b2b1c] hover:bg-[#3b2b1c]-600 disabled:bg-gray-400 text-white transition flex items-center justify-center gap-2"
             title="Refresh leave requests"
           >
             <RotateCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -274,7 +279,12 @@ export default function RequestsPage() {
 
           {/* Add Request button - Disabled for supervisors */}
           {!isSupervisor && (
-            <ActionButton label="Add Request" onClick={() => setIsAddModalOpen(true)} icon={Plus} />
+            <ActionButton
+              label="Add Request"
+              onClick={() => setIsAddModalOpen(true)}
+              icon={Plus}
+              className="w-full sm:w-auto justify-center"
+            />
           )}
         </div>
       </div>
@@ -312,7 +322,7 @@ export default function RequestsPage() {
 
           {isFilterOpen && (
             <div
-              className="absolute flex flex-column left-4 top-12 bg-white gap-4 rounded-lg shadow-lg p-4 z-[9999] w-80 leave-dropdown"
+              className="absolute flex flex-col left-4 top-14 bg-white gap-4 rounded-lg shadow-lg p-4 z-[9999] w-[calc(100%-2rem)] max-w-xs leave-dropdown"
             >
               <div className="mb-4">
                 <label className="block text-sm font-semibold mb-2">Leave Type</label>
@@ -363,9 +373,9 @@ export default function RequestsPage() {
         </div>
 
         {/* Table */}
-        <div className="overflow-x-auto z-50">
-          <div className="overflow-x-auto overflow-y-auto max-h-[500px] h-200 shadow-sm z-50">
-            <table className="w-full text-sm">
+        <div className="overflow-y-auto max-h-[500px]">
+          {/* Desktop Table */}
+          <table className="hidden md:table w-full text-sm">
               <thead className="sticky top-0 z-10 bg-[#3b2b1c] text-white">
                 <tr>
                   <th className="py-4 px-4 text-left">Code</th>
@@ -452,10 +462,68 @@ export default function RequestsPage() {
                 ))}
               </tbody>
             </table>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden grid grid-cols-1 gap-4 p-4">
+            {currentLeaves.map((leave) => (
+              <div key={leave.leave_id} className="bg-[#faeddc] p-4 rounded-lg shadow-sm border border-[#e2d5c3] relative">
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <h3 className="font-semibold text-[#3b2b1c]">{leave.leave_code}</h3>
+                    <p className="text-sm">{leave.first_name} {leave.last_name}</p>
+                  </div>
+                  <div className="relative">
+                    <button
+                      onClick={() => setSelectedMenu(selectedMenu === leave.leave_id ? null : leave.leave_id)}
+                      className="p-2 -mr-2 -mt-2 rounded-full hover:bg-[#e8d6bb] transition menu-button"
+                    >
+                      <MoreVertical size={18} />
+                    </button>
+                    {selectedMenu === leave.leave_id && (
+                      <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg z-50 leave-dropdown">
+                        <button
+                          onClick={() => handleView(leave)}
+                          className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm"
+                        >
+                          View
+                        </button>
+                        {!isSupervisor && (
+                          <button
+                            onClick={() => {
+                              handleDelete(leave.leave_id);
+                              setSelectedMenu(null);
+                            }}
+                            className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm text-red-600"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Type:</span>
+                    <span className="font-medium text-right">{LEAVE_TYPE_LABELS[leave.leave_type]}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Dates:</span>
+                    <span className="font-medium">{new Date(leave.start_date).toLocaleDateString()} - {new Date(leave.end_date).toLocaleDateString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500">Status:</span>
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${leave.status === "approved" ? "bg-green-100 text-green-800" : leave.status === "rejected" ? "bg-red-100 text-red-800" : leave.status === "hr_approved" ? "bg-blue-100 text-blue-800" : leave.status === "supervisor_approved" ? "bg-blue-100 text-blue-800" : "bg-yellow-100 text-yellow-800"}`}>
+                      {leave.status === "hr_approved" ? "HR Pre-Approved" : leave.status === "pending" ? "Pending HR Review" : leave.status === "supervisor_approved" ? "Pending HR Review" : leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
 
-
-          {filteredLeaves.length === 0 && (
+          {currentLeaves.length === 0 && (
             <div className="text-center py-6 text-[#7a5c4a]/70">
               No {activeTab.toLowerCase()} found.
             </div>

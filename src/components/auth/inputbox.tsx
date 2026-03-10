@@ -1,4 +1,8 @@
+"use client";
+
 import React from "react";
+
+import { useId } from "react";
 
 export default function InputBox({
   label,
@@ -12,7 +16,13 @@ export default function InputBox({
   value: string;
   placeholder?: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-}) {
+}) 
+
+
+
+{
+  const id = useId();
+  
   return (
     <div>
       <label className="block text-sm text-[#FFF2E0] mb-2 font-poppins">{label}</label>

@@ -113,10 +113,10 @@ const ActivityLogTab = () => {
   }, [searchTerm, date, sortBy, sortOrder]);
 
   return (
-    <div className="h-screen bg-[#fff7ec] p-8 flex flex-col text-gray-800 font-poppins overflow-hidden">
+    <div className="min-h-screen bg-[#fff7ec] p-4 md:p-8 flex flex-col text-gray-800 font-poppins">
       {/* 🔸 Header & Filters Section (non-scrollable) */}
       <div className="flex-shrink-0 space-y-6">
-        {/* Header */}
+        {/* Header */} 
         <div className="flex flex-col gap-4">
           <h2 className="text-2xl font-semibold text-[#4B0B14]">Activity Log</h2>
           <div className="flex items-center justify-between text-[#4B0B14] text-sm font-medium">
@@ -128,19 +128,19 @@ const ActivityLogTab = () => {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap justify-between items-center bg-[#FFF2E0] p-4 rounded-lg shadow-sm gap-3">
-          <div className="relative">
+        <div className="flex flex-col md:flex-row flex-wrap justify-between items-stretch md:items-center bg-[#FFF2E0] p-4 rounded-lg shadow-sm gap-3">
+          <div className="relative w-full md:w-auto md:flex-grow">
             <SearchBar
               placeholder="Search activity or name..."
               value={searchTerm}
               onChange={setSearchTerm}
-              className="bg-white"
+              className="bg-white w-full"
             />
           </div>
 
           <input
             type="date"
-            className="px-4 py-2 rounded-lg bg-white text-gray-500"
+            className="px-4 py-2 rounded-lg bg-white text-gray-500 w-full md:w-auto"
             value={date}
             onChange={(e) => setDate(e.target.value)}
             max={today}
@@ -150,7 +150,7 @@ const ActivityLogTab = () => {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="px-3 py-2 rounded-lg text-gray-500 bg-white text-sm"
+              className="px-3 py-2 rounded-lg text-gray-500 bg-white text-sm w-full sm:w-auto"
             >
               <option value="log_id">Sort by Log ID</option>
               <option value="date">Sort by Date</option>
@@ -159,14 +159,15 @@ const ActivityLogTab = () => {
             <ActionButton
               label={sortOrder === "asc" ? "Descending ↓" : "Ascending ↑"}
               onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+              className="w-full sm:w-auto justify-center"
             />
           </div>
         </div>
       </div>
 
       {/* 🔸 Logs Table Section (scrollable only here) */}
-      <div className="flex-1 overflow-y-auto mt-4 rounded-xl shadow-sm bg-[#FFF9F1]">
-        <div className="grid grid-cols-[120px_150px_1fr_2fr_200px] bg-[#4B0B14] text-[#FFF2E0] px-6 py-4 font-medium sticky top-0 z-10">
+      <div className="flex-1 overflow-y-auto mt-4 rounded-xl shadow-sm bg-[#FFF9F1] min-h-[400px]">
+        <div className="hidden md:grid grid-cols-[120px_150px_1fr_2fr_200px] bg-[#4B0B14] text-[#FFF2E0] px-6 py-4 font-medium sticky top-0 z-10">
           <div>Log ID</div>
           <div>Employee Code</div>
           <div>Employee</div>
@@ -179,11 +180,11 @@ const ActivityLogTab = () => {
         ) : currentActivities.length > 0 ? (
           currentActivities.map((activity, index) => (
             <div
-              key={activity.log_id}
-              className={`grid grid-cols-[120px_150px_1fr_2fr_200px] px-6 py-4 ${index % 2 === 0 ? "bg-[#FFF9F1]" : "bg-[#FFF2E0]"
+              key={`desktop-${activity.log_id}`}
+              className={`hidden md:grid grid-cols-[120px_150px_1fr_2fr_200px] px-6 py-4 items-start ${index % 2 === 0 ? "bg-[#FFF9F1]" : "bg-[#FFF2E0]"
                 }`}
             >
-              <div className="font-medium">{activity.log_id}</div>
+              <div className="font-medium text-sm">{activity.log_id}</div>
               <div>{activity.employee_code}</div>
               <div>
                 {activity.first_name} {activity.last_name}
@@ -228,7 +229,7 @@ const ActivityLogTab = () => {
           </button>
 
           {/* ✅ Truncated pagination numbers */}
-          <div className="flex items-center gap-1 overflow-hidden truncate">
+          <div className="flex items-center gap-1">
             {Array.from({ length: totalPages }, (_, i) => i + 1)
               .slice(
                 Math.max(currentPage - 2, 0),
@@ -238,7 +239,7 @@ const ActivityLogTab = () => {
                 <button
                   key={num}
                   onClick={() => goToPage(num)}
-                  className={`px-3 py-1 rounded text-sm truncate ${currentPage === num
+                  className={`px-3 py-1 rounded truncate ${currentPage === num
                       ? "bg-[#3b2b1c] text-white"
                       : "text-[#3b2b1c] hover:bg-[#EAD7C4]"
                     }`}
@@ -249,7 +250,7 @@ const ActivityLogTab = () => {
 
             {/* Ellipsis if many pages */}
             {totalPages > 5 && currentPage < totalPages - 2 && (
-              <span className="px-1 text-[#3b2b1c] truncate">...</span>
+              <span className="px-1 text-[#3b2b1c]">...</span>
             )}
           </div>
 

@@ -59,8 +59,8 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-orange-50 p-8 font-poppins">
       <div className="max-w-7xl mx-auto">
-        {/* Tabs */}
-        <div className="mb-8 shadow-lg bg-[#4B0B14]">
+ {/* Tabs */}
+ <div className="mb-4 md:mb-8 shadow-lg bg-[#4B0B14]">
           <div className="flex border-b border-[#7a2a2f]/30">
             {tabs.map((tab) => {
               const isActive = activeTab === tab.id;
@@ -85,7 +85,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Tab Content */}
-        <div className="bg-[#fff7ec] p-8 max-h-[100vh]">
+ <div className="bg-[#fff7ec] p-4 md:p-8 max-h-[100vh]">
           {activeTab === "about" && <AboutUserTab />}
           {activeTab === "auth" && <AuthenticationTab />}
         </div>

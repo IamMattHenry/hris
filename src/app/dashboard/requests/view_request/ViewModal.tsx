@@ -121,16 +121,16 @@ export default function ViewLeaveModal({
       : 'Rejected';
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div
-        className="bg-[#fdf3e2] w-full max-w-md p-8 rounded-2xl shadow-lg relative text-[#3b2b1c]"
+        className="bg-[#fdf3e2] w-full max-w-md p-6 sm:p-8 rounded-2xl shadow-lg relative text-[#3b2b1c] max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <button onClick={onClose} className="absolute top-4 right-4 text-[#3b2b1c] hover:opacity-70">
           <X size={24} />
         </button>
 
-        <h2 className="text-2xl font-semibold mb-6">Leave Request Details</h2>
+        <h2 className="text-xl sm:text-2xl font-semibold mb-4 sm:mb-6">Leave Request Details</h2>
 
         <div className="space-y-4 mb-6">
           <InfoBox label="Code" value={leave.leave_code} />

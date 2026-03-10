@@ -218,28 +218,27 @@ export default function AttendanceSystemPage() {
   };
 
   return (
-    <section className="bg-[#fff7ec] rounded-2xl shadow-2xl w-full font-poppins max-w-4xl px-10 py-8 mx-auto">
+    <section className="bg-[#fff7ec] rounded-2xl shadow-2xl w-full font-poppins max-w-4xl px-4 sm:px-10 py-8 mx-auto">
       {/* Tabs Header */}
-      <div className="flex justify-between items-center mb-5">
+      <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-5">
         <div>
-          <h3 className="text-3xl font-extrabold text-[#3b2b1c]">
+          <h3 className="text-2xl sm:text-3xl font-extrabold text-[#3b2b1c]">
             {activeTab === "FINGERPRINT" ? "FINGERPRINT ATTENDANCE" : "QR CODE ATTENDANCE"}
           </h3>
-          <p className="text-[#3b2b1c]/80 text-sm">{currentDate}</p>
+          <p className="text-[#3b2b1c]/80 text-sm mt-1">{currentDate}</p>
         </div>
 
         {/* Tab Buttons */}
-        <div className="flex bg-[#f0e1cc] rounded-lg overflow-hidden">
+        <div className="flex bg-[#f0e1cc] rounded-lg overflow-hidden self-start md:self-auto">
           <button
             onClick={() => setActiveTab("FINGERPRINT")}
-            className={`px-5 py-2 font-semibold transition ${activeTab === "FINGERPRINT" ? "bg-[#8b7355] text-white" : "text-[#3b2b1c] hover:bg-[#e7d5b9]"}`}
+            className={`px-4 sm:px-5 py-2 font-semibold transition text-sm sm:text-base ${activeTab === "FINGERPRINT" ? "bg-[#8b7355] text-white" : "text-[#3b2b1c] hover:bg-[#e7d5b9]"}`}
           >
             Fingerprint
           </button>
           <button
             onClick={() => setActiveTab("QR")}
-
-            className={`px-5 py-2 font-semibold transition ${activeTab === "QR" ? "bg-[#8b7355] text-white" : "text-[#3b2b1c] hover:bg-[#e7d5b9]"}`}
+            className={`px-4 sm:px-5 py-2 font-semibold transition text-sm sm:text-base ${activeTab === "QR" ? "bg-[#8b7355] text-white" : "text-[#3b2b1c] hover:bg-[#e7d5b9]"}`}
           >
             QR Code
           </button>
@@ -247,14 +246,14 @@ export default function AttendanceSystemPage() {
       </div>
 
       {/* Status Line */}
-      <div className="flex items-center gap-2 mb-5 text-[#8b7355] text-lg">
+      <div className="flex items-center gap-2 mb-5 text-sm sm:text-lg text-[#8b7355]">
         {error ? (
-          <span className="text-red-700 font-semibold">❌ {error}</span>
+          <span className="text-red-700 font-semibold flex items-center gap-2">❌ {error}</span>
         ) : successMessage ? (
-          <span className="text-green-700 font-semibold">✅ {successMessage}</span>
+          <span className="text-green-700 font-semibold flex items-center gap-2">✅ {successMessage}</span>
         ) : activeTab === "FINGERPRINT" && !isConnected ? (
           <>
-            <Loader2 className="w-6 h-6 animate-spin text-[#b97a5b]" />
+            <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin text-[#b97a5b]" />
             <span>Connecting to fingerprint sensor...</span>
           </>
         ) : (
@@ -268,8 +267,8 @@ export default function AttendanceSystemPage() {
       {/* Tab Content */}
       {activeTab === "FINGERPRINT" ? (
         // Fingerprint Tab
-        <div className="flex gap-8 items-start">
-          <div className="flex-1 bg-gray-900 text-green-400 rounded-xl p-6 h-96 overflow-y-auto font-mono text-sm">
+        <div className="flex flex-col lg:flex-row gap-8 items-start">
+          <div className="flex-1 bg-gray-900 text-green-400 rounded-xl p-4 sm:p-6 h-80 sm:h-96 overflow-y-auto font-mono text-sm w-full">
             <h4 className="text-white border-b border-gray-700 pb-2 mb-4 flex items-center gap-2">
               <Fingerprint className="w-5 h-5" /> Live Sensor Log
             </h4>
@@ -281,28 +280,27 @@ export default function AttendanceSystemPage() {
             ) : (
               statusLog.map((log, i) => (
                 <div key={i} className="mb-1">
-
-			          <span className="text-gray-500 text-xs mr-2">{new Date(log.timestamp).toLocaleTimeString()}</span>
-			          <span>{log.message}</span>
-			        </div>
-			      ))
-			    )}
+                  <span className="text-gray-500 text-xs mr-2">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                  <span>{log.message}</span>
+                </div>
+              ))
+            )}
           </div>
 
-          <div className="w-80 bg-gradient-to-br from-[#8b7355] to-[#b97a5b] rounded-xl shadow-2xl p-8 text-white text-center">
-            <Fingerprint className={`w-32 h-32 mx-auto mb-4 ${isConnected ? "animate-pulse" : "opacity-50"}`} />
+          <div className="w-full lg:w-80 bg-gradient-to-br from-[#8b7355] to-[#b97a5b] rounded-xl shadow-2xl p-8 text-white text-center">
+            <Fingerprint className={`w-24 h-24 sm:w-32 sm:h-32 mx-auto mb-4 ${isConnected ? "animate-pulse" : "opacity-50"}`} />
             <h4 className="text-xl font-bold">{isConnected ? "Sensor Ready" : "Connecting..."}</h4>
             <p className="text-sm opacity-90">{isConnected ? "Place finger on sensor" : "Please wait..."}</p>
           </div>
         </div>
       ) : (
         // QR Tab
-        <div className="flex gap-8 items-start">
-          <div className="flex flex-col items-center justify-center bg-[#f4eadb] rounded-xl shadow-inner p-4 min-h-[300px]">
+        <div className="flex flex-col lg:flex-row gap-8 items-start">
+          <div className="w-full lg:w-auto flex flex-col items-center justify-center bg-[#f4eadb] rounded-xl shadow-inner p-4 min-h-[300px]">
             <QRCodeScanner key="qr-scanner" onScan={(value) => setQrValue(value)} isActive={activeTab === "QR" && !showClockOutConfirm} />
           </div>
 
-          <div className="flex-1 space-y-5">
+          <div className="flex-1 space-y-5 w-full">
             {employeeData ? (
               <>
                 <div className="border rounded-xl border-[#e2cfa8] p-4 mb-5">
@@ -343,7 +341,6 @@ export default function AttendanceSystemPage() {
         confirmText="Clock Out"
         cancelText="Cancel"
       />
-
     </section>
   );
 }

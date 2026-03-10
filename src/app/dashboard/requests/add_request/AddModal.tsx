@@ -194,11 +194,11 @@ export default function AddLeaveModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
       <div
-        className="bg-[#fdf3e2] w-full max-w-md p-8 rounded-2xl shadow-lg relative text-[#3b2b1c]"
+        className="bg-[#fdf3e2] w-full max-w-md p-6 sm:p-8 rounded-2xl shadow-lg relative text-[#3b2b1c] max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -208,7 +208,7 @@ export default function AddLeaveModal({
           <X size={24} />
         </button>
 
-        <h2 className="text-2xl font-semibold mb-6">Leave Request</h2>
+        <h2 className="text-xl sm:text-2xl font-semibold mb-6">Leave Request</h2>
 
         <div className="space-y-4">
           {/* Leave Type */}

@@ -5,6 +5,7 @@ import {
   UserIcon,
   Cog6ToothIcon,
   ArrowRightOnRectangleIcon,
+  Bars3Icon,
 } from "@heroicons/react/24/outline";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -19,6 +20,8 @@ interface DashboardHeaderProps {
   adminName?: string;
   adminType?: string;
   dropdownItems?: DropdownItem[];
+  sidebarOpen: boolean;
+  setSidebarOpen: (open: boolean) => void;
 }
 
 export default function Header({
@@ -26,6 +29,8 @@ export default function Header({
   adminName = "Admin Name",
   adminType = "Admin Type",
   dropdownItems,
+  sidebarOpen,
+  setSidebarOpen,
 }: DashboardHeaderProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -75,28 +80,37 @@ export default function Header({
   const items = dropdownItems || defaultDropdown;
 
   return (
-    <header className="bg-[#FDF6EC]">
-      <div className="max-w-8xl mx-auto px-8 py-6 flex items-center justify-between">
-        {/* Left: Title */}
-        <div className="flex items-center gap-6">
-          <h1 className="text-4xl font-poppins font-[400] text-[#3C1E1E]">{titleHeader}</h1>
+    <header className="bg-[#FDF6EC] sticky top-0 z-30">
+      <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+        {/* Left: Title and Toggle */}
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="lg:hidden text-gray-700"
+            aria-controls="sidebar"
+            aria-expanded={sidebarOpen}
+          >
+            <span className="sr-only">Open sidebar</span>
+            <Bars3Icon className="w-6 h-6" />
+          </button>
+          <h1 className="text-2xl md:text-3xl font-poppins font-[400] text-[#3C1E1E]">{titleHeader}</h1>
         </div>
 
         {/* Right: User Dropdown */}
         <div ref={dropdownRef} className="relative">
           <button
             onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="flex items-center gap-2 bg-[#FFF2E0] text-[#4B0B14] px-8 py-2 rounded-lg shadow hover:shadow-md transition cursor-pointer"
+            className="flex items-center gap-2 bg-[#FFF2E0] text-[#4B0B14] px-4 py-2 rounded-lg shadow hover:shadow-md transition cursor-pointer"
           >
             <div className="w-8 h-8 bg-[#4B0B14] rounded-full text-white flex items-center justify-center font-semibold">
               {adminName ? adminName[0].toUpperCase() : "A"}
             </div>
             <div className="flex flex-col text-left">
-              <span className="font-semibold font-poppins">{adminName}</span>
+              <span className="font-semibold font-poppins text-sm">{adminName}</span>
               <span className="text-xs text-gray-500 font-poppins">{adminType}</span>
             </div>
             <svg
-              className={`w-4 h-4 ml-2 transition-transform ${dropdownOpen ? "rotate-180" : ""}`}
+              className={`w-4 h-4 ml-1 transition-transform ${dropdownOpen ? "rotate-180" : ""}`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"

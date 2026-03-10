@@ -336,27 +336,27 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen p-6 font-poppins">
+    <div className="min-h-screen p-4 md:p-6 font-poppins">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Top Summary Bar */}
-        <div className="bg-[#faf5ed] rounded-xl shadow-sm p-6 flex justify-around items-center border border-[#e8dcc8]">
+        <div className="bg-[#faf5ed] rounded-xl shadow-sm p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 border border-[#e8dcc8]">
           <div className="text-center">
-            <p className="text-3xl font-bold text-gray-800">{stats?.on_duty || 0}</p>
-            <p className="text-sm text-gray-600 mt-1">Present</p>
+            <p className="text-2xl md:text-3xl font-bold text-gray-800">{stats?.on_duty || 0}</p>
+            <p className="text-xs md:text-sm text-gray-600 mt-1">Present</p>
           </div>
           <div className="text-center">
-            <p className="text-3xl font-bold text-gray-800">{stats?.absent || 0}</p>
-            <p className="text-sm text-gray-600 mt-1">Absents</p>
+            <p className="text-2xl md:text-3xl font-bold text-gray-800">{stats?.absent || 0}</p>
+            <p className="text-xs md:text-sm text-gray-600 mt-1">Absents</p>
           </div>
           <div className="text-center">
-            <p className="text-3xl font-bold text-gray-800">{stats?.on_leave || 0}</p>
-            <p className="text-sm text-gray-600 mt-1">On Leave</p>
+            <p className="text-2xl md:text-3xl font-bold text-gray-800">{stats?.on_leave || 0}</p>
+            <p className="text-xs md:text-sm text-gray-600 mt-1">On Leave</p>
           </div>
           <div className="text-center">
-            <p className="text-3xl font-bold text-gray-800">{stats?.late || 0}</p>
-            <p className="text-sm text-gray-600 mt-1">Late</p>
+            <p className="text-2xl md:text-3xl font-bold text-gray-800">{stats?.late || 0}</p>
+            <p className="text-xs md:text-sm text-gray-600 mt-1">Late</p>
           </div>
-          <div className="text-center">
+          <div className="text-center col-span-2 md:col-span-1">
             {(() => {
               const isSupervisor = user?.role === 'supervisor';
               const isSuperadmin = user?.role === 'superadmin';
@@ -370,8 +370,8 @@ export default function Dashboard() {
                 : 'Pending Requests';
               return (
                 <>
-                  <p className="text-3xl font-bold text-gray-800">{count}</p>
-                  <p className="text-sm text-gray-600 mt-1">{label}</p>
+                  <p className="text-2xl md:text-3xl font-bold text-gray-800">{count}</p>
+                  <p className="text-xs md:text-sm text-gray-600 mt-1">{label}</p>
                 </>
               );
             })()}
@@ -391,8 +391,8 @@ export default function Dashboard() {
                 <p className="text-xs text-gray-500 mt-2">
                   {stats?.total_positions || 0} Available Positions In {stats?.total_departments || 0} Departments
                 </p>
-                <div className="absolute top-6 right-6">
-                  <svg className="w-16 h-16" viewBox="0 0 100 100">
+                <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
+                  <svg className="w-12 h-12 sm:w-16 sm:h-16" viewBox="0 0 100 100">
                     <circle cx="50" cy="50" r="40" fill="none" stroke="#e8dcc8" strokeWidth="8" />
                     <circle
                       cx="50"
@@ -416,8 +416,8 @@ export default function Dashboard() {
                 <p className="text-xs text-gray-500 mt-2">
                   Out Of {stats?.on_duty || 0} Scheduled Staff
                 </p>
-                <div className="absolute top-6 right-6">
-                  <svg className="w-16 h-16" viewBox="0 0 100 100">
+                <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
+                  <svg className="w-12 h-12 sm:w-16 sm:h-16" viewBox="0 0 100 100">
                     <circle cx="50" cy="50" r="40" fill="none" stroke="#e8dcc8" strokeWidth="8" />
                     <circle
                       cx="50"
@@ -445,8 +445,8 @@ export default function Dashboard() {
               >
                 View Pending Requests <ChevronRight size={16} className="ml-1" />
               </button>
-              <div className="absolute top-6 right-6">
-                <svg className="w-16 h-16" viewBox="0 0 100 100">
+              <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
+                <svg className="w-12 h-12 sm:w-16 sm:h-16" viewBox="0 0 100 100">
                   <circle cx="50" cy="50" r="40" fill="none" stroke="#e8dcc8" strokeWidth="8" />
                   <circle
                     cx="50"
@@ -473,8 +473,8 @@ export default function Dashboard() {
             {/* Gender Card */}
             <div className="bg-[#faf5ed] rounded-xl shadow-sm p-6 border border-[#e8dcc8]">
               <h3 className="text-sm font-medium text-gray-600 mb-4">Gender</h3>
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex-1 w-full">
                   {genderData.map((item, index) => (
                     <div key={index} className="flex items-center mb-3">
                       <div
@@ -486,8 +486,8 @@ export default function Dashboard() {
                     </div>
                   ))}
                 </div>
-                <div className="ml-8">
-                  <div className="relative w-32 h-2 bg-gray-200 rounded-full overflow-hidden flex">
+                <div className="w-full sm:w-auto sm:ml-8">
+                  <div className="relative w-full h-2 bg-gray-200 rounded-full overflow-hidden flex">
                     {genderData.map((item, index) => (
                       <div
                         key={index}
@@ -504,7 +504,7 @@ export default function Dashboard() {
 
             {/* Weekly Attendance */}
             <div className="bg-[#faf5ed] rounded-xl shadow-sm p-6 border border-[#e8dcc8]">
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-4 gap-2">
                 <div>
                   <h3 className="text-md font-medium text-gray-600">Weekly Attendance</h3>
                   <p className="text-xs text-gray-500">{getCurrentPHDate()}</p>
@@ -518,7 +518,7 @@ export default function Dashboard() {
               </div>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={weeklyAttendanceData} barGap={4}>
-                  <XAxis dataKey="day" axisLine={false} tickLine={false} />
+                  <XAxis dataKey="day" axisLine={false} tickLine={false} fontSize={12} />
                   <YAxis hide />
                   <Tooltip />
                   <Bar dataKey="count" name="This Week" fill="#8b4513" radius={[4, 4, 0, 0]} />
@@ -538,7 +538,7 @@ export default function Dashboard() {
 
             {/* Donut Chart */}
             <div className="flex justify-center mb-6">
-              <div className="relative w-48 h-48">
+              <div className="relative w-40 h-40 sm:w-48 sm:h-48">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -547,8 +547,8 @@ export default function Dashboard() {
                       nameKey="name"
                       cx="50%"
                       cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
+                      innerRadius={50}
+                      outerRadius={70}
                       paddingAngle={2}
                     >
                       {departmentData.map((entry, index) => (
@@ -579,35 +579,28 @@ export default function Dashboard() {
                   </PieChart>
                 </ResponsiveContainer>
 
-                {/* Center label */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-3xl font-bold text-gray-800">
-                    {departmentData.length > 0 ? departmentData[0].percentage : 0}%
-                  </span>
-                </div>
+                
               </div>
             </div>
 
-
-        
             {/* Department List */}
             <div className="space-y-3">
               {departmentData.map((dept, index) => (
-                <div key={index} className="flex items-center justify-between text-sm">
+                <div key={index} className="flex items-center justify-between text-xs sm:text-sm">
                   <div className="flex items-center flex-1 min-w-0">
                     <div
-                      className="w-3 h-3 rounded-full mr-3 shrink-0"
+                      className="w-3 h-3 rounded-full mr-2 sm:mr-3 shrink-0"
                       style={{ backgroundColor: dept.color }}
                     />
-                    <span className="text-gray-700 truncate block max-w-[160px]">
+                    <span className="text-gray-700 truncate block max-w-[120px] sm:max-w-[160px]">
                       {dept.name}
                     </span>
                   </div>
-                  <div className="flex items-center space-x-3">
-                    <span className="text-gray-800 font-medium w-10 text-right truncate">
+                  <div className="flex items-center space-x-2 sm:space-x-3">
+                    <span className="text-gray-800 font-medium w-8 sm:w-10 text-right truncate">
                       {dept.value}
                     </span>
-                    <span className="text-gray-600 w-10 text-right">
+                    <span className="text-gray-600 w-8 sm:w-10 text-right">
                       {dept.percentage}%
                     </span>
                   </div>
@@ -626,14 +619,14 @@ export default function Dashboard() {
               onClick={handleViewPendingLeaves}
               className="flex items-center justify-between p-4 bg-[#f0e6d2] hover:bg-[#e8dcc8] rounded-lg transition"
             >
-              <span className="font-medium text-gray-800">View Pending Leave Requests</span>
+              <span className="font-medium text-gray-800 text-sm text-left">View Pending Leave Requests</span>
               <ChevronRight className="h-5 w-5 text-gray-500" />
             </button>
             <button
               onClick={handleViewAbsenceRecords}
               className="flex items-center justify-between p-4 bg-[#f0e6d2] hover:bg-[#e8dcc8] rounded-lg transition"
             >
-              <span className="font-medium text-gray-800">View Absence Records</span>
+              <span className="font-medium text-gray-800 text-sm text-left">View Absence Records</span>
               <ChevronRight className="h-5 w-5 text-gray-500" />
             </button>
           </div>
@@ -658,9 +651,9 @@ export default function Dashboard() {
                 <div className="space-y-4">
                   {pendingLeaves.map((leave) => (
                     <div key={leave.leave_id} className="border border-gray-200 rounded-lg p-4">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <p className="text-gray-600">Employee</p>
+                          <p className="text-gray-600 text-sm">Employee</p>
                           <p className="font-semibold text-gray-800">
                             {leave.first_name} {leave.last_name} ({leave.employee_code})
                           </p>
@@ -669,19 +662,19 @@ export default function Dashboard() {
                           )}
                         </div>
                         <div>
-                          <p className="text-gray-600">Leave Type</p>
+                          <p className="text-gray-600 text-sm">Leave Type</p>
                           <p className="font-semibold text-gray-800 capitalize">
                             {leave.leave_type.replace("_", " ")}
                           </p>
                         </div>
                         <div>
-                          <p className="text-gray-600">Leave Dates</p>
+                          <p className="text-gray-600 text-sm">Leave Dates</p>
                           <p className="font-semibold text-gray-800">
                             {new Date(leave.start_date).toLocaleDateString()} - {new Date(leave.end_date).toLocaleDateString()}
                           </p>
                         </div>
                         <div>
-                          <p className="text-gray-600">Record Code</p>
+                          <p className="text-gray-600 text-sm">Record Code</p>
                           <p className="font-semibold text-gray-800">{leave.leave_code}</p>
                         </div>
                       </div>
@@ -714,21 +707,21 @@ export default function Dashboard() {
                 <div className="space-y-4">
                   {absenceRecords.map((record) => (
                     <div key={record.attendance_id} className="border border-gray-200 rounded-lg p-4">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <p className="text-gray-600">Employee</p>
+                          <p className="text-gray-600 text-sm">Employee</p>
                           <p className="font-semibold text-gray-800">
                             {record.first_name} {record.last_name} ({record.employee_code})
                           </p>
                         </div>
                         <div>
-                          <p className="text-gray-600">Date</p>
+                          <p className="text-gray-600 text-sm">Date</p>
                           <p className="font-semibold text-gray-800">
                             {new Date(record.date).toLocaleDateString()}
                           </p>
                         </div>
                         <div>
-                          <p className="text-gray-600">Record Code</p>
+                          <p className="text-gray-600 text-sm">Record Code</p>
                           <p className="font-semibold text-gray-800">{record.attendance_code}</p>
                         </div>
                       </div>

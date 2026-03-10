@@ -5,6 +5,7 @@ interface FormInputProps {
   label: string;
   type: string;
   value: string;
+  className?: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   placeholder?: string;
   error?: string;
@@ -17,6 +18,7 @@ export default function FormInput({
   label,
   type,
   value,
+  className,
   onChange,
   placeholder,
   error,
@@ -31,7 +33,7 @@ export default function FormInput({
   }, [error]);
 
   return (
-    <div className="flex flex-col">
+    <div className={`flex flex-col ${className}`}>
       <label className="block text-[#3b2b1c] mb-1 font-medium">{label}</label>
       <input
         type={type}

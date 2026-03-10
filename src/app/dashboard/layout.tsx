@@ -5,10 +5,12 @@ import Sidebar from "@/components/dashboard/Sidebar";
 import Header from "@/components/dashboard/Header";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { useState } from "react";
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, isLoading } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   let currentPage =
     pathname.split("/").filter(Boolean).pop() || "dashboard";
@@ -79,11 +81,11 @@ if (currentPage === "tech_support") {
 
   return (
     <ErrorBoundary>
-      <div className="flex min-h-screen">
-        <Sidebar />
-        <div className="flex-1 flex flex-col">
-          <Header titleHeader={titleHeader} adminName={adminName} adminType={adminType} />
-          <main className="p-6 bg-[#FDF6EC]">{children}</main>
+      <div className="flex min-h-screen bg-[#FDF6EC]">
+        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+        <div className="flex-1 flex flex-col transition-all duration-300 ease-in-out">
+          <Header titleHeader={titleHeader} adminName={adminName} adminType={adminType} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+          <main className="p-4 md:p-6">{children}</main>
         </div>
       </div>
     </ErrorBoundary>

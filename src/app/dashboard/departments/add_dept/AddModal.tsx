@@ -101,20 +101,20 @@ export default function AddDepartmentModal({ isOpen, onClose, onSave }: AddDepar
         <AnimatePresence>
             {isOpen && (
                 <motion.div
-                    className="fixed inset-0 bg-black/40 flex justify-center items-center z-50"
+                    className="fixed inset-0 bg-black/40 flex justify-center items-center z-50 p-4"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                 >
                     <motion.div
-                        className="bg-[#fff7ec] rounded-2xl shadow-lg p-6 w-full max-w-lg relative"
+                        className="bg-[#fff7ec] rounded-2xl shadow-lg p-4 sm:p-6 w-full max-w-lg relative max-h-[90vh] overflow-y-auto"
                         initial={{ scale: 0.9 }}
                         animate={{ scale: 1 }}
                         exit={{ scale: 0.9 }}
                     >
                         {/* Header */}
                         <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-xl font-bold text-[#3b2b1c]">Add Department</h2>
+                            <h2 className="text-lg sm:text-xl font-bold text-[#3b2b1c]">Add Department</h2>
                             <button onClick={onClose}>
                                 <X className="text-[#3b2b1c]" />
                             </button>

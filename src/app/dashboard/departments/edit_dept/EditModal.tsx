@@ -113,13 +113,13 @@ export default function EditDepartmentModal({
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed inset-0 bg-black/40 flex justify-center items-center z-50"
+          className="fixed inset-0 bg-black/40 flex justify-center items-center z-50 p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
         >
           <motion.div
-            className="bg-[#faeddc] rounded-2xl shadow-lg p-6 w-full max-w-lg relative"
+            className="bg-[#faeddc] rounded-2xl shadow-lg p-4 sm:p-6 w-full max-w-lg relative max-h-[90vh] overflow-y-auto"
             initial={{ scale: 0.9 }}
             animate={{ scale: 1 }}
             exit={{ scale: 0.9 }}

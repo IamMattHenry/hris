@@ -1,13 +1,31 @@
 "use client";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, Users, CheckCircle, Mail, Briefcase, Building, LogsIcon, CogIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
-export default function Sidebar() {
+interface SidebarProps {
+    sidebarOpen: boolean;
+    setSidebarOpen: (open: boolean) => void;
+}
+
+export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     const pathname = usePathname();
     const { user } = useAuth();
+    const sidebar = useRef<HTMLDivElement>(null);
+
+    // close on click outside
+    useEffect(() => {
+        const clickHandler = ({ target }: MouseEvent) => {
+            if (!sidebar.current || !target) return;
+            if (!sidebarOpen || sidebar.current.contains(target as Node)) return;
+            setSidebarOpen(false);
+        };
+        document.addEventListener("click", clickHandler);
+        return () => document.removeEventListener("click", clickHandler);
+    });
 
     const links = [
         { name: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
@@ -24,37 +42,51 @@ export default function Sidebar() {
     }
 
     return (
-        <aside className="w-96 min-w-[400px] bg-[linear-gradient(180deg,#190006_23%,#480C1B_67%,#300611_100%)] text-[#FFF2E0] font-poppins p-4 min-h-screen shadow-xl relative">
-            <div className="mb-8 flex items-center justify-center">
-                <Image
-                    src="/logo/celestia-hr-logo.png"
-                    alt="Logo"
-                    width={250}
-                    height={250}
-                    className="object-contain"
-                    priority
-                />
-            </div>
-            <ul className="space-y-4">
-                {links.map(({ name, icon: Icon, path }) => (
-                    <li key={name}>
-                        <Link
-                            href={path}
-                            className={`flex items-center space-x-2 p-3 py-4 rounded-xl ${pathname === path
-                                ? "bg-[#5B1924] text-white"
-                                : "hover:bg-[#530C1F]"
-                                }`}
-                        >
-                            <Icon className="w-5 h-5 me-4" />
-                            <span>{name}</span>
-                        </Link>
-                    </li>
-                ))}
-            </ul>
-            <div className="absolute bottom-4 left-4 text-xs text-yellow-800 opacity-60 flex items-center">
-                <Image src="/logo/logo_outline.png" alt="Celestia Logo" width={48} height={48} />
-                <span className="ml-1 text-lg">© Celestia Hotel {new Date().getFullYear()}</span>
-            </div>
-        </aside>
+        <>
+            {/* Sidebar backdrop (for mobile) */}
+            <div
+                className={`fixed inset-0 h-screen bg-slate-900 bg-opacity-30 z-40 lg:hidden lg:z-auto transition-opacity duration-200 ${sidebarOpen ? "opacity-50" : "opacity-0 pointer-events-none"
+                    }`}
+                aria-hidden="true"
+            ></div>
+
+            <aside
+                ref={sidebar}
+                className={`fixed left-0 top-0 z-40 flex h-screen  w-94 flex-col overflow-y-hidden bg-[linear-gradient(180deg,#190006_23%,#480C1B_67%,#300611_100%)] text-[#FFF2E0] font-poppins p-4 shadow-xl transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
+                    } md:absolute md:translate-x-0 md:h-[90rem] md:w-72 md:shadow-none`}
+            >
+                <div className="mb-8 flex items-center justify-center">
+                    <Image
+                        src="/logo/celestia-hr-logo.png"
+                        alt="Logo"
+                        width={250}
+                        height={250}
+                        className="object-contain"
+                        priority
+                    />
+                </div>
+                <ul className="space-y-4">
+                    {links.map(({ name, icon: Icon, path }) => (
+                        <li key={name}>
+                            <Link
+                                href={path}
+                                onClick={() => setSidebarOpen(false)}
+                                className={`flex items-center space-x-2 p-3 py-4 rounded-xl ${pathname === path
+                                    ? "bg-[#5B1924] text-white"
+                                    : "hover:bg-[#530C1F]"
+                                    }`}
+                            >
+                                <Icon className="w-5 h-5 me-4" />
+                                <span>{name}</span>
+                            </Link>
+                        </li>
+                    ))}
+                </ul>
+                <div className="absolute bottom-4 left-4 text-xs text-yellow-800 opacity-60 flex items-center">
+                    <Image src="/logo/logo_outline.png" alt="Celestia Logo" width={48} height={48} />
+                    <span className="ml-1 text-lg">© Celestia Hotel {new Date().getFullYear()}</span>
+                </div>
+            </aside>
+        </>
     );
 }

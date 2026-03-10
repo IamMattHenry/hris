@@ -59,91 +59,114 @@ export default function DepartmentTable({
   };
 
   return (
-    <div className="overflow-x-auto shadow-sm bg-[#faeddc] rounded-lg">
-      <table className="w-full text-sm border-collapse">
-        <thead>
-          <tr className="bg-[#3b2b1c] text-white">
-            <th className="py-4 px-4 text-left">Department ID</th>
-            <th className="py-4 px-4 text-left">Department Name</th>
-            <th className="py-4 px-4 text-left">Department Supervisor</th>
-            <th className="py-4 px-4 text-left">Total Employees</th>
-            <th className="py-4 px-4 text-center">Actions</th>
-          </tr>
-        </thead>
+    <>
+      {/* Desktop Table */}
+      <div className="hidden md:block overflow-x-auto shadow-sm bg-[#faeddc] rounded-lg">
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr className="bg-[#3b2b1c] text-white">
+              <th className="py-4 px-4 text-left">Department ID</th>
+              <th className="py-4 px-4 text-left">Department Name</th>
+              <th className="py-4 px-4 text-left">Department Supervisor</th>
+              <th className="py-4 px-4 text-left">Total Employees</th>
+              <th className="py-4 px-4 text-center">Actions</th>
+            </tr>
+          </thead>
 
-        <tbody className="text-[#3b2b1c] text-base">
-          {departments.map((dept, index) => {
-            const supervisorName =
-              dept.supervisor_first_name && dept.supervisor_last_name
-                ? `${dept.supervisor_code} - ${dept.supervisor_first_name} ${dept.supervisor_last_name}`
-                : "No Supervisor";
+          <tbody className="text-[#3b2b1c] text-base">
+            {departments.map((dept, index) => {
+              const supervisorName =
+                dept.supervisor_first_name && dept.supervisor_last_name
+                  ? `${dept.supervisor_code} - ${dept.supervisor_first_name} ${dept.supervisor_last_name}`
+                  : "No Supervisor";
 
-            return (
-              <tr
-                key={dept.department_id}
-                className="border-b border-[#e2d5c3] hover:bg-[#fdf4e7]"
+              return (
+                <tr
+                  key={dept.department_id}
+                  className="border-b border-[#e2d5c3] hover:bg-[#fdf4e7]"
+                >
+                  <td className="py-4 px-4">
+                    {dept.department_code || `DEPT-${dept.department_id}`}
+                  </td>
+                  <td className="py-4 px-4">{dept.department_name}</td>
+                  <td className="py-4 px-4">{supervisorName}</td>
+                  <td className="py-4 px-4">{dept.employee_count}</td>
+
+                  <td className="py-4 px-4 text-center">
+                    <button
+                      onClick={(e) => openMenu(e, index)}
+                      className="p-2 rounded-full hover:bg-[#e8d6bb]"
+                    >
+                      <MoreVertical size={18} />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile Card View */}
+      <div className="md:hidden grid grid-cols-1 gap-4">
+        {departments.map((dept, index) => (
+          <div key={dept.department_id} className="bg-[#faeddc] p-4 rounded-lg shadow-sm border border-[#e2d5c3] relative">
+            <div className="flex justify-between items-start mb-3">
+              <div>
+                <h3 className="font-semibold text-[#3b2b1c] text-lg">{dept.department_name}</h3>
+                <p className="text-xs text-[#3b2b1c]/70">{dept.department_code || `DEPT-${dept.department_id}`}</p>
+              </div>
+              <button
+                onClick={(e) => openMenu(e, index)}
+                className="p-2 rounded-full hover:bg-[#e8d6bb] transition"
               >
-                <td className="py-4 px-4">
-                  {dept.department_code || `DEPT-${dept.department_id}`}
-                </td>
-                <td className="py-4 px-4">{dept.department_name}</td>
-                <td className="py-4 px-4">{supervisorName}</td>
-                <td className="py-4 px-4">{dept.employee_count}</td>
+                <MoreVertical size={18} className="text-[#3b2b1c]" />
+              </button>
+            </div>
+            <div className="space-y-2 text-sm text-[#3b2b1c]">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Supervisor:</span>
+                <span className="font-medium">
+                  {dept.supervisor_first_name && dept.supervisor_last_name
+                    ? `${dept.supervisor_first_name} ${dept.supervisor_last_name}`
+                    : 'N/A'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Total Employees:</span>
+                <span className="font-medium">{dept.employee_count || 0}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
 
-                <td className="py-4 px-4 text-center">
-                  <button
-                    onClick={(e) => openMenu(e, index)}
-                    className="p-2 rounded-full hover:bg-[#e8d6bb]"
-                  >
-                    <MoreVertical size={18} />
-                  </button>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-
-      {/* 🔥 MENU OUTSIDE TABLE */}
+      {/* Menu */}
       {menuState && (
         <div
           ref={menuRef}
           className="fixed w-40 bg-white border border-[#e2d5c3] rounded-lg shadow-xl z-[9999]"
-          style={{
-            top: menuState.top,
-            left: menuState.left,
-          }}
+          style={{ top: menuState.top, left: menuState.left }}
         >
           {onView && (
             <button
-              onClick={() => {
-                onView(departments[menuState.index]);
-                setMenuState(null);
-              }}
-              className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#fdf4e7] text-[#3b2b1c] rounded-t-lg"
+              onClick={() => { onView(departments[menuState.index]); setMenuState(null); }}
+              className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#fdf4e7] rounded-t-lg text-[#3b2b1c]"
             >
               <Eye size={16} /> View
             </button>
           )}
-
           {onEdit && (
             <button
-              onClick={() => {
-                onEdit(departments[menuState.index]);
-                setMenuState(null);
-              }}
+              onClick={() => { onEdit(departments[menuState.index]); setMenuState(null); }}
               className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#fdf4e7] text-[#3b2b1c]"
             >
               <Pencil size={16} /> Edit
             </button>
           )}
-
           {onDelete && (
             <button
-              onClick={() => {
-                onDelete(departments[menuState.index].department_id);
-                setMenuState(null);
-              }}
+              onClick={() => { onDelete(departments[menuState.index].department_id); setMenuState(null); }}
               className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#ffe5e5] text-red-600 rounded-b-lg"
             >
               <Trash2 size={16} /> Delete
@@ -151,6 +174,6 @@ export default function DepartmentTable({
           )}
         </div>
       )}
-    </div>
+    </>
   );
 }

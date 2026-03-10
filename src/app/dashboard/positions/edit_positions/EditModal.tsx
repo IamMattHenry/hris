@@ -140,7 +140,7 @@ export default function EditJobModal({
           exit={{ opacity: 0 }}
         >
           <motion.div
-            className="bg-[#fff7ec] rounded-2xl shadow-lg p-6 w-full max-w-lg relative"
+            className="bg-[#fff7ec] rounded-2xl shadow-lg p-4 sm:p-6 w-full max-w-lg relative mx-4 max-h-[90vh] overflow-y-auto"
             initial={{ scale: 0.95 }}
             animate={{ scale: 1 }}
             exit={{ scale: 0.95 }}
@@ -253,8 +253,8 @@ export default function EditJobModal({
                 />
               </div>
               {/* Employment + Salary */}
-              <div className="flex gap-3">
-                <div className="w-1/2">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="w-full sm:w-1/2">
                   <label className="block text-sm font-medium">
                     Employment Type
                   </label>
@@ -274,7 +274,7 @@ export default function EditJobModal({
                   </select>
                 </div>
 
-                <div className="w-1/2">
+                <div className="w-full sm:w-1/2">
                   <label className="block text-sm font-medium">
                     Default Salary (
                     {employmentType === "regular" ? "per month" : "per hour"}

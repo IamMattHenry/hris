@@ -9,9 +9,11 @@ import Link from "next/link";
 import { toast } from "react-hot-toast";
 import { ticketApi } from "@/lib/api";
 import FingerprintAuth2FA from "@/components/auth/FingerprintAuth2FA";
+import { useId } from "react";
 
 export default function LoginForm() {
   const router = useRouter();
+  
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -123,7 +125,7 @@ export default function LoginForm() {
 
     try {
       let title, description;
-      
+
       if (ticketType === "forgot_password") {
         title = `Forgot Password Request: ${username || "No username provided"}`;
         description = `User ${username || "unknown user"} has forgotten their password.\n\n${ticketDescription}`;
@@ -184,7 +186,7 @@ export default function LoginForm() {
           label="Username"
           placeholder="Username"
           value={username}
-          onChange={(e) => setUsername(e.target.value)}
+          onChange={(e) => setUsername(e.target.value.slice(0, 30))}
         />
 
         {/* Password */}
@@ -192,7 +194,7 @@ export default function LoginForm() {
           label="Password"
           placeholder="Password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => setPassword(e.target.value.slice(0, 30))}
         />
         <div className="flex items-center justify-between mb-4 text-[#FFF2E0] text-sm font-poppins">
           <Link href="/password-recovery" className="text-[#D4A056] hover:underline">
@@ -212,7 +214,7 @@ export default function LoginForm() {
         {/* Support */}
         <p className="text-center text-sm text-gray-300 mt-3 font-poppins">
           Having trouble logging in?{" "}
-          <button 
+          <button
             type="button"
             onClick={() => {
               setTicketType("contact_support");
@@ -228,7 +230,7 @@ export default function LoginForm() {
       {/* Ticket Modal */}
       {showTicketModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center text-black font-poppins justify-center z-50 p-4">
-          <div 
+          <div
             className="bg-white rounded-xl shadow-2xl w-full max-w-md"
             onClick={(e) => e.stopPropagation()}
           >
@@ -277,8 +279,8 @@ export default function LoginForm() {
                     onChange={(e) => setTicketDescription(e.target.value)}
                     rows={4}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4B0B14]"
-                    placeholder={ticketType === "forgot_password" 
-                      ? "Provide any additional information that might help us identify your account" 
+                    placeholder={ticketType === "forgot_password"
+                      ? "Provide any additional information that might help us identify your account"
                       : "Provide detailed information about your issue"}
                   />
                 </div>
@@ -294,13 +296,12 @@ export default function LoginForm() {
                   <button
                     type="submit"
                     disabled={isTicketSubmitting || (ticketType === "contact_support" && !ticketTitle.trim())}
-                    className={`px-4 py-2 text-white rounded-md transition ${
-                      isTicketSubmitting 
-                        ? "bg-gray-400 cursor-not-allowed" 
-                        : (ticketType === "contact_support" && !ticketTitle.trim())
+                    className={`px-4 py-2 text-white rounded-md transition ${isTicketSubmitting
                         ? "bg-gray-400 cursor-not-allowed"
-                        : "bg-[#4B0B14] hover:bg-[#60101C]"
-                    }`}
+                        : (ticketType === "contact_support" && !ticketTitle.trim())
+                          ? "bg-gray-400 cursor-not-allowed"
+                          : "bg-[#4B0B14] hover:bg-[#60101C]"
+                      }`}
                   >
                     {isTicketSubmitting ? "Submitting..." : "Submit Request"}
                   </button>

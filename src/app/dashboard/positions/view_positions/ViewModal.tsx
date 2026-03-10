@@ -30,14 +30,14 @@ export default function ViewJobModal({ isOpen, onClose, job }: ViewJobModalProps
           exit={{ opacity: 0 }}
         >
           <motion.div
-            className="bg-[#fff7ec] rounded-2xl shadow-lg p-6 w-full max-w-lg relative overflow-y-auto max-h-[90vh]"
+            className="bg-[#fff7ec] rounded-2xl shadow-lg p-4 sm:p-6 w-full max-w-lg relative overflow-y-auto max-h-[90vh] mx-4"
             initial={{ scale: 0.9 }}
             animate={{ scale: 1 }}
             exit={{ scale: 0.9 }}
           >
             {/* Header */}
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-[#3b2b1c]">View Position</h2>
+            <div className="flex justify-between items-center mb-4 sm:mb-6">
+              <h2 className="text-xl sm:text-2xl font-bold text-[#3b2b1c]">View Position</h2>
               <button onClick={onClose}>
                 <X className="text-[#3b2b1c]" />
               </button>
