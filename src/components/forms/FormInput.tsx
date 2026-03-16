@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import toast from "react-hot-toast";
 
 interface FormInputProps {
-  label: string;
+  label: React.ReactNode;
   type: string;
   value: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;

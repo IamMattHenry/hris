@@ -7,43 +7,43 @@ import { authApi } from "@/lib/api";
 type ContactItem = { id: number; number: string };
 type EmailItem = { id: number; email: string; isPrimary: boolean };
 type FormattedData = {
-  personal: {
-    photo: null | string;
-    firstName: string;
-    middleName: string;
-    lastName: string;
-    extensionName: string;
-    employeeCode: string;
-    gender: string;
-    birthdate: string;
-    civilStatus: string;
-    status: string;
-    hireDate: string;
-    leaveCredit: number;
-    address: { region: string; province: string; city: string; homeAddress: string };
-    contacts: ContactItem[];
-    emails: EmailItem[];
-  };
-  job: {
-    department: string;
-    position: string;
-    positionCode: string;
-    supervisor: string;
-    salary: number;
-    employmentStatus: string;
-    availability: string;
-  };
-  account: {
-    username: string;
-    role: string;
+    personal: {
+        photo: null | string;
+        firstName: string;
+        middleName: string;
+        lastName: string;
+        extensionName: string;
+        employeeCode: string;
+        gender: string;
+        birthdate: string;
+        civilStatus: string;
+        status: string;
+        hireDate: string;
+        leaveCredit: number;
+        address: { region: string; province: string; city: string; homeAddress: string };
+        contacts: ContactItem[];
+        emails: EmailItem[];
+    };
+    job: {
+        department: string;
+        position: string;
+        positionCode: string;
+        supervisor: string;
+        salary: number;
+        employmentStatus: string;
+        availability: string;
+    };
+    account: {
+        username: string;
+        role: string;
 
-    isActive: boolean;
-    isSuperAdmin: boolean;
-    lastUpdated: string;
-  };
-  dependents: any[];
-  emergencyContacts: { id: number; name: string; relation: string; number: string }[];
-  attendance: any[];
+        isActive: boolean;
+        isSuperAdmin: boolean;
+        lastUpdated: string;
+    };
+    dependents: any[];
+    emergencyContacts: { id: number; name: string; relation: string; number: string }[];
+    attendance: any[];
 };
 
 const mockEmployeeData = {
@@ -236,7 +236,7 @@ const Profile = () => {
     ];
 
     return (
-        <div className="min-h-screen max-w-screen w-full mx-auto font-poppins">
+        <div className="min-h-screen w-full mx-auto font-poppins">
             {/* HEADER NAVBAR */}
             <header className="bg-[#480C1B] shadow-sm sticky max-w-full mx-auto top-0 z-20">
                 <div className="max-w-7xl mx-auto flex items-center justify-center px-6 py-4">
@@ -262,7 +262,7 @@ const Profile = () => {
             </header>
 
             {/* MAIN CONTENT */}
-            <main className="w-full mx-auto p-8">
+            <main className="w-full mx-auto p-4 md:p-8">
                 <div className="bg-white rounded-lg shadow-sm p-8 relative">
                     <button className="absolute top-8 right-8 text-gray-500 hover:text-gray-700">
                         <X size={24} />
@@ -291,14 +291,14 @@ const Profile = () => {
                     {activeSection === "personal" && (
                         <>
                             {/* Header Info */}
-                            <div className="flex items-start gap-6 mb-8 pb-8 border-b">
-                                <div className="w-32 h-32 bg-gradient-to-br from-amber-900 to-amber-800 rounded-full flex items-center justify-center text-white text-4xl font-bold">
+                            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 mb-4 pb-4 sm:mb-8 sm:pb-8 border-b">
+                                <div className="w-24 h-24 sm:w-32 sm:h-32 bg-gradient-to-br from-amber-900 to-amber-800 rounded-full flex items-center justify-center text-white text-3xl sm:text-4xl font-bold">
                                     {formattedData.personal.firstName?.[0] || 'U'}
                                     {formattedData.personal.lastName?.[0] || ''}
                                 </div>
                                 <div className="flex-1">
-                                    <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                                        {formattedData.personal.firstName}{" "}
+                                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 text-center sm:text-left">
+                                        {formattedData.personal.firstName}
                                         {formattedData.personal.lastName}
                                     </h1>
                                     <div className="grid grid-cols-2 gap-x-12 gap-y-2 text-gray-700">
@@ -339,7 +339,7 @@ const Profile = () => {
                                 {(() => {
                                     const emergency = formattedData.emergencyContacts[0] || {};
                                     return (
-                                        <div className="grid grid-cols-3 gap-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                             <div>
                                                 <label className="block text-sm text-gray-600 mb-2">Emergency Contact</label>
                                                 <input
@@ -378,7 +378,7 @@ const Profile = () => {
                                 <h2 className="text-lg font-semibold text-gray-900 mb-4">
                                     Personal Information
                                 </h2>
-                                <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                                     {[
                                         ["First Name", formattedData.personal.firstName],
                                         ["Last Name", formattedData.personal.lastName],
@@ -429,7 +429,7 @@ const Profile = () => {
                                 <h2 className="text-lg font-semibold text-gray-900 mb-4">
                                     Address
                                 </h2>
-                                <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                                     {Object.entries(formattedData.personal.address).map(
                                         ([label, value]) => (
                                             <div key={label}>
@@ -448,7 +448,7 @@ const Profile = () => {
                                 <h2 className="text-lg font-semibold text-gray-900 mb-4">
                                     Contact Information
                                 </h2>
-                                <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                                     <div>
                                         <label className="block text-sm text-gray-600 mb-1">
                                             Phone Numbers
@@ -493,7 +493,7 @@ const Profile = () => {
                             <h1 className="text-2xl font-bold text-gray-900 mb-8">
                                 Job Information
                             </h1>
-                            <div className="grid grid-cols-2 gap-x-8 gap-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                                 {Object.entries({
                                     Department: formattedData.job.department,
                                     "Position / Job Title": formattedData.job.position,
@@ -521,7 +521,7 @@ const Profile = () => {
                             <h1 className="text-2xl font-bold text-gray-900 mb-8">
                                 Account Information
                             </h1>
-                            <div className="grid grid-cols-2 gap-x-8 gap-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                                 <div>
                                     <label className="block text-sm text-gray-600 mb-1">
                                         Username

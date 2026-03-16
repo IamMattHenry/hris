@@ -153,6 +153,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [documents, setDocuments] = useState<Record<string, boolean>>(
     Object.fromEntries(DOCUMENTS.map(doc => [doc.key, false]))
   );
+  const [othersSpecification, setOthersSpecification] = useState("");
 
 
 
@@ -538,16 +539,28 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
   // handle birth date change with age validation
   const handleBirthDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const error = validateBirthDate(e.target.value);
+    const rawValue = e.target.value.replace(/[^0-9]/g, "");
+    let formattedValue = rawValue;
 
-    if (error) {
-      setErrors((prev) => ({
-        ...prev,
-        birthDate: error
-      }));
+    if (rawValue.length > 4) {
+      formattedValue = `${rawValue.slice(0, 4)}/${rawValue.slice(4)}`;
+    }
+    if (rawValue.length > 6) {
+      formattedValue = `${rawValue.slice(0, 4)}/${rawValue.slice(4, 6)}/${rawValue.slice(6, 8)}`;
+    }
+
+    // Limit to yyyy/mm/dd format
+    if (formattedValue.length > 10) {
+      formattedValue = formattedValue.slice(0, 10);
+    }
+
+    setBirthDate(formattedValue);
+
+    const error = validateBirthDate(formattedValue);
+    if (error && formattedValue.length === 10) {
+      setErrors((prev) => ({ ...prev, birthDate: error }));
     } else {
       setErrors((prev) => ({ ...prev, birthDate: "" }));
-      setBirthDate(e.target.value);
     }
   };
 
@@ -630,6 +643,8 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     setEmail("");
     setContactNumber("");
     setDependents([]);
+    setDocuments(Object.fromEntries(DOCUMENTS.map(doc => [doc.key, false])));
+    setOthersSpecification("");
     setDependentFirstName("");
     setDependentLastName("");
     setDependentEmail("");
@@ -690,12 +705,14 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     // Step 4 - Document Requirements
     if (step === 4) {
 
-      const atLeastOneSubmitted = DOCUMENTS
-        .filter(doc => doc.key !== 'others')
-        .some(doc => documents[doc.key]);
+      const atLeastOneSubmitted = Object.values(documents).some(val => val);
 
       if (!atLeastOneSubmitted) {
         newErrors.documents = "Please select at least one required document to proceed.";
+      }
+
+      if (documents.others && !othersSpecification.trim()) {
+        newErrors.othersSpecification = "Please specify the other documents.";
       }
     }
 
@@ -748,7 +765,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         last_name: lastName,
         middle_name: middleName || null,
         extension_name: extensionName || null,
-        birthdate: birthDate,
+        birthdate: birthDate.replace(/\//g, '-'),
         gender: gender ? gender.toLowerCase() : null,
         civil_status: civilStatus ? civilStatus.toLowerCase() : null,
         home_address: homeAddress || null,
@@ -779,7 +796,10 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         // Dependents
         dependents: dependents,
         // Documents
-        documents: documents,
+        documents: {
+          ...documents,
+          others_specification: documents.others ? othersSpecification : null
+        },
       };
 
 
@@ -934,8 +954,14 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                     placeholder="Jr., Sr., III, etc. (optional)"
                   />
                   <FormInput
-                    label="Birth Date:"
-                    type="date"
+                    label={
+                      <div className="flex items-baseline">
+                        <span>Birth Date:</span>
+                        <span className="text-xs text-gray-500 ml-2">(must be 21 or older)</span>
+                      </div>
+                    }
+                    type="text"
+                    placeholder="YYYY/MM/DD"
                     value={birthDate}
                     onChange={handleBirthDateChange}
                     error={errors.birthDate}
@@ -1559,44 +1585,62 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                             const isChecked = e.target.checked;
                             const newDocumentsState = { ...documents };
                             for (const doc of DOCUMENTS) {
-                              newDocumentsState[doc.key] = isChecked;
+                              if (doc.key !== 'others') {
+                                newDocumentsState[doc.key] = isChecked;
+                              }
                             }
                             setDocuments(newDocumentsState);
                              if (errors.documents) {
                               setErrors(prev => ({ ...prev, documents: "" }));
                             }
                           }}
-                          checked={Object.values(documents).every(
-                            (isChecked) => isChecked
+                          checked={DOCUMENTS.filter(d => d.key !== 'others').every(
+                            (doc) => documents[doc.key]
                           )}
                           className="w-5 h-5 accent-[#4b0b14] cursor-pointer"
                         />
                         <span className="text-[#3b2b1c] font-semibold">Check All</span>
                       </label>
                     {DOCUMENTS.map(doc => (
-                      <label
-                        key={doc.key}
-                        className="flex items-center space-x-3 cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={documents[doc.key]}
-                          onChange={(e) => {
-                            setDocuments(prev => ({
-                              ...prev,
-                              [doc.key]: e.target.checked,
-                            }));
-                            if (errors.documents) {
-                              setErrors(prev => ({ ...prev, documents: "" }));
-                            }
-                          }}
-                          className="w-5 h-5 accent-[#4b0b14] cursor-pointer"
-                        />
+                      <div key={doc.key} className="space-y-2">
+                        <label
+                          className="flex items-center space-x-3 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={documents[doc.key]}
+                            onChange={(e) => {
+                              setDocuments(prev => ({
+                                ...prev,
+                                [doc.key]: e.target.checked,
+                              }));
+                              if (errors.documents) {
+                                setErrors(prev => ({ ...prev, documents: "" }));
+                              }
+                            }}
+                            className="w-5 h-5 accent-[#4b0b14] cursor-pointer"
+                          />
 
-                        <span className="text-[#3b2b1c]">
-                          {doc.label}
-                        </span>
-                      </label>
+                          <span className="text-[#3b2b1c]">
+                            {doc.label}
+                          </span>
+                        </label>
+
+                        {doc.key === 'others' && documents.others && (
+                          <div className="ml-8">
+                            <input
+                              type="text"
+                              value={othersSpecification}
+                              onChange={(e) => setOthersSpecification(e.target.value)}
+                              placeholder="Specify other documents..."
+                              className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14]"
+                            />
+                            {errors.othersSpecification && (
+                              <p className="text-red-500 text-xs mt-1">{errors.othersSpecification}</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </div>

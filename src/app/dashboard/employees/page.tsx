@@ -329,11 +329,11 @@ export default function EmployeeTable() {
                   </td>
                   <td className="py-3 px-4">
                     <span>{emp.position_name || "N/A"}</span>
-                    {emp.extra_position_count > 0 && (
+                    {/*emp.extra_position_count && emp.extra_position_count > 0 && (
                       <span className="ml-1 text-xs px-1.5 py-0.5 bg-[#e6d2b5] text-[#4b0b14] rounded-full font-medium">
-                        +{emp.extra_position_count}
+                        
                       </span>
-                    )}
+                    ) */}
                   </td>
                   <td className="py-3 px-4">{emp.department_name || "N/A"}</td>
                   <td className="py-3 px-4">
@@ -356,7 +356,7 @@ export default function EmployeeTable() {
                               : "bg-red-100 text-red-700"
                       }`}
                     >
-                      {emp.status === "on-leave" ? "🔗 " : ""}
+                      {emp.status === "on-leave" ? " " : ""}
                       {emp.status.charAt(0).toUpperCase() +
                         emp.status.slice(1).replace("-", " ")}
                     </span>

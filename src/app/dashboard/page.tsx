@@ -260,11 +260,19 @@ export default function Dashboard() {
 
   const totalEmployees = employees.length;
 
-  // Color palette - maroon to light pink gradient
+  // Diverse categorical color palette for better department distinction
   const colorPalette = [
-    '#8b1a1a', '#a52a2a', '#b8423f', '#c94d4d',
-    '#d35c5c', '#dd6b6b', '#e67373', '#ef8b8b',
-    '#f49999', '#f9a7a7', '#ffb3b3', '#ffc2c2', '#e0d5d5'
+    '#0d9488', // Teal
+    '#4f46e5', // Indigo
+    '#f59e0b', // Amber
+    '#10b981', // Emerald
+    '#e11d48', // Rose
+    '#8b5cf6', // Violet
+    '#0ea5e9', // Sky
+    '#f97316', // Orange
+    '#6366f1', // Indigo 500
+    '#ec4899', // Pink
+    '#64748b'  // Slate
   ];
 
   const departmentData = Object.entries(departmentCounts)
@@ -547,7 +555,7 @@ export default function Dashboard() {
                       nameKey="name"
                       cx="50%"
                       cy="50%"
-                      innerRadius={60}
+                      innerRadius={40}
                       outerRadius={80}
                       paddingAngle={2}
                     >
@@ -578,13 +586,6 @@ export default function Dashboard() {
                     />
                   </PieChart>
                 </ResponsiveContainer>
-
-                {/* Center label */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-3xl font-bold text-gray-800">
-                    {departmentData.length > 0 ? departmentData[0].percentage : 0}%
-                  </span>
-                </div>
               </div>
             </div>
 

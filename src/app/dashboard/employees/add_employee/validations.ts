@@ -279,21 +279,41 @@ export const validateDependent = (
  * Validates birth date - must be at least 20 years old
  */
 export const validateBirthDate = (birthDateString: string): string => {
-  const selectedDate = new Date(birthDateString);
-  const today = new Date();
+  // Don't validate if the string is not of minimum length for a date.
+  if (birthDateString.length < 10) return ""; // yyyy/mm/dd
+
+  const date = new Date(birthDateString);
+
+  // Check if date is invalid (e.g. "2024/02/30")
+  if (isNaN(date.getTime())) {
+      return "Invalid date.";
+  }
+
+  // This check handles dates like 2024/02/30 becoming 2024/03/01 on some engines.
+  // It ensures the input date matches the parsed date.
+  const [yearStr, monthStr, dayStr] = birthDateString.split(/[-/]/);
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
+  const day = parseInt(dayStr, 10);
   
-  // Calculate the cutoff for being at least 20 years old
+  if (date.getFullYear() !== year || date.getMonth() + 1 !== month || date.getDate() !== day) {
+    return "Invalid date.";
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
   const minAgeDate = new Date(
-    today.getFullYear() - 20,
+    today.getFullYear() - 21,
     today.getMonth(),
     today.getDate()
   );
 
-  if (selectedDate > minAgeDate) {
-    return "You must be older than 20 years old.";
+  if (date > minAgeDate) {
+    return "You must be at least 21 years old.";
   }
 
-  if (selectedDate.getFullYear() < 1960) {
+  if (date.getFullYear() < 1960) {
     return "Birth year cannot be earlier than 1960.";
   }
 

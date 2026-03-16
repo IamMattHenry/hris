@@ -17,6 +17,8 @@ if (currentPage === "tech_support") {
   currentPage = "Technical Support";
 } else if (currentPage === "activity_log") {
   currentPage = "Activity Log";
+} else if (currentPage === "contact_support") {
+  currentPage = "Contact Support";
 } else {
   currentPage = currentPage.charAt(0).toUpperCase() + currentPage.slice(1);
 }

@@ -2,7 +2,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, CheckCircle, Mail, Briefcase, Building, LogsIcon, CogIcon } from "lucide-react";
+import { LayoutDashboard, Users, CheckCircle, Mail, Briefcase, Building, LogsIcon, Headset, DollarSign, MessageSquareWarning, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function Sidebar() {
@@ -15,12 +15,14 @@ export default function Sidebar() {
         { name: "Attendance", icon: CheckCircle, path: "/dashboard/attendance" },
         { name: "Requests", icon: Mail, path: "/dashboard/requests" },
         { name: "Positions", icon: Briefcase, path: "/dashboard/positions" },
-        { name: "Departments", icon: Building, path: "/dashboard/departments" }
+        { name: "Departments", icon: Building, path: "/dashboard/departments" },
+        { name: "Payroll", icon: DollarSign, path: "/dashboard/payroll" },
+        { name: "Penalty", icon: AlertTriangle, path: "/dashboard/penalty" }
     ];
 
     if (user?.role === "superadmin" || user?.role === "admin") {
         links.push({ name: "Activity Log", icon: LogsIcon, path: "/dashboard/activity_log" });
-        links.push({ name: "Technical Support", icon: CogIcon, path: "/dashboard/tech_support" });
+        links.push({ name: "Contact Support", icon: Headset, path: "/dashboard/contact_support" });
     }
 
     return (

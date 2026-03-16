@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Abril_Fatface } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
 import NetworkStatusBanner from "@/components/NetworkStatusBanner";
@@ -11,12 +11,6 @@ export const metadata: Metadata = {
     icon: "/logo/celestia_tab_icon.ico"
   },
 };
-
-const abrilFatface = Abril_Fatface({
-  variable: "--font-abril",
-  weight: "400",
-  subsets: ["latin"],
-});
 
 export default function RootLayout({
   children,
@@ -31,7 +25,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className={` ${abrilFatface.variable} antialiased`}>
+      <body className={`antialiased`}>
         <NetworkStatusBanner />
         {children}
         <Toaster 
