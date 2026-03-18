@@ -1,7 +1,6 @@
 // src/lib/api.ts
 	
 	import { User } from '@/types/api';
-  import showToast, { toast } from '@/utils/toast';
 	
 	const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
@@ -109,8 +108,6 @@ function friendlyNetworkErrorMessage(err: any): string {
 	  const method = (options.method || 'GET').toString().toUpperCase();
 	  const isGet = method === 'GET';
 	  const maxRetries = isGet ? 2 : 0; // retry GETs only
-	
-    const isBrowser = typeof window !== 'undefined';
 	
 	  const finish = (result: ApiResult<T>): ApiResult<T> => {
 	    return result;
@@ -949,6 +946,151 @@ export const leaveApi = {
   getDashboardStats: async () => {
     return apiCall<any>('/leave/stats/dashboard', {
       method: 'GET',
+    });
+  },
+};
+
+// ============ PAYROLL API FUNCTIONS ============
+
+export const payrollApi = {
+  getRuns: async (params?: {
+    department_id?: number | string;
+    employment_type?: string;
+  }) => {
+    const search = new URLSearchParams();
+    if (params?.department_id != null && String(params.department_id).trim() !== '') {
+      search.append('department_id', String(params.department_id));
+    }
+    if (params?.employment_type) {
+      search.append('employment_type', params.employment_type);
+    }
+
+    const url = `/payroll/runs${search.toString() ? `?${search.toString()}` : ''}`;
+
+    return apiCall<any[]>(url, {
+      method: 'GET',
+    });
+  },
+
+  createRun: async (data: {
+    pay_period_start: string;
+    pay_period_end: string;
+    pay_schedule?: 'weekly' | 'semi-monthly' | 'monthly';
+    employee_ids?: number[];
+    department_id?: number;
+    employment_type?: string;
+    notes?: string;
+  }) => {
+    return apiCall<any>('/payroll/runs', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      timeoutMs: 60000,
+    });
+  },
+
+  getRunById: async (id: number | string) => {
+    return apiCall<any>(`/payroll/runs/${id}`, {
+      method: 'GET',
+    });
+  },
+
+  deleteRun: async (id: number | string) => {
+    return apiCall<any>(`/payroll/runs/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  finalizeRun: async (id: number | string) => {
+    return apiCall<any>(`/payroll/runs/${id}/finalize`, {
+      method: 'PATCH',
+    });
+  },
+
+  overrideRecord: async (
+    runId: number | string,
+    employeeId: number | string,
+    data: {
+      gross_pay?: number;
+      total_deductions?: number;
+      withholding_tax?: number;
+      net_pay?: number;
+      reason?: string;
+    }
+  ) => {
+    return apiCall<any>(`/payroll/runs/${runId}/records/${employeeId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  getPayslip: async (runId: number | string, employeeId: number | string) => {
+    return apiCall<any>(`/payroll/runs/${runId}/payslip/${employeeId}`, {
+      method: 'GET',
+    });
+  },
+
+  getContributions: async (params?: { start_date?: string; end_date?: string; run_id?: number | string }) => {
+    const search = new URLSearchParams();
+    if (params?.start_date) search.append('start_date', params.start_date);
+    if (params?.end_date) search.append('end_date', params.end_date);
+    if (params?.run_id != null) search.append('run_id', String(params.run_id));
+
+    const url = `/payroll/contributions${search.toString() ? `?${search.toString()}` : ''}`;
+
+    return apiCall<any>(url, {
+      method: 'GET',
+    });
+  },
+
+  exportContributions: async (type: 'sss' | 'philhealth' | 'pagibig' | 'bir') => {
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_BASE_URL}/payroll/contributions/export/${type}`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => 'Failed to export payroll contributions');
+      return { success: false, message: text || 'Failed to export payroll contributions' };
+    }
+
+    const blob = await response.blob();
+    const disposition = response.headers.get('content-disposition') || '';
+    const match = disposition.match(/filename="?([^\";]+)"?/i);
+    const filename = match?.[1] || `payroll_${type}.csv`;
+
+    return {
+      success: true,
+      data: {
+        blob,
+        filename,
+      },
+    };
+  },
+
+  getSettings: async () => {
+    return apiCall<any>('/payroll/settings', {
+      method: 'GET',
+    });
+  },
+
+  updateSettings: async (data: {
+    pay_schedule: 'weekly' | 'semi-monthly' | 'monthly';
+    allowances_config?: any;
+    holiday_overrides?: any[];
+    de_minimis_config?: any;
+    company_name?: string;
+    monthly_work_days?: number;
+    effective_date?: string;
+  }) => {
+    return apiCall<any>('/payroll/settings', {
+      method: 'PUT',
+      body: JSON.stringify(data),
     });
   },
 };

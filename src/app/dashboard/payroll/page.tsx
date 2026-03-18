@@ -1,175 +1,262 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
-import { MoreVertical, Plus, Eye, FileText, Download } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { Eye, Plus } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
-import { toast } from "react-hot-toast";
+import { departmentApi, payrollApi } from "@/lib/api";
+import { showToast } from "@/utils/toast";
 
-const MOCK_PAYROLL_DATA = [
-  { id: 1, code: "EMP-001", name: "Juan Dela Cruz", period: "Oct 1-15, 2024", basic: 25000, allowances: 2000, deductions: 1500, net: 25500, status: "paid" },
-  { id: 2, code: "EMP-002", name: "Maria Santos", period: "Oct 1-15, 2024", basic: 30000, allowances: 2500, deductions: 2000, net: 30500, status: "paid" },
-  { id: 3, code: "EMP-003", name: "Pedro Penduko", period: "Oct 1-15, 2024", basic: 22000, allowances: 1500, deductions: 1200, net: 22300, status: "processed" },
-  { id: 4, code: "EMP-004", name: "Elena Reyes", period: "Oct 1-15, 2024", basic: 28000, allowances: 2000, deductions: 1800, net: 28200, status: "processed" },
-  { id: 5, code: "EMP-005", name: "Roberto Gomez", period: "Oct 1-15, 2024", basic: 35000, allowances: 3000, deductions: 2500, net: 35500, status: "pending" },
-  { id: 6, code: "EMP-006", name: "Liza Soberano", period: "Oct 1-15, 2024", basic: 45000, allowances: 5000, deductions: 4000, net: 46000, status: "pending" },
-  { id: 7, code: "EMP-007", name: "Enrique Gil", period: "Oct 1-15, 2024", basic: 40000, allowances: 4000, deductions: 3500, net: 40500, status: "paid" },
-  { id: 8, code: "EMP-008", name: "Kathryn Bernardo", period: "Oct 1-15, 2024", basic: 50000, allowances: 6000, deductions: 4500, net: 51500, status: "paid" },
-  { id: 9, code: "EMP-009", name: "Daniel Padilla", period: "Oct 1-15, 2024", basic: 48000, allowances: 5500, deductions: 4200, net: 49300, status: "processed" },
-  { id: 10, code: "EMP-010", name: "Anne Curtis", period: "Oct 1-15, 2024", basic: 55000, allowances: 7000, deductions: 5000, net: 57000, status: "pending" },
-  { id: 11, code: "EMP-011", name: "Vice Ganda", period: "Oct 1-15, 2024", basic: 60000, allowances: 8000, deductions: 6000, net: 62000, status: "paid" },
-];
+interface PayrollRun {
+  id: number;
+  pay_period_start: string;
+  pay_period_end: string;
+  pay_schedule: "weekly" | "semi-monthly" | "monthly";
+  status: "draft" | "finalized";
+  gross_pay: number;
+  total_deductions: number;
+  net_pay: number;
+  employee_count: number;
+  scope_filters?: {
+    department_id?: number | null;
+    employment_type?: string | null;
+  };
+}
+
+interface Department {
+  department_id: number;
+  department_name: string;
+}
+
+const formatMoney = (value: number) => `₱${Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const formatPeriod = (start: string, end: string) => {
+  const s = new Date(start).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const e = new Date(end).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return `${s} - ${e}`;
+};
 
 export default function PayrollTable() {
+  const [runs, setRuns] = useState<PayrollRun[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [selectedMenu, setSelectedMenu] = useState<number | null>(null);
-  const itemsPerPage = 10;
+  const [departmentFilter, setDepartmentFilter] = useState("");
+  const [employmentTypeFilter, setEmploymentTypeFilter] = useState("");
 
-  const filteredPayroll = useMemo(() => {
-    return MOCK_PAYROLL_DATA.filter((p) =>
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.code.toLowerCase().includes(searchTerm.toLowerCase())
+  const fetchRuns = async () => {
+    try {
+      setLoading(true);
+      const response = await payrollApi.getRuns({
+        department_id: departmentFilter || undefined,
+        employment_type: employmentTypeFilter || undefined,
+      });
+      if (!response.success) {
+        throw new Error(response.message || "Failed to fetch payroll runs");
+      }
+      setRuns(response.data || []);
+    } catch (error: any) {
+      showToast.error(error.message || "Failed to fetch payroll runs");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchDepartments = async () => {
+    try {
+      const response = await departmentApi.getAll();
+      if (!response.success) {
+        throw new Error(response.message || "Failed to fetch departments");
+      }
+
+      setDepartments((response.data || []).map((dept: any) => ({
+        department_id: Number(dept.department_id),
+        department_name: String(dept.department_name || ""),
+      })));
+    } catch (error: any) {
+      showToast.error(error.message || "Failed to fetch departments");
+    }
+  };
+
+  useEffect(() => {
+    fetchDepartments();
+  }, []);
+
+  useEffect(() => {
+    fetchRuns();
+  }, [departmentFilter, employmentTypeFilter]);
+
+  const employmentTypeOptions = useMemo(() => {
+    const fromRuns = runs
+      .map((run) => String(run.scope_filters?.employment_type || "").trim())
+      .filter(Boolean);
+
+    const defaults = ["regular", "probationary", "full-time", "part-time"];
+    return Array.from(new Set([...defaults, ...fromRuns]));
+  }, [runs]);
+
+  const resolveDepartmentName = (departmentId?: number | null) => {
+    if (!departmentId) return "All Departments";
+    const found = departments.find((dept) => dept.department_id === Number(departmentId));
+    return found?.department_name || `Department #${departmentId}`;
+  };
+
+  const getScopeLabel = (run: PayrollRun) => {
+    const departmentName = resolveDepartmentName(run.scope_filters?.department_id);
+    const type = String(run.scope_filters?.employment_type || "").trim();
+    return type ? `${departmentName} • ${type}` : departmentName;
+  };
+
+  const filteredRuns = useMemo(() => {
+    return runs.filter((run) =>
+      String(run.id).includes(searchTerm) ||
+      run.pay_schedule.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      run.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      getScopeLabel(run).toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }, [searchTerm]);
+  }, [runs, searchTerm, departments]);
 
-  const totalPages = Math.ceil(filteredPayroll.length / itemsPerPage);
-  const currentData = filteredPayroll.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const summary = useMemo(() => {
+    return filteredRuns.reduce(
+      (acc, run) => {
+        acc.gross += Number(run.gross_pay) || 0;
+        acc.net += Number(run.net_pay) || 0;
+        acc.employees += Number(run.employee_count) || 0;
+        return acc;
+      },
+      { gross: 0, net: 0, employees: 0 }
+    );
+  }, [filteredRuns]);
 
-  const handleGeneratePayroll = () => {
-    toast.success("Payroll generation started for the current period.");
-  };
-
-  const handleViewPayslip = (id: number) => {
-    toast.success(`Viewing payslip for record #${id}`);
-    setSelectedMenu(null);
-  };
+  if (loading) {
+    return (
+      <div className="p-6 bg-[#FAF6F1] rounded-xl h-[90vh] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#3D1A0B] mx-auto"></div>
+          <p className="mt-4 text-[#3D1A0B]">Loading payroll runs...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#fff7ec] p-8 space-y-6 text-[#3b2b1c] font-poppins">
-      {/* Header */}
+    <div className="p-6 bg-[#FAF6F1] rounded-xl space-y-6 overflow-hidden h-[90vh] shadow-inner relative font-poppins text-[#3D1A0B]">
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Payroll Management</h1>
-          <p className="text-sm text-gray-600">Period: October 1, 2024 - October 15, 2024</p>
+          <h1 className="text-2xl font-bold">Payroll Runs</h1>
+          <p className="text-sm text-[#3D1A0B]/70">Current and historical payroll processing runs</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <SearchBar 
-            placeholder="Search Employee or Code" 
-            value={searchTerm} 
-            onChange={setSearchTerm} 
-          />
-          <ActionButton
-            label="Generate Payroll"
-            onClick={handleGeneratePayroll}
-            icon={Plus}
-            className="py-4"
-          />
+          <SearchBar placeholder="Search run ID / schedule / status" value={searchTerm} onChange={setSearchTerm} />
+          <select
+            value={departmentFilter}
+            onChange={(e) => setDepartmentFilter(e.target.value)}
+            className="bg-white border border-[#E8D9C4] rounded-lg px-3 py-2 text-sm"
+          >
+            <option value="">All Departments</option>
+            {departments.map((dept) => (
+              <option key={dept.department_id} value={String(dept.department_id)}>{dept.department_name}</option>
+            ))}
+          </select>
+          <select
+            value={employmentTypeFilter}
+            onChange={(e) => setEmploymentTypeFilter(e.target.value)}
+            className="bg-white border border-[#E8D9C4] rounded-lg px-3 py-2 text-sm"
+          >
+            <option value="">All Types</option>
+            {employmentTypeOptions.map((type) => (
+              <option key={type} value={type}>{type}</option>
+            ))}
+          </select>
+          <Link href="/dashboard/payroll/new">
+            <ActionButton label="Create Payroll Run" onClick={() => undefined} icon={Plus} />
+          </Link>
         </div>
       </div>
 
-      {/* Stats Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-[#faeddc] p-6 rounded-xl shadow-sm border border-[#e2d5c3]">
-          <p className="text-sm text-gray-600">Total Net Pay</p>
-          <p className="text-2xl font-bold">₱458,300.00</p>
+        <div className="bg-[#F3E5CF] p-6 rounded-xl shadow-sm border border-[#E8D9C4]">
+          <p className="text-sm text-[#3D1A0B]/70">Total Gross Pay</p>
+          <p className="text-2xl font-bold">{formatMoney(summary.gross)}</p>
         </div>
-        <div className="bg-[#faeddc] p-6 rounded-xl shadow-sm border border-[#e2d5c3]">
-          <p className="text-sm text-gray-600">Processed Employees</p>
-          <p className="text-2xl font-bold">11 / 11</p>
+        <div className="bg-[#F3E5CF] p-6 rounded-xl shadow-sm border border-[#E8D9C4]">
+          <p className="text-sm text-[#3D1A0B]/70">Total Net Pay</p>
+          <p className="text-2xl font-bold">{formatMoney(summary.net)}</p>
         </div>
-        <div className="bg-[#faeddc] p-6 rounded-xl shadow-sm border border-[#e2d5c3]">
-          <p className="text-sm text-gray-600">Payment Status</p>
-          <p className="text-2xl font-bold text-green-600">On Track</p>
+        <div className="bg-[#F3E5CF] p-6 rounded-xl shadow-sm border border-[#E8D9C4]">
+          <p className="text-sm text-[#3D1A0B]/70">Employees Processed</p>
+          <p className="text-2xl font-bold">{summary.employees}</p>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto shadow-sm bg-[#faeddc] rounded-lg">
+      <div className="overflow-x-auto shadow-sm bg-[#F3E5CF] rounded-lg border border-[#E8D9C4]">
         <table className="w-full text-sm border-collapse">
           <thead>
-            <tr className="bg-[#3b2b1c] text-white">
-              <th className="py-4 px-4 text-left">Employee</th>
+            <tr className="bg-[#3D1A0B] text-white">
+              <th className="py-4 px-4 text-left">Run ID</th>
               <th className="py-4 px-4 text-left">Period</th>
-              <th className="py-4 px-4 text-right">Basic Salary</th>
-              <th className="py-4 px-4 text-right">Allowances</th>
+              <th className="py-4 px-4 text-left">Scope</th>
+              <th className="py-4 px-4 text-center">Schedule</th>
+              <th className="py-4 px-4 text-center">Employees</th>
+              <th className="py-4 px-4 text-right">Gross Pay</th>
               <th className="py-4 px-4 text-right">Deductions</th>
               <th className="py-4 px-4 text-right">Net Pay</th>
               <th className="py-4 px-4 text-center">Status</th>
               <th className="py-4 px-4 text-center">Actions</th>
             </tr>
           </thead>
-          <tbody className="text-base">
-            {currentData.map((item) => (
-              <tr key={item.id} className="border-b border-[#e2d5c3] hover:bg-[#fdf4e7] transition">
-                <td className="py-4 px-4">
-                  <div className="font-medium">{item.name}</div>
-                  <div className="text-xs text-gray-500">{item.code}</div>
-                </td>
-                <td className="py-4 px-4 text-gray-600">{item.period}</td>
-                <td className="py-4 px-4 text-right">₱{item.basic.toLocaleString()}</td>
-                <td className="py-4 px-4 text-right text-green-600">+₱{item.allowances.toLocaleString()}</td>
-                <td className="py-4 px-4 text-right text-red-600">-₱{item.deductions.toLocaleString()}</td>
-                <td className="py-4 px-4 text-right font-bold">₱{item.net.toLocaleString()}</td>
-                <td className="py-4 px-4 text-center">
-                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                    item.status === 'paid' ? 'bg-green-100 text-green-800' :
-                    item.status === 'processed' ? 'bg-blue-100 text-blue-800' :
-                    'bg-yellow-100 text-yellow-800'
-                  }`}>
-                    {item.status.toUpperCase()}
-                  </span>
-                </td>
-                <td className="py-4 px-4 text-center relative">
-                  <button 
-                    onClick={() => setSelectedMenu(selectedMenu === item.id ? null : item.id)}
-                    className="p-2 rounded-full hover:bg-[#e8d6bb] transition"
-                  >
-                    <MoreVertical size={18} />
-                  </button>
-                  {selectedMenu === item.id && (
-                    <div className="absolute right-4 top-12 w-40 bg-white border border-[#e2d5c3] rounded-lg shadow-xl z-50">
-                      <button 
-                        onClick={() => handleViewPayslip(item.id)}
-                        className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#fdf4e7] text-left"
-                      >
-                        <Eye size={16} /> View Payslip
-                      </button>
-                      <button className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#fdf4e7] text-left">
-                        <Download size={16} /> Download PDF
-                      </button>
-                    </div>
-                  )}
-                </td>
+          <tbody className="text-base bg-white">
+            {filteredRuns.length === 0 ? (
+              <tr>
+                <td colSpan={10} className="py-10 text-center text-[#3D1A0B]/70">No payroll runs found.</td>
               </tr>
-            ))}
+            ) : (
+              filteredRuns.map((run) => (
+                <tr key={run.id} className="border-b border-[#E8D9C4] hover:bg-[#FAF6F1] transition">
+                  <td className="py-4 px-4 font-semibold">#{run.id}</td>
+                  <td className="py-4 px-4">{formatPeriod(run.pay_period_start, run.pay_period_end)}</td>
+                  <td className="py-4 px-4 text-sm">{getScopeLabel(run)}</td>
+                  <td className="py-4 px-4 text-center uppercase">{run.pay_schedule}</td>
+                  <td className="py-4 px-4 text-center">{run.employee_count}</td>
+                  <td className="py-4 px-4 text-right">{formatMoney(run.gross_pay)}</td>
+                  <td className="py-4 px-4 text-right text-red-700">{formatMoney(run.total_deductions)}</td>
+                  <td className="py-4 px-4 text-right font-bold">{formatMoney(run.net_pay)}</td>
+                  <td className="py-4 px-4 text-center">
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      run.status === "finalized"
+                        ? "bg-green-100 text-green-800 border border-green-300"
+                        : "bg-amber-100 text-amber-800 border border-amber-300"
+                    }`}>
+                      {run.status.toUpperCase()}
+                    </span>
+                  </td>
+                  <td className="py-4 px-4 text-center">
+                    <Link href={`/dashboard/payroll/${run.id}`}>
+                      <button className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#3D1A0B] text-white hover:opacity-90 transition">
+                        <Eye size={16} /> View
+                      </button>
+                    </Link>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex justify-center items-center gap-2 mt-6">
-          <button
-            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-            disabled={currentPage === 1}
-            className="px-4 py-2 rounded bg-[#3b2b1c] text-white disabled:opacity-40"
-          >
-            Prev
+      <div className="flex justify-end gap-3">
+        <Link href="/dashboard/payroll/contributions">
+          <button className="px-4 py-2 rounded-lg bg-[#F3E5CF] border border-[#E8D9C4] hover:bg-[#f1dfc2] transition">
+            Contributions
           </button>
-          <span className="text-sm font-medium">Page {currentPage} of {totalPages}</span>
-          <button
-            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-            disabled={currentPage === totalPages}
-            className="px-4 py-2 rounded bg-[#3b2b1c] text-white disabled:opacity-40"
-          >
-            Next
+        </Link>
+        <Link href="/dashboard/payroll/settings">
+          <button className="px-4 py-2 rounded-lg bg-[#F3E5CF] border border-[#E8D9C4] hover:bg-[#f1dfc2] transition">
+            Payroll Settings
           </button>
-        </div>
-      )}
+        </Link>
+      </div>
     </div>
   );
 }
