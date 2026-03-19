@@ -7,6 +7,10 @@ import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
 import { departmentApi, payrollApi } from "@/lib/api";
 import { showToast } from "@/utils/toast";
+import PayrollRunDetailPage from "./view/page";
+import NewPayrollRunPage from "./new/page";
+import PayrollContributionsModal from "./contributions/page";
+import PayrollSettingsModal from "./settings/page";
 
 interface PayrollRun {
   id: number;
@@ -44,6 +48,15 @@ export default function PayrollTable() {
   const [searchTerm, setSearchTerm] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("");
   const [employmentTypeFilter, setEmploymentTypeFilter] = useState("");
+
+  const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
+  const [showViewModal, setShowViewModal] = useState(false);
+
+  const [showPayrollModal, setShowPayrollModal] = useState(false);
+  const [showContributionsModal, setShowContributionsModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+
+
 
   const fetchRuns = async () => {
     try {
@@ -108,6 +121,11 @@ export default function PayrollTable() {
     return type ? `${departmentName} • ${type}` : departmentName;
   };
 
+  const handleSelectedID = (id: number) => {
+    setSelectedRunId(id);
+    setShowViewModal(true);
+  }
+
   const filteredRuns = useMemo(() => {
     return runs.filter((run) =>
       String(run.id).includes(searchTerm) ||
@@ -142,6 +160,7 @@ export default function PayrollTable() {
 
   return (
     <div className="p-6 bg-[#FAF6F1] rounded-xl space-y-6 overflow-hidden h-[90vh] shadow-inner relative font-poppins text-[#3D1A0B]">
+      {/*Header */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Payroll Runs</h1>
@@ -169,12 +188,11 @@ export default function PayrollTable() {
               <option key={type} value={type}>{type}</option>
             ))}
           </select>
-          <Link href="/dashboard/payroll/new">
-            <ActionButton label="Create Payroll Run" onClick={() => undefined} icon={Plus} />
-          </Link>
+          <ActionButton label="Create Payroll Run" onClick={() => setShowPayrollModal(true)} icon={Plus} />
         </div>
       </div>
 
+      {/* Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-[#F3E5CF] p-6 rounded-xl shadow-sm border border-[#E8D9C4]">
           <p className="text-sm text-[#3D1A0B]/70">Total Gross Pay</p>
@@ -190,6 +208,8 @@ export default function PayrollTable() {
         </div>
       </div>
 
+
+      {/* Table */}
       <div className="overflow-x-auto shadow-sm bg-[#F3E5CF] rounded-lg border border-[#E8D9C4]">
         <table className="w-full text-sm border-collapse">
           <thead>
@@ -223,20 +243,24 @@ export default function PayrollTable() {
                   <td className="py-4 px-4 text-right text-red-700">{formatMoney(run.total_deductions)}</td>
                   <td className="py-4 px-4 text-right font-bold">{formatMoney(run.net_pay)}</td>
                   <td className="py-4 px-4 text-center">
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      run.status === "finalized"
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${run.status === "finalized"
                         ? "bg-green-100 text-green-800 border border-green-300"
                         : "bg-amber-100 text-amber-800 border border-amber-300"
-                    }`}>
+                      }`}>
                       {run.status.toUpperCase()}
                     </span>
                   </td>
                   <td className="py-4 px-4 text-center">
+                    {/*
                     <Link href={`/dashboard/payroll/${run.id}`}>
                       <button className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#3D1A0B] text-white hover:opacity-90 transition">
                         <Eye size={16} /> View
                       </button>
                     </Link>
+                    */}
+                    <button className="cursor-pointer inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#3D1A0B] text-white hover:opacity-90 transition" onClick={() => handleSelectedID(run.id)}>
+                      <Eye size={16} /> View
+                    </button>
                   </td>
                 </tr>
               ))
@@ -246,17 +270,21 @@ export default function PayrollTable() {
       </div>
 
       <div className="flex justify-end gap-3">
-        <Link href="/dashboard/payroll/contributions">
-          <button className="px-4 py-2 rounded-lg bg-[#F3E5CF] border border-[#E8D9C4] hover:bg-[#f1dfc2] transition">
-            Contributions
-          </button>
-        </Link>
-        <Link href="/dashboard/payroll/settings">
-          <button className="px-4 py-2 rounded-lg bg-[#F3E5CF] border border-[#E8D9C4] hover:bg-[#f1dfc2] transition">
-            Payroll Settings
-          </button>
-        </Link>
+        <button className="px-4 py-2 rounded-lg bg-[#F3E5CF] border border-[#E8D9C4] hover:bg-[#f1dfc2] transition"
+          onClick={() => setShowContributionsModal(true)}>
+          Contributions
+        </button>
+        <button className="px-4 py-2 rounded-lg bg-[#F3E5CF] border border-[#E8D9C4] hover:bg-[#f1dfc2] transition"
+          onClick={() => setShowSettingsModal(true)}>
+          Payroll Settings
+        </button>
       </div>
+
+      <PayrollRunDetailPage isOpen={showViewModal} onClose={() => setShowViewModal(false)} payrollId={selectedRunId} />
+      <NewPayrollRunPage isOpen={showPayrollModal} onClose={() => setShowPayrollModal(false)} />
+      <PayrollContributionsModal isOpen={showContributionsModal} onClose={() => setShowContributionsModal(false)} />
+      <PayrollSettingsModal isOpen={showSettingsModal} onClose={() => setShowSettingsModal(false)} />
     </div>
+
   );
 }
