@@ -21,6 +21,23 @@ const ensureDate = (value) => {
   return value.slice(0, 10);
 };
 
+const getTodayDateInManila = () => {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+    .formatToParts(new Date())
+    .reduce((acc, part) => {
+      if (part.type !== 'literal') acc[part.type] = part.value;
+      return acc;
+    }, {});
+
+  const { year, month, day } = parts;
+  return `${year}-${month}-${day}`;
+};
+
 const toDate = (value) => {
   if (!value) return null;
   const date = value instanceof Date
@@ -393,6 +410,14 @@ export const createPayrollRun = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: 'pay_period_start must not be later than pay_period_end.',
+      });
+    }
+
+    const todayDate = getTodayDateInManila();
+    if (periodEnd >= todayDate) {
+      return res.status(400).json({
+        success: false,
+        message: `Payroll period must be fully completed. pay_period_end must be before today (${todayDate}).`,
       });
     }
 
