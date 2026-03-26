@@ -311,7 +311,7 @@ export default function EmployeePayslipsPage() {
                   <div className="flex gap-3">
                     <button
                       onClick={() => handleViewPayslip(slip.run_id, slip.employee_id)}
-                      className="flex items-center gap-2 px-6 py-3 bg-white border border-[#3D1A0B] text-[#3D1A0B] rounded-xl hover:bg-[#3D1A0B] hover:text-white transition"
+                      className="flex items-center gap-2 px-6 py-3 bg-white cursor-pointer border border-[#3D1A0B] text-[#3D1A0B] rounded-xl hover:bg-[#3D1A0B] hover:text-white transition"
                     >
                       <Eye size={18} />
                       View
@@ -321,7 +321,7 @@ export default function EmployeePayslipsPage() {
                         handleViewPayslip(slip.run_id, slip.employee_id);
                         setTimeout(() => window.print(), 800);
                       }}
-                      className="flex items-center gap-2 px-6 py-3 bg-[#3D1A0B] text-white rounded-xl hover:bg-[#2A1308] transition"
+                      className="flex cursor-pointer items-center gap-2 px-6 py-3 bg-[#3D1A0B] text-white rounded-xl hover:bg-[#2A1308] transition"
                     >
                       <Download size={18} />
                       Download
