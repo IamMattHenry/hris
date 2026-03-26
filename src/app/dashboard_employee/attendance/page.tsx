@@ -281,7 +281,7 @@ export default function Dashboard() {
                 <tbody>
                   {attendanceRecords.length > 0 ? (
                     attendanceRecords.map((record) => (
-                      <tr key={record.attendance_code} className="hover:bg-gray-50">
+                      <tr key={record.date} className="hover:bg-gray-50">
                         <td className="border border-gray-300 px-4 py-2">
                           {new Date(record.date).toLocaleDateString('en-US', {
                             month: 'short',

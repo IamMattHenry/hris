@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { House, User, Users, UserCheck, Mail, Cog, LogOut } from "lucide-react";
+import { House, User, Users, UserCheck, Mail, Cog, LogOut, Banknote } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function Navbar() {
@@ -16,6 +16,7 @@ export default function Navbar() {
     { name: "Profile", icon: User, path: "/dashboard_employee/profile" },
     { name: "Dependant", icon: Users, path: "/dashboard_employee/dependant" },
     { name: "Attendance", icon: UserCheck, path: "/dashboard_employee/attendance" },
+    { name: "Payslip", icon: Banknote, path: "/dashboard_employee/payslip" },
     { name: "Request", icon: Mail, path: "/dashboard_employee/request" },
     { name: "Settings", icon: Cog, path: "/dashboard_employee/settings" },
   ];
