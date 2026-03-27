@@ -1,6 +1,7 @@
 import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
 import { computePayrollRun } from '../utils/payrollEngine.js';
+import { applyPenaltyDeductionsForPayrollRecord } from './penaltyController.js';
 
 const round2 = (value) => Number((Number(value) || 0).toFixed(2));
 
@@ -583,6 +584,54 @@ export const createPayrollRun = async (req, res, next) => {
           period_start: periodStart,
           period_end: periodEnd,
         });
+
+        const appliedPenalty = await applyPenaltyDeductionsForPayrollRecord({
+          runId,
+          recordId,
+          employeeId: item.employee_id,
+          periodEnd,
+          userId: req.user?.user_id || null,
+        });
+
+        if (appliedPenalty.totalDeducted > 0) {
+          const updatedTotalDeductions = round2((Number(item.total_deductions) || 0) + appliedPenalty.totalDeducted);
+          const updatedNetPay = round2((Number(item.gross_pay) || 0) - updatedTotalDeductions);
+
+          const updatedBreakdown = {
+            ...(item.breakdown || {}),
+            deductions: {
+              ...(item.breakdown?.deductions || {}),
+              penaltyDeductions: {
+                total: appliedPenalty.totalDeducted,
+                items: appliedPenalty.appliedDeductions,
+              },
+              totalDeductions: updatedTotalDeductions,
+            },
+            netPay: updatedNetPay,
+          };
+
+          const updatedPayslipData = {
+            ...(item.payslipData || {}),
+            deductions: updatedBreakdown.deductions,
+            penalty_deductions: {
+              total: appliedPenalty.totalDeducted,
+              items: appliedPenalty.appliedDeductions,
+            },
+            net_pay: updatedNetPay,
+          };
+
+          await db.transactionUpdate('payroll_records', {
+            total_deductions: updatedTotalDeductions,
+            net_pay: updatedNetPay,
+            json_breakdown: serializeJson(updatedBreakdown),
+            payslip_data: serializeJson(updatedPayslipData),
+          }, 'id = ?', [recordId]);
+
+          item.total_deductions = updatedTotalDeductions;
+          item.net_pay = updatedNetPay;
+          item.breakdown = updatedBreakdown;
+          item.payslipData = updatedPayslipData;
+        }
       }
 
       await db.commit();

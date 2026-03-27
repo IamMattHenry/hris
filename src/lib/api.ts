@@ -1095,6 +1095,117 @@ export const payrollApi = {
   },
 };
 
+// ============ PENALTY API FUNCTIONS ============
+
+export const penaltyApi = {
+  getAll: async (params?: {
+    search?: string;
+    employee_id?: number | string;
+    status?: string;
+    penalty_type?: string;
+    from_date?: string;
+    to_date?: string;
+    page?: number | string;
+    limit?: number | string;
+    sort_by?: string;
+    sort_dir?: 'asc' | 'desc';
+  }) => {
+    const search = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && String(value).trim() !== '') {
+          search.append(key, String(value));
+        }
+      });
+    }
+
+    const url = `/penalties${search.toString() ? `?${search.toString()}` : ''}`;
+
+    return apiCall<any>(url, {
+      method: 'GET',
+    });
+  },
+
+  getById: async (id: number | string) => {
+    return apiCall<any>(`/penalties/${id}`, {
+      method: 'GET',
+    });
+  },
+
+  create: async (data: {
+    employee_id: number;
+    penalty_type: string;
+    title: string;
+    description: string;
+    amount: number;
+    incident_date: string;
+    issued_date: string;
+    due_date?: string | null;
+    payroll_deduction_mode?: 'full' | 'next_payroll' | 'installment' | 'manual' | 'none';
+    installment_count?: number | null;
+    installment_frequency?: string | null;
+    status?: 'draft' | 'pending' | 'approved' | 'rejected' | 'settled' | 'cancelled' | 'waived';
+    metadata?: any;
+  }) => {
+    return apiCall<any>('/penalties', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  update: async (id: number | string, data: any) => {
+    return apiCall<any>(`/penalties/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateStatus: async (
+    id: number | string,
+    data: {
+      status: 'pending' | 'approved' | 'rejected' | 'settled' | 'cancelled' | 'waived';
+      notes?: string;
+    }
+  ) => {
+    return apiCall<any>(`/penalties/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  settle: async (
+    id: number | string,
+    data?: {
+      settled_amount?: number;
+      payment_ref?: string;
+      notes?: string;
+    }
+  ) => {
+    return apiCall<any>(`/penalties/${id}/settle`, {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
+    });
+  },
+
+  cancel: async (
+    id: number | string,
+    data: {
+      reason: string;
+    }
+  ) => {
+    return apiCall<any>(`/penalties/${id}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  delete: async (id: number | string) => {
+    return apiCall<any>(`/penalties/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
 // ACTIVITY LOG FUNCTIONS
 export const activityApi = {
   // Get activities

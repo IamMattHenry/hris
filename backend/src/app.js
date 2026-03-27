@@ -20,6 +20,7 @@ import fingerprintRoutes from './routes/fingerprint.js';
 import passwordRecoveryRoutes from './routes/passwordRecovery.js';
 import rbacRoutes from './routes/rbac.js';
 import payrollRoutes from './routes/payroll.js';
+import penaltyRoutes from './routes/penalties.js';
 
 dotenv.config();
 
@@ -73,6 +74,7 @@ app.use('/api/fingerprint', fingerprintRoutes);
 app.use('/api/password', passwordRecoveryRoutes);
 app.use('/api/rbac', rbacRoutes);
 app.use('/api/payroll', payrollRoutes);
+app.use('/api/penalties', penaltyRoutes);
 
 app.use(notFoundHandler);
 
