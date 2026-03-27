@@ -45,7 +45,7 @@ export default function FingerprintRegistrationModal({
 
           {/* Message */}
           <p className="text-gray-600 mb-6 text-center">
-            Your account requires fingerprint authentication for enhanced security, but you don't have a fingerprint registered yet.
+            Your account requires fingerprint authentication for enhanced security, but you do not have a fingerprint registered yet.
           </p>
 
           {/* Employee Info */}

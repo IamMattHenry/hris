@@ -614,7 +614,7 @@ useEffect(() => {
         const processedData = rawData.map((region: any) => {
           
           // A. Process standard provinces (if any)
-          let finalProvinces = region.provinces.map((prov: any) => ({
+          const finalProvinces = region.provinces.map((prov: any) => ({
             name: prov.name,
             cities: prov.cities.map((city: any) => ({
               name: city.name,
@@ -2027,7 +2027,7 @@ useEffect(() => {
                       {!autoRoleKey && (
                         <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                           <p className="text-sm text-yellow-800">
-                            No automatic role mapping exists for position "{posName}". You can assign roles manually using the options above if available.
+                            No automatic role mapping exists for position &quot;{posName}&quot;. You can assign roles manually using the options above if available.
                           </p>
                         </div>
                       )}
@@ -2077,7 +2077,7 @@ useEffect(() => {
                           No fingerprint registered
                         </p>
                         <p className="text-xs text-yellow-700 mt-1">
-                          This employee doesn't have a fingerprint registered yet. Register one to enable fingerprint attendance.
+                          This employee does not have a fingerprint registered yet. Register one to enable fingerprint attendance.
                         </p>
                       </div>
                       <button

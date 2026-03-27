@@ -176,7 +176,7 @@ export default function AttendanceTable() {
 
   // Manual mark absences removed (auto-marking implemented)
 
-  let filteredAttendance = attendanceList.filter((record) => {
+  const filteredAttendance = attendanceList.filter((record) => {
     const matchSearch =
       `${record.first_name} ${record.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (record.attendance_code?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
@@ -246,7 +246,7 @@ export default function AttendanceTable() {
     const date = new Date(dateTimeString);
     if (isNaN(date.getTime())) return "-";
 
-    let hours = date.getHours();
+    const hours = date.getHours();
     const minutes = date.getMinutes().toString().padStart(2, "0");
     const period = hours >= 12 ? "PM" : "AM";
 

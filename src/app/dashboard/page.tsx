@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { employeeApi, leaveApi, attendanceApi, ticketApi } from "@/lib/api";
 import { Employee } from "@/types/api";
@@ -110,7 +109,6 @@ const computeWeeklyAttendanceData = (
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const router = useRouter();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [pendingLeaves, setPendingLeaves] = useState<PendingLeave[]>([]);
@@ -121,6 +119,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showPendingLeaves, setShowPendingLeaves] = useState(false);
+  const [isLoadingPendingLeaves, setIsLoadingPendingLeaves] = useState(false);
   const [showAbsenceRecords, setShowAbsenceRecords] = useState(false);
   const [showFingerprintModal, setShowFingerprintModal] = useState(false);
   const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
@@ -284,9 +283,26 @@ export default function Dashboard() {
       color: colorPalette[index % colorPalette.length]
     }));
 
-  const handleViewPendingLeaves = () => {
-    // Navigate to the Requests page; it applies role-based default filtering
-    router.push('/dashboard/requests');
+  const handleViewPendingLeaves = async () => {
+    try {
+      setPendingLeaves([]);
+      setShowPendingLeaves(true);
+      setIsLoadingPendingLeaves(true);
+      const result = await leaveApi.getPendingLeaves();
+
+      if (result.success && Array.isArray(result.data)) {
+        setPendingLeaves(result.data as PendingLeave[]);
+      } else {
+        setShowPendingLeaves(false);
+        toast.error(result.message || 'Failed to load pending leave requests.');
+      }
+    } catch (err) {
+      console.error("Error fetching pending leave requests:", err);
+      setShowPendingLeaves(false);
+      toast.error('Failed to load pending leave requests.');
+    } finally {
+      setIsLoadingPendingLeaves(false);
+    }
   };
 
   const handleViewAbsenceRecords = async () => {
@@ -689,6 +705,8 @@ export default function Dashboard() {
                     </div>
                   ))}
                 </div>
+              ) : isLoadingPendingLeaves ? (
+                <p className="text-center text-gray-500 py-8">Loading pending leave requests...</p>
               ) : (
                 <p className="text-center text-gray-500 py-8">No pending leave requests</p>
               )}

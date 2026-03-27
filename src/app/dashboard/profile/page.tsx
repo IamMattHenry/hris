@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { X, User, Briefcase, Shield } from "lucide-react";
+import { User, Briefcase, Shield } from "lucide-react";
 import { authApi } from "@/lib/api";
 
 type ContactItem = { id: number; number: string };
@@ -45,93 +45,6 @@ type FormattedData = {
     emergencyContacts: { id: number; name: string; relation: string; number: string }[];
     attendance: any[];
 };
-
-const mockEmployeeData = {
-    personal: {
-        photo: null,
-        firstName: 'Juan',
-        middleName: 'Dela',
-        lastName: 'Cruz',
-        extensionName: '',
-        employeeCode: 'EMP-001',
-        gender: 'Male',
-        birthdate: '1990-05-15',
-        civilStatus: 'Married',
-        status: 'Active',
-        hireDate: '2020-01-15',
-        // shift removed
-        leaveCredit: 15,
-        address: {
-            region: 'NCR',
-            province: 'Metro Manila',
-            city: 'Quezon City',
-            homeAddress: '123 Main Street, Barangay Santo Domingo'
-        },
-        contacts: [
-            { id: 1, number: '+63 917 123 4567' },
-            { id: 2, number: '+63 2 8123 4567' }
-        ],
-        emails: [
-            { id: 1, email: 'juan.delacruz@company.com', isPrimary: true },
-            { id: 2, email: 'juan.personal@email.com', isPrimary: false }
-        ]
-    },
-    job: {
-        department: 'Human Resource',
-        position: 'Manager',
-        positionCode: 'POS-HR-001',
-        supervisor: 'Maria Santos',
-        salary: 75000,
-        employmentStatus: 'Regular',
-        availability: 'Available'
-    },
-    account: {
-        username: 'juan.delacruz',
-        role: 'employee',
-
-        isActive: true,
-        isSuperAdmin: false,
-        lastUpdated: '2024-10-15T10:30:00'
-    },
-    dependents: [
-        {
-            id: 1,
-            firstName: 'Maria',
-            lastName: 'Dela Cruz',
-            relationship: 'Spouse',
-            birthdate: '1992-08-20',
-            email: 'maria.delacruz@email.com',
-            contact: '+63 917 987 6543',
-            address: '123 Main Street, Quezon City'
-        },
-        {
-            id: 2,
-            firstName: 'Jose',
-            lastName: 'Dela Cruz',
-            relationship: 'Son',
-            birthdate: '2015-03-10',
-            email: null,
-            contact: null,
-            address: '123 Main Street, Quezon City'
-        }
-    ],
-    emergencyContacts: [
-        {
-            id: 1,
-            name: 'Maria Dela Cruz',
-            relation: 'Spouse',
-            number: '+63 917 987 6543'
-        }
-    ],
-    attendance: [
-        { id: 1, date: '2024-10-28', timeIn: '08:00 AM', timeOut: '05:15 PM', totalHours: 9.25, remarks: 'On Time' },
-        { id: 2, date: '2024-10-27', timeIn: '08:15 AM', timeOut: '05:00 PM', totalHours: 8.75, remarks: 'Late' },
-        { id: 3, date: '2024-10-26', timeIn: '08:00 AM', timeOut: '06:00 PM', totalHours: 10, remarks: 'Overtime' },
-        { id: 4, date: '2024-10-25', timeIn: '08:00 AM', timeOut: '05:00 PM', totalHours: 9, remarks: 'On Time' },
-        { id: 5, date: '2024-10-24', timeIn: null, timeOut: null, totalHours: 0, remarks: 'Absent' }
-    ]
-};
-
 
 const Profile = () => {
     const [activeSection, setActiveSection] = useState("personal");
@@ -264,10 +177,6 @@ const Profile = () => {
             {/* MAIN CONTENT */}
             <main className="w-full mx-auto p-4 md:p-8">
                 <div className="bg-white rounded-lg shadow-sm p-8 relative">
-                    <button className="absolute top-8 right-8 text-gray-500 hover:text-gray-700">
-                        <X size={24} />
-                    </button>
-
                     {/* Warning Banner for users without employee record */}
                     {!hasEmployeeRecord && (
                         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded mb-6">

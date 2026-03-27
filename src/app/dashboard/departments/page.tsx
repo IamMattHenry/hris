@@ -206,7 +206,7 @@ export default function DepartmentsPage() {
         </div>
       ) : filteredDepartments.length === 0 && searchTerm ? (
         <div className="flex justify-center items-center h-64 bg-[#faeddc] rounded-lg shadow-sm">
-          <p className="text-[#3b2b1c] text-lg">No departments found matching "{searchTerm}"</p>
+          <p className="text-[#3b2b1c] text-lg">No departments found matching &quot;{searchTerm}&quot;</p>
         </div>
       ) : (
         <DepartmentTable

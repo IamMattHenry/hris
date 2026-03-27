@@ -14,7 +14,7 @@ export function validateStep1(
   region: string,
   province: string
 ) {
-  let errors: any = {};
+  const errors: any = {};
 
   if (!firstName.trim()) errors.firstName = "First name is required.";
   if (!lastName.trim()) errors.lastName = "Last name is required.";

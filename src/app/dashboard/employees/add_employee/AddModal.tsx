@@ -186,7 +186,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     // --- Password generation ---
     const cleanedFirstName = firstName ? firstName.replace(/\s+/g, "") : "User";
     // Capitalize password start
-    let formattedPass = cleanedFirstName.charAt(0).toUpperCase() + cleanedFirstName.slice(1);
+    const formattedPass = cleanedFirstName.charAt(0).toUpperCase() + cleanedFirstName.slice(1);
     let generatedPassword = `@${formattedPass}`;
 
     // Pad password to at least 12 characters using random numbers
@@ -247,7 +247,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         const processedData = rawData.map((region: any) => {
 
           // A. Process standard provinces (if any)
-          let finalProvinces = region.provinces.map((prov: any) => ({
+          const finalProvinces = region.provinces.map((prov: any) => ({
             name: prov.name,
             cities: prov.cities.map((city: any) => ({
               name: city.name,
@@ -583,7 +583,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   // handle salary input with comma formatting
   const handleSalaryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // Remove commas and non-numeric characters
-    let input = e.target.value.replace(/,/g, "").replace(/\D/g, "");
+    const input = e.target.value.replace(/,/g, "").replace(/\D/g, "");
 
     if (input === "") {
       setSalary("");

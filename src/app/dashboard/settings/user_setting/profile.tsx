@@ -82,7 +82,7 @@ const ProfileSection = () => {
         const rawData = await res.json();
 
         const processedData = rawData.map((region: any) => {
-          let finalProvinces = (region.provinces || []).map((prov: any) => ({
+          const finalProvinces = (region.provinces || []).map((prov: any) => ({
             name: prov.name,
             cities: (prov.cities || []).map((city: any) => ({
               name: city.name,
