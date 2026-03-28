@@ -9,6 +9,19 @@ import { deleteFingerprintTemplate } from "../services/fingerprintService.js";
 import emailService from "../utils/emailService.js";
 import { hasPermission } from "../middleware/rbac.js";
 import { invalidatePermissionCache } from "../middleware/rbac.js";
+import {
+  BUDGET_NAMES,
+  BudgetValidationError,
+  ensureAmountWithinBudget,
+  getCurrentStaffSalaryMonthlyTotal,
+  toMonthlyEquivalentCompensation,
+} from '../services/financeBudgetService.js';
+
+const round2 = (value) => Number((Number(value) || 0).toFixed(2));
+const isStaffBudgetApplicableStatus = (value) => {
+  const normalized = String(value || '').trim().toLowerCase().replace('_', '-');
+  return normalized === 'active' || normalized === 'on-leave';
+};
 
 /**
  * Position-name → RBAC role_key mapping for HR department (department_id = 1).
@@ -795,6 +808,44 @@ export const createEmployee = async (req, res, next) => {
       // Align salary unit with work_type
       finalSalaryUnit = finalSalaryUnit || (finalWorkType === 'full-time' ? 'monthly' : 'hourly');
 
+      const resolvedStatus = status || 'active';
+      if (isStaffBudgetApplicableStatus(resolvedStatus)) {
+        const newEmployeeMonthlyEquivalent = toMonthlyEquivalentCompensation({
+          amount: finalCurrentSalary,
+          salaryUnit: finalSalaryUnit,
+        });
+
+        if (newEmployeeMonthlyEquivalent == null) {
+          await db.rollback();
+          return res.status(422).json({
+            success: false,
+            message: 'Employee salary is invalid. Please provide a non-negative salary amount.',
+          });
+        }
+
+        try {
+          const currentStaffMonthlyTotal = await getCurrentStaffSalaryMonthlyTotal();
+          const projectedStaffMonthlyTotal = round2(currentStaffMonthlyTotal + newEmployeeMonthlyEquivalent);
+
+          await ensureAmountWithinBudget({
+            budgetName: BUDGET_NAMES.STAFF_SALARIES,
+            amount: projectedStaffMonthlyTotal,
+            amountLabel: 'Projected total staff salaries',
+          });
+        } catch (budgetError) {
+          if (budgetError instanceof BudgetValidationError) {
+            await db.rollback();
+            logger.error('Staff salary budget validation failed during employee creation:', budgetError);
+            return res.status(budgetError.statusCode).json({
+              success: false,
+              message: budgetError.publicMessage,
+              data: budgetError.data || undefined,
+            });
+          }
+          throw budgetError;
+        }
+      }
+
       // Insert employee without code first
       const tempEmployeeId = await db.transactionInsert("employees", {
         user_id: userId,
@@ -1320,6 +1371,62 @@ export const updateEmployee = async (req, res, next) => {
           updates.salary_unit = updates.work_type === 'full-time' ? 'monthly' : 'hourly';
         }
 
+        const hasSalaryMutation =
+          Object.prototype.hasOwnProperty.call(updates, 'current_salary')
+          || Object.prototype.hasOwnProperty.call(updates, 'salary_unit')
+          || Object.prototype.hasOwnProperty.call(updates, 'work_type');
+
+        const resultingStatus = Object.prototype.hasOwnProperty.call(updates, 'status')
+          ? updates.status
+          : employee.status;
+
+        if (hasSalaryMutation && isStaffBudgetApplicableStatus(resultingStatus)) {
+          const proposedSalary = Object.prototype.hasOwnProperty.call(updates, 'current_salary')
+            ? updates.current_salary
+            : employee.current_salary;
+          const proposedSalaryUnit = Object.prototype.hasOwnProperty.call(updates, 'salary_unit')
+            ? updates.salary_unit
+            : (employee.salary_unit || 'monthly');
+
+          const proposedMonthlyEquivalent = toMonthlyEquivalentCompensation({
+            amount: proposedSalary,
+            salaryUnit: proposedSalaryUnit,
+          });
+
+          if (proposedMonthlyEquivalent == null) {
+            await db.rollback();
+            return res.status(422).json({
+              success: false,
+              message: 'Employee salary is invalid. Please provide a non-negative salary amount.',
+            });
+          }
+
+          try {
+            const currentStaffMonthlyTotal = await getCurrentStaffSalaryMonthlyTotal({
+              excludeEmployeeId: targetEmployeeId,
+            });
+
+            const projectedStaffMonthlyTotal = round2(currentStaffMonthlyTotal + proposedMonthlyEquivalent);
+
+            await ensureAmountWithinBudget({
+              budgetName: BUDGET_NAMES.STAFF_SALARIES,
+              amount: projectedStaffMonthlyTotal,
+              amountLabel: 'Projected total staff salaries',
+            });
+          } catch (budgetError) {
+            if (budgetError instanceof BudgetValidationError) {
+              await db.rollback();
+              logger.error('Staff salary budget validation failed during employee update:', budgetError);
+              return res.status(budgetError.statusCode).json({
+                success: false,
+                message: budgetError.publicMessage,
+                data: budgetError.data || undefined,
+              });
+            }
+            throw budgetError;
+          }
+        }
+
         const updatesWithAudit = {
           ...updates,
           updated_by: updatedBy,
@@ -1685,7 +1792,7 @@ export const setEmployeePositions = async (req, res, next) => {
     }
 
     const employee = await db.getOne(
-      'SELECT employee_id, current_salary, salary_unit FROM employees WHERE employee_id = ?',
+      'SELECT employee_id, current_salary, salary_unit, status FROM employees WHERE employee_id = ?',
       [id]
     );
     if (!employee) {
@@ -1695,6 +1802,43 @@ export const setEmployeePositions = async (req, res, next) => {
     const updatedBy = req.user?.user_id;
     const salary = primary_salary != null ? Number(primary_salary) : employee.current_salary;
     const salaryUnit = primary_salary_unit || employee.salary_unit || 'monthly';
+
+    if (isStaffBudgetApplicableStatus(employee.status)) {
+      const proposedMonthlyEquivalent = toMonthlyEquivalentCompensation({
+        amount: salary,
+        salaryUnit,
+      });
+
+      if (proposedMonthlyEquivalent == null) {
+        return res.status(422).json({
+          success: false,
+          message: 'Employee salary is invalid. Please provide a non-negative salary amount.',
+        });
+      }
+
+      try {
+        const currentStaffMonthlyTotal = await getCurrentStaffSalaryMonthlyTotal({
+          excludeEmployeeId: Number(id),
+        });
+        const projectedStaffMonthlyTotal = round2(currentStaffMonthlyTotal + proposedMonthlyEquivalent);
+
+        await ensureAmountWithinBudget({
+          budgetName: BUDGET_NAMES.STAFF_SALARIES,
+          amount: projectedStaffMonthlyTotal,
+          amountLabel: 'Projected total staff salaries',
+        });
+      } catch (budgetError) {
+        if (budgetError instanceof BudgetValidationError) {
+          logger.error('Staff salary budget validation failed during employee positions update:', budgetError);
+          return res.status(budgetError.statusCode).json({
+            success: false,
+            message: budgetError.publicMessage,
+            data: budgetError.data || undefined,
+          });
+        }
+        throw budgetError;
+      }
+    }
 
     await db.beginTransaction();
     try {

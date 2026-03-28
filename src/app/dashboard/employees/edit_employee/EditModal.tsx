@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 import { motion } from "framer-motion";
 import FormInput from "@/components/forms/FormInput";
 import FormSelect from "@/components/forms/FormSelect";
-import { departmentApi, positionApi, employeeApi, fingerprintApi, rbacApi } from "@/lib/api";
+import { departmentApi, positionApi, employeeApi, fingerprintApi, rbacApi, payrollApi } from "@/lib/api";
 import {
   validateEmployeeForm,
   validateDependent,
@@ -156,6 +156,11 @@ interface RegionData {
   provinces: ProvinceData[];
 }
 
+interface FinanceBudget {
+  budget_id: number;
+  amount: number;
+}
+
 
 /* ---------- Component ---------- */
 export default function EditEmployeeModal({
@@ -205,6 +210,7 @@ export default function EditEmployeeModal({
   // Dependents state
   const [dependents, setDependents] = useState<Dependent[]>([]);
   const [salary, setSalary] = useState("");
+  const [staffSalariesBudget, setStaffSalariesBudget] = useState<FinanceBudget | null>(null);
   const [dependentFirstName, setDependentFirstName] = useState("");
   const [dependentLastName, setDependentLastName] = useState("");
   const [dependentEmail, setDependentEmail] = useState("");
@@ -264,6 +270,16 @@ const [cityCode, setCityCode] = useState("");
 
   //active tab
   const [activeTab, setActiveTab] = useState("personal");
+
+  const formatCurrency = (value?: number | null) => {
+    if (value == null || Number.isNaN(Number(value))) return "₱0.00";
+    return new Intl.NumberFormat("en-PH", {
+      style: "currency",
+      currency: "PHP",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(Number(value));
+  };
 
   /* ---------- Fetch employee details ---------- */
   useEffect(() => {
@@ -426,6 +442,29 @@ const [cityCode, setCityCode] = useState("");
   /* ---------- Departments & positions ---------- */
   useEffect(() => {
     if (isOpen) fetchDepartments();
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setStaffSalariesBudget(null);
+      return;
+    }
+
+    payrollApi.getSettings()
+      .then((res) => {
+        const budget = res.data?.budgets?.staff_salaries;
+        if (res.success && budget) {
+          setStaffSalariesBudget({
+            budget_id: Number(budget.budget_id),
+            amount: Number(budget.amount),
+          });
+        } else {
+          setStaffSalariesBudget(null);
+        }
+      })
+      .catch(() => {
+        setStaffSalariesBudget(null);
+      });
   }, [isOpen]);
   useEffect(() => {
     if (departmentId) {
@@ -1336,6 +1375,10 @@ useEffect(() => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
                     {/* Salary - label aligns with Work Type */}
                     <div>
+                      <p className="text-xs text-[#6b5344] mb-2">
+                        Latest Staff Salaries Budget: {formatCurrency(staffSalariesBudget?.amount)}
+                        {staffSalariesBudget?.budget_id ? ` (budget_id #${staffSalariesBudget.budget_id})` : ""}
+                      </p>
                       <FormInput
                         label={workType?.toLowerCase() === 'part-time' ? "Salary (Hourly Rate)" : "Salary (Monthly)"}
                         type="text"

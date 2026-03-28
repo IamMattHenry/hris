@@ -9,6 +9,7 @@ import {
   employeeApi,
   departmentApi,
   positionApi,
+  payrollApi,
 } from "@/lib/api";
 import { Department, Position } from "@/types/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -45,6 +46,11 @@ interface Dependent {
   city: string;
 }
 
+interface FinanceBudget {
+  budget_id: number;
+  amount: number;
+}
+
 
 export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps) {
   const { user } = useAuth();
@@ -74,6 +80,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [departmentId, setDepartmentId] = useState<number | null>(null);
   const [positionId, setPositionId] = useState<number | null>(null);
   const [salary, setSalary] = useState("");
+  const [staffSalariesBudget, setStaffSalariesBudget] = useState<FinanceBudget | null>(null);
   const [leaveCredit, setLeaveCredit] = useState("15");
   const [employmentType, setEmploymentType] = useState("");
   // New: Work type and schedule
@@ -127,6 +134,16 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     salary && employmentType
       ? `${salary} / ${employmentType === "regular" ? "month" : "hr"}`
       : "";
+
+  const formatCurrency = (value?: number | null) => {
+    if (value == null || Number.isNaN(Number(value))) return "₱0.00";
+    return new Intl.NumberFormat("en-PH", {
+      style: "currency",
+      currency: "PHP",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(Number(value));
+  };
 
   const [usernameEdited, setUsernameEdited] = useState(false);
   const [passwordEdited, setPasswordEdited] = useState(false);
@@ -442,6 +459,24 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   useEffect(() => {
     if (isOpen) {
       fetchDepartments();
+
+      payrollApi.getSettings()
+        .then((res) => {
+          const budget = res.data?.budgets?.staff_salaries;
+          if (res.success && budget) {
+            setStaffSalariesBudget({
+              budget_id: Number(budget.budget_id),
+              amount: Number(budget.amount),
+            });
+          } else {
+            setStaffSalariesBudget(null);
+          }
+        })
+        .catch(() => {
+          setStaffSalariesBudget(null);
+        });
+    } else {
+      setStaffSalariesBudget(null);
     }
   }, [isOpen]);
 
@@ -1177,6 +1212,11 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                     <label className="block text-[#3b2b1c] mb-1">
                       {workType?.toLowerCase() === "part-time" ? "Salary (Hourly Rate):" : "Salary (Monthly):"}
                     </label>
+
+                    <p className="text-xs text-[#6b5344] mb-2">
+                      Latest Staff Salaries Budget: {formatCurrency(staffSalariesBudget?.amount)}
+                      {staffSalariesBudget?.budget_id ? ` (budget_id #${staffSalariesBudget.budget_id})` : ""}
+                    </p>
 
                     <div className="flex items-center border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] overflow-hidden">
                       <span className="px-3 py-2 text-[#3b2b1c] font-semibold">₱</span>

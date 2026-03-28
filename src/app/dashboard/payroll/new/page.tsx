@@ -24,6 +24,11 @@ interface Department {
   department_name: string;
 }
 
+interface FinanceBudget {
+  budget_id: number;
+  amount: number;
+}
+
 interface NewPayrollRunModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -52,6 +57,17 @@ export default function NewPayrollRunModal({
   const [departmentId, setDepartmentId] = useState("");
   const [employmentType, setEmploymentType] = useState("");
   const [notes, setNotes] = useState("");
+  const [payrollBudget, setPayrollBudget] = useState<FinanceBudget | null>(null);
+
+  const formatCurrency = (value?: number | null) => {
+    if (value == null || Number.isNaN(Number(value))) return "₱0.00";
+    return new Intl.NumberFormat("en-PH", {
+      style: "currency",
+      currency: "PHP",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(Number(value));
+  };
 
   // ────────────────────────────────────────────────
   // Fetch data once when modal opens
@@ -94,6 +110,16 @@ export default function NewPayrollRunModal({
         if (settingsRes.success && settingsRes.data?.current?.pay_schedule) {
           setPaySchedule(settingsRes.data.current.pay_schedule);
         }
+
+        const latestPayrollBudget = settingsRes.data?.budgets?.payroll;
+        if (settingsRes.success && latestPayrollBudget) {
+          setPayrollBudget({
+            budget_id: Number(latestPayrollBudget.budget_id),
+            amount: Number(latestPayrollBudget.amount),
+          });
+        } else {
+          setPayrollBudget(null);
+        }
       } catch (error: any) {
         showToast.error(error.message || "Failed to load payroll setup data");
       } finally {
@@ -112,6 +138,7 @@ export default function NewPayrollRunModal({
       setDepartmentId("");
       setEmploymentType("");
       setNotes("");
+      setPayrollBudget(null);
     };
   }, [isOpen]);
 
@@ -319,6 +346,21 @@ export default function NewPayrollRunModal({
                     className="w-full bg-white border border-[#E8D9C4] rounded-lg px-3 py-2"
                   />
                 </label>
+              </div>
+
+              <div className="rounded-lg border border-[#E8D9C4] bg-white px-4 py-3 text-sm text-[#3D1A0B]">
+                <p className="font-medium">
+                  Latest Payroll Budget: {formatCurrency(payrollBudget?.amount)}
+                </p>
+                {payrollBudget?.budget_id ? (
+                  <p className="text-xs text-[#3D1A0B]/70 mt-1">
+                    Source: budget_category (budget_id #{payrollBudget.budget_id})
+                  </p>
+                ) : (
+                  <p className="text-xs text-[#3D1A0B]/70 mt-1">
+                    Budget data unavailable. Payroll creation will be blocked until Finance budget is configured.
+                  </p>
+                )}
               </div>
 
               {/* Employee selection */}

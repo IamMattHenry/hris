@@ -2,6 +2,12 @@ import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
 import { computePayrollRun } from '../utils/payrollEngine.js';
 import { applyPenaltyDeductionsForPayrollRecord } from './penaltyController.js';
+import {
+  BUDGET_NAMES,
+  BudgetValidationError,
+  ensureAmountWithinBudget,
+  getFinanceBudgetsSnapshot,
+} from '../services/financeBudgetService.js';
 
 const round2 = (value) => Number((Number(value) || 0).toFixed(2));
 
@@ -546,6 +552,25 @@ export const createPayrollRun = async (req, res, next) => {
       settings,
     });
 
+    let payrollBudgetValidation = null;
+    try {
+      payrollBudgetValidation = await ensureAmountWithinBudget({
+        budgetName: BUDGET_NAMES.PAYROLL,
+        amount: Number(computed.summary?.gross_pay) || 0,
+        amountLabel: 'Computed payroll total gross pay',
+      });
+    } catch (budgetError) {
+      if (budgetError instanceof BudgetValidationError) {
+        logger.error('Payroll budget validation failed during payroll run creation:', budgetError);
+        return res.status(budgetError.statusCode).json({
+          success: false,
+          message: budgetError.publicMessage,
+          data: budgetError.data || undefined,
+        });
+      }
+      throw budgetError;
+    }
+
     await db.beginTransaction();
     try {
       const runId = await db.transactionInsert('payroll_runs', {
@@ -658,6 +683,7 @@ export const createPayrollRun = async (req, res, next) => {
           pay_schedule: resolvedPaySchedule,
           scope_filters: scopeFilters,
           summary: computed.summary,
+          budget: payrollBudgetValidation?.budget || null,
         },
       });
     } catch (error) {
@@ -1095,12 +1121,28 @@ export const getPayrollSettings = async (req, res, next) => {
        LIMIT 20`
     );
 
+    let budgets = null;
+    try {
+      budgets = await getFinanceBudgetsSnapshot();
+    } catch (budgetError) {
+      if (budgetError instanceof BudgetValidationError) {
+        logger.error('Finance budget fetch failed while loading payroll settings:', budgetError);
+        return res.status(budgetError.statusCode).json({
+          success: false,
+          message: budgetError.publicMessage,
+          data: budgetError.data || undefined,
+        });
+      }
+      throw budgetError;
+    }
+
     res.json({
       success: true,
       message: 'Payroll settings fetched successfully',
       data: {
         current,
         history,
+        budgets,
       },
     });
   } catch (error) {
@@ -1227,6 +1269,38 @@ export const overridePayrollRecord = async (req, res, next) => {
           - (withholding_tax != null ? Number(withholding_tax) : previousValues.withholding_tax)
         ),
     };
+
+    const runGross = await db.getOne(
+      `SELECT COALESCE(SUM(gross_pay), 0) AS total_gross_pay
+       FROM payroll_records
+       WHERE run_id = ?`,
+      [id]
+    );
+
+    const currentRunGross = Number(runGross?.total_gross_pay) || 0;
+    const projectedRunGross = round2(
+      currentRunGross
+      - (Number(record.gross_pay) || 0)
+      + (Number(updatedValues.gross_pay) || 0)
+    );
+
+    try {
+      await ensureAmountWithinBudget({
+        budgetName: BUDGET_NAMES.PAYROLL,
+        amount: projectedRunGross,
+        amountLabel: 'Projected payroll run gross total after override',
+      });
+    } catch (budgetError) {
+      if (budgetError instanceof BudgetValidationError) {
+        logger.error('Payroll budget validation failed during override:', budgetError);
+        return res.status(budgetError.statusCode).json({
+          success: false,
+          message: budgetError.publicMessage,
+          data: budgetError.data || undefined,
+        });
+      }
+      throw budgetError;
+    }
 
     await db.beginTransaction();
     try {
