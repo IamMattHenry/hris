@@ -33,6 +33,11 @@ interface Department {
   department_name: string;
 }
 
+interface FinanceBudget {
+  budget_id: number;
+  amount: number;
+}
+
 const formatMoney = (value: number) => `₱${Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const formatPeriod = (start: string, end: string) => {
@@ -44,6 +49,8 @@ const formatPeriod = (start: string, end: string) => {
 export default function PayrollTable() {
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [payrollBudget, setPayrollBudget] = useState<FinanceBudget | null>(null);
+  const [staffSalariesBudget, setStaffSalariesBudget] = useState<FinanceBudget | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("");
@@ -57,6 +64,35 @@ export default function PayrollTable() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
 
+
+  const fetchBudgets = async () => {
+    try {
+      const response = await payrollApi.getSettings();
+      const payroll = response.data?.budgets?.payroll;
+      const staffSalaries = response.data?.budgets?.staff_salaries;
+
+      if (response.success && payroll) {
+        setPayrollBudget({
+          budget_id: Number(payroll.budget_id),
+          amount: Number(payroll.amount),
+        });
+      } else {
+        setPayrollBudget(null);
+      }
+
+      if (response.success && staffSalaries) {
+        setStaffSalariesBudget({
+          budget_id: Number(staffSalaries.budget_id),
+          amount: Number(staffSalaries.amount),
+        });
+      } else {
+        setStaffSalariesBudget(null);
+      }
+    } catch {
+      setPayrollBudget(null);
+      setStaffSalariesBudget(null);
+    }
+  };
 
   const fetchRuns = async () => {
     try {
@@ -94,6 +130,7 @@ export default function PayrollTable() {
 
   useEffect(() => {
     fetchDepartments();
+    fetchBudgets();
   }, []);
 
   useEffect(() => {
@@ -193,7 +230,7 @@ export default function PayrollTable() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
         <div className="bg-[#F3E5CF] p-6 rounded-xl shadow-sm border border-[#E8D9C4]">
           <p className="text-sm text-[#3D1A0B]/70">Total Gross Pay</p>
           <p className="text-2xl font-bold">{formatMoney(summary.gross)}</p>
@@ -205,6 +242,24 @@ export default function PayrollTable() {
         <div className="bg-[#F3E5CF] p-6 rounded-xl shadow-sm border border-[#E8D9C4]">
           <p className="text-sm text-[#3D1A0B]/70">Employees Processed</p>
           <p className="text-2xl font-bold">{summary.employees}</p>
+        </div>
+        <div className="bg-[#F3E5CF] p-6 rounded-xl shadow-sm border border-[#E8D9C4]">
+          <p className="text-sm text-[#3D1A0B]/70">Latest Payroll Budget</p>
+          <p className="text-2xl font-bold">{formatMoney(payrollBudget?.amount || 0)}</p>
+          <p className="text-xs text-[#3D1A0B]/60 mt-1">
+            {payrollBudget?.budget_id
+              ? `budget_category #${payrollBudget.budget_id}`
+              : "No active payroll budget"}
+          </p>
+        </div>
+        <div className="bg-[#F3E5CF] p-6 rounded-xl shadow-sm border border-[#E8D9C4]">
+          <p className="text-sm text-[#3D1A0B]/70">Latest Staff Salaries Budget</p>
+          <p className="text-2xl font-bold">{formatMoney(staffSalariesBudget?.amount || 0)}</p>
+          <p className="text-xs text-[#3D1A0B]/60 mt-1">
+            {staffSalariesBudget?.budget_id
+              ? `budget_category #${staffSalariesBudget.budget_id}`
+              : "No active staff salaries budget"}
+          </p>
         </div>
       </div>
 

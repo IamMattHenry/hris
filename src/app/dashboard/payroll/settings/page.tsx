@@ -14,6 +14,11 @@ interface HolidayOverride {
   type: HolidayType;
 }
 
+interface FinanceBudget {
+  budget_id: number;
+  amount: number;
+}
+
 interface PayrollSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -38,10 +43,22 @@ export default function PayrollSettingsModal({
   const [clothingCap, setClothingCap] = useState("6000");
 
   const [holidayOverrides, setHolidayOverrides] = useState<HolidayOverride[]>([]);
+  const [payrollBudget, setPayrollBudget] = useState<FinanceBudget | null>(null);
+  const [staffSalariesBudget, setStaffSalariesBudget] = useState<FinanceBudget | null>(null);
 
   const [newHolidayDate, setNewHolidayDate] = useState("");
   const [newHolidayName, setNewHolidayName] = useState("");
   const [newHolidayType, setNewHolidayType] = useState<HolidayType>("special");
+
+  const formatCurrency = (value?: number | null) => {
+    if (value == null || Number.isNaN(Number(value))) return "₱0.00";
+    return new Intl.NumberFormat("en-PH", {
+      style: "currency",
+      currency: "PHP",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(Number(value));
+  };
 
   const fetchSettings = async () => {
     if (!isOpen) return;
@@ -67,6 +84,27 @@ export default function PayrollSettingsModal({
       setClothingCap(String(deMinimis.clothing_annual_cap ?? 6000));
 
       setHolidayOverrides(Array.isArray(current.holiday_overrides) ? current.holiday_overrides : []);
+
+      const latestPayrollBudget = response.data?.budgets?.payroll;
+      const latestStaffSalariesBudget = response.data?.budgets?.staff_salaries;
+
+      if (latestPayrollBudget) {
+        setPayrollBudget({
+          budget_id: Number(latestPayrollBudget.budget_id),
+          amount: Number(latestPayrollBudget.amount),
+        });
+      } else {
+        setPayrollBudget(null);
+      }
+
+      if (latestStaffSalariesBudget) {
+        setStaffSalariesBudget({
+          budget_id: Number(latestStaffSalariesBudget.budget_id),
+          amount: Number(latestStaffSalariesBudget.amount),
+        });
+      } else {
+        setStaffSalariesBudget(null);
+      }
     } catch (error: any) {
       showToast.error(error.message || "Failed to load payroll settings");
     } finally {
@@ -187,6 +225,28 @@ export default function PayrollSettingsModal({
             </div>
           ) : (
             <div className="p-6 space-y-6 overflow-y-auto flex-1">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="rounded-lg border border-[#E8D9C4] bg-white px-4 py-3">
+                  <p className="text-sm font-medium text-[#3D1A0B]">Latest Payroll Budget</p>
+                  <p className="text-lg font-semibold text-[#3D1A0B] mt-1">{formatCurrency(payrollBudget?.amount)}</p>
+                  <p className="text-xs text-[#3D1A0B]/70 mt-1">
+                    {payrollBudget?.budget_id
+                      ? `Source: budget_category (budget_id #${payrollBudget.budget_id})`
+                      : "No active payroll budget configured."}
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-[#E8D9C4] bg-white px-4 py-3">
+                  <p className="text-sm font-medium text-[#3D1A0B]">Latest Staff Salaries Budget</p>
+                  <p className="text-lg font-semibold text-[#3D1A0B] mt-1">{formatCurrency(staffSalariesBudget?.amount)}</p>
+                  <p className="text-xs text-[#3D1A0B]/70 mt-1">
+                    {staffSalariesBudget?.budget_id
+                      ? `Source: budget_category (budget_id #${staffSalariesBudget.budget_id})`
+                      : "No active staff salaries budget configured."}
+                  </p>
+                </div>
+              </div>
+
               {/* Basic Settings */}
               <div className="grid sm:grid-cols-3 gap-4">
                 <label className="space-y-1.5">

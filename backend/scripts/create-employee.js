@@ -30,6 +30,8 @@
  *     --position       Position name OR numeric position_id      (default: none)
  *     --role           User role: employee | admin | supervisor  (default: employee)
  *     --hire-date      YYYY-MM-DD                                (default: today)
+ *     --monthly-salary Monthly salary for budget projection       (default: position default or 0)
+ *     --hourly-salary  Hourly salary for budget projection        (default: position default or 0)
  *     --work-type      full-time | part-time                     (default: full-time)
  *     --scheduled-days Comma-separated weekdays                  (default: monday,tuesday,wednesday,thursday,friday)
  *     --start-time     HH:MM or HH:MM:SS                        (default: 08:00:00)
@@ -154,6 +156,149 @@ const posParam   = params['position']   || null;
 const generateCode = (prefix, id) => `${prefix}-${String(id).padStart(4, '0')}`;
 const generateEmployeeCode = (id) => generateCode('EMP', id);
 
+const STAFF_SALARIES_BUDGET_NAME = 'Staff Salaries';
+const DEFAULT_MONTHLY_WORK_DAYS = 22;
+const FULL_DAY_HOURS = 8;
+
+const round2 = (value) => Number((Number(value) || 0).toFixed(2));
+
+const normalizeSalaryUnit = (value) => String(value || '').trim().toLowerCase() === 'hourly' ? 'hourly' : 'monthly';
+
+const hasMonthlySalaryFlag = Object.prototype.hasOwnProperty.call(params, 'monthly-salary');
+const hasHourlySalaryFlag = Object.prototype.hasOwnProperty.call(params, 'hourly-salary');
+
+if (hasMonthlySalaryFlag && hasHourlySalaryFlag) {
+  console.error('❌  Use either --monthly-salary or --hourly-salary, not both.');
+  process.exit(1);
+}
+
+let providedSalaryAmount = null;
+let providedSalaryUnit = null;
+
+if (hasMonthlySalaryFlag) {
+  const rawMonthlySalary = params['monthly-salary'];
+  if (rawMonthlySalary === true || rawMonthlySalary == null || String(rawMonthlySalary).trim() === '') {
+    console.error('❌  --monthly-salary requires a numeric value, e.g. --monthly-salary 25000');
+    process.exit(1);
+  }
+
+  const parsedMonthlySalary = Number(rawMonthlySalary);
+  if (!Number.isFinite(parsedMonthlySalary) || parsedMonthlySalary < 0) {
+    console.error('❌  --monthly-salary must be a non-negative number.');
+    process.exit(1);
+  }
+
+  providedSalaryAmount = round2(parsedMonthlySalary);
+  providedSalaryUnit = 'monthly';
+}
+
+if (hasHourlySalaryFlag) {
+  const rawHourlySalary = params['hourly-salary'];
+  if (rawHourlySalary === true || rawHourlySalary == null || String(rawHourlySalary).trim() === '') {
+    console.error('❌  --hourly-salary requires a numeric value, e.g. --hourly-salary 150');
+    process.exit(1);
+  }
+
+  const parsedHourlySalary = Number(rawHourlySalary);
+  if (!Number.isFinite(parsedHourlySalary) || parsedHourlySalary < 0) {
+    console.error('❌  --hourly-salary must be a non-negative number.');
+    process.exit(1);
+  }
+
+  providedSalaryAmount = round2(parsedHourlySalary);
+  providedSalaryUnit = 'hourly';
+}
+
+const toMonthlyEquivalentCompensation = ({ amount, salaryUnit }) => {
+  const numericAmount = Number(amount);
+  if (!Number.isFinite(numericAmount) || numericAmount < 0) return null;
+
+  const normalizedUnit = String(salaryUnit || '').trim().toLowerCase() === 'hourly' ? 'hourly' : 'monthly';
+  if (normalizedUnit === 'hourly') {
+    return round2(numericAmount * FULL_DAY_HOURS * DEFAULT_MONTHLY_WORK_DAYS);
+  }
+
+  return round2(numericAmount);
+};
+
+const formatCurrency = (value) => {
+  const normalized = Number(value);
+  if (!Number.isFinite(normalized)) return '₱0.00';
+
+  try {
+    return new Intl.NumberFormat('en-PH', {
+      style: 'currency',
+      currency: 'PHP',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(normalized);
+  } catch {
+    return `₱${normalized.toFixed(2)}`;
+  }
+};
+
+async function validateStaffSalariesBudget(connection, projectedMonthlySalary = 0) {
+  const normalizedProjectedMonthlySalary = Number(projectedMonthlySalary);
+  if (!Number.isFinite(normalizedProjectedMonthlySalary) || normalizedProjectedMonthlySalary < 0) {
+    throw new Error('Projected monthly salary is invalid. Please provide a non-negative number.');
+  }
+
+  const [budgetRows] = await connection.execute(
+    `SELECT budget_category_id, budget_id, budget_name, amount
+     FROM budget_category
+     WHERE budget_name = ?
+     ORDER BY budget_id DESC
+     LIMIT 1`,
+    [STAFF_SALARIES_BUDGET_NAME]
+  );
+
+  if (budgetRows.length === 0) {
+    throw new Error(
+      `No Finance budget record found for '${STAFF_SALARIES_BUDGET_NAME}'. Please configure it in budget_category first.`
+    );
+  }
+
+  const latestBudget = budgetRows[0];
+  const budgetAmount = Number(latestBudget.amount);
+  if (!Number.isFinite(budgetAmount) || budgetAmount < 0) {
+    throw new Error(
+      `Finance budget '${STAFF_SALARIES_BUDGET_NAME}' has an invalid amount in budget_category.amount.`
+    );
+  }
+
+  const [salaryRows] = await connection.execute(
+    `SELECT current_salary, salary_unit
+     FROM employees
+     WHERE status IN ('active', 'on-leave')`
+  );
+
+  const currentStaffMonthlyTotal = round2(
+    salaryRows.reduce((sum, row) => {
+      const monthlyEquivalent = toMonthlyEquivalentCompensation({
+        amount: row.current_salary,
+        salaryUnit: row.salary_unit,
+      });
+      return sum + (monthlyEquivalent || 0);
+    }, 0)
+  );
+
+  const projectedStaffMonthlyTotal = round2(currentStaffMonthlyTotal + normalizedProjectedMonthlySalary);
+
+  if (projectedStaffMonthlyTotal > budgetAmount) {
+    throw new Error(
+      `Projected total staff salaries (${formatCurrency(projectedStaffMonthlyTotal)}) exceeds latest '${STAFF_SALARIES_BUDGET_NAME}' budget (${formatCurrency(budgetAmount)}).`
+    );
+  }
+
+  return {
+    budgetName: latestBudget.budget_name,
+    budgetAmount: round2(budgetAmount),
+    currentStaffMonthlyTotal,
+    projectedNewEmployeeMonthlySalary: round2(normalizedProjectedMonthlySalary),
+    projectedStaffMonthlyTotal,
+  };
+}
+
 // ─── Email sender ────────────────────────────────────────────────────────────
 async function sendAccountEmail({ to, name, username, password }) {
   const {
@@ -275,11 +420,13 @@ async function main() {
     // ── Resolve position ────────────────────────────────────────────────────
     let positionId   = null;
     let positionName = null;
+    let positionDefaultSalary = null;
+    let positionSalaryUnit = null;
 
     if (posParam) {
       if (/^\d+$/.test(posParam)) {
         const [rows] = await connection.execute(
-          'SELECT position_id, position_name FROM job_positions WHERE position_id = ?',
+          'SELECT position_id, position_name, default_salary, salary_unit FROM job_positions WHERE position_id = ?',
           [posParam]
         );
         if (rows.length === 0) {
@@ -288,9 +435,11 @@ async function main() {
         }
         positionId   = rows[0].position_id;
         positionName = rows[0].position_name;
+        positionDefaultSalary = rows[0].default_salary;
+        positionSalaryUnit = rows[0].salary_unit;
       } else {
         const [rows] = await connection.execute(
-          'SELECT position_id, position_name FROM job_positions WHERE LOWER(position_name) = LOWER(?)',
+          'SELECT position_id, position_name, default_salary, salary_unit FROM job_positions WHERE LOWER(position_name) = LOWER(?)',
           [posParam]
         );
         if (rows.length === 0) {
@@ -305,8 +454,36 @@ async function main() {
         }
         positionId   = rows[0].position_id;
         positionName = rows[0].position_name;
+        positionDefaultSalary = rows[0].default_salary;
+        positionSalaryUnit = rows[0].salary_unit;
       }
       console.log(`💼  Position   : [${positionId}] ${positionName}`);
+    }
+
+    let projectedSalarySource = 'defaulted to 0 (no salary input and no position default)';
+    let projectedNewEmployeeMonthlySalary = 0;
+
+    if (providedSalaryAmount != null && providedSalaryUnit) {
+      projectedNewEmployeeMonthlySalary = toMonthlyEquivalentCompensation({
+        amount: providedSalaryAmount,
+        salaryUnit: providedSalaryUnit,
+      });
+      projectedSalarySource = `from --${providedSalaryUnit === 'hourly' ? 'hourly-salary' : 'monthly-salary'}`;
+    } else {
+      const numericPositionSalary = Number(positionDefaultSalary);
+      if (Number.isFinite(numericPositionSalary) && numericPositionSalary >= 0) {
+        const normalizedPositionSalaryUnit = normalizeSalaryUnit(positionSalaryUnit);
+        projectedNewEmployeeMonthlySalary = toMonthlyEquivalentCompensation({
+          amount: numericPositionSalary,
+          salaryUnit: normalizedPositionSalaryUnit,
+        });
+        projectedSalarySource = `from position default_salary (${formatCurrency(numericPositionSalary)} ${normalizedPositionSalaryUnit})`;
+      }
+    }
+
+    if (projectedNewEmployeeMonthlySalary == null) {
+      console.error('❌  Salary for budget projection is invalid.');
+      process.exit(1);
     }
 
     // ── Check username uniqueness ───────────────────────────────────────────
@@ -329,6 +506,21 @@ async function main() {
       process.exit(1);
     }
 
+    // ── Validate finance budget before any writes ─────────────────────────
+    try {
+      const budgetCheck = await validateStaffSalariesBudget(
+        connection,
+        projectedNewEmployeeMonthlySalary
+      );
+      console.log(
+        `💰  Budget check: ${budgetCheck.budgetName} ${formatCurrency(budgetCheck.currentStaffMonthlyTotal)} + ${formatCurrency(budgetCheck.projectedNewEmployeeMonthlySalary)} = ${formatCurrency(budgetCheck.projectedStaffMonthlyTotal)} / ${formatCurrency(budgetCheck.budgetAmount)}`
+      );
+      console.log(`💡  Projection source: ${projectedSalarySource}`);
+    } catch (budgetError) {
+      console.error(`❌  Budget validation failed: ${budgetError.message}`);
+      process.exit(1);
+    }
+
     // ── Summary before writing ──────────────────────────────────────────────
     console.log('');
     console.log('Employee to be created:');
@@ -338,6 +530,7 @@ async function main() {
     console.log(`  Role     : ${role}`);
     console.log(`  Work type: ${workType}`);
     console.log(`  Hire date: ${hireDate}`);
+    console.log(`  Salary for projection (monthly eq): ${formatCurrency(projectedNewEmployeeMonthlySalary)} (${projectedSalarySource})`);
     if (departmentId) console.log(`  Dept     : [${departmentId}] ${departmentName}`);
     if (positionId)   console.log(`  Position : [${positionId}] ${positionName}`);
     console.log(`  Schedule : ${scheduledDays.join(', ')}  ${scheduledStartTime} – ${scheduledEndTime}`);

@@ -1,54 +1,47 @@
-# Copilot / AI assistant instructions for the HRIS repo
+# Copilot instructions for HRIS
 
-This file gives focused, actionable context for AI coding agents to be immediately productive in this repository.
+## Architecture snapshot
+- Monorepo split: Next.js frontend at repo root (`src/app`, `src/components`, `src/lib`) and Express backend in `backend/src`.
+- Backend entrypoints: `backend/src/app.js` (middleware + route wiring) and `backend/src/server.js` (DB check, startup, scheduled leave-revert job).
+- Backend is ESM (`"type": "module"` in `backend/package.json`); use `import/export`, not CommonJS.
+- Data access is centralized in `backend/src/config/db.js` with pool helpers plus transaction-aware helpers (`beginTransaction`, `transactionQuery`, `commit`, `rollback`) via AsyncLocalStorage.
+- Frontend API boundary is `src/lib/api.ts`; most UI code should call exported API objects there, not raw `fetch`.
 
-- Architecture (big picture)
-  - Monorepo-like layout: a Next.js frontend at the repository root (app/ inside `src`) and an Express backend in `backend/`.
-  - Frontend: Next.js (App Router) lives under `src/app` and `src/components`. Key files:
-    - `src/lib/api.ts` — central API helper and network/error handling (uses NEXT_PUBLIC_API_URL || http://localhost:5000/api).
-    - `src/contexts/AuthContext.tsx` — client-side auth flows, expects `localStorage.token` and redirects to `/login_hr` when unauthenticated.
-  - Backend: Express (ESM) under `backend/src` with clear separation: `controllers/`, `routes/`, `middleware/`, `config/` and `utils/`.
-    - Entry points: `backend/src/app.js` (Express app) and `backend/src/server.js` (starts server and tests DB connection).
-    - Uses JWT auth — routes protected with `verifyToken` middleware. See `backend/src/routes/auth.js` and `controllers/authController.js`.
+## Integration points that matter
+- Frontend calls `${NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}` from `src/lib/api.ts`.
+- Auth token is stored in `localStorage` key `token`; `apiCall` auto-attaches `Authorization: Bearer <token>`.
+- `AuthProvider` in `src/contexts/AuthContext.tsx` redirects to `/login_hr` when unauthenticated and clears storage on logout.
+- Fingerprint flows run as a separate process via `backend/src/scripts/startFingerprintBridge.js` (`npm run fingerprint`) and bridge to backend `/api/attendance/fingerprint`.
 
-- Important integration points
-  - Frontend <-> Backend: frontend expects backend API at NEXT_PUBLIC_API_URL (default http://localhost:5000/api). The frontend `apiCall` wraps responses that often use the `{ success, data, message }` envelope.
-  - Authentication: token stored in `localStorage` under key `token`. `apiCall` attaches `Authorization: Bearer <token>` automatically.
-  - Fingerprint/Hardware: backend includes `serialport` and a fingerprint bridge script `backend/src/scripts/startFingerprintBridge.js` — treat hardware flows as separate processes connecting to backend endpoints (`/api/fingerprint`).
+## Response/error conventions
+- Prefer backend JSON envelope shape: `{ success, message, data? }` (see routes/controllers and `src/lib/api.ts` pass-through behavior).
+- Frontend `apiCall` behavior is opinionated:
+  - 401: removes `localStorage.token` and redirects.
+  - 500: returns friendly message; does **not** auto-logout.
+  - GET retries only on 502/503/504 (2 retries), default timeout is 20s.
+- Backend global error format comes from `backend/src/middleware/errorHandler.js`; use `next(error)` for unexpected controller errors.
 
-- Developer workflows / commands (PowerShell examples)
-  - Frontend (Next.js):
-    - Dev: `npm run dev` (from repo root) — opens at http://localhost:3000
-    - Build: `npm run build` then `npm start` for production build
-  - Backend (Express):
-    - Install and run:
-      - cd into `backend/`
-      - Copy env: `cp .env.example .env` (or copy manually on Windows)
-      - `npm install`
-      - Dev: `npm run dev` (nodemon src/server.js) — default port 5000
-      - Start fingerprint bridge (if testing hardware): `npm run fingerprint` in `backend/`
-  - Full stack: run frontend and backend separately or use your preferred local orchestration.
+## Auth + RBAC patterns
+- Backend protection layers are combined: `verifyToken` + permission middleware (`requirePermission`) in route files like `backend/src/routes/employees.js`.
+- Frontend permission checks use `src/hooks/usePermissions.ts` (`can`, `canAny`, `canAll`, `hasRole`) with module-level caching.
+- For auth/RBAC changes, update both backend guards (`backend/src/middleware/auth.js`, `backend/src/middleware/rbac.js`, route middleware usage) and frontend gating (`AuthProvider`, `usePermissions`, affected pages).
 
-- Project-specific patterns & conventions (do not assume generic defaults)
-  - API envelope: many backend endpoints return an object with `success`, `data`, `message`. The frontend `apiCall` checks for a `success` field — prefer returning that envelope when changing backend responses.
-  - Error handling: `apiCall` performs redirects on 401 and will remove `localStorage.token` — do not implement automatic token deletion on 500-level errors.
-  - Retry policy: GET requests get a couple retries on transient 502/503/504; non-GETs are not retried by default.
-  - Timeouts: `apiCall` uses a default timeout (20s) and shows friendly messages — follow existing friendly messages and avoid surfacing raw stack traces to the UI.
-  - Frontend storage: token in `localStorage`; ephemeral session data may be in `sessionStorage` — AuthContext clears both on logout.
-  - Next.js settings: `next.config.ts` disables ESLint during build (safe for demo); respect the app router conventions (`src/app`) and `use client` boundaries in components like `AuthProvider`.
+## Developer workflows (Windows-friendly)
+- Frontend dev (repo root): `npm install`, then `npm run dev` (Next.js on 3000).
+- Backend dev (`backend/`): `npm install`, copy `.env.example` to `.env`, then `npm run dev` (Express on 5000).
+- Backend tests (`backend/`): `npm test` (uses `node --experimental-vm-modules` for Jest ESM support).
+- Fingerprint bridge (`backend/`): `npm run fingerprint` (needs correct `FINGERPRINT_PORT`, default `COM13`).
+- SQL migrations (`backend/`): `node scripts/runMigration.js <file.sql>` (runs from `backend/migrations`).
 
-- Files to read for concrete examples
-  - `backend/README.md` — backend overview and endpoint reference
-  - `backend/src/app.js` and `backend/src/server.js` — middleware, routes and server lifecycle
-  - `src/lib/api.ts` — API helper, auth header, retry and timeout rules
-  - `src/contexts/AuthContext.tsx` — client auth flow and redirects
+## High-value file anchors
+- API client + network policy: `src/lib/api.ts`
+- Client auth/session behavior: `src/contexts/AuthContext.tsx`
+- Route wiring: `backend/src/app.js`
+- Transaction/data helpers: `backend/src/config/db.js`
+- Permission-guarded route example: `backend/src/routes/employees.js`
+- Budget enforcement example in employee lifecycle: `backend/src/controllers/employeeController.js` + `backend/src/services/financeBudgetService.js`
 
-- Quick guidance for code changes
-  - When changing an API route, update both backend controller and any frontend callers in `src/lib/api.ts` or pages/components that call it.
-  - Preserve the `{ success, data, message }` envelope shape where used; if not possible, update `apiCall` to handle the new shape explicitly.
-  - For auth changes, update `backend/src/middleware/auth.js`, `backend/src/routes/auth.js`, and `src/contexts/AuthContext.tsx` together.
-
-- When you need more context or access
-  - Ask for the `.env` values (do NOT request secrets directly). If you need a reproducible local environment, request a sanitized `.env.example` mapping and confirm which services to spin up (frontend, backend, fingerprint bridge).
-
-If any section is unclear or you want me to expand with concrete code examples (e.g., how to add a new protected route and call it from the UI), tell me which area to expand and I will update this file.
+## Change guidance for agents
+- When adding/changing an endpoint, update **all three**: route registration, controller logic, and frontend API wrapper usage.
+- Keep envelope compatibility unless intentionally migrating callers; if response shape changes, adjust `src/lib/api.ts` consumers in same task.
+- Preserve existing timezone/data-write behavior in `db.js` (`undefined` -> `null`, Manila date formatting).

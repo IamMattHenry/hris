@@ -15,10 +15,15 @@ import SearchBar from "@/components/forms/FormSearch";
 import ViewEmployeeModal from "./view_employee/ViewModal";
 import EditEmployeeModal from "./edit_employee/EditModal";
 import LeaveDetailsModal from "@/components/dashboard/LeaveDetailsModal";
-import { employeeApi } from "@/lib/api";
+import { employeeApi, payrollApi } from "@/lib/api";
 import { Employee } from "@/types/api";
 import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "react-hot-toast";
+
+interface FinanceBudget {
+  budget_id: number;
+  amount: number;
+}
 
 
 
@@ -36,9 +41,20 @@ export default function EmployeeTable() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [sortBy, setSortBy] = useState<string>("");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [staffSalariesBudget, setStaffSalariesBudget] = useState<FinanceBudget | null>(null);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10; // change page size here
+
+  const formatCurrency = (value?: number | null) => {
+    if (value == null || Number.isNaN(Number(value))) return "₱0.00";
+    return new Intl.NumberFormat("en-PH", {
+      style: "currency",
+      currency: "PHP",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(Number(value));
+  };
 
 
   // RBAC permission checks (replaces hardcoded role checks)
@@ -70,6 +86,28 @@ export default function EmployeeTable() {
   // 🔹 Fetch employees
   useEffect(() => {
     fetchEmployees();
+  }, []);
+
+  useEffect(() => {
+    const fetchBudget = async () => {
+      try {
+        const res = await payrollApi.getSettings();
+        const budget = res.data?.budgets?.staff_salaries;
+
+        if (res.success && budget) {
+          setStaffSalariesBudget({
+            budget_id: Number(budget.budget_id),
+            amount: Number(budget.amount),
+          });
+        } else {
+          setStaffSalariesBudget(null);
+        }
+      } catch {
+        setStaffSalariesBudget(null);
+      }
+    };
+
+    fetchBudget();
   }, []);
 
   const fetchEmployees = async () => {
@@ -293,6 +331,21 @@ export default function EmployeeTable() {
           )}
 
         </div>
+      </div>
+
+      <div className="rounded-lg border border-[#e6d2b5] bg-[#FFF2E0] px-4 py-3 text-sm text-[#3b2b1c]">
+        <p className="font-medium">
+          Latest Staff Salaries Budget: {formatCurrency(staffSalariesBudget?.amount)}
+        </p>
+        {staffSalariesBudget?.budget_id ? (
+          <p className="mt-1 text-xs text-[#6b5344]">
+            Source: budget_category (budget_id #{staffSalariesBudget.budget_id})
+          </p>
+        ) : (
+          <p className="mt-1 text-xs text-[#6b5344]">
+            Budget data unavailable. Employee salary updates may be blocked until Finance budget is configured.
+          </p>
+        )}
       </div>
 
       {/* Table */}
