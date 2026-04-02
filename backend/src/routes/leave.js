@@ -82,7 +82,7 @@ router.put(
 router.delete(
   '/:id',
   verifyToken,
-  requirePermission('leave.delete'),
+  loadPermissions(),
   deleteLeave
 );
 

@@ -26,7 +26,7 @@ export default function SettingsPage() {
       <div className="min-h-screen flex items-center justify-center flex-col gap-3 bg-orange-50 text-[#4B0B14] font-medium">
         <p>You are not logged in.</p>
         <a 
-          href="/login"
+          href="/login_employee"
           className="px-5 py-2 bg-[#4B0B14] text-[#FFF2E0] rounded-lg hover:bg-[#6b0b1f] transition"
         >
           Go to Login

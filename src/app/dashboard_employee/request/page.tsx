@@ -45,6 +45,7 @@ export default function RequestsPage() {
   const [leaves, setLeaves] = useState<Leave[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingLeaveId, setDeletingLeaveId] = useState<number | null>(null);
   const [leaveCredit, setLeaveCredit] = useState<number | null>(null);
   const [nonPaidReason, setNonPaidReason] = useState<string>("");
 
@@ -166,6 +167,25 @@ export default function RequestsPage() {
       toast.error("An error occurred while submitting the request");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleCancelLeave = async (leaveId: number) => {
+    if (!window.confirm("Cancel this pending leave request?")) return;
+
+    setDeletingLeaveId(leaveId);
+    try {
+      const result = await leaveApi.delete(leaveId);
+      if (result.success) {
+        toast.success("Leave request cancelled successfully");
+        fetchLeaves();
+      } else {
+        toast.error(result.message || "Failed to cancel leave request");
+      }
+    } catch {
+      toast.error("An error occurred while cancelling the request");
+    } finally {
+      setDeletingLeaveId(null);
     }
   };
 
@@ -358,6 +378,9 @@ export default function RequestsPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Remarks
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Action
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -395,11 +418,24 @@ export default function RequestsPage() {
                       <td className="px-6 py-4 text-sm text-gray-500">
                         {leave.remarks || "-"}
                       </td>
+                      <td className="px-6 py-4 text-sm text-gray-500">
+                        {leave.status === "pending" ? (
+                          <button
+                            onClick={() => handleCancelLeave(leave.leave_id)}
+                            disabled={deletingLeaveId === leave.leave_id}
+                            className="px-3 py-1 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                          >
+                            {deletingLeaveId === leave.leave_id ? "Cancelling..." : "Cancel"}
+                          </button>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
                       No leave requests found.
                     </td>
                   </tr>

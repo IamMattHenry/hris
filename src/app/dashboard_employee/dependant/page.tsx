@@ -306,6 +306,7 @@ const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectEle
         region: d.region_name,
         province: d.province_name,
         city: d.city_name,
+        barangay: d.barangay_name,
       }));
 
       const result = await employeeApi.update(user.employee_id, { dependents: updatedDependents });
