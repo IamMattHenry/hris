@@ -371,6 +371,7 @@ export interface Dependent {
   region_name?: string;
   province_name?: string;
   city_name?: string;
+  barangay_name?: string;
   created_at: string;
   updated_at: string;
   created_by?: number;
