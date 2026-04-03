@@ -1897,9 +1897,10 @@ export const setEmployeePositions = async (req, res, next) => {
   }
 };
 
-export const deleteEmployee = async (req, res, next) => {
+const performEmployeeTermination = async (req, res, next) => {
   try {
     const { id } = req.params;
+    const { reason } = req.body || {};
 
     // Check if employee exists
     const employee = await db.getOne(
@@ -1913,43 +1914,64 @@ export const deleteEmployee = async (req, res, next) => {
       });
     }
 
-    // Get user ID from JWT token for audit trail
-    const deletedBy = req.user?.user_id;
+    if (String(employee.status || '').toLowerCase() === 'terminated') {
+      return res.status(409).json({
+        success: false,
+        message: 'Employee is already terminated',
+      });
+    }
+
+    const terminatedBy = req.user?.user_id;
+
+    if (Number(req.user?.employee_id) === Number(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot terminate your own employee record',
+      });
+    }
 
     await db.beginTransaction();
 
-    let userDeleted = false;
-    let employeeDeleted = false;
-
     try {
-      if (employee.user_id) {
-        const userDeleteResult = await db.transactionQuery(
-          "DELETE FROM users WHERE user_id = ?",
-          [employee.user_id]
+      let terminationResult;
+      try {
+        terminationResult = await db.transactionQuery(
+          `UPDATE employees
+           SET status = 'terminated',
+               terminated_at = NOW(),
+               terminated_by_user_id = ?,
+               termination_reason = ?
+           WHERE employee_id = ?`,
+          [terminatedBy || null, reason || null, id]
         );
-        userDeleted = (userDeleteResult?.affectedRows || 0) > 0;
-        if (userDeleted) {
-          employeeDeleted = true;
+      } catch (columnError) {
+        if (columnError?.code !== 'ER_BAD_FIELD_ERROR') {
+          throw columnError;
         }
-      }
 
-      if (!employeeDeleted) {
-        const employeeDeleteResult = await db.transactionQuery(
-          "DELETE FROM employees WHERE employee_id = ?",
+        terminationResult = await db.transactionQuery(
+          `UPDATE employees
+           SET status = 'terminated'
+           WHERE employee_id = ?`,
           [id]
         );
-        employeeDeleted = (employeeDeleteResult?.affectedRows || 0) > 0;
       }
 
       await db.commit();
+
+      const affectedRows = terminationResult?.affectedRows || 0;
+      if (affectedRows === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Employee not found',
+        });
+      }
     } catch (transactionError) {
       await db.rollback();
       throw transactionError;
     }
 
-    logger.info(
-      `Employee deleted: ${id}${userDeleted ? ` (linked user ${employee.user_id} removed)` : ""}`
-    );
+    logger.info(`Employee terminated: ${id}`);
 
     if (employee.fingerprint_id) {
       try {
@@ -1964,17 +1986,14 @@ export const deleteEmployee = async (req, res, next) => {
 
     // Create activity log entry
     try {
-      let description = `Deleted employee ${employee.first_name} ${employee.last_name} (${employee.employee_code})`;
-      if (userDeleted) {
-        description += " and linked user account";
-      }
+      const description = `Terminated employee ${employee.first_name} ${employee.last_name} (${employee.employee_code})${reason ? ` - Reason: ${reason}` : ''}`;
 
       await db.insert("activity_logs", {
-        user_id: deletedBy || 1,
-        action: "DELETE",
+        user_id: terminatedBy || 1,
+        action: "UPDATE",
         module: "employees",
         description,
-        created_by: deletedBy || 1,
+        created_by: terminatedBy || 1,
       });
     } catch (logError) {
       // Log the error but don't fail the request
@@ -1983,14 +2002,24 @@ export const deleteEmployee = async (req, res, next) => {
 
     res.json({
       success: true,
-      message: "Employee deleted successfully",
-      affectedRows: employeeDeleted ? 1 : 0,
-      cascadedUserDeletion: userDeleted,
+      message: "Employee terminated successfully",
+      data: {
+        employee_id: Number(id),
+        status: 'terminated',
+      },
     });
   } catch (error) {
-    logger.error("Delete employee error:", error);
+    logger.error("Terminate employee error:", error);
     next(error);
   }
+};
+
+export const terminateEmployee = async (req, res, next) => {
+  await performEmployeeTermination(req, res, next);
+};
+
+export const deleteEmployee = async (req, res, next) => {
+  await performEmployeeTermination(req, res, next);
 };
 
 export default {
@@ -1998,5 +2027,6 @@ export default {
   getEmployeeById,
   createEmployee,
   updateEmployee,
+  terminateEmployee,
   deleteEmployee,
 };

@@ -8,6 +8,7 @@ import {
   getEmployeeById,
   createEmployee,
   updateEmployee,
+  terminateEmployee,
   deleteEmployee,
   getEmployeeAvailability,
   getEmployeePositions,
@@ -111,11 +112,19 @@ router.post(
     updateEmployee
   );
 
-// Delete employee (requires employees.delete permission)
+// Terminate employee (requires employees.terminate permission; employees.delete supported for backward compatibility)
+router.post(
+  '/:id/terminate',
+  verifyToken,
+  requirePermission('employees.terminate', 'employees.delete'),
+  terminateEmployee
+);
+
+// Backward-compatible termination alias for old clients using DELETE /employees/:id
 router.delete(
   '/:id',
   verifyToken,
-  requirePermission('employees.delete'),
+  requirePermission('employees.terminate', 'employees.delete'),
   deleteEmployee
 );
 

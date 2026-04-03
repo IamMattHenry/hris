@@ -60,7 +60,7 @@ export default function EmployeeTable() {
   // RBAC permission checks (replaces hardcoded role checks)
   const canCreate = can('employees.create');
   const canEdit = can('employees.update');
-  const canDelete = can('employees.delete');
+  const canTerminate = canAny('employees.terminate', 'employees.delete');
   const canViewLeave = canAny('leave.read', 'leave.read_department');
 
   // 🔹 Close menus when clicking outside
@@ -207,14 +207,14 @@ export default function EmployeeTable() {
   // 🔹 Handlers
   const handleView = (id: number) => setEmployeeToView(id);
   const handleEdit = (id: number) => setEmployeeToEdit(id);
-  const handleDelete = async (id: number) => {
-    if (!window.confirm("Are you sure you want to delete this employee?")) return;
-    const result = await employeeApi.delete(id);
+  const handleTerminate = async (id: number) => {
+    if (!window.confirm("Are you sure you want to terminate this employee?")) return;
+    const result = await employeeApi.terminate(id);
     if (result.success) {
-      toast.success("Employee deleted successfully");
+      toast.success("Employee terminated successfully");
       fetchEmployees();
     } else {
-      toast.error(result.message || "Failed to delete employee");
+      toast.error(result.message || "Failed to terminate employee");
     }
   };
 
@@ -431,8 +431,8 @@ export default function EmployeeTable() {
                         {canEdit && (
                           <button onClick={() => handleEdit(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-gray-50">Edit</button>
                         )}
-                        {canDelete && (
-                          <button onClick={() => handleDelete(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-red-100 text-red-600">Delete</button>
+                        {canTerminate && (
+                          <button onClick={() => handleTerminate(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-red-100 text-red-600">Terminate</button>
                         )}
                       </div>
                     )}

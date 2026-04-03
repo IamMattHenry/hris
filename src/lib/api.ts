@@ -388,7 +388,17 @@ export const employeeApi = {
   },
 
   /**
-   * Delete employee
+   * Terminate employee (soft-delete)
+   */
+  terminate: async (id: number, reason?: string) => {
+    return apiCall<any>(`/employees/${id}/terminate`, {
+      method: 'POST',
+      body: JSON.stringify(reason ? { reason } : {}),
+    });
+  },
+
+  /**
+   * @deprecated Use terminate() instead.
    */
   delete: async (id: number) => {
     return apiCall<any>(`/employees/${id}`, {
