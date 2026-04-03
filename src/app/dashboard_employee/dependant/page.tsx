@@ -249,7 +249,7 @@ const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectEle
           region: d.region_name,
           province: d.province_name,
           city: d.city_name,
-          barangay: d.barangay_name,
+       //   barangay: d.barangay_name,
         })), dependentData]
       });
 
@@ -554,7 +554,7 @@ const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectEle
                     {d.contact_no && <p className="text-sm text-gray-600">Contact: {d.contact_no}</p>}
                     {d.home_address && (
                       <p className="text-sm text-gray-600">
-                        Address: {d.home_address}{d.barangay_name && `, ${d.barangay_name}`}{d.city_name && `, ${d.city_name}`}{d.province_name && `, ${d.province_name}`}{d.region_name && `, ${d.region_name}`}
+                       { /* Address: {d.home_address}{d.barangay_name && `, ${d.barangay_name}`}{d.city_name && `, ${d.city_name}`}{d.province_name && `, ${d.province_name}`}{d.region_name && `, ${d.region_name}`} */}
                       </p>
                     )}
                   </div>
