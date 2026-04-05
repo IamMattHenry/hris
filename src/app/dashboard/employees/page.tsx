@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import {
   Search,
   Plus,
@@ -25,6 +25,22 @@ interface FinanceBudget {
   amount: number;
 }
 
+interface BudgetRequestForm {
+  title: string;
+  description: string;
+  requested_amount: string;
+  priority: "low" | "medium" | "high";
+}
+
+interface ExpenseBudgetRequestItem {
+  notification_id: number;
+  title: string;
+  requested_amount: number;
+  status: string;
+  priority: "low" | "medium" | "high";
+  created_at: string;
+}
+
 
 
 export default function EmployeeTable() {
@@ -42,6 +58,16 @@ export default function EmployeeTable() {
   const [sortBy, setSortBy] = useState<string>("");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [staffSalariesBudget, setStaffSalariesBudget] = useState<FinanceBudget | null>(null);
+  const [expenseRequests, setExpenseRequests] = useState<ExpenseBudgetRequestItem[]>([]);
+  const [expenseRequestsLoading, setExpenseRequestsLoading] = useState(false);
+  const [isBudgetRequestOpen, setIsBudgetRequestOpen] = useState(false);
+  const [budgetRequestSubmitting, setBudgetRequestSubmitting] = useState(false);
+  const [budgetRequestForm, setBudgetRequestForm] = useState<BudgetRequestForm>({
+    title: "",
+    description: "",
+    requested_amount: "",
+    priority: "medium",
+  });
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10; // change page size here
@@ -110,6 +136,26 @@ export default function EmployeeTable() {
     fetchBudget();
   }, []);
 
+  const fetchExpenseRequests = async () => {
+    setExpenseRequestsLoading(true);
+    try {
+      const res = await payrollApi.getExpenseRequests();
+      if (res.success && Array.isArray(res.data)) {
+        setExpenseRequests(res.data as ExpenseBudgetRequestItem[]);
+      } else {
+        setExpenseRequests([]);
+      }
+    } catch {
+      setExpenseRequests([]);
+    } finally {
+      setExpenseRequestsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchExpenseRequests();
+  }, []);
+
   const fetchEmployees = async () => {
     setLoading(true);
     setError(null);
@@ -138,6 +184,16 @@ export default function EmployeeTable() {
       let valA: string | number = "";
       let valB: string | number = "";
 
+      const normalizeStatus = (value?: string) => String(value || "").toLowerCase().trim();
+      const statusRank = (value?: string) => {
+        const status = normalizeStatus(value);
+        if (status === "terminated") return 999;
+        if (status === "active") return 0;
+        if (status === "on-leave") return 1;
+        if (status === "resigned") return 2;
+        return 3;
+      };
+
       switch (sortBy) {
         case "id":
           valA = a.employee_id;
@@ -156,11 +212,26 @@ export default function EmployeeTable() {
           valB = b.department_name?.toLowerCase() || "";
           break;
         case "status":
-          valA = a.status?.toLowerCase() || "";
-          valB = b.status?.toLowerCase() || "";
+          valA = statusRank(a.status);
+          valB = statusRank(b.status);
           break;
         default:
           return 0;
+      }
+
+      if (sortBy === "status") {
+        if (valA === valB) {
+          const nameA = `${a.first_name} ${a.last_name}`.toLowerCase();
+          const nameB = `${b.first_name} ${b.last_name}`.toLowerCase();
+          if (nameA < nameB) return sortOrder === "asc" ? -1 : 1;
+          if (nameA > nameB) return sortOrder === "asc" ? 1 : -1;
+          return 0;
+        }
+
+        if (valA === 999) return 1;
+        if (valB === 999) return -1;
+
+        return sortOrder === "asc" ? Number(valA) - Number(valB) : Number(valB) - Number(valA);
       }
 
       if (valA < valB) return sortOrder === "asc" ? -1 : 1;
@@ -231,6 +302,49 @@ export default function EmployeeTable() {
       setSortOrder("asc");
     }
     setIsFilterOpen(false);
+  };
+
+  const resetBudgetRequestForm = () => {
+    setBudgetRequestForm({
+      title: "",
+      description: "",
+      requested_amount: "",
+      priority: "medium",
+    });
+  };
+
+  const handleBudgetRequestSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const amount = Number(budgetRequestForm.requested_amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Requested amount must be greater than 0.");
+      return;
+    }
+
+    setBudgetRequestSubmitting(true);
+    try {
+      const result = await payrollApi.createExpenseRequest({
+        title: budgetRequestForm.title.trim(),
+        description: budgetRequestForm.description.trim(),
+        requested_amount: amount,
+        priority: budgetRequestForm.priority,
+      });
+
+      if (result.success) {
+        toast.success(result.message || "Budget request sent to Finance Department.");
+        setIsBudgetRequestOpen(false);
+        resetBudgetRequestForm();
+        fetchExpenseRequests();
+        return;
+      }
+
+      toast.error(result.message || "Failed to submit budget request.");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to submit budget request.");
+    } finally {
+      setBudgetRequestSubmitting(false);
+    }
   };
 
   // 🔹 Loading / Error states
@@ -334,18 +448,61 @@ export default function EmployeeTable() {
       </div>
 
       <div className="rounded-lg border border-[#e6d2b5] bg-[#FFF2E0] px-4 py-3 text-sm text-[#3b2b1c]">
-        <p className="font-medium">
-          Latest Staff Salaries Budget: {formatCurrency(staffSalariesBudget?.amount)}
-        </p>
-        {staffSalariesBudget?.budget_id ? (
-          <p className="mt-1 text-xs text-[#6b5344]">
-            Source: budget_category (budget_id #{staffSalariesBudget.budget_id})
-          </p>
-        ) : (
-          <p className="mt-1 text-xs text-[#6b5344]">
-            Budget data unavailable. Employee salary updates may be blocked until Finance budget is configured.
-          </p>
-        )}
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+          <div>
+            <p className="font-medium">
+              Latest Staff Salaries Budget: {formatCurrency(staffSalariesBudget?.amount)}
+            </p>
+            {staffSalariesBudget?.budget_id ? (
+              <p className="mt-1 text-xs text-[#6b5344]">
+                Source: Finance Department
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-[#6b5344]">
+                Budget data unavailable. Employee salary updates may be blocked until Finance budget is configured.
+              </p>
+            )}
+          </div>
+          <button
+            onClick={() => setIsBudgetRequestOpen(true)}
+            className="px-4 py-2 rounded-md bg-[#3b2b1c] text-white text-xs font-medium hover:opacity-90 transition"
+          >
+            Request Additional Budget
+          </button>
+        </div>
+
+        <div className="mt-3 border-t border-[#e6d2b5] pt-3">
+          <p className="text-xs font-semibold text-[#6b5344] mb-2">Recent Submitted Budget Requests</p>
+          {expenseRequestsLoading ? (
+            <p className="text-xs text-[#6b5344]">Loading requests...</p>
+          ) : expenseRequests.length === 0 ? (
+            <p className="text-xs text-[#6b5344]">No submitted requests yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {expenseRequests.slice(0, 5).map((request) => (
+                <div key={request.notification_id} className="rounded-md border border-[#e6d2b5] bg-[#fff7ec] px-3 py-2">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-1">
+                    <p className="text-xs font-medium text-[#3b2b1c] truncate">{request.title}</p>
+                    <span className={`text-[10px] px-2 py-1 rounded-full w-fit ${
+                      request.status === "accepted"
+                        ? "bg-green-100 text-green-700"
+                        : request.status === "rejected"
+                          ? "bg-red-100 text-red-700"
+                          : request.status === "cancelled"
+                            ? "bg-gray-100 text-gray-700"
+                            : "bg-yellow-100 text-yellow-700"
+                    }`}>
+                      {request.status}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#6b5344] mt-1">
+                    {formatCurrency(request.requested_amount)} • {request.priority} priority
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Table */}
@@ -432,7 +589,17 @@ export default function EmployeeTable() {
                           <button onClick={() => handleEdit(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-gray-50">Edit</button>
                         )}
                         {canTerminate && (
-                          <button onClick={() => handleTerminate(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-red-100 text-red-600">Terminate</button>
+                          <button
+                            onClick={() => handleTerminate(emp.employee_id)}
+                            disabled={emp.status === "terminated"}
+                            className={`w-full text-left px-4 py-2 ${
+                              emp.status === "terminated"
+                                ? "text-gray-400 cursor-not-allowed"
+                                : "hover:bg-red-100 text-red-600"
+                            }`}
+                          >
+                            {emp.status === "terminated" ? "Terminated" : "Terminate"}
+                          </button>
                         )}
                       </div>
                     )}
@@ -506,6 +673,88 @@ export default function EmployeeTable() {
         employeeId={leaveDetailEmployee?.id || 0}
         employeeName={leaveDetailEmployee?.name || ""}
       />
+
+      {isBudgetRequestOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
+          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-[#3b2b1c]">Request Additional Budget</h3>
+            <p className="text-xs text-[#6b5344] mt-1">This will send an expense request to the Finance Department.</p>
+
+            <form className="mt-4 space-y-3" onSubmit={handleBudgetRequestSubmit}>
+              <div>
+                <label className="block text-xs font-medium mb-1 text-[#3b2b1c]">Title</label>
+                <input
+                  type="text"
+                  value={budgetRequestForm.title}
+                  onChange={(e) => setBudgetRequestForm((prev) => ({ ...prev, title: e.target.value }))}
+                  className="w-full rounded-md border border-[#d9c3a4] px-3 py-2 text-sm focus:outline-none"
+                  maxLength={150}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium mb-1 text-[#3b2b1c]">Description</label>
+                <textarea
+                  value={budgetRequestForm.description}
+                  onChange={(e) => setBudgetRequestForm((prev) => ({ ...prev, description: e.target.value }))}
+                  className="w-full rounded-md border border-[#d9c3a4] px-3 py-2 text-sm min-h-28 focus:outline-none"
+                  maxLength={2000}
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium mb-1 text-[#3b2b1c]">Requested Amount</label>
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={budgetRequestForm.requested_amount}
+                    onChange={(e) => setBudgetRequestForm((prev) => ({ ...prev, requested_amount: e.target.value }))}
+                    className="w-full rounded-md border border-[#d9c3a4] px-3 py-2 text-sm focus:outline-none"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium mb-1 text-[#3b2b1c]">Priority</label>
+                  <select
+                    value={budgetRequestForm.priority}
+                    onChange={(e) => setBudgetRequestForm((prev) => ({ ...prev, priority: e.target.value as BudgetRequestForm["priority"] }))}
+                    className="w-full rounded-md border border-[#d9c3a4] px-3 py-2 text-sm focus:outline-none"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsBudgetRequestOpen(false);
+                    resetBudgetRequestForm();
+                  }}
+                  className="px-4 py-2 text-sm rounded-md border border-[#d9c3a4] text-[#3b2b1c]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={budgetRequestSubmitting}
+                  className="px-4 py-2 text-sm rounded-md bg-[#3b2b1c] text-white disabled:opacity-50"
+                >
+                  {budgetRequestSubmitting ? "Submitting..." : "Send Request"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

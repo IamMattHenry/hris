@@ -1089,6 +1089,24 @@ export const payrollApi = {
     });
   },
 
+  getExpenseRequests: async () => {
+    return apiCall<any[]>('/payroll/expense-requests', {
+      method: 'GET',
+    });
+  },
+
+  createExpenseRequest: async (data: {
+    title: string;
+    description: string;
+    requested_amount: number;
+    priority?: 'low' | 'medium' | 'high';
+  }) => {
+    return apiCall<any>('/payroll/expense-requests', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
   updateSettings: async (data: {
     pay_schedule: 'weekly' | 'semi-monthly' | 'monthly';
     allowances_config?: any;

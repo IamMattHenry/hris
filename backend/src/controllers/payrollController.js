@@ -328,6 +328,21 @@ const writeActivityLog = async ({ userId, action, description }) => {
   }
 };
 
+const getTableColumns = async (tableName) => {
+  const rows = await db.getAll(
+    `SELECT COLUMN_NAME
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+    [tableName]
+  );
+
+  return new Set(rows.map((row) => row.COLUMN_NAME));
+};
+
+const findFirstExistingColumn = (columns, candidates = []) => {
+  return candidates.find((column) => columns.has(column)) || null;
+};
+
 export const getPayrollRuns = async (req, res, next) => {
   try {
     const { department_id, employment_type } = req.query;
@@ -1147,6 +1162,180 @@ export const getPayrollSettings = async (req, res, next) => {
     });
   } catch (error) {
     logger.error('Get payroll settings error:', error);
+    next(error);
+  }
+};
+
+export const createExpenseBudgetRequest = async (req, res, next) => {
+  try {
+    const {
+      title,
+      description,
+      requested_amount,
+      priority,
+    } = req.body || {};
+
+    const normalizedTitle = String(title || '').trim();
+    const normalizedDescription = String(description || '').trim();
+    const requestedAmount = Number(requested_amount);
+
+    if (!normalizedTitle) {
+      return res.status(400).json({
+        success: false,
+        message: 'title is required',
+      });
+    }
+
+    if (!normalizedDescription) {
+      return res.status(400).json({
+        success: false,
+        message: 'description is required',
+      });
+    }
+
+    if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'requested_amount must be a number greater than 0',
+      });
+    }
+
+    const columns = await getTableColumns('expense_notifications');
+    if (columns.size === 0) {
+      return res.status(500).json({
+        success: false,
+        message: 'Table expense_notifications was not found in the active database.',
+      });
+    }
+
+    const payload = {};
+
+    const titleColumn = findFirstExistingColumn(columns, ['title', 'request_title', 'subject']);
+    const descriptionColumn = findFirstExistingColumn(columns, ['description', 'details', 'message']);
+    const amountColumn = findFirstExistingColumn(columns, ['requested_amount', 'amount', 'request_amount']);
+
+    if (!titleColumn || !descriptionColumn || !amountColumn) {
+      return res.status(500).json({
+        success: false,
+        message: 'expense_notifications schema is missing one or more required fields (title/description/requested_amount).',
+      });
+    }
+
+    payload[titleColumn] = normalizedTitle;
+    payload[descriptionColumn] = normalizedDescription;
+    payload[amountColumn] = round2(requestedAmount);
+
+    const requestTypeColumn = findFirstExistingColumn(columns, ['request_type', 'notification_type', 'type']);
+    if (requestTypeColumn) {
+      payload[requestTypeColumn] = 'staff_salaries_and_payroll_budget';
+    }
+
+    if (columns.has('external_reference_id')) {
+      payload.external_reference_id = 'staff_salaries_payroll_budget';
+    }
+
+    const statusColumn = findFirstExistingColumn(columns, ['status', 'request_status']);
+    if (statusColumn) {
+      payload[statusColumn] = 'pending';
+    }
+
+    const priorityColumn = findFirstExistingColumn(columns, ['priority', 'urgency']);
+    if (priorityColumn) {
+      const normalizedPriority = String(priority || 'medium').trim().toLowerCase();
+      payload[priorityColumn] = ['low', 'medium', 'high'].includes(normalizedPriority)
+        ? normalizedPriority
+        : 'medium';
+    }
+
+    const departmentColumn = findFirstExistingColumn(columns, ['target_department', 'department', 'recipient_department']);
+    if (departmentColumn) {
+      payload[departmentColumn] = 'Finance Department';
+    }
+
+    const requestedByColumn = findFirstExistingColumn(columns, ['requested_by', 'created_by', 'user_id']);
+    if (requestedByColumn) {
+      payload[requestedByColumn] = req.user?.username || String(req.user?.user_id || '');
+    }
+
+    if (columns.has('created_at')) {
+      payload.created_at = new Date();
+    }
+
+    if (columns.has('updated_at')) {
+      payload.updated_at = new Date();
+    }
+
+    if (columns.has('metadata')) {
+      payload.metadata = serializeJson({
+        request_for: 'staff_salaries_and_payroll_budget',
+        source_module: 'employees',
+      });
+    }
+
+    if (columns.has('purpose')) {
+      payload.purpose = 'Request additional staff salaries and payroll budget';
+    }
+
+    const requestId = await db.insert('expense_notifications', payload);
+
+    await writeActivityLog({
+      userId: req.user?.user_id || null,
+      action: 'CREATE',
+      description: `Submitted finance budget request #${requestId} for staff salaries/payroll`,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Budget request sent to Finance Department successfully.',
+      data: {
+        id: requestId,
+      },
+    });
+  } catch (error) {
+    logger.error('Create expense budget request error:', error);
+    next(error);
+  }
+};
+
+export const getExpenseBudgetRequests = async (req, res, next) => {
+  try {
+    const userId = req.user?.user_id;
+    const username = req.user?.username;
+
+    const requests = await db.getAll(
+      `SELECT
+         notification_id,
+         title,
+         description,
+         requested_amount,
+         priority,
+         status,
+         requested_by,
+         external_reference_id,
+         created_at,
+         updated_at
+       FROM expense_notifications
+       WHERE (
+         external_reference_id = 'staff_salaries_payroll_budget'
+         OR LOWER(COALESCE(purpose, '')) LIKE '%staff salaries%'
+         OR LOWER(COALESCE(purpose, '')) LIKE '%payroll%'
+       )
+       AND (
+         requested_by = ?
+         OR requested_by = ?
+       )
+       ORDER BY created_at DESC
+       LIMIT 10`,
+      [String(userId || ''), String(username || '')]
+    );
+
+    return res.json({
+      success: true,
+      message: 'Expense budget requests fetched successfully.',
+      data: requests,
+    });
+  } catch (error) {
+    logger.error('Get expense budget requests error:', error);
     next(error);
   }
 };

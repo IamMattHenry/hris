@@ -1,6 +1,7 @@
 import express from 'express';
 import { body } from 'express-validator';
 import { verifyToken } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/rbac.js';
 import { handleValidationErrors } from '../middleware/validation.js';
 import {
   getPayrollRuns,
@@ -12,6 +13,8 @@ import {
   getPayrollContributions,
   exportPayrollContributions,
   getPayrollSettings,
+  getExpenseBudgetRequests,
+  createExpenseBudgetRequest,
   updatePayrollSettings,
   overridePayrollRecord,
 } from '../controllers/payrollController.js';
@@ -62,6 +65,27 @@ router.get('/contributions', verifyToken, getPayrollContributions);
 router.get('/contributions/export/:type', verifyToken, exportPayrollContributions);
 
 router.get('/settings', verifyToken, getPayrollSettings);
+
+router.get(
+  '/expense-requests',
+  verifyToken,
+  requirePermission('employees.read', 'employees.create', 'employees.update', 'payroll.update'),
+  getExpenseBudgetRequests
+);
+
+router.post(
+  '/expense-requests',
+  verifyToken,
+  requirePermission('employees.create', 'employees.update', 'payroll.update'),
+  [
+    body('title').trim().notEmpty().withMessage('title is required').isLength({ max: 150 }).withMessage('title must be at most 150 characters'),
+    body('description').trim().notEmpty().withMessage('description is required').isLength({ max: 2000 }).withMessage('description must be at most 2000 characters'),
+    body('requested_amount').isFloat({ gt: 0 }).withMessage('requested_amount must be greater than 0'),
+    body('priority').optional().isIn(['low', 'medium', 'high']).withMessage('priority must be one of low, medium, high'),
+  ],
+  handleValidationErrors,
+  createExpenseBudgetRequest
+);
 
 router.put(
   '/settings',
