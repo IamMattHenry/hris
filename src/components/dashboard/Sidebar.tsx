@@ -17,7 +17,8 @@ export default function Sidebar() {
         { name: "Positions", icon: Briefcase, path: "/dashboard/positions" },
         { name: "Departments", icon: Building, path: "/dashboard/departments" },
         { name: "Payroll", icon: DollarSign, path: "/dashboard/payroll" },
-        { name: "Penalty", icon: AlertTriangle, path: "/dashboard/penalty" }
+        { name: "Penalty", icon: AlertTriangle, path: "/dashboard/penalty" },
+        { name: "Finance Form", icon: MessageSquareWarning, path: "/dashboard/financeForm" },
     ];
 
     if (user?.role === "superadmin" || user?.role === "admin") {
@@ -26,8 +27,8 @@ export default function Sidebar() {
     }
 
     return (
-        <aside className="w-96 min-w-[400px] bg-[linear-gradient(180deg,#190006_23%,#480C1B_67%,#300611_100%)] text-[#FFF2E0] font-poppins p-4 min-h-screen shadow-xl relative">
-            <div className="mb-8 flex items-center justify-center">
+        <aside className="w-96 min-w-[400px] bg-[linear-gradient(180deg,#190006_23%,#480C1B_67%,#300611_100%)] text-[#FFF2E0] font-poppins p-4 min-h-screen shadow-xl flex flex-col">
+            <div className="mb-8 flex items-center justify-center shrink-0">
                 <Image
                     src="/logo/celestia-hr-logo.png"
                     alt="Logo"
@@ -37,7 +38,7 @@ export default function Sidebar() {
                     priority
                 />
             </div>
-            <ul className="space-y-4">
+            <ul className="space-y-4 flex-1">
                 {links.map(({ name, icon: Icon, path }) => (
                     <li key={name}>
                         <Link
@@ -53,7 +54,7 @@ export default function Sidebar() {
                     </li>
                 ))}
             </ul>
-            <div className="absolute bottom-4 left-4 text-xs text-yellow-800 opacity-60 flex items-center">
+            <div className="mt-auto pt-8 text-xs text-yellow-800 opacity-60 flex items-center shrink-0">
                 <Image src="/logo/logo_outline.png" alt="Celestia Logo" width={48} height={48} />
                 <span className="ml-1 text-lg">© Celestia Hotel {new Date().getFullYear()}</span>
             </div>
