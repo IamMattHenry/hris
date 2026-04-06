@@ -2,6 +2,15 @@ import jwt from 'jsonwebtoken';
 import logger from '../utils/logger.js';
 import * as db from '../config/db.js';
 
+const hasRbacRole = (user, roleKey) => {
+  if (!user || !Array.isArray(user.rbac_roles)) return false;
+  return user.rbac_roles.includes(roleKey);
+};
+
+const isSuperadminUser = (user) => {
+  return user?.role === 'superadmin' || hasRbacRole(user, 'superadmin');
+};
+
 export const verifyToken = (req, res, next) => {
   try {
     // Log the authorization header for debugging
@@ -62,7 +71,11 @@ export const verifyRole = (allowedRoles) => {
       });
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
+    const allowedByLegacyRole = allowedRoles.includes(req.user.role);
+    const allowedByRbacSuperadmin =
+      allowedRoles.includes('superadmin') && hasRbacRole(req.user, 'superadmin');
+
+    if (!allowedByLegacyRole && !allowedByRbacSuperadmin) {
       logger.warn(`Access denied: User ${req.user.username} (ID: ${req.user.user_id}) with role '${req.user.role}' attempted to access endpoint requiring roles: [${allowedRoles.join(', ')}]`);
       return res.status(403).json({
         success: false,
@@ -75,7 +88,7 @@ export const verifyRole = (allowedRoles) => {
   };
 };
 
-export const verifyAccess = ({ roles = [], subRoles = [], departments = [] }) => {
+export const verifyAccess = ({ roles = [], departments = [] }) => {
   return async (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({
@@ -87,37 +100,19 @@ export const verifyAccess = ({ roles = [], subRoles = [], departments = [] }) =>
     const user = req.user; // user from JWT
 
     // Superadmin bypasses all restrictions
-    if (user.role === "superadmin") {
+    if (isSuperadminUser(user)) {
       return next();
     }
 
     // Check role
-    if (roles.length > 0 && !roles.includes(user.role)) {
+    const allowedByRole = roles.length === 0 || roles.includes(user.role);
+    const allowedByRbacSuperadmin = roles.includes('superadmin') && hasRbacRole(user, 'superadmin');
+
+    if (!allowedByRole && !allowedByRbacSuperadmin) {
       return res.status(403).json({
         success: false,
         message: "Access denied: Role not permitted.",
       });
-    }
-
-    // Load sub-role from user_roles table
-    const userSubrole = await db.getOne(
-      `SELECT sub_role FROM user_roles WHERE user_id = ?`,
-      [user.user_id]
-    );
-
-    const it = userSubrole?.sub_role || null;
-
-    // For subRoles check, make sure superadmin is not restricted by subRoles
-    if (subRoles.length > 0 && !subRoles.includes(it)) {
-      // But still allow superadmin to pass regardless of subRole
-      if (user.role !== "superadmin") {
-        return res.status(403).json({
-          success: false,
-          message: "Access denied: Sub-role not permitted.",
-          sub_role: it,
-          user: user,
-        });
-      }
     }
 
     // Load department through employees table
@@ -130,7 +125,7 @@ export const verifyAccess = ({ roles = [], subRoles = [], departments = [] }) =>
 
     if (departments.length > 0 && !departments.includes(userDepartment)) {
       // Allow superadmin to bypass department restrictions
-      if (user.role !== "superadmin") {
+      if (!isSuperadminUser(user)) {
         return res.status(403).json({
           success: false,
           message: "Access denied: Not allowed for this department.",

@@ -1,137 +1,50 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { X, User, Briefcase, Shield } from "lucide-react";
+import { User, Briefcase, Shield } from "lucide-react";
 import { authApi } from "@/lib/api";
 
 type ContactItem = { id: number; number: string };
 type EmailItem = { id: number; email: string; isPrimary: boolean };
 type FormattedData = {
-  personal: {
-    photo: null | string;
-    firstName: string;
-    middleName: string;
-    lastName: string;
-    extensionName: string;
-    employeeCode: string;
-    gender: string;
-    birthdate: string;
-    civilStatus: string;
-    status: string;
-    hireDate: string;
-    leaveCredit: number;
-    address: { region: string; province: string; city: string; homeAddress: string };
-    contacts: ContactItem[];
-    emails: EmailItem[];
-  };
-  job: {
-    department: string;
-    position: string;
-    positionCode: string;
-    supervisor: string;
-    salary: number;
-    employmentStatus: string;
-    availability: string;
-  };
-  account: {
-    username: string;
-    role: string;
-    subRoles: string[];
-    isActive: boolean;
-    isSuperAdmin: boolean;
-    lastUpdated: string;
-  };
-  dependents: any[];
-  emergencyContacts: { id: number; name: string; relation: string; number: string }[];
-  attendance: any[];
-};
-
-const mockEmployeeData = {
     personal: {
-        photo: null,
-        firstName: 'Juan',
-        middleName: 'Dela',
-        lastName: 'Cruz',
-        extensionName: '',
-        employeeCode: 'EMP-001',
-        gender: 'Male',
-        birthdate: '1990-05-15',
-        civilStatus: 'Married',
-        status: 'Active',
-        hireDate: '2020-01-15',
-        // shift removed
-        leaveCredit: 15,
-        address: {
-            region: 'NCR',
-            province: 'Metro Manila',
-            city: 'Quezon City',
-            homeAddress: '123 Main Street, Barangay Santo Domingo'
-        },
-        contacts: [
-            { id: 1, number: '+63 917 123 4567' },
-            { id: 2, number: '+63 2 8123 4567' }
-        ],
-        emails: [
-            { id: 1, email: 'juan.delacruz@company.com', isPrimary: true },
-            { id: 2, email: 'juan.personal@email.com', isPrimary: false }
-        ]
-    },
+        photo: null | string;
+        firstName: string;
+        middleName: string;
+        lastName: string;
+        extensionName: string;
+        employeeCode: string;
+        gender: string;
+        birthdate: string;
+        civilStatus: string;
+        status: string;
+        hireDate: string;
+        leaveCredit: number;
+        address: { region: string; province: string; city: string; homeAddress: string };
+        contacts: ContactItem[];
+        emails: EmailItem[];
+    };
     job: {
-        department: 'Human Resource',
-        position: 'Manager',
-        positionCode: 'POS-HR-001',
-        supervisor: 'Maria Santos',
-        salary: 75000,
-        employmentStatus: 'Regular',
-        availability: 'Available'
-    },
+        department: string;
+        position: string;
+        positionCode: string;
+        supervisor: string;
+        salary: number;
+        employmentStatus: string;
+        availability: string;
+    };
     account: {
-        username: 'juan.delacruz',
-        role: 'employee',
-        subRoles: ['HR Manager', 'Team Lead'],
-        isActive: true,
-        isSuperAdmin: false,
-        lastUpdated: '2024-10-15T10:30:00'
-    },
-    dependents: [
-        {
-            id: 1,
-            firstName: 'Maria',
-            lastName: 'Dela Cruz',
-            relationship: 'Spouse',
-            birthdate: '1992-08-20',
-            email: 'maria.delacruz@email.com',
-            contact: '+63 917 987 6543',
-            address: '123 Main Street, Quezon City'
-        },
-        {
-            id: 2,
-            firstName: 'Jose',
-            lastName: 'Dela Cruz',
-            relationship: 'Son',
-            birthdate: '2015-03-10',
-            email: null,
-            contact: null,
-            address: '123 Main Street, Quezon City'
-        }
-    ],
-    emergencyContacts: [
-        {
-            id: 1,
-            name: 'Maria Dela Cruz',
-            relation: 'Spouse',
-            number: '+63 917 987 6543'
-        }
-    ],
-    attendance: [
-        { id: 1, date: '2024-10-28', timeIn: '08:00 AM', timeOut: '05:15 PM', totalHours: 9.25, remarks: 'On Time' },
-        { id: 2, date: '2024-10-27', timeIn: '08:15 AM', timeOut: '05:00 PM', totalHours: 8.75, remarks: 'Late' },
-        { id: 3, date: '2024-10-26', timeIn: '08:00 AM', timeOut: '06:00 PM', totalHours: 10, remarks: 'Overtime' },
-        { id: 4, date: '2024-10-25', timeIn: '08:00 AM', timeOut: '05:00 PM', totalHours: 9, remarks: 'On Time' },
-        { id: 5, date: '2024-10-24', timeIn: null, timeOut: null, totalHours: 0, remarks: 'Absent' }
-    ]
-};
+        username: string;
+        role: string;
 
+        isActive: boolean;
+        isSuperAdmin: boolean;
+        lastUpdated: string;
+    };
+    dependents: any[];
+    emergencyContacts: { id: number; name: string; relation: string; number: string }[];
+    attendance: any[];
+};
 
 const Profile = () => {
     const [activeSection, setActiveSection] = useState("personal");
@@ -214,7 +127,7 @@ const Profile = () => {
         account: {
             username: userData.username || "",
             role: userData.role || "",
-            subRoles: userData.sub_role ? [String(userData.sub_role).toUpperCase()] : [],
+
             isActive: userData.status === "active",
             isSuperAdmin: userData.role === "superadmin",
             lastUpdated: userData.created_at || "",
@@ -236,7 +149,7 @@ const Profile = () => {
     ];
 
     return (
-        <div className="min-h-screen max-w-screen w-full mx-auto font-poppins">
+        <div className="min-h-screen w-full mx-auto font-poppins">
             {/* HEADER NAVBAR */}
             <header className="bg-[#480C1B] shadow-sm sticky max-w-full mx-auto top-0 z-20">
                 <div className="max-w-7xl mx-auto flex items-center justify-center px-6 py-4">
@@ -262,12 +175,8 @@ const Profile = () => {
             </header>
 
             {/* MAIN CONTENT */}
-            <main className="w-full mx-auto p-8">
+            <main className="w-full mx-auto p-4 md:p-8">
                 <div className="bg-white rounded-lg shadow-sm p-8 relative">
-                    <button className="absolute top-8 right-8 text-gray-500 hover:text-gray-700">
-                        <X size={24} />
-                    </button>
-
                     {/* Warning Banner for users without employee record */}
                     {!hasEmployeeRecord && (
                         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded mb-6">
@@ -291,14 +200,14 @@ const Profile = () => {
                     {activeSection === "personal" && (
                         <>
                             {/* Header Info */}
-                            <div className="flex items-start gap-6 mb-8 pb-8 border-b">
-                                <div className="w-32 h-32 bg-gradient-to-br from-amber-900 to-amber-800 rounded-full flex items-center justify-center text-white text-4xl font-bold">
+                            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 mb-4 pb-4 sm:mb-8 sm:pb-8 border-b">
+                                <div className="w-24 h-24 sm:w-32 sm:h-32 bg-gradient-to-br from-amber-900 to-amber-800 rounded-full flex items-center justify-center text-white text-3xl sm:text-4xl font-bold">
                                     {formattedData.personal.firstName?.[0] || 'U'}
                                     {formattedData.personal.lastName?.[0] || ''}
                                 </div>
                                 <div className="flex-1">
-                                    <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                                        {formattedData.personal.firstName}{" "}
+                                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 text-center sm:text-left">
+                                        {formattedData.personal.firstName}
                                         {formattedData.personal.lastName}
                                     </h1>
                                     <div className="grid grid-cols-2 gap-x-12 gap-y-2 text-gray-700">
@@ -339,7 +248,7 @@ const Profile = () => {
                                 {(() => {
                                     const emergency = formattedData.emergencyContacts[0] || {};
                                     return (
-                                        <div className="grid grid-cols-3 gap-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                             <div>
                                                 <label className="block text-sm text-gray-600 mb-2">Emergency Contact</label>
                                                 <input
@@ -378,7 +287,7 @@ const Profile = () => {
                                 <h2 className="text-lg font-semibold text-gray-900 mb-4">
                                     Personal Information
                                 </h2>
-                                <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                                     {[
                                         ["First Name", formattedData.personal.firstName],
                                         ["Last Name", formattedData.personal.lastName],
@@ -429,7 +338,7 @@ const Profile = () => {
                                 <h2 className="text-lg font-semibold text-gray-900 mb-4">
                                     Address
                                 </h2>
-                                <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                                     {Object.entries(formattedData.personal.address).map(
                                         ([label, value]) => (
                                             <div key={label}>
@@ -448,7 +357,7 @@ const Profile = () => {
                                 <h2 className="text-lg font-semibold text-gray-900 mb-4">
                                     Contact Information
                                 </h2>
-                                <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                                     <div>
                                         <label className="block text-sm text-gray-600 mb-1">
                                             Phone Numbers
@@ -493,7 +402,7 @@ const Profile = () => {
                             <h1 className="text-2xl font-bold text-gray-900 mb-8">
                                 Job Information
                             </h1>
-                            <div className="grid grid-cols-2 gap-x-8 gap-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                                 {Object.entries({
                                     Department: formattedData.job.department,
                                     "Position / Job Title": formattedData.job.position,
@@ -521,7 +430,7 @@ const Profile = () => {
                             <h1 className="text-2xl font-bold text-gray-900 mb-8">
                                 Account Information
                             </h1>
-                            <div className="grid grid-cols-2 gap-x-8 gap-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                                 <div>
                                     <label className="block text-sm text-gray-600 mb-1">
                                         Username
@@ -536,21 +445,7 @@ const Profile = () => {
                                         {formattedData.account.role}
                                     </p>
                                 </div>
-                                <div>
-                                    <label className="block text-sm text-gray-600 mb-1">
-                                        Sub-Roles
-                                    </label>
-                                    <div className="flex gap-2 flex-wrap">
-                                        {formattedData.account.subRoles.map((role, idx) => (
-                                            <span
-                                                key={idx}
-                                                className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm"
-                                            >
-                                                {role}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
+
                                 <div>
                                     <label className="block text-sm text-gray-600 mb-1">
                                         Account Status

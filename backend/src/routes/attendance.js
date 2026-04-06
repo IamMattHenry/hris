@@ -1,5 +1,6 @@
 import express from 'express';
-import { verifyToken, verifyRole } from '../middleware/auth.js';
+import { verifyToken } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/rbac.js';
 import { body } from 'express-validator';
 import { validateAttendance, handleValidationErrors } from '../middleware/validation.js';
 import {
@@ -16,19 +17,35 @@ import {
 
 const router = express.Router();
 
-// Get attendance records (protected)
-router.get('/', verifyToken, getAttendanceRecords);
+// Get attendance records
+router.get(
+  '/',
+  verifyToken,
+  requirePermission('attendance.read', 'attendance.read_department', 'attendance.read_own'),
+  getAttendanceRecords
+);
 
-// Get attendance summary by employee ID (protected)
-router.get('/summary/:employee_id', verifyToken, getAttendanceSummary);
+// Get attendance summary by employee ID
+router.get(
+  '/summary/:employee_id',
+  verifyToken,
+  requirePermission('attendance.read', 'attendance.read_department', 'attendance.read_own'),
+  getAttendanceSummary
+);
 
-// Get attendance by ID (protected)
-router.get('/:id', verifyToken, getAttendanceById);
+// Get attendance by ID
+router.get(
+  '/:id',
+  verifyToken,
+  requirePermission('attendance.read', 'attendance.read_department', 'attendance.read_own'),
+  getAttendanceById
+);
 
-// Clock in (protected)
+// Clock in
 router.post(
   '/clock-in',
   verifyToken,
+  requirePermission('attendance.clock', 'attendance.update'),
   [
     body('employee_id').isInt().withMessage('Employee ID must be an integer'),
   ],
@@ -36,10 +53,11 @@ router.post(
   clockIn
 );
 
-// Clock out (protected)
+// Clock out
 router.post(
   '/clock-out',
   verifyToken,
+  requirePermission('attendance.clock', 'attendance.update'),
   [
     body('employee_id').isInt().withMessage('Employee ID must be an integer'),
   ],
@@ -57,10 +75,11 @@ router.post(
   fingerprintAttendance
 );
 
-// Update overtime hours (protected)
+// Update overtime hours
 router.put(
   '/:id/overtime',
   verifyToken,
+  requirePermission('attendance.manage', 'attendance.update'),
   [
     body('overtime_hours')
       .isFloat({ min: 0, max: 8 })
@@ -70,10 +89,11 @@ router.put(
   updateOvertimeHours
 );
 
-// Update attendance status (protected)
+// Update attendance status
 router.put(
   '/:id/status',
   verifyToken,
+  requirePermission('attendance.manage', 'attendance.update'),
   [
     body('status').isIn(['present', 'absent', 'late', 'early_leave', 'half_day', 'on_leave', 'work_from_home', 'overtime', 'others']).withMessage('Invalid status'),
   ],
@@ -81,11 +101,11 @@ router.put(
   updateAttendanceStatus
 );
 
-// Mark absences for a date (admin/superadmin)
+// Mark absences for a date (requires attendance.manage or attendance.mark_absences)
 router.post(
   '/mark-absences',
   verifyToken,
-  verifyRole(['admin', 'superadmin']),
+  requirePermission('attendance.manage', 'attendance.mark_absences'),
   markAbsences
 );
 

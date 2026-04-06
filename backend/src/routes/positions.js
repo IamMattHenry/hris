@@ -1,7 +1,8 @@
 import express from 'express';
 import { body } from 'express-validator';
 import { handleValidationErrors } from '../middleware/validation.js';
-import { verifyToken, verifyRole } from '../middleware/auth.js';
+import { verifyToken } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/rbac.js';
 import {
   getAllPositions,
   getPositionById,
@@ -13,21 +14,21 @@ import {
 
 const router = express.Router();
 
-// Get total position availability (protected)
-router.get('/total-availability', verifyToken, getTotalPosAvailability);
+// Get total position availability
+router.get('/total-availability', verifyToken, requirePermission('positions.read'), getTotalPosAvailability);
 
-// Get all positions (protected)
+// Get all positions
 // Supports query param: ?department_id=1 to filter by department
-router.get('/', verifyToken, getAllPositions);
+router.get('/', verifyToken, requirePermission('positions.read'), getAllPositions);
 
-// Get position by ID (protected)
-router.get('/:id', verifyToken, getPositionById);
+// Get position by ID
+router.get('/:id', verifyToken, requirePermission('positions.read'), getPositionById);
 
-// Create position (admin and superadmin only)
+// Create position
 router.post(
   '/',
   verifyToken,
-  verifyRole(['admin', 'superadmin']),
+  requirePermission('positions.create'),
   [
     body('position_name').notEmpty().withMessage('Position name is required'),
     body('department_id').isInt().withMessage('Department ID must be an integer'),
@@ -38,19 +39,19 @@ router.post(
   createPosition
 );
 
-// Update position (admin and superadmin only)
+// Update position
 router.put(
   '/:id',
   verifyToken,
-  verifyRole(['admin', 'superadmin']),
+  requirePermission('positions.update'),
   updatePosition
 );
 
-// Delete position (admin and superadmin only)
+// Delete position
 router.delete(
   '/:id',
   verifyToken,
-  verifyRole(['admin', 'superadmin']),
+  requirePermission('positions.delete'),
   deletePosition
 );
 

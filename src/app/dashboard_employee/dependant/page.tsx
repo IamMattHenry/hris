@@ -25,10 +25,12 @@ export default function Dashboard() {
     region: "",
     province: "",
     city: "",
+    barangay: "",
   });
   const [regions, setRegions] = useState<string[]>([]);
   const [provinces, setProvinces] = useState<string[]>([]);
   const [cities, setCities] = useState<string[]>([]);
+  const [barangays, setBarangays] = useState<string[]>([]);
   const [phLocationsData, setPhLocationsData] = useState<any[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -113,13 +115,16 @@ export default function Dashboard() {
       if (regionObj) {
         setProvinces(regionObj.provinces.map((p: any) => p.name));
         setCities([]);
+        setBarangays([]);
       } else {
         setProvinces([]);
         setCities([]);
+        setBarangays([]);
       }
     } else {
       setProvinces([]);
       setCities([]);
+      setBarangays([]);
     }
   }, [formData.region, phLocationsData]);
 
@@ -130,11 +135,29 @@ export default function Dashboard() {
       if (regionObj) {
         const provinceObj = regionObj.provinces.find((p: any) => p.name === formData.province);
         setCities(provinceObj?.cities ? provinceObj.cities.map((c: any) => (typeof c === 'string' ? c : c.name)) : []);
+        setBarangays([]);
       }
     } else {
       setCities([]);
+      setBarangays([]);
     }
   }, [formData.region, formData.province, phLocationsData]);
+
+  // Update barangays on city change
+  useEffect(() => {
+    if (formData.region && formData.province && formData.city) {
+      const regionObj = phLocationsData.find((r: any) => r.name === formData.region);
+      if (regionObj) {
+        const provinceObj = regionObj.provinces.find((p: any) => p.name === formData.province);
+        if (provinceObj) {
+          const cityObj = provinceObj.cities.find((c: any) => c.name === formData.city);
+          setBarangays(cityObj?.barangays ? cityObj.barangays.map((b: any) => b.name) : []);
+        }
+      }
+    } else {
+      setBarangays([]);
+    }
+  }, [formData.region, formData.province, formData.city, phLocationsData]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -159,6 +182,7 @@ export default function Dashboard() {
     if (!formData.region) newErrors.region = "Region is required.";
     if (!formData.province) newErrors.province = "Province is required.";
     if (!formData.city) newErrors.city = "City is required.";
+    if (!formData.barangay) newErrors.barangay = "Barangay is required.";
 
     return newErrors;
   };
@@ -206,11 +230,12 @@ const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectEle
         lastName: formData.lastname,
         relationship: formData.relationship,
         email: formData.email,
-        contactInfo: formData.contact_no,
+        contactInfo: formData.contact_no.replace(/\s/g, ""),
         homeAddress: formData.home_address,
         region: formData.region,
         province: formData.province,
         city: formData.city,
+        barangay: formData.barangay,
       };
 
       const result = await employeeApi.update(user.employee_id, {
@@ -219,11 +244,12 @@ const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectEle
           lastName: d.lastname,
           relationship: d.relationship,
           email: d.email,
-          contactInfo: d.contact_no,
+          contactInfo: d.contact_no ? d.contact_no.replace(/\s/g, "") : d.contact_no,
           homeAddress: d.home_address,
           region: d.region_name,
           province: d.province_name,
           city: d.city_name,
+       //   barangay: d.barangay_name,
         })), dependentData]
       });
 
@@ -239,6 +265,7 @@ const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectEle
           region: "",
           province: "",
           city: "",
+          barangay: "",
         });
         setErrors({});
         setShowForm(false);
@@ -274,11 +301,12 @@ const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectEle
         lastName: d.lastname,
         relationship: d.relationship,
         email: d.email,
-        contactInfo: d.contact_no,
+        contactInfo: d.contact_no ? d.contact_no.replace(/\s/g, "") : d.contact_no,
         homeAddress: d.home_address,
         region: d.region_name,
         province: d.province_name,
         city: d.city_name,
+        barangay: d.barangay_name,
       }));
 
       const result = await employeeApi.update(user.employee_id, { dependents: updatedDependents });
@@ -478,6 +506,21 @@ const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectEle
                     </select>
                     {errors.city && <p className="text-red-500 text-xs mt-1">{errors.city}</p>}
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Barangay *</label>
+                    <select
+                      name="barangay"
+                      value={formData.barangay}
+                      onChange={handleInputChange}
+                      required
+                      disabled={!formData.city}
+                      className={`w-full px-3 py-2 border text-gray-600 border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#073532] disabled:bg-gray-100 disabled:cursor-not-allowed ${errors.barangay ? "border-red-500" : ""}`}
+                    >
+                      <option value="">{formData.city ? "Select Barangay" : "Select City First"}</option>
+                      {barangays.map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                    {errors.barangay && <p className="text-red-500 text-xs mt-1">{errors.barangay}</p>}
+                  </div>
                 </div>
 
                 <div className="flex justify-end mt-4 space-x-2">
@@ -511,7 +554,7 @@ const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectEle
                     {d.contact_no && <p className="text-sm text-gray-600">Contact: {d.contact_no}</p>}
                     {d.home_address && (
                       <p className="text-sm text-gray-600">
-                        Address: {d.home_address}{d.city_name && `, ${d.city_name}`}{d.province_name && `, ${d.province_name}`}{d.region_name && `, ${d.region_name}`}
+                       { /* Address: {d.home_address}{d.barangay_name && `, ${d.barangay_name}`}{d.city_name && `, ${d.city_name}`}{d.province_name && `, ${d.province_name}`}{d.region_name && `, ${d.region_name}`} */}
                       </p>
                     )}
                   </div>

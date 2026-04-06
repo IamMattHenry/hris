@@ -160,6 +160,29 @@ export const validateContactNumbers = (
 };
 
 /**
+ * Validates role management settings
+ */
+export const validateRoleManagement = (
+  grantAdminPrivilege: boolean,
+  grantSupervisorPrivilege: boolean,
+  departmentId: number | null,
+): ValidationErrors => {
+  const errors: ValidationErrors = {};
+
+  // Cannot grant both admin and supervisor privileges
+  if (grantAdminPrivilege && grantSupervisorPrivilege) {
+    errors.roleConflict = "Cannot grant both Admin and Supervisor privileges";
+  }
+
+  // If granting supervisor privilege, must have a department
+  if (grantSupervisorPrivilege && !departmentId) {
+    errors.supervisor = "Department is required to grant Supervisor privilege";
+  }
+
+  return errors;
+};
+
+/**
  * Validates employee form data
  */
 export const validateEmployeeForm = (
@@ -283,24 +306,7 @@ export const validateEmployeeForm = (
   return errors;
 };
 
-/**
- * Validates role management (admin/supervisor privileges)
- */
-export const validateRoleManagement = (
-  grantAdminPrivilege: boolean,
-  grantSupervisorPrivilege: boolean,
-  subRole: string,
-  departmentId: number | null,
-  validSubRoles: string[],
-  departmentName?: string
-): ValidationErrors => {
-  const errors: ValidationErrors = {};
 
-  // Edit flow: relax sub-role validation. Allow granting admin/supervisor privilege
-  // without enforcing a sub-role or department-specific sub-role restrictions.
-  // Returning empty errors means the form won't be blocked here.
-  return errors;
-};
 
 /**
  * Formats Philippine phone numbers

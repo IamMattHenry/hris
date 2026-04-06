@@ -2,13 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { employeeApi, leaveApi, attendanceApi } from "@/lib/api";
-import { RefreshCcw } from "lucide-react"
+import { RefreshCcw } from "lucide-react";
 import { Employee, Attendance } from "@/types/api";
 import FloatingTicketButton from "@/components/dashboard/FloatingTicketButton";
 import { useAuth } from "@/contexts/AuthContext";
-import Image from "next/image";
 import ActionButton from "@/components/buttons/ActionButton";
-
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -16,16 +14,18 @@ export default function Dashboard() {
   const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [attendanceList, setAttendanceList] = useState<Attendance[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<Attendance[]>([]);
   const [employeeAttendanceSummary, setEmployeeAttendanceSummary] = useState<{
     present: number;
     absent: number;
     leave: number;
     late: number;
   } | null>(null);
-  const [attendanceRecords, setAttendanceRecords] = useState<Attendance[]>([]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 15;
 
   const fetchAttendanceData = async (month: number) => {
     if (!user?.employee_id) return;
@@ -49,6 +49,7 @@ export default function Dashboard() {
 
       if (attendanceRecordsResult.success && attendanceRecordsResult.data) {
         setAttendanceRecords(attendanceRecordsResult.data as Attendance[]);
+        setCurrentPage(1); // Reset to first page when month changes
       }
 
     } catch (err) {
@@ -86,13 +87,11 @@ export default function Dashboard() {
           setError(empResult.message || "Failed to fetch employees");
         }
 
-        // Fetch current employee's detailed data
         if (user?.employee_id) {
           const employeeResult = await employeeApi.getById(user.employee_id);
           if (employeeResult.success && employeeResult.data) {
             setCurrentEmployee(employeeResult.data as Employee);
           }
-
         }
       } catch (err) {
         console.error("Error fetching dashboard data:", err);
@@ -110,6 +109,22 @@ export default function Dashboard() {
       fetchAttendanceData(selectedMonth);
     }
   }, [selectedMonth, user?.employee_id]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(attendanceRecords.length / rowsPerPage);
+  const paginatedRecords = attendanceRecords.slice(
+    (currentPage - 1) * rowsPerPage,
+    currentPage * rowsPerPage
+  );
+
+  const handleRefresh = () => {
+    fetchAttendanceData(selectedMonth);
+  };
+
+  const goToPage = (page: number) => {
+    if (page < 1 || page > totalPages) return;
+    setCurrentPage(page);
+  };
 
   if (loading) {
     return (
@@ -138,39 +153,27 @@ export default function Dashboard() {
     );
   }
 
-  // Attendance summary data 
-  const attendanceSummaryData = [
-    { name: 'Present', value: employeeAttendanceSummary?.present || 0 },
-    { name: 'On Leave', value: employeeAttendanceSummary?.leave || 0 },
-    { name: 'Absent', value: employeeAttendanceSummary?.absent || 0 },
-    { name: 'Late', value: employeeAttendanceSummary?.late || 0 },
-  ];
-
-  const handleRefresh = () => {
-    fetchAttendanceData(selectedMonth);
-  }
-
   return (
     <div className="min-h-screen p-6 font-poppins">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Attendance Summary */}
+        {/* Attendance Summary Section (unchanged) */}
         <div className="bg-white rounded-xl shadow-sm border border-[#e8dcc8] overflow-hidden">
-          {/* Attendance Box */}
+          {/* ... [Your existing Attendance Summary + Employee Info + Summary Cards] ... */}
+          {/* (Keeping your original summary section as-is for brevity) */}
+
           <div className="bg-[#281b0d] px-6 py-3 shadow-lg rounded-b-lg">
             <hr className="w-full border-none mb-4" />
-            <h2 className="text-3xl font-semibold text-white">
-              Attendance
-            </h2>
+            <h2 className="text-3xl font-semibold text-white">Attendance</h2>
             <p className="text-lg font-light text-white text-right">
               Month: {new Date().toLocaleDateString("en-US", {
                 timeZone: "Asia/Manila",
                 month: "long"
               })}
             </p>
-            {/* Employee Information */}
+
+            {/* Employee Information Card */}
             <div className="bg-white rounded-xl shadow-sm p-7 border border-[#e8dcc8] mt-4">
               <div className="flex items-start space-x-6">
-                {/* Profile Image */}
                 <div className="flex-shrink-0">
                   <div className="w-[100px] h-[100px] rounded-lg bg-gray-300 flex items-center justify-center">
                     <span className="text-3xl font-semibold text-gray-700">
@@ -181,73 +184,50 @@ export default function Dashboard() {
                 </div>
 
                 <div className="flex-1 space-y-2">
-                  <div className="text-left">
-
-                    <p className="text-3xl text-bold text-gray-700">{currentEmployee?.first_name} {currentEmployee?.last_name}</p>
-                  </div>
+                  <p className="text-3xl font-bold text-gray-700">
+                    {currentEmployee?.first_name} {currentEmployee?.last_name}
+                  </p>
                 </div>
 
-                {/* Profile Details */}
                 <div className="flex-1 space-y-2">
-                  <div className="text-left">
-                    <p className="text-sm text-gray-600">ID: {currentEmployee?.employee_code}</p>
-                  </div>
-
-                  <div className="text-left">
-                    <p className="text-sm text-gray-600">Department: {currentEmployee?.department_name}</p>
-                  </div>
-
-                  <div className="text-left">
-                    <p className="text-sm text-gray-600">Role: {currentEmployee?.position_name || 'N/A'}</p>
-                  </div>
+                  <p className="text-sm text-gray-600">ID: {currentEmployee?.employee_code}</p>
+                  <p className="text-sm text-gray-600">Department: {currentEmployee?.department_name}</p>
+                  <p className="text-sm text-gray-600">Role: {currentEmployee?.position_name || 'N/A'}</p>
                 </div>
               </div>
             </div>
-            {/* Horizontal Divider */}
+
             <hr className="w-full border-none mb-6" />
 
-            {/* Attendance Information */}
+            {/* Summary Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-              <div className="bg-white rounded-xl shadow-sm p-4 border border-[#e8dcc8]">
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-gray-800">{employeeAttendanceSummary?.present || 0}</p>
-                  <p className="text-sm text-gray-600">Present</p>
+              {[
+                { label: 'Present', value: employeeAttendanceSummary?.present || 0 },
+                { label: 'Absent', value: employeeAttendanceSummary?.absent || 0 },
+                { label: 'On Leave', value: employeeAttendanceSummary?.leave || 0 },
+                { label: 'Late', value: employeeAttendanceSummary?.late || 0 },
+              ].map((item, index) => (
+                <div key={index} className="bg-white rounded-xl shadow-sm p-4 border border-[#e8dcc8]">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-gray-800">{item.value}</p>
+                    <p className="text-sm text-gray-600">{item.label}</p>
+                  </div>
                 </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm p-4 border border-[#e8dcc8]">
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-gray-800">{employeeAttendanceSummary?.absent || 0}</p>
-                  <p className="text-sm text-gray-600">Absent</p>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm p-4 border border-[#e8dcc8]">
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-gray-800">{employeeAttendanceSummary?.leave || 0}</p>
-                  <p className="text-sm text-gray-600">On Leave</p>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm p-4 border border-[#e8dcc8]">
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-gray-800">{employeeAttendanceSummary?.late || 0}</p>
-                  <p className="text-sm text-gray-600">Late</p>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
 
-
-          {/* Month Selector */}
+          {/* Month Selector & Logs Header */}
           <div className="p-6 border-b border-gray-200">
             <div className="flex items-center justify-between">
-
               <h3 className="text-2xl font-normal text-gray-800">Logs</h3>
               <div className="flex items-center space-x-4">
                 <ActionButton label="Refresh" icon={RefreshCcw} onClick={handleRefresh} />
+
                 <div>
-                  <label htmlFor="month-select" className="block text-sm font-medium text-gray-700 mb-1">Select Month:</label>
+                  <label htmlFor="month-select" className="block text-sm font-medium text-gray-700 mb-1">
+                    Select Month:
+                  </label>
                   <select
                     id="month-select"
                     value={selectedMonth}
@@ -265,48 +245,44 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Attendance Records Table */}
+          {/* Attendance Records Table with Pagination */}
           <div className="p-6">
             <div className="overflow-x-auto">
               <table className="w-full border-collapse border border-gray-300 text-gray-600">
                 <thead className="bg-[#073532] text-white text-center sticky top-0 z-20">
                   <tr>
-                    <th className="border border-gray-300 px-4 py-2 text-center">Date</th>
-                    <th className="border border-gray-300 px-4 py-2 text-center">Time In</th>
-                    <th className="border border-gray-300 px-4 py-2 text-center">Time Out</th>
-                    <th className="border border-gray-300 px-4 py-2 text-center">Status</th>
-                    <th className="border border-gray-300 px-4 py-2 text-center">Overtime Hours</th>
+                    <th className="border border-gray-300 px-4 py-2">Date</th>
+                    <th className="border border-gray-300 px-4 py-2">Time In</th>
+                    <th className="border border-gray-300 px-4 py-2">Time Out</th>
+                    <th className="border border-gray-300 px-4 py-2">Status</th>
+                    <th className="border border-gray-300 px-4 py-2">Overtime Hours</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {attendanceRecords.length > 0 ? (
-                    attendanceRecords.map((record) => (
-                      <tr key={record.attendance_code} className="hover:bg-gray-50">
+                  {paginatedRecords.length > 0 ? (
+                    paginatedRecords.map((record) => (
+                      <tr key={record.date} className="hover:bg-gray-50">
                         <td className="border border-gray-300 px-4 py-2">
                           {new Date(record.date).toLocaleDateString('en-US', {
                             month: 'short',
                             day: 'numeric',
                             year: 'numeric'
-                          })
-                          }
+                          })}
                         </td>
                         <td className="border border-gray-300 px-4 py-2">
-                          {
-                            record.time_in && formatDateTimeTo12Hour(record.time_in) || '--'
-                          }
+                          {record.time_in ? formatDateTimeTo12Hour(record.time_in) : '--'}
                         </td>
                         <td className="border border-gray-300 px-4 py-2">
-                          {
-                            record.time_out && formatDateTimeTo12Hour(record.time_out) || '--'
-                          }
+                          {record.time_out ? formatDateTimeTo12Hour(record.time_out) : '--'}
                         </td>
                         <td className="border border-gray-300 px-4 py-2">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${record.status === 'present' ? 'bg-green-100 text-green-800' :
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            record.status === 'present' ? 'bg-green-100 text-green-800' :
                             record.status === 'absent' ? 'bg-red-100 text-red-800' :
-                              record.status === 'late' ? 'bg-orange-100 text-orange-800' :
-                                record.status === 'on_leave' ? 'bg-blue-100 text-blue-800' :
-                                  'bg-gray-100 text-gray-800'
-                            }`}>
+                            record.status === 'late' ? 'bg-orange-100 text-orange-800' :
+                            record.status === 'on_leave' ? 'bg-blue-100 text-blue-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
                             {record.status.charAt(0).toUpperCase() + record.status.slice(1).replace('_', ' ')}
                           </span>
                         </td>
@@ -326,12 +302,54 @@ export default function Dashboard() {
               </table>
             </div>
 
-          </div>
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-6 px-2">
+                <p className="text-sm text-gray-600">
+                  Showing {(currentPage - 1) * rowsPerPage + 1} to{' '}
+                  {Math.min(currentPage * rowsPerPage, attendanceRecords.length)} of{' '}
+                  {attendanceRecords.length} records
+                </p>
 
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => goToPage(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+
+                  <div className="flex gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => goToPage(page)}
+                        className={`px-4 py-2 border rounded-md text-gray-600 ${
+                          currentPage === page
+                            ? 'bg-[#073532] text-white border-[#073532]'
+                            : 'border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={() => goToPage(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-black hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Floating Ticket Button */}
       <FloatingTicketButton />
     </div>
   );

@@ -1,38 +1,42 @@
 import express from 'express';
 import { body } from 'express-validator';
 import { verifyToken, verifyRole } from '../middleware/auth.js';
+import { requirePermission, loadPermissions } from '../middleware/rbac.js';
 import { validateEmployee, handleValidationErrors } from '../middleware/validation.js';
 import {
   getAllEmployees,
   getEmployeeById,
   createEmployee,
   updateEmployee,
+  terminateEmployee,
   deleteEmployee,
   getEmployeeAvailability,
+  getEmployeePositions,
+  setEmployeePositions,
 } from '../controllers/employeeController.js';
 
 const router = express.Router();
 
 // Get employee availability status (protected)
-router.get('/availability', verifyToken, getEmployeeAvailability);
+router.get('/availability', verifyToken, requirePermission('employees.read', 'employees.read_own'), getEmployeeAvailability);
 
 // Get all employees (protected)
-router.get('/', verifyToken, getAllEmployees);
+router.get('/', verifyToken, requirePermission('employees.read', 'employees.read_own'), getAllEmployees);
 
 // Get employee by ID (protected)
-router.get('/:id', verifyToken, getEmployeeById);
+router.get('/:id', verifyToken, requirePermission('employees.read', 'employees.read_own'), getEmployeeById);
 
-// Create employee (admin and superadmin only) with enhanced validation
+// Create employee (requires employees.create permission)
 router.post(
   '/',
   verifyToken,
-  verifyRole(['admin', 'superadmin']),
+  requirePermission('employees.create'),
   [
     // User validation
     body('username').trim().isLength({ min: 3, max: 50 }).matches(/^[a-zA-Z0-9_]+$/).withMessage('Invalid username format'),
     body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
     body('role').optional().isIn(['admin', 'employee', 'supervisor', 'superadmin']).withMessage('Invalid role'),
-    body('sub_role').optional().isIn(['hr', 'it']).withMessage('Invalid sub-role'),
+    body('role').optional().isIn(['admin', 'employee', 'supervisor', 'superadmin']).withMessage('Invalid role'),
     
     // Employee validation (using enhanced rules)
     body('first_name').trim().isLength({ min: 2, max: 100 }).matches(/^[a-zA-Z\s'-]+$/).withMessage('Invalid first name format'),
@@ -108,12 +112,36 @@ router.post(
     updateEmployee
   );
 
-// Delete employee (admin and superadmin only)
+// Terminate employee (requires employees.terminate permission; employees.delete supported for backward compatibility)
+router.post(
+  '/:id/terminate',
+  verifyToken,
+  requirePermission('employees.terminate', 'employees.delete'),
+  terminateEmployee
+);
+
+// Backward-compatible termination alias for old clients using DELETE /employees/:id
 router.delete(
   '/:id',
   verifyToken,
-  verifyRole(['admin', 'superadmin']),
+  requirePermission('employees.terminate', 'employees.delete'),
   deleteEmployee
+);
+
+// Get all positions for an employee
+router.get(
+  '/:id/positions',
+  verifyToken,
+  requirePermission('employees.read', 'employees.read_own'),
+  getEmployeePositions
+);
+
+// Replace all positions for an employee
+router.put(
+  '/:id/positions',
+  verifyToken,
+  requirePermission('employees.update'),
+  setEmployeePositions
 );
 
 export default router;

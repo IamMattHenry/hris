@@ -81,6 +81,7 @@ export default function LoginForm() {
           case "Invalid credentials":
             setErrorMessage("Incorrect username or password.");
             alert("Incorrect username or password.");
+            window.location.href = "/login_employee";
             break;
           case "Only employees are allowed to access this portal":
             setErrorMessage(
@@ -89,10 +90,13 @@ export default function LoginForm() {
             alert(
               "This portal is for employees only. Please use the admin login instead."
             );
+            window.location.href = "/login_hr";
             break;
           default:
             setErrorMessage("Login failed. Please try again.");
             alert("Login failed. Please try again.");
+            window.location.href = "/login_employee";
+            break;
         }
       }
     } catch (error) {

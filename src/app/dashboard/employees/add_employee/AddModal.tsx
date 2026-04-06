@@ -9,6 +9,7 @@ import {
   employeeApi,
   departmentApi,
   positionApi,
+  payrollApi,
 } from "@/lib/api";
 import { Department, Position } from "@/types/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -45,6 +46,11 @@ interface Dependent {
   city: string;
 }
 
+interface FinanceBudget {
+  budget_id: number;
+  amount: number;
+}
+
 
 export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps) {
   const { user } = useAuth();
@@ -74,6 +80,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [departmentId, setDepartmentId] = useState<number | null>(null);
   const [positionId, setPositionId] = useState<number | null>(null);
   const [salary, setSalary] = useState("");
+  const [staffSalariesBudget, setStaffSalariesBudget] = useState<FinanceBudget | null>(null);
   const [leaveCredit, setLeaveCredit] = useState("15");
   const [employmentType, setEmploymentType] = useState("");
   // New: Work type and schedule
@@ -91,9 +98,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [grantAdminPrivilege, setGrantAdminPrivilege] = useState(false);
-  const [grantSupervisorPrivilege, setGrantSupervisorPrivilege] = useState(false);
-  const [subRole, setSubRole] = useState("");
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [finishedSteps, setFinishedSteps] = useState<number[]>([]);
@@ -131,6 +135,16 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       ? `${salary} / ${employmentType === "regular" ? "month" : "hr"}`
       : "";
 
+  const formatCurrency = (value?: number | null) => {
+    if (value == null || Number.isNaN(Number(value))) return "₱0.00";
+    return new Intl.NumberFormat("en-PH", {
+      style: "currency",
+      currency: "PHP",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(Number(value));
+  };
+
   const [usernameEdited, setUsernameEdited] = useState(false);
   const [passwordEdited, setPasswordEdited] = useState(false);
 
@@ -156,6 +170,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   const [documents, setDocuments] = useState<Record<string, boolean>>(
     Object.fromEntries(DOCUMENTS.map(doc => [doc.key, false]))
   );
+  const [othersSpecification, setOthersSpecification] = useState("");
 
 
 
@@ -188,7 +203,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     // --- Password generation ---
     const cleanedFirstName = firstName ? firstName.replace(/\s+/g, "") : "User";
     // Capitalize password start
-    let formattedPass = cleanedFirstName.charAt(0).toUpperCase() + cleanedFirstName.slice(1);
+    const formattedPass = cleanedFirstName.charAt(0).toUpperCase() + cleanedFirstName.slice(1);
     let generatedPassword = `@${formattedPass}`;
 
     // Pad password to at least 12 characters using random numbers
@@ -249,7 +264,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         const processedData = rawData.map((region: any) => {
 
           // A. Process standard provinces (if any)
-          let finalProvinces = region.provinces.map((prov: any) => ({
+          const finalProvinces = region.provinces.map((prov: any) => ({
             name: prov.name,
             cities: prov.cities.map((city: any) => ({
               name: city.name,
@@ -443,6 +458,24 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   useEffect(() => {
     if (isOpen) {
       fetchDepartments();
+
+      payrollApi.getSettings()
+        .then((res) => {
+          const budget = res.data?.budgets?.staff_salaries;
+          if (res.success && budget) {
+            setStaffSalariesBudget({
+              budget_id: Number(budget.budget_id),
+              amount: Number(budget.amount),
+            });
+          } else {
+            setStaffSalariesBudget(null);
+          }
+        })
+        .catch(() => {
+          setStaffSalariesBudget(null);
+        });
+    } else {
+      setStaffSalariesBudget(null);
     }
   }, [isOpen]);
 
@@ -516,41 +549,6 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     }
   };
 
-  const mapDepartmentToSubRole = (departmentName?: string | null) => {
-    if (!departmentName) return null;
-
-    const normalized = departmentName.toLowerCase();
-
-    if (
-      normalized === "it" ||
-      normalized.includes("information technology") ||
-      normalized.includes("i.t.")
-    ) {
-      return "it";
-    }
-
-    if (
-      normalized === "hr" ||
-      normalized.includes("human resource") ||
-      normalized.includes("human-resource")
-    ) {
-      return "hr";
-    }
-
-    return null;
-  };
-
-  // Get valid sub_roles based on department
-  const getValidSubRoles = (deptId: number | null) => {
-    if (!deptId) return [];
-
-    const dept = departments.find((d) => d.department_id === deptId);
-    const mapped = mapDepartmentToSubRole(dept?.department_name);
-
-    return mapped ? [mapped] : [];
-  };
-
-
   useEffect(() => {
     if (!positionId || positions.length === 0) return;
 
@@ -571,57 +569,32 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     }
   }, [positionId, employmentType, positions]);
 
-  // Check if department already has a supervisor
-  const checkDepartmentSupervisor = async (deptId: number) => {
-    try {
-      const result = await employeeApi.getAll({
-        department_id: deptId,
-        role: "supervisor",
-      });
-      if (result.success && result.data) {
-        return result.data.length > 0;
-      }
-    } catch (error) {
-      console.error("Error checking department supervisor:", error);
-    }
-    return false;
-  };
-
-  useEffect(() => {
-    if (!(grantAdminPrivilege || grantSupervisorPrivilege)) {
-      if (subRole !== "") setSubRole("");
-      return;
-    }
-
-    if (!departmentId) {
-      if (subRole !== "") setSubRole("");
-      return;
-    }
-
-    const dept = departments.find((d) => d.department_id === departmentId);
-    const mapped = mapDepartmentToSubRole(dept?.department_name);
-
-    if (mapped) {
-      if (subRole !== mapped) setSubRole(mapped);
-    } else if (subRole !== "") {
-      setSubRole("");
-    }
-  }, [departmentId, departments, grantAdminPrivilege, grantSupervisorPrivilege]);
-
   if (!isOpen) return null;
 
   // handle birth date change with age validation
   const handleBirthDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const error = validateBirthDate(e.target.value);
+    const rawValue = e.target.value.replace(/[^0-9]/g, "");
+    let formattedValue = rawValue;
 
-    if (error) {
-      setErrors((prev) => ({
-        ...prev,
-        birthDate: error
-      }));
+    if (rawValue.length > 4) {
+      formattedValue = `${rawValue.slice(0, 4)}/${rawValue.slice(4)}`;
+    }
+    if (rawValue.length > 6) {
+      formattedValue = `${rawValue.slice(0, 4)}/${rawValue.slice(4, 6)}/${rawValue.slice(6, 8)}`;
+    }
+
+    // Limit to yyyy/mm/dd format
+    if (formattedValue.length > 10) {
+      formattedValue = formattedValue.slice(0, 10);
+    }
+
+    setBirthDate(formattedValue);
+
+    const error = validateBirthDate(formattedValue);
+    if (error && formattedValue.length === 10) {
+      setErrors((prev) => ({ ...prev, birthDate: error }));
     } else {
       setErrors((prev) => ({ ...prev, birthDate: "" }));
-      setBirthDate(e.target.value);
     }
   };
 
@@ -644,7 +617,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   // handle salary input with comma formatting
   const handleSalaryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // Remove commas and non-numeric characters
-    let input = e.target.value.replace(/,/g, "").replace(/\D/g, "");
+    const input = e.target.value.replace(/,/g, "").replace(/\D/g, "");
 
     if (input === "") {
       setSalary("");
@@ -704,6 +677,8 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     setEmail("");
     setContactNumber("");
     setDependents([]);
+    setDocuments(Object.fromEntries(DOCUMENTS.map(doc => [doc.key, false])));
+    setOthersSpecification("");
     setDependentFirstName("");
     setDependentLastName("");
     setDependentEmail("");
@@ -714,9 +689,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     setUsername("");
     setPassword("");
     setConfirmPassword("");
-    setGrantAdminPrivilege(false);
-    setGrantSupervisorPrivilege(false);
-    setSubRole("");
+
     setStep(1);
     setErrors({});
     setMessage(null);
@@ -766,39 +739,20 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     // Step 4 - Document Requirements
     if (step === 4) {
 
-      const atLeastOneSubmitted = DOCUMENTS
-        .filter(doc => doc.key !== 'others')
-        .some(doc => documents[doc.key]);
+      const atLeastOneSubmitted = Object.values(documents).some(val => val);
 
       if (!atLeastOneSubmitted) {
         newErrors.documents = "Please select at least one required document to proceed.";
+      }
+
+      if (documents.others && !othersSpecification.trim()) {
+        newErrors.othersSpecification = "Please specify the other documents.";
       }
     }
 
     // Step 5 - Authentication
     if (step === 5) {
-      newErrors = validateStep4(username, password, confirmPassword, grantAdminPrivilege || grantSupervisorPrivilege, subRole);
-
-      // Additional validation for supervisor role
-      if (grantSupervisorPrivilege && departmentId) {
-        const hasSupervisor = await checkDepartmentSupervisor(departmentId);
-        if (hasSupervisor) {
-          newErrors.supervisor = "This department already has a supervisor. Only one supervisor is allowed per department.";
-        }
-      }
-
-      // Validate sub_role matches department
-      if ((grantAdminPrivilege || grantSupervisorPrivilege) && departmentId && subRole) {
-        const validRoles = getValidSubRoles(departmentId);
-        const normalizedSubRole = subRole.toLowerCase();
-        const isValid = validRoles.some(role => role.toLowerCase() === normalizedSubRole);
-
-        if (!isValid) {
-          const deptName = departments.find(d => d.department_id === departmentId)?.department_name;
-          const allowed = validRoles[0]?.toLowerCase() || "hr";
-          newErrors.subRole = `${deptName ?? "This"} department employees can only have '${allowed}' as sub_role.`;
-        }
-      }
+      newErrors = validateStep4(username, password, confirmPassword);
     }
 
     setErrors(newErrors);
@@ -840,15 +794,16 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       const employeeData: any = {
         username,
         password,
-        role: grantAdminPrivilege ? "admin" : grantSupervisorPrivilege ? "supervisor" : "employee",
+        role: "employee",
         first_name: firstName,
         last_name: lastName,
         middle_name: middleName || null,
         extension_name: extensionName || null,
-        birthdate: birthDate,
+        birthdate: birthDate.replace(/\//g, '-'),
         gender: gender ? gender.toLowerCase() : null,
         civil_status: civilStatus ? civilStatus.toLowerCase() : null,
         home_address: homeAddress || null,
+        barangay: barangay || null,
         city: city || null,
         region: region || null,
         province: province || null,
@@ -875,13 +830,13 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
         // Dependents
         dependents: dependents,
         // Documents
-        documents: documents,
+        documents: {
+          ...documents,
+          others_specification: documents.others ? othersSpecification : null
+        },
       };
 
-      // Add sub_role if admin or supervisor privilege is granted
-      if ((grantAdminPrivilege || grantSupervisorPrivilege) && subRole) {
-        employeeData.sub_role = subRole.toLowerCase();
-      }
+
 
       const result = await employeeApi.create(employeeData);
 
@@ -1033,8 +988,14 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                     placeholder="Jr., Sr., III, etc. (optional)"
                   />
                   <FormInput
-                    label="Birth Date:"
-                    type="date"
+                    label={
+                      <div className="flex items-baseline">
+                        <span>Birth Date:</span>
+                        <span className="text-xs text-gray-500 ml-2">(must be 21 or older)</span>
+                      </div>
+                    }
+                    type="text"
+                    placeholder="YYYY/MM/DD"
                     value={birthDate}
                     onChange={handleBirthDateChange}
                     error={errors.birthDate}
@@ -1250,6 +1211,11 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                     <label className="block text-[#3b2b1c] mb-1">
                       {workType?.toLowerCase() === "part-time" ? "Salary (Hourly Rate):" : "Salary (Monthly):"}
                     </label>
+
+                    <p className="text-xs text-[#6b5344] mb-2">
+                      Latest Staff Salaries Budget: {formatCurrency(staffSalariesBudget?.amount)}
+                      {staffSalariesBudget?.budget_id ? ` (budget_id #${staffSalariesBudget.budget_id})` : ""}
+                    </p>
 
                     <div className="flex items-center border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] overflow-hidden">
                       <span className="px-3 py-2 text-[#3b2b1c] font-semibold">₱</span>
@@ -1649,30 +1615,71 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                   )}
 
                   <div className="space-y-3 pl-2">
-                    {DOCUMENTS.map(doc => (
-                      <label
-                        key={doc.key}
-                        className="flex items-center space-x-3 cursor-pointer"
+                    <label
+                        className="flex items-center space-x-3 cursor-pointer mb-4"
                       >
                         <input
                           type="checkbox"
-                          checked={documents[doc.key]}
                           onChange={(e) => {
-                            setDocuments(prev => ({
-                              ...prev,
-                              [doc.key]: e.target.checked,
-                            }));
-                            if (errors.documents) {
+                            const isChecked = e.target.checked;
+                            const newDocumentsState = { ...documents };
+                            for (const doc of DOCUMENTS) {
+                              if (doc.key !== 'others') {
+                                newDocumentsState[doc.key] = isChecked;
+                              }
+                            }
+                            setDocuments(newDocumentsState);
+                             if (errors.documents) {
                               setErrors(prev => ({ ...prev, documents: "" }));
                             }
                           }}
+                          checked={DOCUMENTS.filter(d => d.key !== 'others').every(
+                            (doc) => documents[doc.key]
+                          )}
                           className="w-5 h-5 accent-[#4b0b14] cursor-pointer"
                         />
-
-                        <span className="text-[#3b2b1c]">
-                          {doc.label}
-                        </span>
+                        <span className="text-[#3b2b1c] font-semibold">Check All</span>
                       </label>
+                    {DOCUMENTS.map(doc => (
+                      <div key={doc.key} className="space-y-2">
+                        <label
+                          className="flex items-center space-x-3 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={documents[doc.key]}
+                            onChange={(e) => {
+                              setDocuments(prev => ({
+                                ...prev,
+                                [doc.key]: e.target.checked,
+                              }));
+                              if (errors.documents) {
+                                setErrors(prev => ({ ...prev, documents: "" }));
+                              }
+                            }}
+                            className="w-5 h-5 accent-[#4b0b14] cursor-pointer"
+                          />
+
+                          <span className="text-[#3b2b1c]">
+                            {doc.label}
+                          </span>
+                        </label>
+
+                        {doc.key === 'others' && documents.others && (
+                          <div className="ml-8">
+                            <input
+                              type="text"
+                              value={othersSpecification}
+                              onChange={(e) => setOthersSpecification(e.target.value)}
+                              placeholder="Specify other documents..."
+                              className="w-full px-3 py-2 border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] text-[#3b2b1c] focus:outline-none focus:ring-2 focus:ring-[#4b0b14]"
+                            />
+                            {errors.othersSpecification && (
+                              <p className="text-red-500 text-xs mt-1">{errors.othersSpecification}</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </div>

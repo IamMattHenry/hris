@@ -18,6 +18,7 @@ export interface User {
   user_id: number;
   username: string;
   role: 'admin' | 'employee' | 'supervisor' | 'superadmin';
+  rbac_roles?: string[];
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -35,12 +36,13 @@ export interface User {
   status?: 'active' | 'resigned' | 'terminated' | 'on-leave';
   department_id?: number;
   department_name?: string;
+  position_id?: number;
+  position_name?: string;
   emails?: string[];
   contact_numbers?: string[];
   dependents?: Dependent[];
   // Associated user role info (if exists)
   user_role_id?: number;
-  sub_role?: 'hr' | 'it';
 }
 
 /**
@@ -49,13 +51,11 @@ export interface User {
 export interface UserRole {
   user_role_id: number;
   user_id: number;
-  sub_role: 'hr' | 'it' | 'manager' | 'supervisor';
   created_at: string;
   updated_at: string;
   created_by?: number;
   updated_by?: number;
   requester_role?: string;
-  requester_sub_role?: string | null;
 }
 
 /**
@@ -128,6 +128,19 @@ export interface Employee {
   // Associated user info
   username?: string;
   role?: string;
+  // Multi-position support
+  extra_position_count?: number;
+  positions?: {
+    id: number;
+    position_id: number;
+    position_name: string;
+    position_code?: string;
+    department_id?: number;
+    department_name?: string;
+    salary?: number | null;
+    salary_unit?: string;
+    is_primary: number;
+  }[];
 }
 
 /**
@@ -154,7 +167,6 @@ export interface CreateEmployeeRequest {
   username: string;
   password: string;
   role?: 'admin' | 'employee' | 'supervisor';
-  sub_role?: 'hr' | 'it' | 'manager' | 'supervisor';
   first_name: string;
   last_name: string;
   middle_name?: string;
@@ -359,6 +371,7 @@ export interface Dependent {
   region_name?: string;
   province_name?: string;
   city_name?: string;
+  barangay_name?: string;
   created_at: string;
   updated_at: string;
   created_by?: number;

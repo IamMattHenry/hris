@@ -18,6 +18,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 interface AuthProviderProps {
   children: ReactNode;
   allowedRoles?: string[];
+  allowedRbacRoles?: string[];
   redirectTo?: string;
   unauthorizedRedirectTo?: string;
 }
@@ -25,6 +26,7 @@ interface AuthProviderProps {
 export function AuthProvider({
   children,
   allowedRoles = [],
+  allowedRbacRoles = [],
   redirectTo = '/login_hr',
   unauthorizedRedirectTo = '/',
 }: AuthProviderProps) {
@@ -50,10 +52,26 @@ export function AuthProvider({
       const result = await authApi.getCurrentUser();
 
       if (result.success && result.data) {
-        if (
+        const userRbacRoles = Array.isArray((result.data as any).rbac_roles)
+          ? ((result.data as any).rbac_roles as string[])
+          : [];
+
+        const hasAllowedLegacyRole =
           allowedRoles.length > 0 &&
-          result.data.role &&
-          !allowedRoles.includes(result.data.role)
+          !!result.data.role &&
+          allowedRoles.includes(result.data.role);
+
+        const hasAllowedRbacRole =
+          allowedRbacRoles.length > 0 &&
+          userRbacRoles.some((roleKey) => allowedRbacRoles.includes(roleKey));
+
+        const shouldEnforceRoleCheck =
+          allowedRoles.length > 0 || allowedRbacRoles.length > 0;
+
+        if (
+          shouldEnforceRoleCheck &&
+          !hasAllowedLegacyRole &&
+          !hasAllowedRbacRole
         ) {
           // Role not permitted for this portal
           if (typeof window !== 'undefined') {

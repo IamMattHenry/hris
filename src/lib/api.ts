@@ -1,7 +1,6 @@
 // src/lib/api.ts
 	
 	import { User } from '@/types/api';
-  import showToast, { toast } from '@/utils/toast';
 	
 	const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
@@ -109,8 +108,6 @@ function friendlyNetworkErrorMessage(err: any): string {
 	  const method = (options.method || 'GET').toString().toUpperCase();
 	  const isGet = method === 'GET';
 	  const maxRetries = isGet ? 2 : 0; // retry GETs only
-	
-    const isBrowser = typeof window !== 'undefined';
 	
 	  const finish = (result: ApiResult<T>): ApiResult<T> => {
 	    return result;
@@ -337,7 +334,7 @@ export const employeeApi = {
     username: string;
     password: string;
     role?: 'admin' | 'employee';
-    sub_role?: 'hr' | 'manager' | 'finance' | 'it';
+
     first_name: string;
     last_name: string;
     birthdate: string;
@@ -391,11 +388,47 @@ export const employeeApi = {
   },
 
   /**
-   * Delete employee
+   * Terminate employee (soft-delete)
+   */
+  terminate: async (id: number, reason?: string) => {
+    return apiCall<any>(`/employees/${id}/terminate`, {
+      method: 'POST',
+      body: JSON.stringify(reason ? { reason } : {}),
+    });
+  },
+
+  /**
+   * @deprecated Use terminate() instead.
    */
   delete: async (id: number) => {
     return apiCall<any>(`/employees/${id}`, {
       method: 'DELETE',
+    });
+  },
+
+  /**
+   * Get all positions assigned to an employee
+   */
+  getPositions: async (id: number) => {
+    return apiCall<any[]>(`/employees/${id}/positions`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Replace all positions for an employee
+   * primary_position_id is required (kept in sync with employees.position_id)
+   * extra_positions: array of { position_id, salary?, salary_unit? }
+   */
+  setPositions: async (id: number, payload: {
+    primary_position_id: number;
+    primary_salary?: number | null;
+    primary_salary_unit?: string;
+    extra_positions?: { position_id: number; salary?: number | null; salary_unit?: string }[];
+  }) => {
+    return apiCall<any>(`/employees/${id}/positions`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
     });
   },
 };
@@ -485,6 +518,63 @@ export const passwordRecoveryApi = {
     return apiCall<any>('/password/reset', {
       method: 'POST',
       body: JSON.stringify({ token, password }),
+    });
+  },
+};
+
+// ============ RBAC API FUNCTIONS ============
+
+export interface UserPermissions {
+  roles: string[];
+  permissions: string[];
+  is_superadmin: boolean;
+}
+
+export const rbacApi = {
+  /**
+   * Get current user's permissions and RBAC roles
+   */
+  getMyPermissions: async () => {
+    return apiCall<UserPermissions>('/rbac/my-permissions', {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get all roles (admin only)
+   */
+  getRoles: async () => {
+    return apiCall<any[]>('/rbac/roles', {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get RBAC role assignments for a specific user
+   */
+  getUserRoles: async (userId: number) => {
+    return apiCall<any[]>(`/rbac/user-roles/${userId}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Assign a role to a user
+   */
+  assignRole: async (userId: number, roleKey: string) => {
+    return apiCall<any>('/rbac/assign-role', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, role_key: roleKey }),
+    });
+  },
+
+  /**
+   * Revoke a role from a user
+   */
+  revokeRole: async (userId: number, roleKey: string) => {
+    return apiCall<any>('/rbac/revoke-role', {
+      method: 'DELETE',
+      body: JSON.stringify({ user_id: userId, role_key: roleKey }),
     });
   },
 };
@@ -866,6 +956,280 @@ export const leaveApi = {
   getDashboardStats: async () => {
     return apiCall<any>('/leave/stats/dashboard', {
       method: 'GET',
+    });
+  },
+};
+
+// ============ PAYROLL API FUNCTIONS ============
+
+export const payrollApi = {
+  getRuns: async (params?: {
+    department_id?: number | string;
+    employment_type?: string;
+  }) => {
+    const search = new URLSearchParams();
+    if (params?.department_id != null && String(params.department_id).trim() !== '') {
+      search.append('department_id', String(params.department_id));
+    }
+    if (params?.employment_type) {
+      search.append('employment_type', params.employment_type);
+    }
+
+    const url = `/payroll/runs${search.toString() ? `?${search.toString()}` : ''}`;
+
+    return apiCall<any[]>(url, {
+      method: 'GET',
+    });
+  },
+
+  createRun: async (data: {
+    pay_period_start: string;
+    pay_period_end: string;
+    pay_schedule?: 'weekly' | 'semi-monthly' | 'monthly';
+    employee_ids?: number[];
+    department_id?: number;
+    employment_type?: string;
+    notes?: string;
+  }) => {
+    return apiCall<any>('/payroll/runs', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      timeoutMs: 60000,
+    });
+  },
+
+  getRunById: async (id: number | string) => {
+    return apiCall<any>(`/payroll/runs/${id}`, {
+      method: 'GET',
+    });
+  },
+
+  deleteRun: async (id: number | string) => {
+    return apiCall<any>(`/payroll/runs/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  finalizeRun: async (id: number | string) => {
+    return apiCall<any>(`/payroll/runs/${id}/finalize`, {
+      method: 'PATCH',
+    });
+  },
+
+  overrideRecord: async (
+    runId: number | string,
+    employeeId: number | string,
+    data: {
+      gross_pay?: number;
+      total_deductions?: number;
+      withholding_tax?: number;
+      net_pay?: number;
+      reason?: string;
+    }
+  ) => {
+    return apiCall<any>(`/payroll/runs/${runId}/records/${employeeId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  getPayslip: async (runId: number | string, employeeId: number | string) => {
+    return apiCall<any>(`/payroll/runs/${runId}/payslip/${employeeId}`, {
+      method: 'GET',
+    });
+  },
+
+  getContributions: async (params?: { start_date?: string; end_date?: string; run_id?: number | string }) => {
+    const search = new URLSearchParams();
+    if (params?.start_date) search.append('start_date', params.start_date);
+    if (params?.end_date) search.append('end_date', params.end_date);
+    if (params?.run_id != null) search.append('run_id', String(params.run_id));
+
+    const url = `/payroll/contributions${search.toString() ? `?${search.toString()}` : ''}`;
+
+    return apiCall<any>(url, {
+      method: 'GET',
+    });
+  },
+
+  exportContributions: async (type: 'sss' | 'philhealth' | 'pagibig' | 'bir') => {
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_BASE_URL}/payroll/contributions/export/${type}`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => 'Failed to export payroll contributions');
+      return { success: false, message: text || 'Failed to export payroll contributions' };
+    }
+
+    const blob = await response.blob();
+    const disposition = response.headers.get('content-disposition') || '';
+    const match = disposition.match(/filename="?([^\";]+)"?/i);
+    const filename = match?.[1] || `payroll_${type}.csv`;
+
+    return {
+      success: true,
+      data: {
+        blob,
+        filename,
+      },
+    };
+  },
+
+  getSettings: async () => {
+    return apiCall<any>('/payroll/settings', {
+      method: 'GET',
+    });
+  },
+
+  getExpenseRequests: async () => {
+    return apiCall<any[]>('/payroll/expense-requests', {
+      method: 'GET',
+    });
+  },
+
+  createExpenseRequest: async (data: {
+    title: string;
+    description: string;
+    requested_amount: number;
+    priority?: 'low' | 'medium' | 'high';
+  }) => {
+    return apiCall<any>('/payroll/expense-requests', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateSettings: async (data: {
+    pay_schedule: 'weekly' | 'semi-monthly' | 'monthly';
+    allowances_config?: any;
+    holiday_overrides?: any[];
+    de_minimis_config?: any;
+    company_name?: string;
+    monthly_work_days?: number;
+    effective_date?: string;
+  }) => {
+    return apiCall<any>('/payroll/settings', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+};
+
+// ============ PENALTY API FUNCTIONS ============
+
+export const penaltyApi = {
+  getAll: async (params?: {
+    search?: string;
+    employee_id?: number | string;
+    status?: string;
+    penalty_type?: string;
+    from_date?: string;
+    to_date?: string;
+    page?: number | string;
+    limit?: number | string;
+    sort_by?: string;
+    sort_dir?: 'asc' | 'desc';
+  }) => {
+    const search = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && String(value).trim() !== '') {
+          search.append(key, String(value));
+        }
+      });
+    }
+
+    const url = `/penalties${search.toString() ? `?${search.toString()}` : ''}`;
+
+    return apiCall<any>(url, {
+      method: 'GET',
+    });
+  },
+
+  getById: async (id: number | string) => {
+    return apiCall<any>(`/penalties/${id}`, {
+      method: 'GET',
+    });
+  },
+
+  create: async (data: {
+    employee_id: number;
+    penalty_type: string;
+    title: string;
+    description: string;
+    amount: number;
+    incident_date: string;
+    issued_date: string;
+    due_date?: string | null;
+    payroll_deduction_mode?: 'full' | 'next_payroll' | 'installment' | 'manual' | 'none';
+    installment_count?: number | null;
+    installment_frequency?: string | null;
+    status?: 'draft' | 'pending' | 'approved' | 'rejected' | 'settled' | 'cancelled' | 'waived';
+    metadata?: any;
+  }) => {
+    return apiCall<any>('/penalties', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  update: async (id: number | string, data: any) => {
+    return apiCall<any>(`/penalties/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateStatus: async (
+    id: number | string,
+    data: {
+      status: 'pending' | 'approved' | 'rejected' | 'settled' | 'cancelled' | 'waived';
+      notes?: string;
+    }
+  ) => {
+    return apiCall<any>(`/penalties/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  settle: async (
+    id: number | string,
+    data?: {
+      settled_amount?: number;
+      payment_ref?: string;
+      notes?: string;
+    }
+  ) => {
+    return apiCall<any>(`/penalties/${id}/settle`, {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
+    });
+  },
+
+  cancel: async (
+    id: number | string,
+    data: {
+      reason: string;
+    }
+  ) => {
+    return apiCall<any>(`/penalties/${id}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  delete: async (id: number | string) => {
+    return apiCall<any>(`/penalties/${id}`, {
+      method: 'DELETE',
     });
   },
 };

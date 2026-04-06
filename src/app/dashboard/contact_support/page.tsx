@@ -245,7 +245,7 @@ const TechnicalSupportTab = () => {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-[#3D1A0B] tracking-tight">
-            Technical Support Tickets
+            Contact Support Tickets
           </h2>
           <p className="text-sm text-[#3D1A0B]/70 mt-1">
             Review and manage system-related employee concerns efficiently.

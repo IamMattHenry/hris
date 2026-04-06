@@ -1,6 +1,7 @@
 import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
 import { generateLeaveCode } from '../utils/codeGenerator.js';
+import { hasPermission } from '../middleware/rbac.js';
 
 export const getLeaveRequests = async (req, res, next) => {
   try {
@@ -48,6 +49,12 @@ export const getLeaveRequests = async (req, res, next) => {
     if (status) {
       sql += ' AND l.status = ?';
       params.push(status);
+    }
+
+    // Employee users can only view their own leave requests
+    if (req.user?.role === 'employee') {
+      sql += ' AND e.user_id = ?';
+      params.push(req.user.user_id);
     }
 
     // Department-based filtering for supervisors: show only requests from their department
@@ -586,6 +593,35 @@ export const deleteLeave = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         message: 'Leave request not found',
+      });
+    }
+
+    const isEmployee = req.user?.role === 'employee';
+    const canDeleteAny = hasPermission(req, 'leave.delete');
+
+    if (isEmployee) {
+      const ownEmployee = await db.getOne(
+        'SELECT employee_id FROM employees WHERE user_id = ? LIMIT 1',
+        [req.user?.user_id]
+      );
+
+      if (!ownEmployee || Number(ownEmployee.employee_id) !== Number(leave.employee_id)) {
+        return res.status(403).json({
+          success: false,
+          message: 'You can only cancel your own leave requests',
+        });
+      }
+
+      if (leave.status !== 'pending') {
+        return res.status(400).json({
+          success: false,
+          message: 'Only pending leave requests can be cancelled',
+        });
+      }
+    } else if (!canDeleteAny) {
+      return res.status(403).json({
+        success: false,
+        message: 'Insufficient permissions to delete leave requests',
       });
     }
 

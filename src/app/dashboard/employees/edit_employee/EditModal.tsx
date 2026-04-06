@@ -5,11 +5,10 @@ import { X } from "lucide-react";
 import { motion } from "framer-motion";
 import FormInput from "@/components/forms/FormInput";
 import FormSelect from "@/components/forms/FormSelect";
-import { departmentApi, positionApi, employeeApi, fingerprintApi } from "@/lib/api";
+import { departmentApi, positionApi, employeeApi, fingerprintApi, rbacApi, payrollApi } from "@/lib/api";
 import {
   validateEmployeeForm,
   validateDependent,
-  validateRoleManagement,
   formatPhoneNumber,
   generateClientId,
   type ContactEmail,
@@ -123,11 +122,24 @@ interface EmployeeData {
   dependents?: Array<any>;
   documents?: EmployeeDocuments;
   role?: string;
-  sub_role?: string;
   user_id?: number;
   status?: string;
   fingerprint_id?: number | null;
+  department_name?: string;
+  position_name?: string;
+  rbac_roles?: Array<{ role_id: number; role_key: string; role_name: string; description?: string }>;
 }
+
+/** Map of HR position names to RBAC role_keys (must match backend POSITION_TO_RBAC_ROLE) */
+const POSITION_TO_RBAC_ROLE: Record<string, string> = {
+  'hr manager': 'hr_manager',
+  'leave & attendance officer': 'leave_attendance_officer',
+  'recruitment officer': 'recruitment_officer',
+  'hr supervisor': 'hr_supervisor',
+};
+
+/** Positions eligible for optional superadmin assignment */
+const SUPERADMIN_ELIGIBLE_POSITIONS = ['hr manager'];
 
 interface CityData {
   city: string;
@@ -142,6 +154,11 @@ interface ProvinceData {
 interface RegionData {
   region: string;
   provinces: ProvinceData[];
+}
+
+interface FinanceBudget {
+  budget_id: number;
+  amount: number;
 }
 
 
@@ -161,6 +178,8 @@ export default function EditEmployeeModal({
   const [departmentId, setDepartmentId] = useState<number | null>(null);
   const [positionId, setPositionId] = useState<number | null>(null);
   const [supervisorId, setSupervisorId] = useState<number | null>(null);
+  // Extra (secondary) positions
+  const [extraPositions, setExtraPositions] = useState<{ position_id: number; salary: string; salary_unit: string }[]>([]);
   const [employmentType, setEmploymentType] = useState<string | null>(null);
   const [salaryDisplay, setSalaryDisplay] = useState<string>("");
   // New: Work type and schedule
@@ -173,6 +192,7 @@ export default function EditEmployeeModal({
   const [city, setCity] = useState("");
   const [region, setRegion] = useState("");
   const [province, setProvince] = useState("");
+  const [originalBarangay, setOriginalBarangay] = useState<string>("");
   const [civilStatus, setCivilStatus] = useState("");
  // const [barangay, setBarangay] = useState("");
   const [barangays, setBarangays] = useState<string[]>([]);
@@ -183,11 +203,14 @@ export default function EditEmployeeModal({
   // Role management state
   const [grantAdminPrivilege, setGrantAdminPrivilege] = useState(false);
   const [grantSupervisorPrivilege, setGrantSupervisorPrivilege] = useState(false);
-  const [subRole, setSubRole] = useState("");
+  // RBAC role assignments
+  const [rbacRoles, setRbacRoles] = useState<Array<{ role_id: number; role_key: string; role_name: string; description?: string }>>([]);
+  const [isAssigningRole, setIsAssigningRole] = useState(false);
 
   // Dependents state
   const [dependents, setDependents] = useState<Dependent[]>([]);
   const [salary, setSalary] = useState("");
+  const [staffSalariesBudget, setStaffSalariesBudget] = useState<FinanceBudget | null>(null);
   const [dependentFirstName, setDependentFirstName] = useState("");
   const [dependentLastName, setDependentLastName] = useState("");
   const [dependentEmail, setDependentEmail] = useState("");
@@ -248,6 +271,16 @@ const [cityCode, setCityCode] = useState("");
   //active tab
   const [activeTab, setActiveTab] = useState("personal");
 
+  const formatCurrency = (value?: number | null) => {
+    if (value == null || Number.isNaN(Number(value))) return "₱0.00";
+    return new Intl.NumberFormat("en-PH", {
+      style: "currency",
+      currency: "PHP",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(Number(value));
+  };
+
   /* ---------- Fetch employee details ---------- */
   useEffect(() => {
     if (isOpen && id) fetchEmployee(id);
@@ -293,11 +326,12 @@ const [cityCode, setCityCode] = useState("");
           setScheduledStartTime(normTime(res.data.scheduled_start_time));
           setScheduledEndTime(normTime(res.data.scheduled_end_time));
         setHomeAddress(res.data.home_address || "");
-        setBarangay(res.data.barangay || ""); 
         setCity(res.data.city || "");
         setRegion(res.data.region || "");
         setProvince(res.data.province || "");
-        setBarangay(res.data.barangay || "");
+        // Store original barangay to sync after barangays list is populated
+        setOriginalBarangay(res.data.barangay || "");
+        // Don't set barangay directly - let useEffect handle it after barangays list is populated
         setCivilStatus(formatCivilStatusForDisplay(res.data.civil_status));
         setEmploymentStatus(formatStatusForDisplay(res.data.status));
 
@@ -379,10 +413,26 @@ const [cityCode, setCityCode] = useState("");
           setGrantAdminPrivilege(false);
           setGrantSupervisorPrivilege(false);
         }
-        setSubRole(res.data.sub_role || "");
+
+        // Set RBAC roles from backend
+        setRbacRoles(res.data.rbac_roles || []);
 
         // Set fingerprint ID
         setCurrentFingerprintId(res.data.fingerprint_id || null);
+
+        // Load extra (secondary) positions from positions array
+        if (Array.isArray(res.data.positions)) {
+          const extras = res.data.positions
+            .filter((p: any) => !p.is_primary)
+            .map((p: any) => ({
+              position_id: p.position_id,
+              salary: p.salary != null ? String(p.salary) : "",
+              salary_unit: p.salary_unit || "monthly",
+            }));
+          setExtraPositions(extras);
+        } else {
+          setExtraPositions([]);
+        }
       }
     } catch (error) {
       console.error("Error fetching employee:", error);
@@ -392,6 +442,29 @@ const [cityCode, setCityCode] = useState("");
   /* ---------- Departments & positions ---------- */
   useEffect(() => {
     if (isOpen) fetchDepartments();
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setStaffSalariesBudget(null);
+      return;
+    }
+
+    payrollApi.getSettings()
+      .then((res) => {
+        const budget = res.data?.budgets?.staff_salaries;
+        if (res.success && budget) {
+          setStaffSalariesBudget({
+            budget_id: Number(budget.budget_id),
+            amount: Number(budget.amount),
+          });
+        } else {
+          setStaffSalariesBudget(null);
+        }
+      })
+      .catch(() => {
+        setStaffSalariesBudget(null);
+      });
   }, [isOpen]);
   useEffect(() => {
     if (departmentId) {
@@ -480,38 +553,67 @@ const [cityCode, setCityCode] = useState("");
     }
   };
 
-  /* ---------- Valid sub roles ---------- */
-  const mapDepartmentToSubRole = (departmentName?: string | null) => {
-    if (!departmentName) return null;
-
-    const normalized = departmentName.toLowerCase();
-
-    if (
-      normalized === "it" ||
-      normalized.includes("information technology") ||
-      normalized.includes("i.t.")
-    ) {
-      return "it";
-    }
-
-    if (
-      normalized === "hr" ||
-      normalized.includes("human resource") ||
-      normalized.includes("human-resource")
-    ) {
-      return "hr";
-    }
-
-    return null;
+  /* ---------- RBAC role helpers ---------- */
+  const isHrDepartment = (deptId: number | null) => {
+    if (!deptId) return false;
+    const dept = departments.find((d) => d.department_id === deptId);
+    if (!dept) return false;
+    const n = dept.department_name.toLowerCase();
+    return n === 'hr' || n.includes('human resource') || n.includes('human-resource');
   };
 
-  const getValidSubRoles = (deptId: number | null) => {
-    if (!deptId) return [];
+  const getAutoAssignedRoleKey = (): string | null => {
+    if (!isHrDepartment(departmentId)) return null;
+    const pos = positions.find((p) => p.position_id === positionId);
+    if (!pos) return null;
+    return POSITION_TO_RBAC_ROLE[pos.position_name.toLowerCase().trim()] || null;
+  };
 
-    const dept = departments.find((d) => d.department_id === deptId);
-    const mapped = mapDepartmentToSubRole(dept?.department_name);
+  const canAssignSuperadmin = (): boolean => {
+    const pos = positions.find((p) => p.position_id === positionId);
+    if (!pos) return false;
+    return SUPERADMIN_ELIGIBLE_POSITIONS.includes(pos.position_name.toLowerCase().trim());
+  };
 
-    return mapped ? [mapped] : [];
+  const handleAssignRole = async (roleKey: string) => {
+    if (!employee?.user_id) return;
+    setIsAssigningRole(true);
+    try {
+      const res = await rbacApi.assignRole(employee.user_id, roleKey);
+      if (res.success) {
+        toast.success(res.message || `Role assigned successfully`);
+        // Refresh RBAC roles
+        const rolesRes = await rbacApi.getUserRoles(employee.user_id);
+        if (rolesRes.success && rolesRes.data) setRbacRoles(rolesRes.data);
+      } else {
+        toast.error(res.message || 'Failed to assign role');
+      }
+    } catch (err) {
+      console.error('Role assign error:', err);
+      toast.error('Failed to assign role');
+    } finally {
+      setIsAssigningRole(false);
+    }
+  };
+
+  const handleRevokeRole = async (roleKey: string) => {
+    if (!employee?.user_id) return;
+    setIsAssigningRole(true);
+    try {
+      const res = await rbacApi.revokeRole(employee.user_id, roleKey);
+      if (res.success) {
+        toast.success(res.message || `Role revoked successfully`);
+        const rolesRes = await rbacApi.getUserRoles(employee.user_id);
+        if (rolesRes.success && rolesRes.data) setRbacRoles(rolesRes.data);
+      } else {
+        toast.error(res.message || 'Failed to revoke role');
+      }
+    } catch (err) {
+      console.error('Role revoke error:', err);
+      toast.error('Failed to revoke role');
+    } finally {
+      setIsAssigningRole(false);
+    }
   };
 
   const checkDepartmentSupervisor = async (
@@ -551,7 +653,7 @@ useEffect(() => {
         const processedData = rawData.map((region: any) => {
           
           // A. Process standard provinces (if any)
-          let finalProvinces = region.provinces.map((prov: any) => ({
+          const finalProvinces = region.provinces.map((prov: any) => ({
             name: prov.name,
             cities: prov.cities.map((city: any) => ({
               name: city.name,
@@ -652,6 +754,25 @@ useEffect(() => {
       setBarangays([]);
     }
   }, [region, province, city, phLocationsData]);
+
+  // Sync barangay value after barangays list is populated
+  useEffect(() => {
+    if (originalBarangay && barangays.length > 0) {
+      // Exact match first
+      if (barangays.includes(originalBarangay)) {
+        setBarangay(originalBarangay);
+        setOriginalBarangay("");
+        return;
+      }
+      // Case-insensitive fallback
+      const lowerOrig = originalBarangay.trim().toLowerCase();
+      const match = barangays.find(b => b.trim().toLowerCase() === lowerOrig);
+      if (match) {
+        setBarangay(match);
+        setOriginalBarangay("");
+      }
+    }
+  }, [barangays, originalBarangay]);
 
   // --- DEPENDENT ADDRESS LOGIC (Repeat of above structure) ---
 
@@ -755,24 +876,7 @@ useEffect(() => {
   const handleSubmit = async () => {
     console.log("Save Changes clicked");
 
-    // Validate role management
-    const roleErrors = validateRoleManagement(
-      grantAdminPrivilege,
-      grantSupervisorPrivilege,
-      subRole,
-      departmentId,
-      getValidSubRoles(departmentId),
-      departments.find((d) => d.department_id === departmentId)?.department_name
-    );
-
-    // Check if department already has supervisor
-    if (grantSupervisorPrivilege && departmentId) {
-      const hasSupervisor = await checkDepartmentSupervisor(departmentId);
-      if (hasSupervisor) {
-        roleErrors.supervisor =
-          "This department already has a supervisor. Only one supervisor is allowed per department.";
-      }
-    }
+    const roleErrors: ValidationErrors = {};
 
     // Validate employee form - NOW INCLUDING PROVINCE
     const formErrors = validateEmployeeForm(
@@ -882,20 +986,19 @@ useEffect(() => {
         updatedData.status = normalizedStatus;
       }
 
-      // Only include role and sub_role if employee has a user account
-      if (employee.user_id) {
-        updatedData.role = grantAdminPrivilege
-          ? "admin"
-          : grantSupervisorPrivilege
-            ? "supervisor"
-            : "employee";
-
-        if ((grantAdminPrivilege || grantSupervisorPrivilege) && subRole) {
-          updatedData.sub_role = subRole.toLowerCase();
-        }
-      }
+      // Legacy role field — no longer editable from this tab.
+      // The backend auto-assigns RBAC roles based on department/position.
 
       console.log("Submitting update:", updatedData);
+      // Include extra positions in update payload
+      updatedData.extra_positions = extraPositions
+        .filter((ep) => ep.position_id)
+        .map((ep) => ({
+          position_id: ep.position_id,
+          salary: ep.salary !== "" && ep.salary != null ? Number(String(ep.salary).replace(/,/g, "")) : null,
+          salary_unit: ep.salary_unit || "monthly",
+        }));
+
       const result = await employeeApi.update(employee.employee_id, updatedData);
       console.log("Update result:", result);
 
@@ -975,7 +1078,7 @@ useEffect(() => {
             { id: "contact", label: "Contact Information" },
             { id: "dependent", label: "Dependent Information" },
             { id: "documents", label: "Documents" },
-            { id: "roles", label: "User Roles" },
+            { id: "roles", label: "HR Role" },
             { id: "fingerprint", label: "Fingerprint Registration" },
           ].map((tab) => (
             <button
@@ -1166,8 +1269,116 @@ useEffect(() => {
                       options={["Full-time","Part-time"]}
                     />
 
+                  </div>
+
+                  {/* ---- Additional (Secondary) Positions ---- */}
+                  <div className="mt-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-medium text-[#3b2b1c]">Additional Positions</h3>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExtraPositions((prev) => [
+                            ...prev,
+                            { position_id: 0, salary: "", salary_unit: "monthly" },
+                          ])
+                        }
+                        className="text-xs px-3 py-1 rounded bg-[#4b0b14] text-white hover:bg-[#7b1e2a] transition"
+                      >
+                        + Add Position
+                      </button>
+                    </div>
+
+                    {extraPositions.length === 0 && (
+                      <p className="text-sm text-[#8b7355] italic">No additional positions assigned.</p>
+                    )}
+
+                    {extraPositions.map((ep, idx) => (
+                      <div
+                        key={idx}
+                        className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 p-3 bg-[#FFF2E0] rounded-lg border border-[#e6d2b5]"
+                      >
+                        {/* Position selector */}
+                        <div>
+                          <label className="block text-xs text-[#3b2b1c] mb-1">Position</label>
+                          <select
+                            value={ep.position_id || ""}
+                            onChange={(e) => {
+                              const v = Number(e.target.value);
+                              setExtraPositions((prev) =>
+                                prev.map((x, i) => (i === idx ? { ...x, position_id: v } : x))
+                              );
+                            }}
+                            className="w-full px-2 py-2 text-sm border border-[#e6d2b5] rounded bg-white text-[#3b2b1c]"
+                          >
+                            <option value="">Select Position</option>
+                            {positions
+                              .filter((p) => p.position_id !== positionId)
+                              .map((p) => (
+                                <option key={p.position_id} value={p.position_id}>
+                                  {p.position_name}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                        {/* Salary */}
+                        <div>
+                          <label className="block text-xs text-[#3b2b1c] mb-1">Salary</label>
+                          <input
+                            type="text"
+                            value={ep.salary}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (/^[0-9,]*\.?[0-9]{0,2}$/.test(val) || val === "") {
+                                setExtraPositions((prev) =>
+                                  prev.map((x, i) => (i === idx ? { ...x, salary: val } : x))
+                                );
+                              }
+                            }}
+                            placeholder="e.g. 15000"
+                            className="w-full px-2 py-2 text-sm border border-[#e6d2b5] rounded bg-white text-[#3b2b1c]"
+                          />
+                        </div>
+                        {/* Salary unit + remove */}
+                        <div className="flex gap-2 items-end">
+                          <div className="flex-1">
+                            <label className="block text-xs text-[#3b2b1c] mb-1">Unit</label>
+                            <select
+                              value={ep.salary_unit}
+                              onChange={(e) =>
+                                setExtraPositions((prev) =>
+                                  prev.map((x, i) =>
+                                    i === idx ? { ...x, salary_unit: e.target.value } : x
+                                  )
+                                )
+                              }
+                              className="w-full px-2 py-2 text-sm border border-[#e6d2b5] rounded bg-white text-[#3b2b1c]"
+                            >
+                              <option value="monthly">Monthly</option>
+                              <option value="hourly">Hourly</option>
+                            </select>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExtraPositions((prev) => prev.filter((_, i) => i !== idx))
+                            }
+                            className="mb-0.5 px-3 py-2 text-xs bg-red-100 text-red-600 rounded hover:bg-red-200 transition"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
                     {/* Salary - label aligns with Work Type */}
                     <div>
+                      <p className="text-xs text-[#6b5344] mb-2">
+                        Latest Staff Salaries Budget: {formatCurrency(staffSalariesBudget?.amount)}
+                        {staffSalariesBudget?.budget_id ? ` (budget_id #${staffSalariesBudget.budget_id})` : ""}
+                      </p>
                       <FormInput
                         label={workType?.toLowerCase() === 'part-time' ? "Salary (Hourly Rate)" : "Salary (Monthly)"}
                         type="text"
@@ -1754,94 +1965,135 @@ useEffect(() => {
             {/*================= Role Management Section ================= */}
             {activeTab === "roles" && (
               <div className="pt-6 mt-8">
-                <h3 className="text-[#3b2b1c] font-semibold mb-4">Role Management</h3>
+                <h3 className="text-[#3b2b1c] font-semibold mb-4">HR Role</h3>
+                <p className="text-sm text-[#6b5344] mb-6">
+                  Roles are assigned based on the employee&apos;s department and position. HR department positions are automatically mapped to RBAC roles.
+                </p>
 
-                {/* Admin Privilege Checkbox */}
-                <div className="col-span-2 flex items-center gap-3 mt-4 p-4 bg-[#FFF2E0] rounded-lg border border-[#e6d2b5]">
-                  <input
-                    type="checkbox"
-                    id="grantAdminPrivilege"
-                    checked={grantAdminPrivilege}
-                    onChange={(e) => {
-                      setGrantAdminPrivilege(e.target.checked);
-                      if (e.target.checked) {
-                        setGrantSupervisorPrivilege(false);
-                      }
-                      if (!e.target.checked) {
-                        setSubRole("");
-                        setErrors((prev) => ({
-                          ...prev,
-                          subRole: "",
-                          supervisor: "",
-                        }));
-                      }
-                    }}
-                    className="w-5 h-5 text-[#4b0b14] bg-white border-[#3b2b1c] rounded focus:ring-[#4b0b14] focus:ring-2 cursor-pointer"
-                  />
-                  <label
-                    htmlFor="grantAdminPrivilege"
-                    className="text-[#3b2b1c] font-semibold cursor-pointer select-none"
-                  >
-                    Grant Admin Privilege
-                  </label>
+                {/* Legacy role display */}
+                <div className="p-4 bg-[#FFF2E0] rounded-lg border border-[#e6d2b5] mb-6">
+                  <p className="text-xs font-semibold text-[#6b5344] uppercase tracking-wide mb-1">System Role</p>
+                  <p className="text-[#3b2b1c] font-semibold capitalize">
+                    {grantAdminPrivilege ? "Admin" : grantSupervisorPrivilege ? "Supervisor" : "Employee"}
+                  </p>
                 </div>
 
-                {/* Supervisor Privilege Checkbox */}
-                <div className="col-span-2 flex items-center gap-3 mt-2 p-4 bg-[#E8F5E9] rounded-lg border border-[#c8e6c9]">
-                  <input
-                    type="checkbox"
-                    id="grantSupervisorPrivilege"
-                    checked={grantSupervisorPrivilege}
-                    onChange={(e) => {
-                      setGrantSupervisorPrivilege(e.target.checked);
-                      if (e.target.checked) {
-                        setGrantAdminPrivilege(false);
-                      }
-                      if (!e.target.checked) {
-                        setSubRole("");
-                        setErrors((prev) => ({
-                          ...prev,
-                          subRole: "",
-                          supervisor: "",
-                        }));
-                      }
-                    }}
-                    className="w-5 h-5 text-[#2e7d32] bg-white border-[#1b5e20] rounded focus:ring-[#2e7d32] focus:ring-2 cursor-pointer"
-                  />
-                  <label
-                    htmlFor="grantSupervisorPrivilege"
-                    className="text-[#1b5e20] font-semibold cursor-pointer select-none"
-                  >
-                    Grant Supervisor Privilege
-                  </label>
+                {/* Current RBAC roles */}
+                <div className="mb-6">
+                  <h4 className="text-sm font-semibold text-[#3b2b1c] mb-3">Assigned RBAC Roles</h4>
+                  {rbacRoles.length > 0 ? (
+                    <div className="space-y-2">
+                      {rbacRoles.map((r) => (
+                        <div key={r.role_key} className="flex items-center justify-between p-3 bg-[#E8F5E9] rounded-lg border border-[#c8e6c9]">
+                          <div>
+                            <p className="text-sm font-semibold text-[#1b5e20]">{r.role_name}</p>
+                            {r.description && <p className="text-xs text-[#2e7d32] mt-0.5">{r.description}</p>}
+                          </div>
+                          <button
+                            type="button"
+                            disabled={isAssigningRole}
+                            onClick={() => handleRevokeRole(r.role_key)}
+                            className="px-3 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50"
+                          >
+                            Revoke
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                      <p className="text-sm text-gray-500">No RBAC roles assigned yet.</p>
+                    </div>
+                  )}
                 </div>
 
-                {(grantAdminPrivilege || grantSupervisorPrivilege) && (
-                  <div className="mt-4">
-                    {!departmentId ? (
-                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <p className="text-sm text-yellow-800">
-                          ⚠️ Please select a department first to choose the sub-role
-                        </p>
-                      </div>
-                    ) : subRole ? (
-                      <div className="p-3 bg-[#FFF2E0] border border-[#e6d2b5] rounded-lg">
-                        <p className="text-sm text-[#3b2b1c]">
-                          Auto-assigned sub-role: <span className="font-semibold uppercase">{subRole}</span>
-                        </p>
-                      </div>
-                    ) : (
-                      // No sub-role configured: allow granting privileges without blocking the user.
-                      <></>
-                    )}
-                    {errors.subRole && (
-                      <p className="text-red-500 text-xs mt-2">{errors.subRole}</p>
-                    )}
+                {/* HR department: auto-assign + optional superadmin */}
+                {employee?.user_id && isHrDepartment(departmentId) && (() => {
+                  const autoRoleKey = getAutoAssignedRoleKey();
+                  const alreadyHasAutoRole = autoRoleKey && rbacRoles.some((r) => r.role_key === autoRoleKey);
+                  const alreadyHasSuperadmin = rbacRoles.some((r) => r.role_key === 'superadmin');
+                  const posName = positions.find((p) => p.position_id === positionId)?.position_name || '';
+
+                  return (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-semibold text-[#3b2b1c]">Available Role Assignments</h4>
+
+                      {/* Auto-assign role based on position */}
+                      {autoRoleKey && !alreadyHasAutoRole && (
+                        <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
+                          <div>
+                            <p className="text-sm font-semibold text-blue-800">
+                              {autoRoleKey.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                            </p>
+                            <p className="text-xs text-blue-600 mt-0.5">
+                              Auto-assigned based on position: <span className="font-medium">{posName}</span>
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={isAssigningRole}
+                            onClick={() => handleAssignRole(autoRoleKey)}
+                            className="px-3 py-1 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                          >
+                            {isAssigningRole ? 'Assigning...' : 'Assign Role'}
+                          </button>
+                        </div>
+                      )}
+                      {autoRoleKey && alreadyHasAutoRole && (
+                        <div className="p-3 bg-[#E8F5E9] rounded-lg border border-[#c8e6c9]">
+                          <p className="text-sm text-[#1b5e20]">
+                            ✓ Position-based role <span className="font-semibold">{autoRoleKey.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}</span> is already assigned.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Optional superadmin for eligible positions */}
+                      {canAssignSuperadmin() && !alreadyHasSuperadmin && (
+                        <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-200">
+                          <div>
+                            <p className="text-sm font-semibold text-amber-800">Super Admin</p>
+                            <p className="text-xs text-amber-600 mt-0.5">
+                              Optional: Grant unrestricted system access
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={isAssigningRole}
+                            onClick={() => handleAssignRole('superadmin')}
+                            className="px-3 py-1 text-xs font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50"
+                          >
+                            {isAssigningRole ? 'Assigning...' : 'Assign Superadmin'}
+                          </button>
+                        </div>
+                      )}
+
+                      {!autoRoleKey && (
+                        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                          <p className="text-sm text-yellow-800">
+                            No automatic role mapping exists for position &quot;{posName}&quot;. You can assign roles manually using the options above if available.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Non-HR department info */}
+                {employee?.user_id && !isHrDepartment(departmentId) && (
+                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <p className="text-sm text-gray-600">
+                      This employee is not in the HR department. RBAC roles are only auto-assigned for HR department positions.
+                    </p>
                   </div>
                 )}
 
-                {errors.supervisor && (
-                  <p className="text-red-500 text-xs mt-2">{errors.supervisor}</p>
+                {/* No user account */}
+                {!employee?.user_id && (
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm text-yellow-800">
+                      This employee does not have a user account. Roles can only be assigned to employees with user accounts.
+                    </p>
+                  </div>
                 )}
               </div>
             )}
@@ -1868,7 +2120,7 @@ useEffect(() => {
                           No fingerprint registered
                         </p>
                         <p className="text-xs text-yellow-700 mt-1">
-                          This employee doesn't have a fingerprint registered yet. Register one to enable fingerprint attendance.
+                          This employee does not have a fingerprint registered yet. Register one to enable fingerprint attendance.
                         </p>
                       </div>
                       <button

@@ -6,24 +6,12 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("about");
-  const [isITadmin, setIsITAdmin] = useState(false);
   const { user } = useAuth();
 
   // Wait until user context is loaded
   const [isLoading, setIsLoading] = useState(true);
   useEffect(() => {
     if (user !== undefined) setIsLoading(false);
-  }, [user]);
-
-  // Check role when user is available
-  useEffect(() => {
-    if (user?.role === "superadmin") {
-      setIsITAdmin(true);
-      console.log("✅ IT Admin detected");
-    } else {
-      setIsITAdmin(false);
-      console.log("Not IT admin");
-    }
   }, [user]);
 
   // Handle loading state

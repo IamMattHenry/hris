@@ -29,7 +29,6 @@ process.on('unhandledRejection', (err) => {
   }
 });
 
-// Test database connection and start server
 const startServer = async () => {
   try {
     const dbConnected = await testConnection();

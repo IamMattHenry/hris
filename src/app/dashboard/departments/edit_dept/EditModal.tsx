@@ -55,24 +55,17 @@ export default function EditDepartmentModal({
   }, [department]);
 
   const fetchEmployees = async (deptId: number) => {
-    // Fetch department employees for the list
+    // Fetch employees in the selected department and use the same list
+    // for assigning the department supervisor.
     const deptResult = await employeeApi.getAll({
       department_id: deptId,
-      status: 'active',
     });
-
-    // Fetch all active employees to populate the supervisor select (allow promoting/assigning)
-    const allResult = await employeeApi.getAll({ status: 'active' });
 
     if (deptResult.success && Array.isArray(deptResult.data)) {
       setEmployeesList(deptResult.data);
+      setSupervisors(deptResult.data);
     } else {
       setEmployeesList([]);
-    }
-
-    if (allResult.success && Array.isArray(allResult.data)) {
-      setSupervisors(allResult.data);
-    } else {
       setSupervisors([]);
     }
   };
@@ -189,7 +182,7 @@ export default function EditDepartmentModal({
                       <div key={emp.employee_id} className="flex items-center justify-between py-2 px-2 hover:bg-white/50 rounded">
                         <div>
                           <p className="text-sm font-medium">{emp.first_name} {emp.last_name} <span className="text-xs text-gray-500">({emp.employee_code})</span></p>
-                          <p className="text-xs text-gray-500">{emp.position_name || emp.sub_role || ''}</p>
+                          <p className="text-xs text-gray-500">{emp.position_name || ''}</p>
                         </div>
                         <div className="flex items-center gap-2">
                           {String(emp.employee_id) === String(supervisorId) && (

@@ -7,26 +7,81 @@ import {
 } from "../utils/codeGenerator.js";
 import { deleteFingerprintTemplate } from "../services/fingerprintService.js";
 import emailService from "../utils/emailService.js";
+import { hasPermission } from "../middleware/rbac.js";
+import { invalidatePermissionCache } from "../middleware/rbac.js";
+import {
+  BUDGET_NAMES,
+  BudgetValidationError,
+  ensureAmountWithinBudget,
+  getCurrentStaffSalaryMonthlyTotal,
+  toMonthlyEquivalentCompensation,
+} from '../services/financeBudgetService.js';
 
-const mapDepartmentToSubRole = (departmentName = "") => {
-  const normalized = departmentName.trim().toLowerCase();
-
-  if (!normalized) return null;
-
-  if (
-    normalized === "it" ||
-    normalized.includes("information technology") ||
-    normalized.includes("i.t.")
-  ) {
-    return "it";
-  }
-
-  if (normalized === "hr" || normalized.includes("human resources")) {
-    return "hr";
-  }
-
-  return null;
+const round2 = (value) => Number((Number(value) || 0).toFixed(2));
+const isStaffBudgetApplicableStatus = (value) => {
+  const normalized = String(value || '').trim().toLowerCase().replace('_', '-');
+  return normalized === 'active' || normalized === 'on-leave';
 };
+
+/**
+ * Position-name → RBAC role_key mapping for HR department (department_id = 1).
+ * When an employee is in the HR department and their position matches one of
+ * these names, the system auto-assigns the corresponding RBAC role.
+ */
+const POSITION_TO_RBAC_ROLE = {
+  'hr manager': 'hr_manager',
+  'leave & attendance officer': 'leave_attendance_officer',
+  'recruitment officer': 'recruitment_officer',
+  'hr supervisor': 'hr_supervisor',
+};
+
+/**
+ * Auto-assign RBAC role based on department + position.
+ * Only applies to department_id = 1 (HR) with specific position names.
+ * @param {number} userId - The user_id to assign the role to
+ * @param {number} departmentId - The employee's department_id
+ * @param {number} positionId - The employee's position_id
+ * @param {number|null} assignedBy - The user performing the action
+ */
+async function autoAssignRbacRole(userId, departmentId, positionId, assignedBy = null) {
+  try {
+    // Only auto-assign for HR department (department_id = 1)
+    if (departmentId !== 1) return;
+
+    // Look up position name
+    const position = await db.getOne(
+      'SELECT position_name FROM job_positions WHERE position_id = ?',
+      [positionId]
+    );
+    if (!position) return;
+
+    const roleKey = POSITION_TO_RBAC_ROLE[position.position_name.toLowerCase().trim()];
+    if (!roleKey) return;
+
+    // Look up role_id for this role_key
+    const role = await db.getOne(
+      'SELECT role_id FROM roles WHERE role_key = ?',
+      [roleKey]
+    );
+    if (!role) {
+      logger.warn(`RBAC role '${roleKey}' not found in roles table — skipping auto-assign`);
+      return;
+    }
+
+    // Insert assignment (IGNORE to skip if already assigned)
+    await db.query(
+      `INSERT IGNORE INTO user_role_assignments (user_id, role_id, assigned_by)
+       VALUES (?, ?, ?)`,
+      [userId, role.role_id, assignedBy]
+    );
+
+    invalidatePermissionCache();
+    logger.info(`RBAC auto-assigned role '${roleKey}' to user ${userId} (position: ${position.position_name})`);
+  } catch (err) {
+    // Non-blocking: log but don't fail the request
+    logger.error('autoAssignRbacRole error:', err);
+  }
+}
 
 /**
  * Get employee availability status
@@ -40,8 +95,18 @@ export const getEmployeeAvailability = async (req, res, next) => {
     // Use provided date or today's date in YYYY-MM-DD format
     const targetDate = date || new Date().toISOString().split('T')[0];
 
+    const canReadAll = hasPermission(req, 'employees.read');
+    const canReadOwn = hasPermission(req, 'employees.read_own');
+
+    if (!canReadAll && !canReadOwn) {
+      return res.status(403).json({
+        success: false,
+        message: 'Insufficient permissions to view employee availability',
+      });
+    }
+
     // Get all active employees with their basic info
-    const employees = await db.getAll(`
+    let employeeSql = `
       SELECT
         e.employee_id,
         e.employee_code,
@@ -58,8 +123,17 @@ export const getEmployeeAvailability = async (req, res, next) => {
       LEFT JOIN job_positions jp ON e.position_id = jp.position_id
       LEFT JOIN departments d ON e.department_id = d.department_id
       WHERE e.status IN ('active', 'on-leave')
-      ORDER BY e.employee_code
-    `);
+    `;
+    const employeeParams = [];
+
+    if (!canReadAll && canReadOwn) {
+      employeeSql += ' AND e.user_id = ?';
+      employeeParams.push(req.user.user_id);
+    }
+
+    employeeSql += ' ORDER BY e.employee_code';
+
+    const employees = await db.getAll(employeeSql, employeeParams);
 
     // Get attendance records for the target date
     const attendanceRecords = await db.getAll(
@@ -162,7 +236,9 @@ export const getAllEmployees = async (req, res, next) => {
         d.department_name,
         d.department_code,
         u.username,
-        u.role
+        u.role,
+        (SELECT COUNT(*) FROM employee_positions ep
+         WHERE ep.employee_id = e.employee_id AND ep.is_primary = 0) AS extra_position_count
       FROM employees e
       LEFT JOIN job_positions jp ON e.position_id = jp.position_id
       LEFT JOIN departments d ON e.department_id = d.department_id
@@ -175,33 +251,38 @@ export const getAllEmployees = async (req, res, next) => {
     let parsedDeptId = queryDeptId ? parseInt(queryDeptId, 10) : null;
     if (Number.isNaN(parsedDeptId)) parsedDeptId = null;
 
-    if (currentUser && currentUser.role === 'admin') {
-      const adminEmployee = await db.getOne(
+    // RBAC-aware data scoping:
+    // - employees.read → full list
+    // - employees.read_own → only own record
+    const canReadAll = hasPermission(req, 'employees.read');
+    const canReadOwn = hasPermission(req, 'employees.read_own');
+
+    if (!canReadAll && canReadOwn) {
+      // Only return their own employee record
+      whereClauses.push('e.user_id = ?');
+      params.push(currentUser.user_id);
+    } else if (!canReadAll && !canReadOwn) {
+      return res.status(403).json({
+        success: false,
+        message: 'Insufficient permissions to view employees',
+      });
+    } else if (parsedDeptId) {
+      whereClauses.push('e.department_id = ?');
+      params.push(parsedDeptId);
+    }
+
+    if (!canReadAll && parsedDeptId) {
+      const ownEmployee = await db.getOne(
         'SELECT department_id FROM employees WHERE user_id = ?',
         [currentUser.user_id]
       );
 
-      const adminDeptId = adminEmployee?.department_id;
-
-      if (!adminDeptId) {
+      if (ownEmployee?.department_id && parsedDeptId !== ownEmployee.department_id) {
         return res.status(403).json({
           success: false,
-          message: 'Admin is not associated with any department',
+          message: 'You can only access employees within your scope',
         });
       }
-
-      if (parsedDeptId && parsedDeptId !== adminDeptId) {
-        return res.status(403).json({
-          success: false,
-          message: 'Admins can only access employees within their department',
-        });
-      }
-
-      whereClauses.push('e.department_id = ?');
-      params.push(adminDeptId);
-    } else if (parsedDeptId) {
-      whereClauses.push('e.department_id = ?');
-      params.push(parsedDeptId);
     }
 
     if (queryRole) {
@@ -230,10 +311,19 @@ export const getAllEmployees = async (req, res, next) => {
 
     const employees = await db.getAll(sql, params);
 
+    // Strip sensitive fields if user lacks employees.view_sensitive permission
+    const canViewSensitive = hasPermission(req, 'employees.view_sensitive');
+    const sanitizedEmployees = canViewSensitive
+      ? employees
+      : employees.map(emp => {
+          const { fingerprint_id, current_salary, salary_unit, ...safe } = emp;
+          return safe;
+        });
+
     res.json({
       success: true,
-      data: employees,
-      count: employees.length,
+      data: sanitizedEmployees,
+      count: sanitizedEmployees.length,
     });
   } catch (error) {
     logger.error('Get all employees error:', error);
@@ -245,6 +335,45 @@ export const getEmployeeById = async (req, res, next) => {
   try {
     const { id } = req.params;
 
+    const canReadAll = hasPermission(req, 'employees.read');
+    const canReadOwn = hasPermission(req, 'employees.read_own');
+
+    if (!canReadAll && !canReadOwn) {
+      return res.status(403).json({
+        success: false,
+        message: 'Insufficient permissions to view employee details',
+      });
+    }
+
+    if (!canReadAll && canReadOwn) {
+      const currentUserId = req.user?.user_id;
+      if (!currentUserId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required',
+        });
+      }
+
+      const ownEmployee = await db.getOne(
+        'SELECT employee_id FROM employees WHERE user_id = ?',
+        [currentUserId]
+      );
+
+      if (!ownEmployee) {
+        return res.status(404).json({
+          success: false,
+          message: 'Employee record not found for current user',
+        });
+      }
+
+      if (Number(ownEmployee.employee_id) !== Number(id)) {
+        return res.status(403).json({
+          success: false,
+          message: 'You can only view your own employee record',
+        });
+      }
+    }
+
     const employee = await db.getOne(
       `
   SELECT
@@ -254,7 +383,6 @@ export const getEmployeeById = async (req, res, next) => {
     d.department_code,
     u.username,
     u.role,
-    ur.sub_role,
     ea.home_address,
     ea.barangay_name AS barangay,
     ea.city_name AS city,
@@ -264,7 +392,6 @@ export const getEmployeeById = async (req, res, next) => {
   LEFT JOIN job_positions jp ON e.position_id = jp.position_id
   LEFT JOIN departments d ON e.department_id = d.department_id
   LEFT JOIN users u ON e.user_id = u.user_id
-  LEFT JOIN user_roles ur ON u.user_id = ur.user_id
   LEFT JOIN employee_addresses ea ON e.employee_id = ea.employee_id
   WHERE e.employee_id = ?
 `,
@@ -361,11 +488,44 @@ export const getEmployeeById = async (req, res, next) => {
       };
     }
 
+    // Fetch all positions (primary + secondary) from employee_positions table
+    const employeePositions = await db.getAll(
+      `SELECT ep.id, ep.position_id, ep.salary, ep.salary_unit, ep.is_primary,
+              jp.position_name, jp.position_code, jp.department_id,
+              d.department_name
+       FROM employee_positions ep
+       JOIN job_positions jp ON ep.position_id = jp.position_id
+       LEFT JOIN departments d ON jp.department_id = d.department_id
+       WHERE ep.employee_id = ?
+       ORDER BY ep.is_primary DESC, ep.id ASC`,
+      [id]
+    );
+
     // Attach contact info, dependents, and documents to employee object
     employee.emails = emails;
     employee.contact_numbers = contact_numbers;
     employee.dependents = dependents;
     employee.documents = documents;
+    employee.positions = employeePositions;
+
+    // Fetch RBAC role assignments for this employee's user account
+    if (employee.user_id) {
+      try {
+        const rbacRows = await db.getAll(
+          `SELECT r.role_id, r.role_key, r.role_name, r.description
+           FROM user_role_assignments ura
+           JOIN roles r ON ura.role_id = r.role_id
+           WHERE ura.user_id = ?`,
+          [employee.user_id]
+        );
+        employee.rbac_roles = rbacRows || [];
+      } catch (rbacErr) {
+        logger.error('Failed to fetch RBAC roles for employee:', rbacErr);
+        employee.rbac_roles = [];
+      }
+    } else {
+      employee.rbac_roles = [];
+    }
 
     res.json({
       success: true,
@@ -383,7 +543,6 @@ export const createEmployee = async (req, res, next) => {
       username,
       password,
       role,
-      sub_role,
       first_name,
       last_name,
       middle_name,
@@ -498,45 +657,26 @@ export const createEmployee = async (req, res, next) => {
 
       // Required schedule fields: enforce presence and basic validity
       if (!finalScheduledDays || finalScheduledDays.length === 0) {
+        await db.rollback();
         return res.status(400).json({ success: false, message: 'scheduled_days is required and cannot be empty' });
       }
       if (!normStart) {
+        await db.rollback();
         return res.status(400).json({ success: false, message: 'scheduled_start_time is required (expected HH:MM or HH:MM:SS)' });
       }
       if (!normEnd) {
+        await db.rollback();
         return res.status(400).json({ success: false, message: 'scheduled_end_time is required (expected HH:MM or HH:MM:SS)' });
       }
       if (toSec(normEnd) <= toSec(normStart)) {
+        await db.rollback();
         return res.status(400).json({ success: false, message: 'scheduled_end_time must be after scheduled_start_time' });
       }
       // Note: For full-time employees, the UI auto-calculates end time as start + 9 hours (8h work + 1h lunch)
       // Backend does not auto-derive and expects a valid end time to be provided.
 
-      // Sub-role is optional now when creating admin or supervisor.
-      // If sub_role is provided, validate it matches department mapping.
-      if ((userRole === "admin" || userRole === "supervisor") && sub_role && department_id) {
-        const deptResult = await db.transactionQuery(
-          "SELECT department_name FROM departments WHERE department_id = ?",
-          [department_id]
-        );
-
-        if (deptResult && deptResult.length > 0) {
-          const deptName = deptResult[0].department_name;
-          const validDeptSubRole = mapDepartmentToSubRole(deptName);
-
-          if (validDeptSubRole && sub_role !== validDeptSubRole) {
-            await db.rollback();
-            return res.status(400).json({
-              success: false,
-              message: `${deptName} department employees can only have '${validDeptSubRole}' as sub_role.`,
-            });
-          }
-        }
-      }
-
-      // Superadmin doesn't need sub_role or department validation
+      // Superadmin doesn't need department validation
       if (userRole === "superadmin") {
-        // Superadmin can be created without sub_role or department restrictions
         logger.info("Creating superadmin user - no department restrictions");
       }
 
@@ -668,6 +808,44 @@ export const createEmployee = async (req, res, next) => {
       // Align salary unit with work_type
       finalSalaryUnit = finalSalaryUnit || (finalWorkType === 'full-time' ? 'monthly' : 'hourly');
 
+      const resolvedStatus = status || 'active';
+      if (isStaffBudgetApplicableStatus(resolvedStatus)) {
+        const newEmployeeMonthlyEquivalent = toMonthlyEquivalentCompensation({
+          amount: finalCurrentSalary,
+          salaryUnit: finalSalaryUnit,
+        });
+
+        if (newEmployeeMonthlyEquivalent == null) {
+          await db.rollback();
+          return res.status(422).json({
+            success: false,
+            message: 'Employee salary is invalid. Please provide a non-negative salary amount.',
+          });
+        }
+
+        try {
+          const currentStaffMonthlyTotal = await getCurrentStaffSalaryMonthlyTotal();
+          const projectedStaffMonthlyTotal = round2(currentStaffMonthlyTotal + newEmployeeMonthlyEquivalent);
+
+          await ensureAmountWithinBudget({
+            budgetName: BUDGET_NAMES.STAFF_SALARIES,
+            amount: projectedStaffMonthlyTotal,
+            amountLabel: 'Projected total staff salaries',
+          });
+        } catch (budgetError) {
+          if (budgetError instanceof BudgetValidationError) {
+            await db.rollback();
+            logger.error('Staff salary budget validation failed during employee creation:', budgetError);
+            return res.status(budgetError.statusCode).json({
+              success: false,
+              message: budgetError.publicMessage,
+              data: budgetError.data || undefined,
+            });
+          }
+          throw budgetError;
+        }
+      }
+
       // Insert employee without code first
       const tempEmployeeId = await db.transactionInsert("employees", {
         user_id: userId,
@@ -709,6 +887,16 @@ export const createEmployee = async (req, res, next) => {
 
       const employeeId = tempEmployeeId;
 
+      // Sync primary position to employee_positions junction table
+      if (position_id) {
+        await db.transactionQuery(
+          `INSERT IGNORE INTO employee_positions
+             (employee_id, position_id, salary, salary_unit, is_primary)
+           VALUES (?, ?, ?, ?, 1)`,
+          [employeeId, position_id, finalCurrentSalary || null, finalSalaryUnit || 'monthly']
+        );
+      }
+
       // Add contact number if provided
       if (contact_number) {
         await db.transactionInsert("employee_contact_numbers", {
@@ -737,21 +925,6 @@ export const createEmployee = async (req, res, next) => {
           created_by,
 
         });
-      }
-
-      // If role is 'admin' or 'supervisor' and sub_role provided, create user_role record
-      let userRoleId = null;
-      if ((userRole === "admin" || userRole === "supervisor") && sub_role) {
-        // Insert user role record
-        userRoleId = await db.transactionInsert("user_roles", {
-          user_id: userId,
-          sub_role: sub_role,
-          created_by,
-        });
-
-        logger.info(
-          `User role created: ${userRole} (ID: ${userRoleId}, Sub-role: ${sub_role})`
-        );
       }
 
       // Handle dependents if provided
@@ -859,6 +1032,9 @@ export const createEmployee = async (req, res, next) => {
         `Employee created: ${employeeCode} (ID: ${employeeId}, User: ${username})`
       );
 
+      // Auto-assign RBAC role based on department + position (non-blocking)
+      await autoAssignRbacRole(userId, department_id, position_id, created_by);
+
       // Create activity log entry (outside transaction)
       try {
         const activityUserId = created_by || userId; // Use created_by if provided, otherwise use the new user's ID
@@ -903,12 +1079,6 @@ export const createEmployee = async (req, res, next) => {
         role: userRole,
       };
 
-      // Add role data if applicable
-      if ((userRole === "admin" || userRole === "supervisor") && userRoleId) {
-        responseData.user_role_id = userRoleId;
-        responseData.sub_role = sub_role;
-      }
-
       if (fingerprintIdValue !== null) {
         responseData.fingerprint_id = fingerprintIdValue;
       }
@@ -942,12 +1112,12 @@ export const updateEmployee = async (req, res, next) => {
       dependents,
       documents,
       role,
-      sub_role,
       home_address,
       barangay,
       city,
       region,
       province,
+      extra_positions,
       ...updates
     } = req.body;
 
@@ -993,7 +1163,7 @@ export const updateEmployee = async (req, res, next) => {
 
     // Check if employee exists
     const employee = await db.getOne(
-      "SELECT e.*, u.user_id, u.role as current_role, ur.sub_role as current_sub_role FROM employees e LEFT JOIN users u ON e.user_id = u.user_id LEFT JOIN user_roles ur ON u.user_id = ur.user_id WHERE e.employee_id = ?",
+      "SELECT e.*, u.user_id, u.role as current_role FROM employees e LEFT JOIN users u ON e.user_id = u.user_id WHERE e.employee_id = ?",
       [id]
     );
     if (!employee) {
@@ -1007,7 +1177,7 @@ export const updateEmployee = async (req, res, next) => {
     const updatedBy = req.user?.user_id;
     const targetEmployeeId = Number(employee.employee_id);
 
-    // Validate role and sub_role if provided
+    // Validate role if provided
     if (role) {
       const validRoles = ['admin', 'employee', 'supervisor', 'superadmin'];
       if (!validRoles.includes(role)) {
@@ -1015,27 +1185,6 @@ export const updateEmployee = async (req, res, next) => {
           success: false,
           message: `Invalid role. Role must be 'admin', 'employee', 'supervisor', or 'superadmin'`,
         });
-      }
-
-      // Sub-role is optional when updating role; validate only when provided.
-      if ((role === 'admin' || role === 'supervisor') && sub_role && updates.department_id) {
-        const department = await db.getOne(
-          "SELECT department_name FROM departments WHERE department_id = ?",
-          [updates.department_id]
-        );
-
-        if (department) {
-          const deptName = department.department_name;
-          const normalizedSubRole = sub_role.toLowerCase();
-          const validDeptSubRole = mapDepartmentToSubRole(deptName);
-
-          if (validDeptSubRole && normalizedSubRole !== validDeptSubRole) {
-            return res.status(400).json({
-              success: false,
-              message: `${deptName} department employees can only have '${validDeptSubRole}' as sub_role.`,
-            });
-          }
-        }
       }
 
       // Check one-supervisor-per-department rule
@@ -1222,6 +1371,62 @@ export const updateEmployee = async (req, res, next) => {
           updates.salary_unit = updates.work_type === 'full-time' ? 'monthly' : 'hourly';
         }
 
+        const hasSalaryMutation =
+          Object.prototype.hasOwnProperty.call(updates, 'current_salary')
+          || Object.prototype.hasOwnProperty.call(updates, 'salary_unit')
+          || Object.prototype.hasOwnProperty.call(updates, 'work_type');
+
+        const resultingStatus = Object.prototype.hasOwnProperty.call(updates, 'status')
+          ? updates.status
+          : employee.status;
+
+        if (hasSalaryMutation && isStaffBudgetApplicableStatus(resultingStatus)) {
+          const proposedSalary = Object.prototype.hasOwnProperty.call(updates, 'current_salary')
+            ? updates.current_salary
+            : employee.current_salary;
+          const proposedSalaryUnit = Object.prototype.hasOwnProperty.call(updates, 'salary_unit')
+            ? updates.salary_unit
+            : (employee.salary_unit || 'monthly');
+
+          const proposedMonthlyEquivalent = toMonthlyEquivalentCompensation({
+            amount: proposedSalary,
+            salaryUnit: proposedSalaryUnit,
+          });
+
+          if (proposedMonthlyEquivalent == null) {
+            await db.rollback();
+            return res.status(422).json({
+              success: false,
+              message: 'Employee salary is invalid. Please provide a non-negative salary amount.',
+            });
+          }
+
+          try {
+            const currentStaffMonthlyTotal = await getCurrentStaffSalaryMonthlyTotal({
+              excludeEmployeeId: targetEmployeeId,
+            });
+
+            const projectedStaffMonthlyTotal = round2(currentStaffMonthlyTotal + proposedMonthlyEquivalent);
+
+            await ensureAmountWithinBudget({
+              budgetName: BUDGET_NAMES.STAFF_SALARIES,
+              amount: projectedStaffMonthlyTotal,
+              amountLabel: 'Projected total staff salaries',
+            });
+          } catch (budgetError) {
+            if (budgetError instanceof BudgetValidationError) {
+              await db.rollback();
+              logger.error('Staff salary budget validation failed during employee update:', budgetError);
+              return res.status(budgetError.statusCode).json({
+                success: false,
+                message: budgetError.publicMessage,
+                data: budgetError.data || undefined,
+              });
+            }
+            throw budgetError;
+          }
+        }
+
         const updatesWithAudit = {
           ...updates,
           updated_by: updatedBy,
@@ -1318,7 +1523,7 @@ export const updateEmployee = async (req, res, next) => {
         }
       }
 
-      // Handle role and sub_role updates if provided
+      // Handle role update if provided
       if (role && employee.user_id) {
         // Update role in users table
         await db.transactionUpdate(
@@ -1331,45 +1536,7 @@ export const updateEmployee = async (req, res, next) => {
           [employee.user_id]
         );
 
-        // Handle sub_role in user_roles table
-        if (role === 'admin' || role === 'supervisor') {
-          // Admin and supervisor roles require sub_role
-          if (sub_role) {
-            // Check if user_role record exists
-            const existingUserRole = await db.transactionQuery(
-              "SELECT user_role_id FROM user_roles WHERE user_id = ?",
-              [employee.user_id]
-            );
-
-            if (existingUserRole && existingUserRole.length > 0) {
-              // Update existing user_role
-              await db.transactionUpdate(
-                "user_roles",
-                {
-                  sub_role: sub_role.toLowerCase(),
-                  updated_by: updatedBy,
-                },
-                "user_id = ?",
-                [employee.user_id]
-              );
-            } else {
-              // Insert new user_role
-              await db.transactionInsert("user_roles", {
-                user_id: employee.user_id,
-                sub_role: sub_role.toLowerCase(),
-                created_by: updatedBy,
-              });
-            }
-          }
-        } else if (role === 'employee') {
-          // Regular employee role - delete user_role record if exists
-          await db.transactionQuery(
-            "DELETE FROM user_roles WHERE user_id = ?",
-            [employee.user_id]
-          );
-        }
-
-        logger.info(`User role updated for employee ${id}: ${role}${sub_role ? ` (${sub_role})` : ''}`);
+        logger.info(`User role updated for employee ${id}: ${role}`);
       }
 
       // Handle dependents if provided
@@ -1479,6 +1646,54 @@ export const updateEmployee = async (req, res, next) => {
         }
       }
 
+      // Sync primary position in employee_positions junction table
+      const syncPosId = Object.prototype.hasOwnProperty.call(updates, 'position_id')
+        ? updates.position_id
+        : employee.position_id;
+      const syncSalary = Object.prototype.hasOwnProperty.call(updates, 'current_salary')
+        ? updates.current_salary
+        : employee.current_salary;
+      const syncSalaryUnit = Object.prototype.hasOwnProperty.call(updates, 'salary_unit')
+        ? updates.salary_unit
+        : (employee.salary_unit || 'monthly');
+
+      if (syncPosId) {
+        // Clear current primary flag, then upsert primary row
+        await db.transactionQuery(
+          'UPDATE employee_positions SET is_primary = 0 WHERE employee_id = ?',
+          [id]
+        );
+        await db.transactionQuery(
+          `INSERT INTO employee_positions (employee_id, position_id, salary, salary_unit, is_primary)
+           VALUES (?, ?, ?, ?, 1)
+           ON DUPLICATE KEY UPDATE salary = VALUES(salary), salary_unit = VALUES(salary_unit), is_primary = 1`,
+          [id, syncPosId, syncSalary || null, syncSalaryUnit]
+        );
+      }
+
+      // Handle extra (secondary) positions if provided
+      if (Array.isArray(extra_positions)) {
+        // Remove all non-primary positions first
+        await db.transactionQuery(
+          'DELETE FROM employee_positions WHERE employee_id = ? AND is_primary = 0',
+          [id]
+        );
+        for (const ep of extra_positions) {
+          const epPosId = Number(ep.position_id);
+          if (!epPosId) continue;
+          const epSalary = ep.salary != null ? Number(ep.salary) : null;
+          const epUnit = ep.salary_unit || 'monthly';
+          // Skip if same as primary (should not be duplicated)
+          if (syncPosId && epPosId === Number(syncPosId)) continue;
+          await db.transactionQuery(
+            `INSERT INTO employee_positions (employee_id, position_id, salary, salary_unit, is_primary)
+             VALUES (?, ?, ?, ?, 0)
+             ON DUPLICATE KEY UPDATE salary = VALUES(salary), salary_unit = VALUES(salary_unit)`,
+            [id, epPosId, epSalary, epUnit]
+          );
+        }
+      }
+
       // Commit transaction
       await db.commit();
 
@@ -1491,9 +1706,6 @@ export const updateEmployee = async (req, res, next) => {
         // Add role change information to description
         if (role && role !== employee.current_role) {
           description += ` - Role changed from '${employee.current_role}' to '${role}'`;
-          if (sub_role) {
-            description += ` with sub_role '${sub_role}'`;
-          }
         }
 
         await db.insert("activity_logs", {
@@ -1506,6 +1718,13 @@ export const updateEmployee = async (req, res, next) => {
       } catch (logError) {
         // Log the error but don't fail the request
         logger.error("Failed to create activity log:", logError);
+      }
+
+      // Auto-assign RBAC role based on department + position (non-blocking)
+      const finalDeptId = updates.department_id || employee.department_id;
+      const finalPosId = updates.position_id || employee.position_id;
+      if (employee.user_id && finalDeptId && finalPosId) {
+        await autoAssignRbacRole(employee.user_id, finalDeptId, finalPosId, updatedBy);
       }
 
       res.json({
@@ -1523,9 +1742,165 @@ export const updateEmployee = async (req, res, next) => {
   }
 };
 
-export const deleteEmployee = async (req, res, next) => {
+/**
+ * GET /employees/:id/positions
+ * Returns the full list of positions assigned to an employee.
+ */
+export const getEmployeePositions = async (req, res, next) => {
   try {
     const { id } = req.params;
+    const employee = await db.getOne(
+      'SELECT employee_id FROM employees WHERE employee_id = ?',
+      [id]
+    );
+    if (!employee) {
+      return res.status(404).json({ success: false, message: 'Employee not found' });
+    }
+
+    const positions = await db.getAll(
+      `SELECT ep.id, ep.position_id, ep.salary, ep.salary_unit, ep.is_primary,
+              jp.position_name, jp.position_code, jp.department_id,
+              d.department_name
+       FROM employee_positions ep
+       JOIN job_positions jp ON ep.position_id = jp.position_id
+       LEFT JOIN departments d ON jp.department_id = d.department_id
+       WHERE ep.employee_id = ?
+       ORDER BY ep.is_primary DESC, ep.id ASC`,
+      [id]
+    );
+
+    res.json({ success: true, data: positions });
+  } catch (error) {
+    logger.error('Get employee positions error:', error);
+    next(error);
+  }
+};
+
+/**
+ * PUT /employees/:id/positions
+ * Replace all positions for an employee.
+ * Body: { primary_position_id, primary_salary?, primary_salary_unit?, extra_positions: [{position_id, salary?, salary_unit?}] }
+ * The primary_position_id also updates employees.position_id for backward compat.
+ */
+export const setEmployeePositions = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { primary_position_id, primary_salary, primary_salary_unit, extra_positions } = req.body;
+
+    if (!primary_position_id) {
+      return res.status(400).json({ success: false, message: 'primary_position_id is required' });
+    }
+
+    const employee = await db.getOne(
+      'SELECT employee_id, current_salary, salary_unit, status FROM employees WHERE employee_id = ?',
+      [id]
+    );
+    if (!employee) {
+      return res.status(404).json({ success: false, message: 'Employee not found' });
+    }
+
+    const updatedBy = req.user?.user_id;
+    const salary = primary_salary != null ? Number(primary_salary) : employee.current_salary;
+    const salaryUnit = primary_salary_unit || employee.salary_unit || 'monthly';
+
+    if (isStaffBudgetApplicableStatus(employee.status)) {
+      const proposedMonthlyEquivalent = toMonthlyEquivalentCompensation({
+        amount: salary,
+        salaryUnit,
+      });
+
+      if (proposedMonthlyEquivalent == null) {
+        return res.status(422).json({
+          success: false,
+          message: 'Employee salary is invalid. Please provide a non-negative salary amount.',
+        });
+      }
+
+      try {
+        const currentStaffMonthlyTotal = await getCurrentStaffSalaryMonthlyTotal({
+          excludeEmployeeId: Number(id),
+        });
+        const projectedStaffMonthlyTotal = round2(currentStaffMonthlyTotal + proposedMonthlyEquivalent);
+
+        await ensureAmountWithinBudget({
+          budgetName: BUDGET_NAMES.STAFF_SALARIES,
+          amount: projectedStaffMonthlyTotal,
+          amountLabel: 'Projected total staff salaries',
+        });
+      } catch (budgetError) {
+        if (budgetError instanceof BudgetValidationError) {
+          logger.error('Staff salary budget validation failed during employee positions update:', budgetError);
+          return res.status(budgetError.statusCode).json({
+            success: false,
+            message: budgetError.publicMessage,
+            data: budgetError.data || undefined,
+          });
+        }
+        throw budgetError;
+      }
+    }
+
+    await db.beginTransaction();
+    try {
+      // Update primary position in employees table (backward compat)
+      await db.transactionUpdate(
+        'employees',
+        { position_id: primary_position_id, current_salary: salary, salary_unit: salaryUnit, updated_by: updatedBy },
+        'employee_id = ?',
+        [id]
+      );
+
+      // Rebuild employee_positions: clear all, insert primary, then extras
+      await db.transactionQuery('DELETE FROM employee_positions WHERE employee_id = ?', [id]);
+
+      await db.transactionQuery(
+        `INSERT INTO employee_positions (employee_id, position_id, salary, salary_unit, is_primary)
+         VALUES (?, ?, ?, ?, 1)`,
+        [id, primary_position_id, salary || null, salaryUnit]
+      );
+
+      if (Array.isArray(extra_positions)) {
+        for (const ep of extra_positions) {
+          const epPosId = Number(ep.position_id);
+          if (!epPosId || epPosId === Number(primary_position_id)) continue;
+          const epSalary = ep.salary != null ? Number(ep.salary) : null;
+          const epUnit = ep.salary_unit || 'monthly';
+          await db.transactionQuery(
+            `INSERT IGNORE INTO employee_positions (employee_id, position_id, salary, salary_unit, is_primary)
+             VALUES (?, ?, ?, ?, 0)`,
+            [id, epPosId, epSalary, epUnit]
+          );
+        }
+      }
+
+      await db.commit();
+
+      // Activity log (non-fatal)
+      try {
+        await db.insert('activity_logs', {
+          user_id: updatedBy || 1,
+          action: 'UPDATE',
+          module: 'employees',
+          description: `Updated positions for employee ID ${id}`,
+          created_by: updatedBy || 1,
+        });
+      } catch (_) {}
+
+      res.json({ success: true, message: 'Employee positions updated successfully' });
+    } catch (err) {
+      await db.rollback();
+      throw err;
+    }
+  } catch (error) {
+    logger.error('Set employee positions error:', error);
+    next(error);
+  }
+};
+
+const performEmployeeTermination = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body || {};
 
     // Check if employee exists
     const employee = await db.getOne(
@@ -1539,43 +1914,64 @@ export const deleteEmployee = async (req, res, next) => {
       });
     }
 
-    // Get user ID from JWT token for audit trail
-    const deletedBy = req.user?.user_id;
+    if (String(employee.status || '').toLowerCase() === 'terminated') {
+      return res.status(409).json({
+        success: false,
+        message: 'Employee is already terminated',
+      });
+    }
+
+    const terminatedBy = req.user?.user_id;
+
+    if (Number(req.user?.employee_id) === Number(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot terminate your own employee record',
+      });
+    }
 
     await db.beginTransaction();
 
-    let userDeleted = false;
-    let employeeDeleted = false;
-
     try {
-      if (employee.user_id) {
-        const userDeleteResult = await db.transactionQuery(
-          "DELETE FROM users WHERE user_id = ?",
-          [employee.user_id]
+      let terminationResult;
+      try {
+        terminationResult = await db.transactionQuery(
+          `UPDATE employees
+           SET status = 'terminated',
+               terminated_at = NOW(),
+               terminated_by_user_id = ?,
+               termination_reason = ?
+           WHERE employee_id = ?`,
+          [terminatedBy || null, reason || null, id]
         );
-        userDeleted = (userDeleteResult?.affectedRows || 0) > 0;
-        if (userDeleted) {
-          employeeDeleted = true;
+      } catch (columnError) {
+        if (columnError?.code !== 'ER_BAD_FIELD_ERROR') {
+          throw columnError;
         }
-      }
 
-      if (!employeeDeleted) {
-        const employeeDeleteResult = await db.transactionQuery(
-          "DELETE FROM employees WHERE employee_id = ?",
+        terminationResult = await db.transactionQuery(
+          `UPDATE employees
+           SET status = 'terminated'
+           WHERE employee_id = ?`,
           [id]
         );
-        employeeDeleted = (employeeDeleteResult?.affectedRows || 0) > 0;
       }
 
       await db.commit();
+
+      const affectedRows = terminationResult?.affectedRows || 0;
+      if (affectedRows === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Employee not found',
+        });
+      }
     } catch (transactionError) {
       await db.rollback();
       throw transactionError;
     }
 
-    logger.info(
-      `Employee deleted: ${id}${userDeleted ? ` (linked user ${employee.user_id} removed)` : ""}`
-    );
+    logger.info(`Employee terminated: ${id}`);
 
     if (employee.fingerprint_id) {
       try {
@@ -1590,17 +1986,14 @@ export const deleteEmployee = async (req, res, next) => {
 
     // Create activity log entry
     try {
-      let description = `Deleted employee ${employee.first_name} ${employee.last_name} (${employee.employee_code})`;
-      if (userDeleted) {
-        description += " and linked user account";
-      }
+      const description = `Terminated employee ${employee.first_name} ${employee.last_name} (${employee.employee_code})${reason ? ` - Reason: ${reason}` : ''}`;
 
       await db.insert("activity_logs", {
-        user_id: deletedBy || 1,
-        action: "DELETE",
+        user_id: terminatedBy || 1,
+        action: "UPDATE",
         module: "employees",
         description,
-        created_by: deletedBy || 1,
+        created_by: terminatedBy || 1,
       });
     } catch (logError) {
       // Log the error but don't fail the request
@@ -1609,14 +2002,24 @@ export const deleteEmployee = async (req, res, next) => {
 
     res.json({
       success: true,
-      message: "Employee deleted successfully",
-      affectedRows: employeeDeleted ? 1 : 0,
-      cascadedUserDeletion: userDeleted,
+      message: "Employee terminated successfully",
+      data: {
+        employee_id: Number(id),
+        status: 'terminated',
+      },
     });
   } catch (error) {
-    logger.error("Delete employee error:", error);
+    logger.error("Terminate employee error:", error);
     next(error);
   }
+};
+
+export const terminateEmployee = async (req, res, next) => {
+  await performEmployeeTermination(req, res, next);
+};
+
+export const deleteEmployee = async (req, res, next) => {
+  await performEmployeeTermination(req, res, next);
 };
 
 export default {
@@ -1624,5 +2027,6 @@ export default {
   getEmployeeById,
   createEmployee,
   updateEmployee,
+  terminateEmployee,
   deleteEmployee,
 };

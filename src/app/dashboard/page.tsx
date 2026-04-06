@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { employeeApi, leaveApi, attendanceApi, ticketApi } from "@/lib/api";
 import { Employee } from "@/types/api";
@@ -29,7 +28,7 @@ interface PendingLeave {
   start_date: string;
   end_date: string;
   requester_role?: string;
-  requester_sub_role?: string | null;
+
 }
 
 interface AbsenceRecord {
@@ -110,7 +109,6 @@ const computeWeeklyAttendanceData = (
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const router = useRouter();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [pendingLeaves, setPendingLeaves] = useState<PendingLeave[]>([]);
@@ -121,6 +119,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showPendingLeaves, setShowPendingLeaves] = useState(false);
+  const [isLoadingPendingLeaves, setIsLoadingPendingLeaves] = useState(false);
   const [showAbsenceRecords, setShowAbsenceRecords] = useState(false);
   const [showFingerprintModal, setShowFingerprintModal] = useState(false);
   const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
@@ -260,11 +259,19 @@ export default function Dashboard() {
 
   const totalEmployees = employees.length;
 
-  // Color palette - maroon to light pink gradient
+  // Diverse categorical color palette for better department distinction
   const colorPalette = [
-    '#8b1a1a', '#a52a2a', '#b8423f', '#c94d4d',
-    '#d35c5c', '#dd6b6b', '#e67373', '#ef8b8b',
-    '#f49999', '#f9a7a7', '#ffb3b3', '#ffc2c2', '#e0d5d5'
+    '#0d9488', // Teal
+    '#4f46e5', // Indigo
+    '#f59e0b', // Amber
+    '#10b981', // Emerald
+    '#e11d48', // Rose
+    '#8b5cf6', // Violet
+    '#0ea5e9', // Sky
+    '#f97316', // Orange
+    '#6366f1', // Indigo 500
+    '#ec4899', // Pink
+    '#64748b'  // Slate
   ];
 
   const departmentData = Object.entries(departmentCounts)
@@ -276,9 +283,26 @@ export default function Dashboard() {
       color: colorPalette[index % colorPalette.length]
     }));
 
-  const handleViewPendingLeaves = () => {
-    // Navigate to the Requests page; it applies role-based default filtering
-    router.push('/dashboard/requests');
+  const handleViewPendingLeaves = async () => {
+    try {
+      setPendingLeaves([]);
+      setShowPendingLeaves(true);
+      setIsLoadingPendingLeaves(true);
+      const result = await leaveApi.getPendingLeaves();
+
+      if (result.success && Array.isArray(result.data)) {
+        setPendingLeaves(result.data as PendingLeave[]);
+      } else {
+        setShowPendingLeaves(false);
+        toast.error(result.message || 'Failed to load pending leave requests.');
+      }
+    } catch (err) {
+      console.error("Error fetching pending leave requests:", err);
+      setShowPendingLeaves(false);
+      toast.error('Failed to load pending leave requests.');
+    } finally {
+      setIsLoadingPendingLeaves(false);
+    }
   };
 
   const handleViewAbsenceRecords = async () => {
@@ -547,7 +571,7 @@ export default function Dashboard() {
                       nameKey="name"
                       cx="50%"
                       cy="50%"
-                      innerRadius={60}
+                      innerRadius={40}
                       outerRadius={80}
                       paddingAngle={2}
                     >
@@ -578,13 +602,6 @@ export default function Dashboard() {
                     />
                   </PieChart>
                 </ResponsiveContainer>
-
-                {/* Center label */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-3xl font-bold text-gray-800">
-                    {departmentData.length > 0 ? departmentData[0].percentage : 0}%
-                  </span>
-                </div>
               </div>
             </div>
 
@@ -665,7 +682,7 @@ export default function Dashboard() {
                             {leave.first_name} {leave.last_name} ({leave.employee_code})
                           </p>
                           {leave.requester_role && (
-                            <p className="text-sm text-gray-500 mt-1">Requested role: {leave.requester_role}{leave.requester_sub_role ? ` — ${leave.requester_sub_role}` : ''}</p>
+                            <p className="text-sm text-gray-500 mt-1">Requested role: {leave.requester_role}</p>
                           )}
                         </div>
                         <div>
@@ -688,6 +705,8 @@ export default function Dashboard() {
                     </div>
                   ))}
                 </div>
+              ) : isLoadingPendingLeaves ? (
+                <p className="text-center text-gray-500 py-8">Loading pending leave requests...</p>
               ) : (
                 <p className="text-center text-gray-500 py-8">No pending leave requests</p>
               )}
