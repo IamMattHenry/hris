@@ -16,6 +16,7 @@ import {
   getCurrentStaffSalaryMonthlyTotal,
   toMonthlyEquivalentCompensation,
 } from '../services/financeBudgetService.js';
+import { notifyEmployeeByEmployeeId, notifyHrUsers } from '../services/notificationService.js';
 
 const round2 = (value) => Number((Number(value) || 0).toFixed(2));
 const isStaffBudgetApplicableStatus = (value) => {
@@ -1727,6 +1728,28 @@ export const updateEmployee = async (req, res, next) => {
         await autoAssignRbacRole(employee.user_id, finalDeptId, finalPosId, updatedBy);
       }
 
+      if (isSelfUpdate) {
+        await notifyHrUsers({
+          actorUserId: updatedBy || null,
+          excludeUserIds: [updatedBy].filter(Boolean),
+          title: 'Employee profile updated',
+          message: `${employee.first_name} ${employee.last_name} (${employee.employee_code}) updated their profile details.`,
+          category: 'employee_profile_update',
+          referenceModule: 'employees',
+          referenceId: employee.employee_id,
+        });
+      } else if (employee.user_id && updatedBy && Number(employee.user_id) !== Number(updatedBy)) {
+        await notifyEmployeeByEmployeeId({
+          employeeId: employee.employee_id,
+          actorUserId: updatedBy,
+          title: 'Profile updated by HR',
+          message: `Your employee profile was updated by HR. Please review your latest profile information.`,
+          category: 'employee_profile_updated_by_hr',
+          referenceModule: 'employees',
+          referenceId: employee.employee_id,
+        });
+      }
+
       res.json({
         success: true,
         message: "Employee updated successfully",
@@ -1999,6 +2022,16 @@ const performEmployeeTermination = async (req, res, next) => {
       // Log the error but don't fail the request
       logger.error("Failed to create activity log:", logError);
     }
+
+    await notifyEmployeeByEmployeeId({
+      employeeId: id,
+      actorUserId: terminatedBy || null,
+      title: 'Employment status updated',
+      message: 'Your employment status has been marked as terminated. Please contact HR for details.',
+      category: 'employee_terminated',
+      referenceModule: 'employees',
+      referenceId: id,
+    });
 
     res.json({
       success: true,

@@ -2,6 +2,7 @@ import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
 import { generateLeaveCode } from '../utils/codeGenerator.js';
 import { hasPermission } from '../middleware/rbac.js';
+import { notifyEmployeeByEmployeeId, notifyHrUsers } from '../services/notificationService.js';
 
 export const getLeaveRequests = async (req, res, next) => {
   try {
@@ -354,6 +355,16 @@ export const applyLeave = async (req, res, next) => {
       logger.error("Failed to create activity log:", logError);
     }
 
+    await notifyHrUsers({
+      actorUserId: createdBy || null,
+      excludeUserIds: [createdBy].filter(Boolean),
+      title: 'New leave request submitted',
+      message: `Employee ID ${targetEmployeeId} submitted leave request ${leaveCode}.`,
+      category: 'leave_request',
+      referenceModule: 'leave',
+      referenceId: leaveId,
+    });
+
     res.status(201).json({
       success: true,
       message: 'Leave request submitted successfully',
@@ -487,6 +498,16 @@ export const approveLeave = async (req, res, next) => {
           logger.error('Failed to create activity log:', logError);
         }
 
+        await notifyEmployeeByEmployeeId({
+          employeeId: leave.emp_id,
+          actorUserId: approverUserId || null,
+          title: 'Leave request approved',
+          message: `Your leave request ${leave.leave_code} has been approved (${deductionMsg}).`,
+          category: 'leave_approved',
+          referenceModule: 'leave',
+          referenceId: id,
+        });
+
         return res.json({ success: true, message: `Leave request approved; ${deductionMsg}` });
       } catch (error) {
         await db.rollback();
@@ -573,6 +594,16 @@ export const rejectLeave = async (req, res, next) => {
       logger.error('Failed to create activity log:', logError);
     }
 
+    await notifyEmployeeByEmployeeId({
+      employeeId: leave.emp_id,
+      actorUserId: approverUserId || null,
+      title: 'Leave request rejected',
+      message: `Your leave request ${leave.leave_code} has been rejected.${remarks ? ` Remarks: ${remarks}` : ''}`,
+      category: 'leave_rejected',
+      referenceModule: 'leave',
+      referenceId: id,
+    });
+
     res.json({
       success: true,
       message: 'Leave request rejected',
@@ -643,6 +674,28 @@ export const deleteLeave = async (req, res, next) => {
       });
     } catch (logError) {
       logger.error("Failed to create activity log:", logError);
+    }
+
+    if (isEmployee) {
+      await notifyHrUsers({
+        actorUserId: deletedBy || null,
+        excludeUserIds: [deletedBy].filter(Boolean),
+        title: 'Leave request cancelled',
+        message: `Employee ID ${leave.employee_id} cancelled leave request ${leave.leave_code}.`,
+        category: 'leave_cancelled',
+        referenceModule: 'leave',
+        referenceId: id,
+      });
+    } else {
+      await notifyEmployeeByEmployeeId({
+        employeeId: leave.employee_id,
+        actorUserId: deletedBy || null,
+        title: 'Leave request removed',
+        message: `Your leave request ${leave.leave_code} was removed by HR.`,
+        category: 'leave_deleted',
+        referenceModule: 'leave',
+        referenceId: id,
+      });
     }
 
     res.json({

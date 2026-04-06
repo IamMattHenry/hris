@@ -1244,6 +1244,46 @@ export const activityApi = {
   }
 }
 
+// ============ NOTIFICATION API FUNCTIONS ============
+
+export const notificationApi = {
+  getMy: async (params?: { limit?: number; status?: 'read' | 'unread' }) => {
+    const search = new URLSearchParams();
+
+    if (params?.limit != null) {
+      search.append('limit', String(params.limit));
+    }
+
+    if (params?.status) {
+      search.append('status', params.status);
+    }
+
+    const url = `/notifications${search.toString() ? `?${search.toString()}` : ''}`;
+
+    return apiCall<any[]>(url, {
+      method: 'GET',
+    });
+  },
+
+  getUnreadCount: async () => {
+    return apiCall<{ unread_count: number }>('/notifications/unread-count', {
+      method: 'GET',
+    });
+  },
+
+  markRead: async (id: number | string) => {
+    return apiCall<any>(`/notifications/${id}/read`, {
+      method: 'PUT',
+    });
+  },
+
+  markAllRead: async () => {
+    return apiCall<any>('/notifications/read-all', {
+      method: 'PUT',
+    });
+  },
+}
+
 // ============ TICKET API FUNCTIONS ============
 
 export const ticketApi = {

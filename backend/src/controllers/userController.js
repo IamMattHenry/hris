@@ -1,6 +1,7 @@
 import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
 import bcryptjs from 'bcryptjs';
+import { notifyEmployeeByEmployeeId, notifyHrUsers } from '../services/notificationService.js';
 
 /**
  * Get all users
@@ -224,6 +225,34 @@ export const updateUser = async (req, res, next) => {
       });
     } catch (logError) {
       logger.error("Failed to create activity log:", logError);
+    }
+
+    if (isSelfUpdate && user.role === 'employee' && (username !== undefined || password !== undefined)) {
+      const employee = await db.getOne('SELECT employee_id FROM employees WHERE user_id = ? LIMIT 1', [targetUserId]);
+      await notifyHrUsers({
+        actorUserId: updatedBy || targetUserId,
+        excludeUserIds: [updatedBy || targetUserId].filter(Boolean),
+        title: 'Employee account credentials updated',
+        message: `Employee user ${user.username} updated ${password !== undefined ? 'password' : 'username'}.`,
+        category: 'employee_credentials_updated',
+        referenceModule: 'users',
+        referenceId: employee?.employee_id || targetUserId,
+      });
+    }
+
+    if (!isSelfUpdate && user.role === 'employee') {
+      const employee = await db.getOne('SELECT employee_id FROM employees WHERE user_id = ? LIMIT 1', [targetUserId]);
+      if (employee?.employee_id) {
+        await notifyEmployeeByEmployeeId({
+          employeeId: employee.employee_id,
+          actorUserId: updatedBy || null,
+          title: 'Account details updated',
+          message: 'Your account credentials were updated by HR. If this was unexpected, please contact support immediately.',
+          category: 'account_updated_by_hr',
+          referenceModule: 'users',
+          referenceId: targetUserId,
+        });
+      }
     }
 
     res.json({

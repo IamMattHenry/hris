@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { employeeApi, leaveApi, attendanceApi, ticketApi } from "@/lib/api";
+import { employeeApi, leaveApi, attendanceApi, ticketApi, notificationApi } from "@/lib/api";
 import { Employee } from "@/types/api";
 import { X, ChevronRight } from "lucide-react";
 import FloatingTicketButton from "@/components/dashboard/FloatingTicketButton";
@@ -57,6 +57,13 @@ interface DashboardStats {
   pending_requests: number;
   total_positions: number;
   total_departments: number;
+}
+
+interface UserNotification {
+  notification_id: number;
+  title: string;
+  message: string;
+  status: 'read' | 'unread';
 }
 
 const COUNTED_STATUSES = new Set(["present", "late", "half_day", "work_from_home"]);
@@ -123,12 +130,16 @@ export default function Dashboard() {
   const [showAbsenceRecords, setShowAbsenceRecords] = useState(false);
   const [showFingerprintModal, setShowFingerprintModal] = useState(false);
   const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
+  const [notifications, setNotifications] = useState<UserNotification[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(true);
+  const [markingNotificationsRead, setMarkingNotificationsRead] = useState(false);
   // Role-aware actionable pending count (supervisors: 'pending'; superadmin/HR: 'supervisor_approved')
   const [pendingActionableCount, setPendingActionableCount] = useState<number | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
+      setNotificationsLoading(true);
       setError(null);
 
       try {
@@ -139,11 +150,12 @@ export default function Dashboard() {
           ? leaveApi.getByStatus('pending')
           : Promise.resolve({ success: true, data: [] });
 
-        const [empResult, statsResult, attendanceResult, actionableResult] = await Promise.all([
+        const [empResult, statsResult, attendanceResult, actionableResult, notificationsResult] = await Promise.all([
           employeeApi.getAll(),
           leaveApi.getDashboardStats(),
           attendanceApi.getAll(),
           actionablePromise,
+          notificationApi.getMy({ limit: 8 }),
         ]);
 
         if (empResult.success && empResult.data) {
@@ -180,6 +192,12 @@ export default function Dashboard() {
           setPendingActionableCount(null);
         }
 
+        if (notificationsResult.success && Array.isArray(notificationsResult.data)) {
+          setNotifications(notificationsResult.data as UserNotification[]);
+        } else {
+          setNotifications([]);
+        }
+
         // Check if current user needs fingerprint registration
         if (user?.employee_id) {
           const employeeResult = await employeeApi.getById(user.employee_id);
@@ -205,6 +223,7 @@ export default function Dashboard() {
         setError(msg);
         toast.error(msg);
       } finally {
+        setNotificationsLoading(false);
         setLoading(false);
       }
     };
@@ -359,6 +378,18 @@ export default function Dashboard() {
     setShowFingerprintModal(false);
   };
 
+  const handleMarkAllNotificationsRead = async () => {
+    setMarkingNotificationsRead(true);
+    try {
+      const result = await notificationApi.markAllRead();
+      if (result.success) {
+        setNotifications((prev) => prev.map((item) => ({ ...item, status: 'read' })));
+      }
+    } finally {
+      setMarkingNotificationsRead(false);
+    }
+  };
+
   return (
     <div className="min-h-screen p-6 font-poppins">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -400,6 +431,37 @@ export default function Dashboard() {
               );
             })()}
           </div>
+        </div>
+
+        <div className="bg-[#faf5ed] rounded-xl shadow-sm p-5 border border-[#e8dcc8]">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-semibold text-gray-800">Recent Notifications</h2>
+            <button
+              onClick={handleMarkAllNotificationsRead}
+              disabled={markingNotificationsRead || notifications.length === 0}
+              className="text-xs px-3 py-1 rounded-md border border-[#d7c6ac] text-[#4B0B14] disabled:opacity-50"
+            >
+              Mark all as read
+            </button>
+          </div>
+
+          {notificationsLoading ? (
+            <p className="text-sm text-gray-500">Loading notifications...</p>
+          ) : notifications.length === 0 ? (
+            <p className="text-sm text-gray-500">No notifications yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {notifications.map((item) => (
+                <div
+                  key={item.notification_id}
+                  className={`rounded-md border px-3 py-2 ${item.status === 'unread' ? 'bg-[#fff7ec] border-[#e2c8a9]' : 'bg-white border-[#ece7df]'}`}
+                >
+                  <p className="text-sm font-semibold text-gray-800">{item.title}</p>
+                  <p className="text-xs text-gray-600 mt-1">{item.message}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Main Grid */}

@@ -1,5 +1,6 @@
 import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
+import { notifyEmployeeByEmployeeId } from '../services/notificationService.js';
 
 const round2 = (value) => Number((Number(value) || 0).toFixed(2));
 
@@ -406,6 +407,16 @@ export const createPenalty = async (req, res, next) => {
         description: `Created penalty ${penaltyCode} for employee #${employee_id}`,
       });
 
+      await notifyEmployeeByEmployeeId({
+        employeeId: Number(employee_id),
+        actorUserId: req.user?.user_id || null,
+        title: 'New penalty issued',
+        message: `A new penalty (${penaltyCode}) amounting to ₱${normalizedAmount.toFixed(2)} has been issued to your account.`,
+        category: 'penalty_created',
+        referenceModule: 'penalty',
+        referenceId: penaltyId,
+      });
+
       const created = await getPenaltyById(penaltyId);
 
       return res.status(201).json({
@@ -517,6 +528,16 @@ export const updatePenalty = async (req, res, next) => {
         description: `Updated penalty ${current.code}`,
       });
 
+      await notifyEmployeeByEmployeeId({
+        employeeId: Number(current.employee_id),
+        actorUserId: req.user?.user_id || null,
+        title: 'Penalty details updated',
+        message: `Penalty ${current.code} details were updated by HR. Please review your penalty record.`,
+        category: 'penalty_updated',
+        referenceModule: 'penalty',
+        referenceId: id,
+      });
+
       const updated = await getPenaltyById(id);
 
       return res.json({
@@ -588,6 +609,16 @@ export const updatePenaltyStatus = async (req, res, next) => {
         userId: req.user?.user_id || null,
         action: 'UPDATE',
         description: `Changed penalty ${current.code} status from ${current.status} to ${status}`,
+      });
+
+      await notifyEmployeeByEmployeeId({
+        employeeId: Number(current.employee_id),
+        actorUserId: req.user?.user_id || null,
+        title: 'Penalty status updated',
+        message: `Penalty ${current.code} status changed from ${current.status} to ${status}.${notes ? ` Notes: ${notes}` : ''}`,
+        category: 'penalty_status_change',
+        referenceModule: 'penalty',
+        referenceId: id,
       });
 
       const updated = await getPenaltyById(id);
@@ -686,6 +717,16 @@ export const settlePenalty = async (req, res, next) => {
         description: `Settled penalty ${current.code} by ${settledAmount}`,
       });
 
+      await notifyEmployeeByEmployeeId({
+        employeeId: Number(current.employee_id),
+        actorUserId: req.user?.user_id || null,
+        title: 'Penalty settlement recorded',
+        message: `A settlement of ₱${settledAmount.toFixed(2)} was recorded for penalty ${current.code}.`,
+        category: 'penalty_settled',
+        referenceModule: 'penalty',
+        referenceId: id,
+      });
+
       const updated = await getPenaltyById(id);
 
       return res.json({
@@ -764,6 +805,16 @@ export const cancelPenalty = async (req, res, next) => {
         description: `Cancelled penalty ${current.code}`,
       });
 
+      await notifyEmployeeByEmployeeId({
+        employeeId: Number(current.employee_id),
+        actorUserId: req.user?.user_id || null,
+        title: 'Penalty cancelled',
+        message: `Penalty ${current.code} has been cancelled.${reason ? ` Reason: ${reason}` : ''}`,
+        category: 'penalty_cancelled',
+        referenceModule: 'penalty',
+        referenceId: id,
+      });
+
       const updated = await getPenaltyById(id);
 
       return res.json({
@@ -818,6 +869,16 @@ export const deletePenalty = async (req, res, next) => {
         userId: req.user?.user_id || null,
         action: 'DELETE',
         description: `Deleted draft penalty ${current.code}`,
+      });
+
+      await notifyEmployeeByEmployeeId({
+        employeeId: Number(current.employee_id),
+        actorUserId: req.user?.user_id || null,
+        title: 'Draft penalty deleted',
+        message: `Draft penalty ${current.code} was deleted by HR.`,
+        category: 'penalty_deleted',
+        referenceModule: 'penalty',
+        referenceId: id,
       });
 
       return res.json({
