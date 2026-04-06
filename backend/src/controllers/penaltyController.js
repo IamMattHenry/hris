@@ -665,6 +665,13 @@ export const settlePenalty = async (req, res, next) => {
       });
     }
 
+    if (current.status !== 'approved') {
+      return res.status(400).json({
+        success: false,
+        message: 'Only approved penalties can be settled',
+      });
+    }
+
     const settledAmount = settled_amount != null
       ? round2(Math.max(0, Number(settled_amount)))
       : current.remaining_amount;
@@ -913,7 +920,7 @@ export const applyPenaltyDeductionsForPayrollRecord = async ({
     `SELECT *
      FROM employee_penalties p
      WHERE p.employee_id = ?
-       AND p.status IN ('approved', 'pending')
+       AND p.status = 'approved'
        AND p.remaining_amount > 0
        AND p.payroll_deduction_mode IN ('full', 'next_payroll', 'installment')
        AND p.issued_date <= ?

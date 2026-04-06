@@ -34,6 +34,10 @@ export default function PenaltyTable() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedMenu, setSelectedMenu] = useState<number | null>(null);
   const [isAddPenaltyModalOpen, setAddPenaltyModalOpen] = useState(false);
+  const [isSettleModalOpen, setIsSettleModalOpen] = useState(false);
+  const [settlePenaltyId, setSettlePenaltyId] = useState<number | null>(null);
+  const [settleAmountInput, setSettleAmountInput] = useState("");
+  const [settling, setSettling] = useState(false);
 
   const [rows, setRows] = useState<PenaltyRow[]>([]);
   const [count, setCount] = useState(0);
@@ -94,16 +98,38 @@ export default function PenaltyTable() {
     }
   }, [currentPage, totalPages]);
 
-  const handleSettlePenalty = async (id: number) => {
-    const amountInput = window.prompt("Optional settlement amount. Leave blank to settle full remaining amount:");
-    const settledAmount = amountInput && amountInput.trim() !== "" ? Number(amountInput) : undefined;
+  const openSettleModal = (id: number) => {
+    setSettlePenaltyId(id);
+    setSettleAmountInput("");
+    setIsSettleModalOpen(true);
+    setSelectedMenu(null);
+  };
 
-    if (amountInput && (Number.isNaN(settledAmount) || Number(settledAmount) <= 0)) {
+  const closeSettleModal = () => {
+    setIsSettleModalOpen(false);
+    setSettlePenaltyId(null);
+    setSettleAmountInput("");
+  };
+
+  const handleSettlePenalty = async () => {
+    if (settlePenaltyId == null) {
+      return;
+    }
+
+    const trimmedAmount = settleAmountInput.trim();
+    const settledAmount = trimmedAmount !== "" ? Number(trimmedAmount) : undefined;
+
+    if (trimmedAmount !== "" && (Number.isNaN(settledAmount) || Number(settledAmount) <= 0)) {
       toast.error("Settlement amount must be a positive number.");
       return;
     }
 
-    const result = await penaltyApi.settle(id, settledAmount ? { settled_amount: settledAmount } : undefined);
+    setSettling(true);
+    const result = await penaltyApi.settle(
+      settlePenaltyId,
+      settledAmount != null ? { settled_amount: settledAmount } : undefined
+    );
+    setSettling(false);
 
     if (!result.success) {
       toast.error(result.message || "Failed to settle penalty.");
@@ -111,7 +137,7 @@ export default function PenaltyTable() {
     }
 
     toast.success("Penalty settled successfully.");
-    setSelectedMenu(null);
+    closeSettleModal();
     fetchPenalties();
   };
 
@@ -251,7 +277,7 @@ export default function PenaltyTable() {
                           <Eye size={16} /> View Details
                         </button>
                         <button
-                          onClick={() => handleSettlePenalty(item.id)}
+                          onClick={() => openSettleModal(item.id)}
                           className="flex items-center gap-2 w-full px-4 py-2 hover:bg-[#fdf4e7] text-left"
                         >
                           <CheckCircle size={16} /> Settle Penalty
@@ -300,6 +326,49 @@ export default function PenaltyTable() {
           fetchPenalties();
         }}
       />
+
+      {isSettleModalOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-[#3b2b1c]">Confirm Settlement</h3>
+            <p className="text-sm text-[#6b5344] mt-1">
+              Enter an optional settlement amount. Leave blank to settle the full remaining amount.
+            </p>
+
+            <div className="mt-4">
+              <label className="block text-xs font-medium mb-1 text-[#3b2b1c]">Settlement Amount (Optional)</label>
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={settleAmountInput}
+                onChange={(e) => setSettleAmountInput(e.target.value)}
+                className="w-full rounded-md border border-[#d9c3a4] px-3 py-2 text-sm focus:outline-none"
+                placeholder="Leave blank for full settlement"
+              />
+            </div>
+
+            <div className="pt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeSettleModal}
+                disabled={settling}
+                className="px-4 py-2 text-sm rounded-md border border-[#d9c3a4] text-[#3b2b1c]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSettlePenalty}
+                disabled={settling}
+                className="px-4 py-2 text-sm rounded-md bg-[#3b2b1c] text-white disabled:opacity-50"
+              >
+                {settling ? "Settling..." : "Confirm"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
