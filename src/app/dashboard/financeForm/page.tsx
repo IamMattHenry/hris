@@ -48,8 +48,8 @@ export default function FinanceFormPage() {
   };
 
   return (
-    <div className="p-6 min-h-screen font-poppins bg-[#fff7ec]">
-      <div className="mb-8">
+    <div className="p-6 min-h-screen font-poppins bg-[#fff7ec] flex flex-col items-center">
+      <div className="w-full max-w-4xl mb-8">
         <h2 className="text-2xl font-semibold text-[#3b2b1c]">
           Finance Request Form
         </h2>
@@ -58,7 +58,7 @@ export default function FinanceFormPage() {
         </p>
       </div>
 
-      <div className="bg-white p-8 rounded-lg shadow-sm border border-[#d6c3aa] max-w-2xl">
+      <div className="bg-white w-full max-w-4xl p-8 rounded-lg shadow-sm border border-[#d6c3aa]">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="flex flex-col space-y-2">
