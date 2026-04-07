@@ -271,7 +271,7 @@ export default function NewPayrollRunModal({
           ) : (
             <div className="p-6 space-y-6 overflow-y-auto flex-1">
               {/* Form row */}
-              <div className="grid md:grid-cols-6 gap-4">
+              <div className="grid md:grid-cols-5 gap-4">
                 <label className="space-y-1.5">
                   <span className="text-sm font-medium">Pay Period Start</span>
                   <input
@@ -336,14 +336,28 @@ export default function NewPayrollRunModal({
                     ))}
                   </select>
                 </label>
+              </div>
 
-                <label className="space-y-1.5 md:col-span-2 lg:col-span-1">
-                  <span className="text-sm font-medium">Notes (opt)</span>
-                  <input
+              {/* Second Row for Notes */}
+              <div className="w-full relative">
+                <label className="space-y-1.5 block">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Notes (opt)</span>
+                    <span className={`text-xs ${notes.length > 200 ? 'text-red-500 font-bold' : 'text-[#3D1A0B]/60'}`}>
+                      {notes.length} / 200
+                    </span>
+                  </div>
+                  <textarea
                     value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
+                    onChange={(e) => {
+                      if (e.target.value.length <= 200) {
+                        setNotes(e.target.value);
+                      }
+                    }}
                     placeholder="Payroll batch note"
-                    className="w-full bg-white border border-[#E8D9C4] rounded-lg px-3 py-2"
+                    className="w-full bg-white border border-[#E8D9C4] rounded-lg px-3 py-2 resize-y"
+                    rows={2}
+                    maxLength={500}
                   />
                 </label>
               </div>
