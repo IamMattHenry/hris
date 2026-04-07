@@ -1326,16 +1326,18 @@ useEffect(() => {
                           <label className="block text-xs text-[#3b2b1c] mb-1">Salary</label>
                           <input
                             type="text"
-                            value={ep.salary}
+                            value={ep.salary ? String(ep.salary).split('.').map((part, i) => i === 0 ? part.replace(/\B(?=(\d{3})+(?!\d))/g, ",") : part).join('.') : ""}
                             onChange={(e) => {
-                              const val = e.target.value;
-                              if (/^[0-9,]*\.?[0-9]{0,2}$/.test(val) || val === "") {
-                                setExtraPositions((prev) =>
-                                  prev.map((x, i) => (i === idx ? { ...x, salary: val } : x))
-                                );
-                              }
+                              let val = e.target.value.replace(/[^0-9.]/g, "");
+                              const parts = val.split(".");
+                              if (parts.length > 2) val = parts[0] + "." + parts.slice(1).join("");
+                              if (parts[1] && parts[1].length > 2) val = parts[0] + "." + parts[1].substring(0, 2);
+                              if (Number(val) > 1000000) val = "1000000";
+                              setExtraPositions((prev) =>
+                                prev.map((x, i) => (i === idx ? { ...x, salary: val } : x))
+                              );
                             }}
-                            placeholder="e.g. 15000"
+                            placeholder="e.g. 15,000"
                             className="w-full px-2 py-2 text-sm border border-[#e6d2b5] rounded bg-white text-[#3b2b1c]"
                           />
                         </div>
