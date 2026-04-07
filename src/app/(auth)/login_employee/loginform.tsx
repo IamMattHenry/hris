@@ -204,8 +204,8 @@ export default function LoginForm() {
 
         <InputBox
           type="text"
-          label="Username"
-          placeholder="Username"
+          label="Username or Email"
+          placeholder="Username or Email"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
         />
