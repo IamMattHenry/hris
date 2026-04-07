@@ -7,6 +7,10 @@ import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
 import { departmentApi, payrollApi } from "@/lib/api";
 import { showToast } from "@/utils/toast";
+import PayrollRunDetailPage from "./view/page";
+import NewPayrollRunPage from "./new/page";
+import PayrollContributionsModal from "./contributions/page";
+import PayrollSettingsModal from "./settings/page";
 
 interface PayrollRun {
   id: number;
@@ -44,6 +48,15 @@ export default function PayrollTable() {
   const [searchTerm, setSearchTerm] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("");
   const [employmentTypeFilter, setEmploymentTypeFilter] = useState("");
+
+  const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
+  const [showViewModal, setShowViewModal] = useState(false);
+
+  const [showPayrollModal, setShowPayrollModal] = useState(false);
+  const [showContributionsModal, setShowContributionsModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+
+
 
   const fetchRuns = async () => {
     try {
@@ -108,6 +121,14 @@ export default function PayrollTable() {
     return type ? `${departmentName} • ${type}` : departmentName;
   };
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  const handleSelectedID = (id: number) => {
+    setSelectedRunId(id);
+    setShowViewModal(true);
+  }
+
   const filteredRuns = useMemo(() => {
     return runs.filter((run) =>
       String(run.id).includes(searchTerm) ||
@@ -129,9 +150,20 @@ export default function PayrollTable() {
     );
   }, [filteredRuns]);
 
+  // Pagination logic
+  const totalPages = Math.ceil(filteredRuns.length / itemsPerPage);
+  const currentRuns = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredRuns.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredRuns, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, departmentFilter, employmentTypeFilter]);
+
   if (loading) {
     return (
-      <div className="p-6 bg-[#FAF6F1] rounded-xl h-[90vh] flex items-center justify-center">
+      <div className="p-6 bg-[#FAF6F1] rounded-xl min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#3D1A0B] mx-auto"></div>
           <p className="mt-4 text-[#3D1A0B]">Loading payroll runs...</p>
@@ -141,7 +173,8 @@ export default function PayrollTable() {
   }
 
   return (
-    <div className="p-6 bg-[#FAF6F1] rounded-xl space-y-6 overflow-hidden h-[90vh] shadow-inner relative font-poppins text-[#3D1A0B]">
+    <div className="p-6 bg-[#FAF6F1] rounded-xl space-y-6 overflow-hidden min-h-screen shadow-inner relative font-poppins text-[#3D1A0B]">
+      {/*Header */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Payroll Runs</h1>
@@ -169,12 +202,11 @@ export default function PayrollTable() {
               <option key={type} value={type}>{type}</option>
             ))}
           </select>
-          <Link href="/dashboard/payroll/new">
-            <ActionButton label="Create Payroll Run" onClick={() => undefined} icon={Plus} />
-          </Link>
+          <ActionButton label="Create Payroll Run" onClick={() => setShowPayrollModal(true)} icon={Plus} />
         </div>
       </div>
 
+      {/* Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-[#F3E5CF] p-6 rounded-xl shadow-sm border border-[#E8D9C4]">
           <p className="text-sm text-[#3D1A0B]/70">Total Gross Pay</p>
@@ -190,6 +222,8 @@ export default function PayrollTable() {
         </div>
       </div>
 
+
+      {/* Table */}
       <div className="overflow-x-auto shadow-sm bg-[#F3E5CF] rounded-lg border border-[#E8D9C4]">
         <table className="w-full text-sm border-collapse">
           <thead>
@@ -207,12 +241,12 @@ export default function PayrollTable() {
             </tr>
           </thead>
           <tbody className="text-base bg-white">
-            {filteredRuns.length === 0 ? (
+            {currentRuns.length === 0 ? (
               <tr>
                 <td colSpan={10} className="py-10 text-center text-[#3D1A0B]/70">No payroll runs found.</td>
               </tr>
             ) : (
-              filteredRuns.map((run) => (
+              currentRuns.map((run) => (
                 <tr key={run.id} className="border-b border-[#E8D9C4] hover:bg-[#FAF6F1] transition">
                   <td className="py-4 px-4 font-semibold">#{run.id}</td>
                   <td className="py-4 px-4">{formatPeriod(run.pay_period_start, run.pay_period_end)}</td>
@@ -223,40 +257,94 @@ export default function PayrollTable() {
                   <td className="py-4 px-4 text-right text-red-700">{formatMoney(run.total_deductions)}</td>
                   <td className="py-4 px-4 text-right font-bold">{formatMoney(run.net_pay)}</td>
                   <td className="py-4 px-4 text-center">
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      run.status === "finalized"
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${run.status === "finalized"
                         ? "bg-green-100 text-green-800 border border-green-300"
                         : "bg-amber-100 text-amber-800 border border-amber-300"
-                    }`}>
+                      }`}>
                       {run.status.toUpperCase()}
                     </span>
                   </td>
                   <td className="py-4 px-4 text-center">
+                    {/*
                     <Link href={`/dashboard/payroll/${run.id}`}>
                       <button className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#3D1A0B] text-white hover:opacity-90 transition">
                         <Eye size={16} /> View
                       </button>
                     </Link>
+                    */}
+                    <button className="cursor-pointer inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#3D1A0B] text-white hover:opacity-90 transition" onClick={() => handleSelectedID(run.id)}>
+                      <Eye size={16} /> View
+                    </button>
                   </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
+
+        {/* Pagination UI */}
+        {totalPages > 1 && (
+          <div className="flex justify-center items-center gap-4 p-4 bg-white border-t border-[#E8D9C4] select-none">
+            <button
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="px-4 py-2 rounded bg-[#3D1A0B] cursor-pointer text-white text-sm disabled:opacity-40"
+            >
+              Prev
+            </button>
+
+            <div className="flex items-center gap-1 overflow-hidden truncate">
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .slice(
+                  Math.max(currentPage - 2, 0),
+                  Math.min(currentPage + 1, totalPages)
+                )
+                .map((num) => (
+                  <button
+                    key={num}
+                    onClick={() => setCurrentPage(num)}
+                    className={`px-3 py-2 rounded text-sm transition cursor-pointer ${
+                      currentPage === num
+                        ? "bg-[#3D1A0B] text-white"
+                        : "text-[#3D1A0B] hover:underline"
+                    }`}
+                  >
+                    {num}
+                  </button>
+                ))}
+
+              {totalPages > 5 && currentPage < totalPages - 2 && (
+                <span className="px-1 text-[#3D1A0B]">...</span>
+              )}
+            </div>
+
+            <button
+              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="px-4 py-2 rounded bg-[#3D1A0B] cursor-pointer text-white text-sm disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex justify-end gap-3">
-        <Link href="/dashboard/payroll/contributions">
-          <button className="px-4 py-2 rounded-lg bg-[#F3E5CF] border border-[#E8D9C4] hover:bg-[#f1dfc2] transition">
-            Contributions
-          </button>
-        </Link>
-        <Link href="/dashboard/payroll/settings">
-          <button className="px-4 py-2 rounded-lg bg-[#F3E5CF] border border-[#E8D9C4] hover:bg-[#f1dfc2] transition">
-            Payroll Settings
-          </button>
-        </Link>
+        <button className="px-4 py-2 rounded-lg bg-[#F3E5CF] border border-[#E8D9C4] hover:bg-[#f1dfc2] transition"
+          onClick={() => setShowContributionsModal(true)}>
+          Contributions
+        </button>
+        <button className="px-4 py-2 rounded-lg bg-[#F3E5CF] border border-[#E8D9C4] hover:bg-[#f1dfc2] transition"
+          onClick={() => setShowSettingsModal(true)}>
+          Payroll Settings
+        </button>
       </div>
+
+      <PayrollRunDetailPage isOpen={showViewModal} onClose={() => setShowViewModal(false)} payrollId={selectedRunId} />
+      <NewPayrollRunPage isOpen={showPayrollModal} onClose={() => setShowPayrollModal(false)} />
+      <PayrollContributionsModal isOpen={showContributionsModal} onClose={() => setShowContributionsModal(false)} />
+      <PayrollSettingsModal isOpen={showSettingsModal} onClose={() => setShowSettingsModal(false)} />
     </div>
+
   );
 }
