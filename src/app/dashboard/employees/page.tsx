@@ -316,17 +316,35 @@ export default function EmployeeTable() {
   const handleBudgetRequestSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    const title = budgetRequestForm.title.trim();
+    const description = budgetRequestForm.description.trim();
+
+    if (!title) {
+      toast.error("Title cannot be empty.");
+      return;
+    }
+
+    if (!description) {
+      toast.error("Description cannot be empty.");
+      return;
+    }
+
     const amount = Number(budgetRequestForm.requested_amount);
     if (!Number.isFinite(amount) || amount <= 0) {
       toast.error("Requested amount must be greater than 0.");
       return;
     }
 
+    if (amount > 1000000) {
+      toast.error("Requested amount cannot exceed 1,000,000.");
+      return;
+    }
+
     setBudgetRequestSubmitting(true);
     try {
       const result = await payrollApi.createExpenseRequest({
-        title: budgetRequestForm.title.trim(),
-        description: budgetRequestForm.description.trim(),
+        title,
+        description,
         requested_amount: amount,
         priority: budgetRequestForm.priority,
       });
@@ -707,15 +725,24 @@ export default function EmployeeTable() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium mb-1 text-[#3b2b1c]">Requested Amount</label>
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={budgetRequestForm.requested_amount}
-                    onChange={(e) => setBudgetRequestForm((prev) => ({ ...prev, requested_amount: e.target.value }))}
-                    className="w-full rounded-md border border-[#d9c3a4] px-3 py-2 text-sm focus:outline-none"
-                    required
-                  />
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6b5344] text-sm font-medium">₱</span>
+                    <input
+                      type="text"
+                      value={budgetRequestForm.requested_amount ? budgetRequestForm.requested_amount.split('.').map((part, i) => i === 0 ? part.replace(/\B(?=(\d{3})+(?!\d))/g, ",") : part).join('.') : ""}
+                      onChange={(e) => {
+                        let val = e.target.value.replace(/[^0-9.]/g, "");
+                        const parts = val.split(".");
+                        if (parts.length > 2) val = parts[0] + "." + parts.slice(1).join("");
+                        if (parts[1] && parts[1].length > 2) val = parts[0] + "." + parts[1].substring(0, 2);
+                        if (Number(val) > 1000000) val = "1000000";
+                        setBudgetRequestForm((prev) => ({ ...prev, requested_amount: val }));
+                      }}
+                      className="w-full rounded-md border border-[#d9c3a4] pl-7 pr-3 py-2 text-sm focus:outline-none"
+                      placeholder="0.00"
+                      required
+                    />
+                  </div>
                 </div>
 
                 <div>

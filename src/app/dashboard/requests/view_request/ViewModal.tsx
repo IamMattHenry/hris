@@ -126,7 +126,7 @@ export default function ViewLeaveModal({
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
       <div
-        className="bg-[#fdf3e2] w-full max-w-md p-8 rounded-2xl shadow-lg relative text-[#3b2b1c]"
+        className="bg-[#fdf3e2] w-full max-w-2xl p-8 rounded-2xl shadow-lg relative text-[#3b2b1c] max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <button onClick={onClose} className="absolute top-4 right-4 text-[#3b2b1c] hover:opacity-70">
@@ -135,7 +135,7 @@ export default function ViewLeaveModal({
 
         <h2 className="text-2xl font-semibold mb-6">Leave Request Details</h2>
 
-        <div className="space-y-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
           <InfoBox label="Code" value={leave.leave_code} />
           <InfoBox label="Employee" value={`${leave.first_name} ${leave.last_name}`} />
           <InfoBox label="Department" value={leave.department_name || (leave.department_id ? `Department #${leave.department_id}` : 'N/A')} />
@@ -226,10 +226,10 @@ export default function ViewLeaveModal({
           </div>
         )}
 
-        {leave.status === "pending" && !canManageLeave && (
+  {leave.status === "pending" && !canManageLeave && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
             <p className="text-sm text-yellow-800">
-              ℹ️ Only HR can approve or reject leave requests at this stage.
+               Only HR can approve or reject leave requests at this stage.
             </p>
           </div>
         )}

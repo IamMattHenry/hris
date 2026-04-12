@@ -33,11 +33,6 @@ interface Department {
   department_name: string;
 }
 
-interface FinanceBudget {
-  budget_id: number;
-  amount: number;
-}
-
 const formatMoney = (value: number) => `₱${Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const formatPeriod = (start: string, end: string) => {
@@ -49,8 +44,6 @@ const formatPeriod = (start: string, end: string) => {
 export default function PayrollTable() {
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [payrollBudget, setPayrollBudget] = useState<FinanceBudget | null>(null);
-  const [staffSalariesBudget, setStaffSalariesBudget] = useState<FinanceBudget | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("");
@@ -64,35 +57,6 @@ export default function PayrollTable() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
 
-
-  const fetchBudgets = async () => {
-    try {
-      const response = await payrollApi.getSettings();
-      const payroll = response.data?.budgets?.payroll;
-      const staffSalaries = response.data?.budgets?.staff_salaries;
-
-      if (response.success && payroll) {
-        setPayrollBudget({
-          budget_id: Number(payroll.budget_id),
-          amount: Number(payroll.amount),
-        });
-      } else {
-        setPayrollBudget(null);
-      }
-
-      if (response.success && staffSalaries) {
-        setStaffSalariesBudget({
-          budget_id: Number(staffSalaries.budget_id),
-          amount: Number(staffSalaries.amount),
-        });
-      } else {
-        setStaffSalariesBudget(null);
-      }
-    } catch {
-      setPayrollBudget(null);
-      setStaffSalariesBudget(null);
-    }
-  };
 
   const fetchRuns = async () => {
     try {
@@ -130,7 +94,6 @@ export default function PayrollTable() {
 
   useEffect(() => {
     fetchDepartments();
-    fetchBudgets();
   }, []);
 
   useEffect(() => {
@@ -158,6 +121,9 @@ export default function PayrollTable() {
     return type ? `${departmentName} • ${type}` : departmentName;
   };
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
   const handleSelectedID = (id: number) => {
     setSelectedRunId(id);
     setShowViewModal(true);
@@ -184,9 +150,20 @@ export default function PayrollTable() {
     );
   }, [filteredRuns]);
 
+  // Pagination logic
+  const totalPages = Math.ceil(filteredRuns.length / itemsPerPage);
+  const currentRuns = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredRuns.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredRuns, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, departmentFilter, employmentTypeFilter]);
+
   if (loading) {
     return (
-      <div className="p-6 bg-[#FAF6F1] rounded-xl h-[90vh] flex items-center justify-center">
+      <div className="p-6 bg-[#FAF6F1] rounded-xl min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#3D1A0B] mx-auto"></div>
           <p className="mt-4 text-[#3D1A0B]">Loading payroll runs...</p>
@@ -196,7 +173,7 @@ export default function PayrollTable() {
   }
 
   return (
-    <div className="p-6 bg-[#FAF6F1] rounded-xl space-y-6 overflow-hidden h-[90vh] shadow-inner relative font-poppins text-[#3D1A0B]">
+    <div className="p-6 bg-[#FAF6F1] rounded-xl space-y-6 overflow-hidden min-h-screen shadow-inner relative font-poppins text-[#3D1A0B]">
       {/*Header */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
@@ -230,7 +207,7 @@ export default function PayrollTable() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-[#F3E5CF] p-6 rounded-xl shadow-sm border border-[#E8D9C4]">
           <p className="text-sm text-[#3D1A0B]/70">Total Gross Pay</p>
           <p className="text-2xl font-bold">{formatMoney(summary.gross)}</p>
@@ -242,24 +219,6 @@ export default function PayrollTable() {
         <div className="bg-[#F3E5CF] p-6 rounded-xl shadow-sm border border-[#E8D9C4]">
           <p className="text-sm text-[#3D1A0B]/70">Employees Processed</p>
           <p className="text-2xl font-bold">{summary.employees}</p>
-        </div>
-        <div className="bg-[#F3E5CF] p-6 rounded-xl shadow-sm border border-[#E8D9C4]">
-          <p className="text-sm text-[#3D1A0B]/70">Latest Payroll Budget</p>
-          <p className="text-2xl font-bold">{formatMoney(payrollBudget?.amount || 0)}</p>
-          <p className="text-xs text-[#3D1A0B]/60 mt-1">
-            {payrollBudget?.budget_id
-              ? `budget_category #${payrollBudget.budget_id}`
-              : "No active payroll budget"}
-          </p>
-        </div>
-        <div className="bg-[#F3E5CF] p-6 rounded-xl shadow-sm border border-[#E8D9C4]">
-          <p className="text-sm text-[#3D1A0B]/70">Latest Staff Salaries Budget</p>
-          <p className="text-2xl font-bold">{formatMoney(staffSalariesBudget?.amount || 0)}</p>
-          <p className="text-xs text-[#3D1A0B]/60 mt-1">
-            {staffSalariesBudget?.budget_id
-              ? `budget_category #${staffSalariesBudget.budget_id}`
-              : "No active staff salaries budget"}
-          </p>
         </div>
       </div>
 
@@ -282,12 +241,12 @@ export default function PayrollTable() {
             </tr>
           </thead>
           <tbody className="text-base bg-white">
-            {filteredRuns.length === 0 ? (
+            {currentRuns.length === 0 ? (
               <tr>
                 <td colSpan={10} className="py-10 text-center text-[#3D1A0B]/70">No payroll runs found.</td>
               </tr>
             ) : (
-              filteredRuns.map((run) => (
+              currentRuns.map((run) => (
                 <tr key={run.id} className="border-b border-[#E8D9C4] hover:bg-[#FAF6F1] transition">
                   <td className="py-4 px-4 font-semibold">#{run.id}</td>
                   <td className="py-4 px-4">{formatPeriod(run.pay_period_start, run.pay_period_end)}</td>
@@ -322,6 +281,52 @@ export default function PayrollTable() {
             )}
           </tbody>
         </table>
+
+        {/* Pagination UI */}
+        {totalPages > 1 && (
+          <div className="flex justify-center items-center gap-4 p-4 bg-white border-t border-[#E8D9C4] select-none">
+            <button
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="px-4 py-2 rounded bg-[#3D1A0B] cursor-pointer text-white text-sm disabled:opacity-40"
+            >
+              Prev
+            </button>
+
+            <div className="flex items-center gap-1 overflow-hidden truncate">
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .slice(
+                  Math.max(currentPage - 2, 0),
+                  Math.min(currentPage + 1, totalPages)
+                )
+                .map((num) => (
+                  <button
+                    key={num}
+                    onClick={() => setCurrentPage(num)}
+                    className={`px-3 py-2 rounded text-sm transition cursor-pointer ${
+                      currentPage === num
+                        ? "bg-[#3D1A0B] text-white"
+                        : "text-[#3D1A0B] hover:underline"
+                    }`}
+                  >
+                    {num}
+                  </button>
+                ))}
+
+              {totalPages > 5 && currentPage < totalPages - 2 && (
+                <span className="px-1 text-[#3D1A0B]">...</span>
+              )}
+            </div>
+
+            <button
+              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="px-4 py-2 rounded bg-[#3D1A0B] cursor-pointer text-white text-sm disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex justify-end gap-3">
