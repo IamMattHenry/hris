@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, MoreVertical, Filter, ChevronDown, ChevronUp, X, RotateCw } from "lucide-react";
+import { Plus, MoreVertical, Filter, ChevronDown, ChevronUp, RotateCw } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
-import { leaveApi, employeeApi } from "@/lib/api";
+import { leaveApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import AddLeaveModal from "./add_request/AddModal";
 import ViewLeaveModal from "./view_request/ViewModal";
 import { toast } from "react-hot-toast";
@@ -77,6 +78,7 @@ const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
 
 export default function RequestsPage() {
   const { user } = useAuth();
+  const { can, canAny, loading: permissionsLoading } = usePermissions();
   const [activeTab, setActiveTab] = useState<TabKey>("Leave Request");
   const [searchRequest, setSearchRequest] = useState<string>("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -96,7 +98,9 @@ export default function RequestsPage() {
 
   // Role helpers
   const isSupervisor = user?.role === "supervisor";
-  const isSuperadmin = user?.role === "superadmin";
+  const canManageLeaveRequests = canAny("leave.approve", "leave.reject");
+  const canDeleteLeave = can("leave.delete");
+  const canCreateLeave = can("leave.apply");
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -143,14 +147,13 @@ export default function RequestsPage() {
 
     // Filter by tab and role-specific stage
   if (activeTab === "Leave Request") {
-    if (isSupervisor) {
+    if (canManageLeaveRequests) {
+      filtered = filtered.filter(l => l.status === "pending" || l.status === "supervisor_approved");
+    } else if (isSupervisor) {
       // Supervisors view-only; show pending requests for awareness
       filtered = filtered.filter(l => l.status === "pending");
-    } else if (isSuperadmin) {
-      // HR acts on pending requests (and legacy supervisor_approved for backward compatibility)
-      filtered = filtered.filter(l => l.status === "pending" || l.status === "supervisor_approved");
     } else {
-      // Others see both stages
+      // Non-approvers: keep prior visibility behavior
       filtered = filtered.filter(l => l.status === "pending" || l.status === "hr_approved");
     }
   } else {
@@ -194,7 +197,6 @@ export default function RequestsPage() {
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) setCurrentPage(page);
   };
-  const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1);
   useEffect(() => {
     setCurrentPage(1);
   }, [searchRequest, filterLeaveType, filterStatus]);
@@ -242,7 +244,14 @@ export default function RequestsPage() {
     }
   };
 
-  if (loading) {
+  const calculateDuration = (startDate: string, endDate: string): number => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 to include both start and end dates
+  };
+
+  if (loading || permissionsLoading) {
     return (
       <div className="min-h-screen bg-[#fff7ec] flex items-center justify-center">
         <div className="text-center">
@@ -272,8 +281,8 @@ export default function RequestsPage() {
             <RotateCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
           </button>
 
-          {/* Add Request button - Disabled for supervisors */}
-          {!isSupervisor && (
+          {/* Add Request button */}
+          {canCreateLeave && (
             <ActionButton label="Add Request" onClick={() => setIsAddModalOpen(true)} icon={Plus} />
           )}
         </div>
@@ -389,27 +398,32 @@ export default function RequestsPage() {
                     <td className="py-3 px-4">{new Date(leave.start_date).toLocaleDateString()}</td>
                     <td className="py-3 px-4">{new Date(leave.end_date).toLocaleDateString()}</td>
                     <td className="py-3 px-4">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          leave.status === "approved"
-                            ? "bg-green-100 text-green-800"
-                            : leave.status === "rejected"
-                            ? "bg-red-100 text-red-800"
-                            : leave.status === "hr_approved"
-                            ? "bg-blue-100 text-blue-800" // Pending Supervisor Review
+                      <div className="flex flex-col gap-1">
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-semibold w-fit ${
+                            leave.status === "approved"
+                              ? "bg-green-100 text-green-800"
+                              : leave.status === "rejected"
+                              ? "bg-red-100 text-red-800"
+                              : leave.status === "hr_approved"
+                              ? "bg-blue-100 text-blue-800" // Pending Supervisor Review
+                              : leave.status === "supervisor_approved"
+                              ? "bg-blue-100 text-blue-800" // legacy
+                              : "bg-yellow-100 text-yellow-800" // pending for HR
+                          }`}
+                        >
+                          {leave.status === "hr_approved"
+                            ? "HR Pre-Approved"
+                            : leave.status === "pending"
+                            ? "Pending HR Review"
                             : leave.status === "supervisor_approved"
-                            ? "bg-blue-100 text-blue-800" // legacy
-                            : "bg-yellow-100 text-yellow-800" // pending for HR
-                        }`}
-                      >
-                        {leave.status === "hr_approved"
-                          ? "HR Pre-Approved"
-                          : leave.status === "pending"
-                          ? "Pending HR Review"
-                          : leave.status === "supervisor_approved"
-                          ? "Pending HR Review"
-                          : leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
-                      </span>
+                            ? "Pending HR Review"
+                            : leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
+                        </span>
+                        <span className="text-xs text-[#7a5c4a]">
+                          {calculateDuration(leave.start_date, leave.end_date)} day(s)
+                        </span>
+                      </div>
                     </td>
                     <td className="py-3 px-4 text-center relative">
                       <button
@@ -434,7 +448,7 @@ export default function RequestsPage() {
                           >
                             View
                           </button>
-                          {!isSupervisor && (
+                          {canDeleteLeave && (
                             <button
                               onClick={() => {
                                 handleDelete(leave.leave_id);

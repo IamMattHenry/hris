@@ -8,6 +8,7 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "fingerprint": "node src/scripts/startFingerprintBridge.js",
+    "sync-hr-roles": "node scripts/syncHrRolesByPosition.js",
     "check-table": "node scripts/checkTableSchema.js",
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js"
   },
