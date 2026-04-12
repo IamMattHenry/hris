@@ -10,6 +10,7 @@ interface EmployeeQRData {
   first_name: string;
   last_name: string;
   position_name: string;
+  department_name?: string;
   schedule_time: string; // "08:00" for morning, "17:00" for night
 }
 
@@ -70,7 +71,14 @@ export default function QRCodeGenerator({
     if (!qrUrl) return;
     const link = document.createElement("a");
     link.href = qrUrl;
-    link.download = "employee_qrcode.png";
+    
+    if (employeeData) {
+      const dept = employeeData.department_name || "Department";
+      link.download = `${employeeData.first_name}_${employeeData.last_name}_${dept}.png`.replace(/\s+/g, "_");
+    } else {
+      link.download = "employee_qrcode.png";
+    }
+    
     link.click();
   };
 

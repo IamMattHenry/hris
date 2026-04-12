@@ -459,6 +459,7 @@ export default function ViewEmployeeModal({
                               first_name: employee.first_name,
                               last_name: employee.last_name,
                               position_name: employee.position_name || "N/A",
+                              department_name: employee.department_name,
                               schedule_time: "08:00",
                             }}
                             size={200}
