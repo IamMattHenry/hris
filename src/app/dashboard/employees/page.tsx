@@ -8,7 +8,10 @@ import {
   MoreVertical,
   ChevronDown,
   ChevronUp,
+  Download,
 } from "lucide-react";
+import JSZip from "jszip";
+import QRCode from "qrcode";
 import AddModal from "./add_employee/AddModal";
 import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
@@ -276,6 +279,59 @@ export default function EmployeeTable() {
 
 
   // 🔹 Handlers
+  const handleDownloadAllQR = async () => {
+    try {
+      if (employees.length === 0) {
+        toast.error("No employees to generate QR codes for.");
+        return;
+      }
+
+      const toastId = toast.loading("Generating QR codes...");
+      const zip = new JSZip();
+
+      for (const emp of employees) {
+        const dataToEncode = JSON.stringify({
+          employee_id: Number(emp.employee_id),
+          employee_code: emp.employee_code || "",
+          first_name: emp.first_name || "",
+          last_name: emp.last_name || "",
+          position_name: emp.position_name || "N/A",
+          department_name: emp.department_name || "Department",
+          schedule_time: "08:00",
+        });
+
+        const url = await QRCode.toDataURL(dataToEncode, {
+          width: 160,
+          margin: 1,
+          color: {
+            dark: "#3b2b1c",
+            light: "#fff7ec",
+          },
+        });
+
+        const base64Data = url.split(",")[1];
+
+        const dept = emp.department_name || "Department";
+        const fileName = `${emp.first_name}_${emp.last_name}_${dept}.png`.replace(/\s+/g, "_");
+
+        zip.file(fileName, base64Data, { base64: true });
+      }
+
+      const content = await zip.generateAsync({ type: "blob" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(content);
+      link.download = "all_employee_qrcodes.zip";
+      link.click();
+      URL.revokeObjectURL(link.href);
+
+      toast.dismiss(toastId);
+      toast.success("Successfully downloaded all QR codes!");
+    } catch (error) {
+      console.error("Failed to generate zip:", error);
+      toast.error("Failed to generate ZIP file.");
+    }
+  };
+
   const handleView = (id: number) => setEmployeeToView(id);
   const handleEdit = (id: number) => setEmployeeToEdit(id);
   const handleTerminate = async (id: number) => {
@@ -404,7 +460,7 @@ export default function EmployeeTable() {
               onClick={() => setIsFilterOpen(!isFilterOpen)}
               className="flex items-center bg-[#3b2b1c] text-white px-6 py-4 rounded-full mr-16 shadow-md hover:opacity-90 transition filter-button"
             >
-              
+
               <Filter size={16} className="mr-2" /> Sort
               {isFilterOpen ? (
                 <ChevronUp className="ml-1" size={16} />
@@ -462,6 +518,13 @@ export default function EmployeeTable() {
             />
           )}
 
+          <ActionButton
+            label="Download All QR"
+            onClick={handleDownloadAllQR}
+            icon={Download}
+            className="py-4"
+          />
+
         </div>
       </div>
 
@@ -501,15 +564,14 @@ export default function EmployeeTable() {
                 <div key={request.notification_id} className="rounded-md border border-[#e6d2b5] bg-[#fff7ec] px-3 py-2">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-1">
                     <p className="text-xs font-medium text-[#3b2b1c] truncate">{request.title}</p>
-                    <span className={`text-[10px] px-2 py-1 rounded-full w-fit ${
-                      request.status === "accepted"
+                    <span className={`text-[10px] px-2 py-1 rounded-full w-fit ${request.status === "accepted"
                         ? "bg-green-100 text-green-700"
                         : request.status === "rejected"
                           ? "bg-red-100 text-red-700"
                           : request.status === "cancelled"
                             ? "bg-gray-100 text-gray-700"
                             : "bg-yellow-100 text-yellow-700"
-                    }`}>
+                      }`}>
                       {request.status}
                     </span>
                   </div>
@@ -574,15 +636,14 @@ export default function EmployeeTable() {
                           });
                         }
                       }}
-                      className={`px-3 py-2 rounded-full text-xs font-medium inline-block ${
-                        emp.status === "active"
+                      className={`px-3 py-2 rounded-full text-xs font-medium inline-block ${emp.status === "active"
                           ? "bg-green-100 text-green-700"
                           : emp.status === "resigned"
                             ? "bg-yellow-100 text-yellow-700"
                             : emp.status === "on-leave"
                               ? "bg-blue-100 text-blue-700 cursor-pointer hover:shadow-md transition"
                               : "bg-red-100 text-red-700"
-                      }`}
+                        }`}
                     >
                       {emp.status === "on-leave" ? " " : ""}
                       {emp.status.charAt(0).toUpperCase() +
@@ -610,11 +671,10 @@ export default function EmployeeTable() {
                           <button
                             onClick={() => handleTerminate(emp.employee_id)}
                             disabled={emp.status === "terminated"}
-                            className={`w-full text-left px-4 py-2 ${
-                              emp.status === "terminated"
+                            className={`w-full text-left px-4 py-2 ${emp.status === "terminated"
                                 ? "text-gray-400 cursor-not-allowed"
                                 : "hover:bg-red-100 text-red-600"
-                            }`}
+                              }`}
                           >
                             {emp.status === "terminated" ? "Terminated" : "Terminate"}
                           </button>
@@ -635,7 +695,8 @@ export default function EmployeeTable() {
         </table>
 
         {/* Pagination */}
-        <div className="flex justify-center items-center gap-4 mt-4 select-none">
+        <div className="flex justify-between items-center mt-4 select-none w-full gap-4">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => goToPage(currentPage - 1)}
             disabled={currentPage === 1}
@@ -644,31 +705,30 @@ export default function EmployeeTable() {
             Prev
           </button>
 
-         <div className="flex items-center gap-1 overflow-hidden truncate">
-  {Array.from({ length: totalPages }, (_, i) => i + 1)
-    .slice(
-      Math.max(currentPage - 2, 0),
-      Math.min(currentPage + 1, totalPages)
-    )
-    .map((num) => (
-      <button
-        key={num}
-        onClick={() => goToPage(num)}
-        className={`px-3 py-2 rounded text-sm transition cursor-pointer ${
-          currentPage === num
-            ? "bg-[#3b2b1c] text-white"
-            : "text-[#3b2b1c] hover:underline"
-        }`}
-      >
-        {num}
-      </button>
-    ))}
+          <div className="flex items-center gap-1 overflow-hidden truncate">
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .slice(
+                Math.max(currentPage - 2, 0),
+                Math.min(currentPage + 1, totalPages)
+              )
+              .map((num) => (
+                <button
+                  key={num}
+                  onClick={() => goToPage(num)}
+                  className={`px-3 py-2 rounded text-sm transition cursor-pointer ${currentPage === num
+                      ? "bg-[#3b2b1c] text-white"
+                      : "text-[#3b2b1c] hover:underline"
+                    }`}
+                >
+                  {num}
+                </button>
+              ))}
 
-  {/* Ellipsis if many pages */}
-  {totalPages > 5 && currentPage < totalPages - 2 && (
-    <span className="px-1 text-[#3b2b1c]">...</span>
-  )}
-</div>
+            {/* Ellipsis if many pages */}
+            {totalPages > 5 && currentPage < totalPages - 2 && (
+              <span className="px-1 text-[#3b2b1c]">...</span>
+            )}
+          </div>
 
           <button
             onClick={() => goToPage(currentPage + 1)}
@@ -678,6 +738,15 @@ export default function EmployeeTable() {
             Next
           </button>
         </div>
+
+        <ActionButton
+          label="Download All QR"
+          onClick={handleDownloadAllQR}
+          icon={Download}
+          className="py-4 gap-2"
+        />
+      </div>
+        
       </div>
 
 

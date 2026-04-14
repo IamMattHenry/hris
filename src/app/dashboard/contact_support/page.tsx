@@ -298,7 +298,7 @@ const TechnicalSupportTab = () => {
                     <div className="font-semibold text-[#3D1A0B]">
                       {ticket.first_name} {ticket.last_name}
                     </div>
-                    <div className="text-sm text-gray-600">{ticket.position_name || "N/A"}</div>
+                    <div className="text-sm text-gray-600">{ticket.position_name || "Guest"}</div>
                   </div>
                 </div>
 

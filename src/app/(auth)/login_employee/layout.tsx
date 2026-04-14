@@ -45,7 +45,7 @@ export default function LoginEmployee({ children }: { children: React.ReactNode 
         className="w-1/2 flex items-center justify-center bg-cover bg-center relative"
         style={{ backgroundImage: "url('/assets/login-bg-emp.png')" }}
       >
-        <div className="bg-black/10 absolute inset-0"></div>
+        <div className="bg-black/50 absolute inset-0"></div>
         <div className="relative z-10">{children}</div>
       </div>
     </section>
