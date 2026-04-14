@@ -7,6 +7,12 @@ import { notifyEmployeeByEmployeeId, notifyHrUsers } from '../services/notificat
 export const getLeaveRequests = async (req, res, next) => {
   try {
     const { employee_id, status } = req.query;
+    const roleKeys = new Set(req.userRbacRoles || []);
+    const canViewAllLeaveRequests =
+      roleKeys.has('leave_attendance_officer') ||
+      roleKeys.has('hr_manager') ||
+      roleKeys.has('hr_supervisor') ||
+      hasPermission(req, 'leave.read');
 
     let sql = `
       SELECT
@@ -53,13 +59,20 @@ export const getLeaveRequests = async (req, res, next) => {
     }
 
     // Employee users can only view their own leave requests
-    if (req.user?.role === 'employee') {
+    if (req.user?.role === 'employee' && !canViewAllLeaveRequests) {
       sql += ' AND e.user_id = ?';
       params.push(req.user.user_id);
     }
 
-    // Department-based filtering for supervisors: show only requests from their department
-    if (req.user?.role === 'supervisor') {
+    // Legacy supervisor fallback filtering: only apply when no explicit HR RBAC role exists.
+    // This prevents Leave & Attendance Officer / HR Manager accounts (that may still have
+    // legacy users.role='supervisor') from being incorrectly restricted to own/department data.
+    const hasExplicitHrRole =
+      roleKeys.has('leave_attendance_officer') ||
+      roleKeys.has('hr_manager') ||
+      roleKeys.has('hr_supervisor');
+
+    if (req.user?.role === 'supervisor' && !hasExplicitHrRole) {
       const userDept = await db.getOne(
         `SELECT department_id FROM employees WHERE user_id = ?`,
         [req.user.user_id]
@@ -167,15 +180,24 @@ export const applyLeave = async (req, res, next) => {
     }
 
     // Check if employee has a pending leave request
-    const pendingLeave = await db.getOne(
-      'SELECT * FROM leaves WHERE employee_id = ? AND status = ?',
-      [targetEmployeeId, 'pending']
+    const overlappingLeave = await db.getOne(
+      `SELECT leave_id, leave_code, status, start_date, end_date
+       FROM leaves
+       WHERE employee_id = ?
+         AND status IN ('pending', 'hr_approved', 'supervisor_approved', 'approved')
+         AND start_date <= ?
+         AND end_date >= ?
+       LIMIT 1`,
+      [targetEmployeeId, end_date, start_date]
     );
 
-    if (pendingLeave) {
+    if (overlappingLeave) {
+      const overlapMessage = overlappingLeave.status === 'approved'
+        ? 'You already have an approved leave for this period.'
+        : 'You already have an existing leave request for this period.';
       return res.status(400).json({
         success: false,
-        message: 'Employee already has a pending leave request. Please wait for approval or rejection before submitting a new request.',
+        message: overlapMessage,
       });
     }
 
@@ -379,7 +401,12 @@ export const applyLeave = async (req, res, next) => {
 export const approveLeave = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const canApprove = req.user?.role === 'superadmin' || hasPermission(req, 'leave.approve');
+    const roleKeys = new Set(req.userRbacRoles || []);
+    const isSuperadmin = req.user?.role === 'superadmin';
+    const isLeaveAttendanceOfficer = roleKeys.has('leave_attendance_officer');
+    const isHrManagerOnly = roleKeys.has('hr_manager') && !isLeaveAttendanceOfficer;
+    const canApproveByPermission = hasPermission(req, 'leave.approve');
+    const canApprove = isSuperadmin || isLeaveAttendanceOfficer || (canApproveByPermission && !isHrManagerOnly);
 
     if (!canApprove) {
       return res.status(403).json({ success: false, message: 'Insufficient permissions to approve leave requests' });
@@ -525,7 +552,12 @@ export const rejectLeave = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { remarks } = req.body;
-    const canReject = req.user?.role === 'superadmin' || hasPermission(req, 'leave.reject');
+    const roleKeys = new Set(req.userRbacRoles || []);
+    const isSuperadmin = req.user?.role === 'superadmin';
+    const isLeaveAttendanceOfficer = roleKeys.has('leave_attendance_officer');
+    const isHrManagerOnly = roleKeys.has('hr_manager') && !isLeaveAttendanceOfficer;
+    const canRejectByPermission = hasPermission(req, 'leave.reject');
+    const canReject = isSuperadmin || isLeaveAttendanceOfficer || (canRejectByPermission && !isHrManagerOnly);
 
     if (!canReject) {
       return res.status(403).json({ success: false, message: 'Insufficient permissions to reject leave requests' });
@@ -608,6 +640,10 @@ export const rejectLeave = async (req, res, next) => {
 export const deleteLeave = async (req, res, next) => {
   try {
     const { id } = req.params;
+    const roleKeys = new Set(req.userRbacRoles || []);
+    const isSuperadmin = req.user?.role === 'superadmin';
+    const isLeaveAttendanceOfficer = roleKeys.has('leave_attendance_officer');
+    const isHrManagerOnly = roleKeys.has('hr_manager') && !isLeaveAttendanceOfficer;
 
     // Check if leave request exists
     const leave = await db.getOne('SELECT * FROM leaves WHERE leave_id = ?', [id]);
@@ -640,7 +676,7 @@ export const deleteLeave = async (req, res, next) => {
           message: 'Only pending leave requests can be cancelled',
         });
       }
-    } else if (!canDeleteAny) {
+    } else if (!canDeleteAny || (isHrManagerOnly && !isSuperadmin)) {
       return res.status(403).json({
         success: false,
         message: 'Insufficient permissions to delete leave requests',

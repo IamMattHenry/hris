@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   UserIcon,
   Cog6ToothIcon,
+  BellIcon,
   ArrowRightOnRectangleIcon,
 } from "@heroicons/react/24/outline";
 import { useAuth } from "@/contexts/AuthContext";
@@ -60,6 +61,12 @@ export default function Header({
     setDropdownOpen(false);
   };
 
+  const handleNotifications = () => {
+    console.log("Notifications clicked");
+    window.location.href = "/dashboard/profile?section=notifications";
+    setDropdownOpen(false);
+  };
+
   const handleLogout = () => {
     console.log("Logout clicked");
     setDropdownOpen(false);
@@ -68,6 +75,7 @@ export default function Header({
 
   const defaultDropdown: DropdownItem[] = [
     { label: "Profile", icon: <UserIcon className="w-5 h-5" />, onClick: handleProfile },
+    { label: "Notifications", icon: <BellIcon className="w-5 h-5" />, onClick: handleNotifications },
     { label: "Settings", icon: <Cog6ToothIcon className="w-5 h-5" />, onClick: handleSettings },
     { label: "Logout", icon: <ArrowRightOnRectangleIcon className="w-5 h-5" />, onClick: handleLogout },
   ];

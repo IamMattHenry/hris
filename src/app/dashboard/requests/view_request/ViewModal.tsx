@@ -96,11 +96,13 @@ export default function ViewLeaveModal({
   onReject: () => void;
 }) {
   const { user } = useAuth();
-  const { can, canAny } = usePermissions();
+  const { can, canAny, hasRole } = usePermissions();
   const isSupervisor = user?.role === "supervisor";
-  const canApproveLeave = can("leave.approve");
-  const canRejectLeave = can("leave.reject");
-  const canManageLeave = canAny("leave.approve", "leave.reject");
+  const isLeaveAttendanceOfficer = hasRole("leave_attendance_officer");
+  const isHrManager = hasRole("hr_manager");
+  const canApproveLeave = isLeaveAttendanceOfficer || (can("leave.approve") && !isHrManager);
+  const canRejectLeave = isLeaveAttendanceOfficer || (can("leave.reject") && !isHrManager);
+  const canManageLeave = isLeaveAttendanceOfficer || (canAny("leave.approve", "leave.reject") && !isHrManager);
 
   if (!isOpen) return null;
 

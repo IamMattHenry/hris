@@ -65,7 +65,7 @@ router.get('/employee/:employee_id', verifyToken, getLeaveByEmployee);
 router.put(
   '/:id/approve',
   verifyToken,
-  requirePermission('leave.approve'),
+  loadPermissions(),
   approveLeave
 );
 
@@ -73,7 +73,7 @@ router.put(
 router.put(
   '/:id/reject',
   verifyToken,
-  requirePermission('leave.reject'),
+  loadPermissions(),
   rejectLeave
 );
 
@@ -87,7 +87,7 @@ router.delete(
 );
 
 // Get all leave requests (protected)
-router.get('/', verifyToken, getLeaveRequests);
+router.get('/', verifyToken, loadPermissions(), getLeaveRequests);
 
 export default router;
 

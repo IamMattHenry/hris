@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { employeeApi, leaveApi, attendanceApi } from "@/lib/api";
+import { employeeApi, notificationApi } from "@/lib/api";
 import { Employee } from "@/types/api";
 import FloatingTicketButton from "@/components/dashboard/FloatingTicketButton";
 import { useAuth } from "@/contexts/AuthContext";
-import Image from "next/image";
 import EditPersonalModal from "./edit_personal-information/EditPersonalModal";
 import EditEmployeeModal from "./edit_employee-information/EditEmployeeModal";
 import EditContactsModal from "./edit_contact-information/editContact";
@@ -20,13 +19,18 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
  
 
-  const [activeTab, setActiveTab] = useState<"basic" | "job">("basic");
-  const [employeeAttendanceSummary, setEmployeeAttendanceSummary] = useState<{
-    present: number;
-    absent: number;
-    leave: number;
-    late: number;
-  } | null>(null);
+  const [activeTab, setActiveTab] = useState<"basic" | "job" | "notifications">("basic");
+  const [notifications, setNotifications] = useState<{
+    notification_id: number;
+    title: string;
+    message: string;
+    category?: string;
+    status: 'read' | 'unread';
+    created_at: string;
+  }[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(true);
+  const [notificationsError, setNotificationsError] = useState<string | null>(null);
+  const [markingNotificationsRead, setMarkingNotificationsRead] = useState(false);
 
   // Modal states
   const [isEditPersonalModalOpen, setIsEditPersonalModalOpen] = useState(false);
@@ -38,12 +42,11 @@ export default function Dashboard() {
     const fetchData = async () => {
       setLoading(true);
       setError(null);
+      setNotificationsLoading(true);
+      setNotificationsError(null);
 
       try {
-        const [empResult, statsResult] = await Promise.all([
-          employeeApi.getAll(),
-          leaveApi.getDashboardStats(),
-        ]);
+        const notificationsResult = await notificationApi.getMy({ limit: 50 });
 
         // Fetch current employee's detailed data
         if (user?.employee_id) {
@@ -51,18 +54,28 @@ export default function Dashboard() {
           if (employeeResult.success && employeeResult.data) {
             setCurrentEmployee(employeeResult.data as Employee);
           }
+        }
 
-          // Fetch current employee's attendance summary
-          const attendanceSummaryResult = await attendanceApi.getSummary(user.employee_id);
-          if (attendanceSummaryResult.success && attendanceSummaryResult.data) {
-            setEmployeeAttendanceSummary(attendanceSummaryResult.data);
-          }
+        if (notificationsResult.success && Array.isArray(notificationsResult.data)) {
+          setNotifications(notificationsResult.data as {
+            notification_id: number;
+            title: string;
+            message: string;
+            category?: string;
+            status: 'read' | 'unread';
+            created_at: string;
+          }[]);
+        } else {
+          setNotifications([]);
+          setNotificationsError(notificationsResult.message || "Failed to fetch notifications");
         }
       } catch (err) {
         console.error("Error fetching dashboard data:", err);
         setError("Failed to fetch dashboard data");
+        setNotificationsError("An error occurred while fetching notifications");
       } finally {
         setLoading(false);
+        setNotificationsLoading(false);
       }
     };
 
@@ -102,6 +115,66 @@ export default function Dashboard() {
 
   const handleEmailModal = () => {
     setIsEmailModalOpen(true);
+  };
+
+  const refreshNotifications = async () => {
+    setNotificationsLoading(true);
+    setNotificationsError(null);
+
+    try {
+      const result = await notificationApi.getMy({ limit: 50 });
+      if (result.success && Array.isArray(result.data)) {
+        setNotifications(result.data as {
+          notification_id: number;
+          title: string;
+          message: string;
+          category?: string;
+          status: 'read' | 'unread';
+          created_at: string;
+        }[]);
+      } else {
+        setNotifications([]);
+        setNotificationsError(result.message || "Failed to fetch notifications");
+      }
+    } catch (err) {
+      console.error("Error fetching notifications:", err);
+      setNotifications([]);
+      setNotificationsError("An error occurred while fetching notifications");
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
+  const handleMarkNotificationRead = async (id: number) => {
+    try {
+      const result = await notificationApi.markRead(id);
+      if (result.success) {
+        setNotifications((prev) =>
+          prev.map((item) =>
+            item.notification_id === id ? { ...item, status: 'read' as const } : item
+          )
+        );
+      }
+    } catch (err) {
+      console.error("Error marking notification as read:", err);
+    }
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    setMarkingNotificationsRead(true);
+    try {
+      const result = await notificationApi.markAllRead();
+      if (result.success) {
+        setNotifications((prev) => prev.map((item) => ({ ...item, status: 'read' as const })));
+      } else {
+        setNotificationsError(result.message || "Failed to mark notifications as read");
+      }
+    } catch (err) {
+      console.error("Error marking all notifications as read:", err);
+      setNotificationsError("An error occurred while updating notifications");
+    } finally {
+      setMarkingNotificationsRead(false);
+    }
   };
 
   return (
@@ -225,6 +298,15 @@ export default function Dashboard() {
                   }`}
               >
                 Job Information
+              </button>
+              <button
+                onClick={() => setActiveTab("notifications")}
+                className={`px-12 py-5 rounded-lg font-medium transition-all ${activeTab === "notifications"
+                    ? "bg-[#073532] text-white shadow-md"
+                    : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+                  }`}
+              >
+                Notifications
               </button>
             </div>
 
@@ -373,6 +455,75 @@ export default function Dashboard() {
                   </div>
                 </div>
               </>
+            )}
+
+            {activeTab === "notifications" && (
+              <div className="bg-white rounded-xl shadow-sm border border-[#e8dcc8] overflow-hidden">
+                <div className="bg-[#281b0d] px-6 py-3 shadow-lg rounded-b-lg flex justify-between items-center">
+                  <h2 className="text-lg font-semibold text-white">Notifications</h2>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={refreshNotifications}
+                      className="bg-white text-[#281b0d] px-3 py-1 rounded-lg text-sm font-medium hover:bg-gray-100 transition"
+                    >
+                      Refresh
+                    </button>
+                    <button
+                      onClick={handleMarkAllNotificationsRead}
+                      disabled={markingNotificationsRead || notifications.length === 0}
+                      className="bg-white text-[#281b0d] px-3 py-1 rounded-lg text-sm font-medium hover:bg-gray-100 transition disabled:opacity-50"
+                    >
+                      Mark all as read
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-6">
+                  {notificationsLoading ? (
+                    <p className="text-sm text-gray-500">Loading notifications...</p>
+                  ) : notificationsError ? (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">
+                      {notificationsError}
+                    </div>
+                  ) : notifications.length === 0 ? (
+                    <p className="text-sm text-gray-500">No notifications yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {notifications.map((item) => (
+                        <div
+                          key={item.notification_id}
+                          className={`rounded-md border px-4 py-3 ${item.status === 'unread'
+                            ? 'bg-[#fff7ec] border-[#e2c8a9]'
+                            : 'bg-white border-[#ece7df]'
+                            }`}
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <p className="text-sm font-semibold text-gray-800">{item.title}</p>
+                              <p className="text-xs text-gray-600 mt-1">{item.message}</p>
+                              <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                                <span className="capitalize">{item.category || 'general'}</span>
+                                <span>{new Date(item.created_at).toLocaleString()}</span>
+                                <span className={`px-2 py-0.5 rounded-full ${item.status === 'unread' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700'}`}>
+                                  {item.status === 'unread' ? 'Unread' : 'Read'}
+                                </span>
+                              </div>
+                            </div>
+                            {item.status === 'unread' && (
+                              <button
+                                onClick={() => handleMarkNotificationRead(item.notification_id)}
+                                className="px-3 py-1.5 rounded-md border border-gray-300 text-xs text-gray-700 hover:bg-gray-50"
+                              >
+                                Mark as read
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         </div>

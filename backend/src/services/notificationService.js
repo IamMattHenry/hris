@@ -204,16 +204,19 @@ export const notifyEmployeeByEmployeeId = async ({
 export const getNotificationsForUser = async ({ userId, limit = 20, status }) => {
   await ensureNotificationsTable();
 
+  const normalizedUserId = Number(userId);
+  if (!Number.isInteger(normalizedUserId) || normalizedUserId <= 0) {
+    return [];
+  }
+
   const normalizedLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
-  const params = [Number(userId)];
+  const params = [normalizedUserId];
 
   let where = 'recipient_user_id = ?';
   if (status === 'read' || status === 'unread') {
     where += ' AND status = ?';
     params.push(status);
   }
-
-  params.push(normalizedLimit);
 
   return db.getAll(
     `SELECT
@@ -231,7 +234,7 @@ export const getNotificationsForUser = async ({ userId, limit = 20, status }) =>
      FROM user_notifications
      WHERE ${where}
      ORDER BY created_at DESC
-     LIMIT ?`,
+     LIMIT ${normalizedLimit}`,
     params
   );
 };

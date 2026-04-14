@@ -5,7 +5,6 @@ import { Plus, MoreVertical, Filter, ChevronDown, ChevronUp, RotateCw } from "lu
 import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
 import { leaveApi } from "@/lib/api";
-import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import AddLeaveModal from "./add_request/AddModal";
 import ViewLeaveModal from "./view_request/ViewModal";
@@ -77,8 +76,7 @@ const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
 };
 
 export default function RequestsPage() {
-  const { user } = useAuth();
-  const { can, canAny, loading: permissionsLoading } = usePermissions();
+  const { can, loading: permissionsLoading } = usePermissions();
   const [activeTab, setActiveTab] = useState<TabKey>("Leave Request");
   const [searchRequest, setSearchRequest] = useState<string>("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -97,8 +95,6 @@ export default function RequestsPage() {
   const itemsPerPage = 10; // change page size here
 
   // Role helpers
-  const isSupervisor = user?.role === "supervisor";
-  const canManageLeaveRequests = canAny("leave.approve", "leave.reject");
   const canDeleteLeave = can("leave.delete");
   const canCreateLeave = can("leave.apply");
 
@@ -146,19 +142,11 @@ export default function RequestsPage() {
     let filtered = leaves;
 
     // Filter by tab and role-specific stage
-  if (activeTab === "Leave Request") {
-    if (canManageLeaveRequests) {
+    if (activeTab === "Leave Request") {
       filtered = filtered.filter(l => l.status === "pending" || l.status === "supervisor_approved");
-    } else if (isSupervisor) {
-      // Supervisors view-only; show pending requests for awareness
-      filtered = filtered.filter(l => l.status === "pending");
     } else {
-      // Non-approvers: keep prior visibility behavior
-      filtered = filtered.filter(l => l.status === "pending" || l.status === "hr_approved");
+      filtered = filtered.filter(l => !(l.status === "pending" || l.status === "supervisor_approved"));
     }
-  } else {
-    filtered = filtered.filter(l => !(l.status === "pending" || l.status === "hr_approved"));
-  }
 
     // Filter by search
     if (searchRequest) {
