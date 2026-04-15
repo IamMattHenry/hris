@@ -2,7 +2,7 @@ import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
 import { generateLeaveCode } from '../utils/codeGenerator.js';
 import { hasPermission } from '../middleware/rbac.js';
-import { notifyEmployeeByEmployeeId, notifyHrUsers } from '../services/notificationService.js';
+import { notifyEmployeeByEmployeeId, notifyHrUsers, notifyLeaveAttendanceOfficers } from '../services/notificationService.js';
 
 export const getLeaveRequests = async (req, res, next) => {
   try {
@@ -382,6 +382,16 @@ export const applyLeave = async (req, res, next) => {
       excludeUserIds: [createdBy].filter(Boolean),
       title: 'New leave request submitted',
       message: `Employee ID ${targetEmployeeId} submitted leave request ${leaveCode}.`,
+      category: 'leave_request',
+      referenceModule: 'leave',
+      referenceId: leaveId,
+    });
+
+    await notifyLeaveAttendanceOfficers({
+      actorUserId: createdBy || null,
+      excludeUserIds: [createdBy].filter(Boolean),
+      title: 'New leave request pending review',
+      message: `Employee ID ${targetEmployeeId} submitted leave request ${leaveCode}. Please review it in the Leave Requests page.`,
       category: 'leave_request',
       referenceModule: 'leave',
       referenceId: leaveId,

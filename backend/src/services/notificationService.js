@@ -37,6 +37,27 @@ const normalizeCategory = (value) => {
   return category || 'general';
 };
 
+const getUserIdsByRoleKey = async (roleKey) => {
+  await ensureNotificationsTable();
+
+  const normalizedRoleKey = String(roleKey || '').trim();
+  if (!normalizedRoleKey) {
+    return [];
+  }
+
+  const rows = await db.getAll(
+    `SELECT DISTINCT ura.user_id
+     FROM user_role_assignments ura
+     JOIN roles r ON ura.role_id = r.role_id
+     WHERE r.role_key = ?`,
+    [normalizedRoleKey]
+  );
+
+  return rows
+    .map((row) => Number(row.user_id))
+    .filter((id) => Number.isInteger(id) && id > 0);
+};
+
 export const createNotification = async ({
   recipientUserId,
   actorUserId = null,
@@ -159,6 +180,47 @@ export const notifyHrUsers = async ({
     });
   } catch (error) {
     logger.error('notifyHrUsers failed:', error);
+    return [];
+  }
+};
+
+export const notifyLeaveAttendanceOfficers = async ({
+  actorUserId = null,
+  excludeUserIds = [],
+  title,
+  message,
+  category = 'general',
+  referenceModule = null,
+  referenceId = null,
+}) => {
+  try {
+    const officerUserIds = await getUserIdsByRoleKey('leave_attendance_officer');
+    if (officerUserIds.length === 0) {
+      return [];
+    }
+
+    const exclusionSet = new Set(
+      (Array.isArray(excludeUserIds) ? excludeUserIds : [excludeUserIds])
+        .map((id) => Number(id))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    );
+
+    const recipients = officerUserIds.filter((id) => !exclusionSet.has(id));
+    if (recipients.length === 0) {
+      return [];
+    }
+
+    return await createNotificationsForUsers({
+      recipientUserIds: recipients,
+      actorUserId,
+      title,
+      message,
+      category,
+      referenceModule,
+      referenceId,
+    });
+  } catch (error) {
+    logger.error('notifyLeaveAttendanceOfficers failed:', error);
     return [];
   }
 };
