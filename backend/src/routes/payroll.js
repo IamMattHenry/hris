@@ -21,11 +21,12 @@ import {
 
 const router = express.Router();
 
-router.get('/runs', verifyToken, getPayrollRuns);
+router.get('/runs', verifyToken, requirePermission('payroll.read'), getPayrollRuns);
 
 router.post(
   '/runs',
   verifyToken,
+  requirePermission('payroll.create'),
   [
     body('pay_period_start').isISO8601().withMessage('pay_period_start must be a valid date'),
     body('pay_period_end').isISO8601().withMessage('pay_period_end must be a valid date'),
@@ -38,15 +39,16 @@ router.post(
   createPayrollRun
 );
 
-router.get('/runs/:id', verifyToken, getPayrollRunDetail);
+router.get('/runs/:id', verifyToken, requirePermission('payroll.read'), getPayrollRunDetail);
 
-router.delete('/runs/:id', verifyToken, deletePayrollRun);
+router.delete('/runs/:id', verifyToken, requirePermission('payroll.update'), deletePayrollRun);
 
-router.patch('/runs/:id/finalize', verifyToken, finalizePayrollRun);
+router.patch('/runs/:id/finalize', verifyToken, requirePermission('payroll.finalize'), finalizePayrollRun);
 
 router.patch(
   '/runs/:id/records/:employeeId',
   verifyToken,
+  requirePermission('payroll.override'),
   [
     body('gross_pay').optional().isFloat({ min: 0 }).withMessage('gross_pay must be >= 0'),
     body('total_deductions').optional().isFloat({ min: 0 }).withMessage('total_deductions must be >= 0'),
@@ -58,13 +60,13 @@ router.patch(
   overridePayrollRecord
 );
 
-router.get('/runs/:id/payslip/:employeeId', verifyToken, getPayrollPayslip);
+router.get('/runs/:id/payslip/:employeeId', verifyToken, requirePermission('payroll.read'), getPayrollPayslip);
 
-router.get('/contributions', verifyToken, getPayrollContributions);
+router.get('/contributions', verifyToken, requirePermission('payroll.read'), getPayrollContributions);
 
-router.get('/contributions/export/:type', verifyToken, exportPayrollContributions);
+router.get('/contributions/export/:type', verifyToken, requirePermission('payroll.read'), exportPayrollContributions);
 
-router.get('/settings', verifyToken, getPayrollSettings);
+router.get('/settings', verifyToken, requirePermission('payroll.read'), getPayrollSettings);
 
 router.get(
   '/expense-requests',
@@ -90,6 +92,7 @@ router.post(
 router.put(
   '/settings',
   verifyToken,
+  requirePermission('payroll.update'),
   [
     body('pay_schedule').isIn(['weekly', 'semi-monthly', 'monthly']).withMessage('Invalid pay_schedule'),
   ],
