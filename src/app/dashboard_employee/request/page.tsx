@@ -49,6 +49,10 @@ export default function RequestsPage() {
   const [leaveCredit, setLeaveCredit] = useState<number | null>(null);
   const [nonPaidReason, setNonPaidReason] = useState<string>("");
 
+  const [isFormVisible, setIsFormVisible] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+  
   const [formData, setFormData] = useState({
     leave_type: "" as LeaveType | "",
     start_date: "",
@@ -189,6 +193,15 @@ export default function RequestsPage() {
     }
   };
 
+  const totalPages = Math.ceil(leaves.length / itemsPerPage);
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentLeaves = leaves.slice(indexOfFirstItem, indexOfLastItem);
+
+  const handlePageChange = (pageNumber: number) => {
+    setCurrentPage(pageNumber);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#fff7ec] flex items-center justify-center">
@@ -207,24 +220,49 @@ export default function RequestsPage() {
 
         {/* Leave Request Form */}
         <div className="bg-white rounded-xl shadow-sm border border-[#e8dcc8] p-6">
-          <h2 className="text-xl font-semibold mb-4">Submit New Leave Request</h2>
-          {isProbationActive && (
-            <div className="mb-4 bg-red-50 border border-red-200 text-red-900 rounded p-3">
-              You are currently on probation. Leave requests are not allowed until probation ends.
-            </div>
-          )}
-          {leaveCredit !== null && (
-            <div className="mb-3 text-sm text-gray-600">
-              Current Leave Credits: <span className="font-semibold">{leaveCredit}</span>
-            </div>
-          )}
-          {leaveCredit === 0 && (
-            <div className="mb-4 bg-yellow-50 border border-yellow-200 text-yellow-900 rounded p-3">
-              You have 0 leave credits. This request will be filed as <span className="font-semibold">NON-PAID LEAVE</span>.
-              Please provide a reason below.
-            </div>
-          )}
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">Submit New Leave Request</h2>
+            <button
+              onClick={() => setIsFormVisible(!isFormVisible)}
+              className="text-[#073532] font-medium hover:text-[#073532]/80 transition flex items-center gap-2"
+            >
+              {isFormVisible ? (
+                <>
+                  <span>Hide Form</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
+                  </svg>
+                </>
+              ) : (
+                <>
+                  <span>Show Form</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </>
+              )}
+            </button>
+          </div>
+          
+          {isFormVisible && (
+            <div className="mt-6 border-t border-gray-100 pt-6 animate-fade-in-up">
+              {isProbationActive && (
+                <div className="mb-4 bg-red-50 border border-red-200 text-red-900 rounded p-3">
+                  You are currently on probation. Leave requests are not allowed until probation ends.
+                </div>
+              )}
+              {leaveCredit !== null && (
+                <div className="mb-3 text-sm text-gray-600">
+                  Current Leave Credits: <span className="font-semibold">{leaveCredit}</span>
+                </div>
+              )}
+              {leaveCredit === 0 && (
+                <div className="mb-4 bg-yellow-50 border border-yellow-200 text-yellow-900 rounded p-3">
+                  You have 0 leave credits. This request will be filed as <span className="font-semibold">NON-PAID LEAVE</span>.
+                  Please provide a reason below.
+                </div>
+              )}
+              <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Leave Type */}
               <div>
@@ -346,6 +384,8 @@ export default function RequestsPage() {
               {isSubmitting ? "Submitting..." : "Submit Request"}
             </button>
           </form>
+          </div>
+          )}
         </div>
 
         {/* Request History */}
@@ -384,8 +424,8 @@ export default function RequestsPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {leaves.length > 0 ? (
-                  leaves.map((leave) => (
+                {currentLeaves.length > 0 ? (
+                  currentLeaves.map((leave) => (
                     <tr key={leave.leave_id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 text-sm font-medium text-gray-900">
                         {leave.leave_code}
@@ -443,6 +483,75 @@ export default function RequestsPage() {
               </tbody>
             </table>
           </div>
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6 flex items-center justify-between">
+              <div className="flex-1 flex justify-between sm:hidden">
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+              <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm text-gray-700">
+                    Showing <span className="font-medium">{indexOfFirstItem + 1}</span> to{" "}
+                    <span className="font-medium">
+                      {Math.min(indexOfLastItem, leaves.length)}
+                    </span>{" "}
+                    of <span className="font-medium">{leaves.length}</span> results
+                  </p>
+                </div>
+                <div>
+                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                    <button
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className="sr-only">Previous</span>
+                      <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => handlePageChange(page)}
+                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                          page === currentPage
+                            ? "z-10 bg-[#073532] border-[#073532] text-white"
+                            : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className="sr-only">Next</span>
+                      <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </nav>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

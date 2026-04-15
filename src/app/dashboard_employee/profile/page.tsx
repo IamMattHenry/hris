@@ -37,6 +37,8 @@ export default function Dashboard() {
   const [isEditEmployeeModalOpen, setIsEditEmployeeModalOpen] = useState(false);
   const [isEditContactsModalOpen, setIsEditContactsModalOpen] = useState(false);
   const [isEditEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [isViewAllEmailsOpen, setIsViewAllEmailsOpen] = useState(false);
+  const [isViewAllContactsOpen, setIsViewAllContactsOpen] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -238,11 +240,21 @@ export default function Dashboard() {
                   </div>
                   <hr className="w-80 border-[#e3b983]" />
                   <div className="text-left">
-                    <div className="text-sm text-[#412f23d4] flex flex-col">
+                    <div className="text-sm text-[#412f23d4] flex flex-col items-start">
                       {user?.emails && user.emails.length > 0 ? (
-                        user.emails.map((email, index) => (
-                          <span key={index}>{email}</span>
-                        ))
+                        <>
+                          {user.emails.slice(0, 5).map((email, index) => (
+                            <span key={index}>{email}</span>
+                          ))}
+                          {user.emails.length > 5 && (
+                            <button
+                              onClick={() => setIsViewAllEmailsOpen(true)}
+                              className="mt-1 text-xs font-semibold underline cursor-pointer text-[#412f23de] hover:text-[#8b4513]"
+                            >
+                              View all {user.emails.length} emails
+                            </button>
+                          )}
+                        </>
                       ) : (
                         <span>N/A</span>
                       )}
@@ -257,15 +269,25 @@ export default function Dashboard() {
                   </div>
                   <hr className="w-80 border-[#e3b983]" />
                   <div className="text-left">
-                    <p className="text-sm text-[#412f23d4] flex flex-col">
+                    <div className="text-sm text-[#412f23d4] flex flex-col items-start">
                       {user?.contact_numbers && user.contact_numbers.length > 0 ? (
-                        user.contact_numbers.map((contact, index) => (
-                          <span key={index}>{contact}</span>
-                        ))
+                        <>
+                          {user.contact_numbers.slice(0, 5).map((contact, index) => (
+                            <span key={index}>{contact}</span>
+                          ))}
+                          {user.contact_numbers.length > 5 && (
+                            <button
+                              onClick={() => setIsViewAllContactsOpen(true)}
+                              className="mt-1 text-xs font-semibold underline cursor-pointer text-[#412f23de] hover:text-[#8b4513]"
+                            >
+                              View all {user.contact_numbers.length} contacts
+                            </button>
+                          )}
+                        </>
                       ) : (
                         <span>N/A</span>  
                       )}
-                    </p>
+                    </div>
                   </div>
                 </div>
 
@@ -280,10 +302,10 @@ export default function Dashboard() {
           {/* Right Column - Shifts and Attendance Summary */}
           <div className="space-y-6">
             {/* Tab Buttons */}
-            <div className="flex gap-3 justify-center">
+            <div className="flex flex-wrap gap-2 lg:gap-3 justify-center">
               <button
                 onClick={() => setActiveTab("basic")}
-                className={`px-20 py-5 rounded-lg font-medium transition-all ${activeTab === "basic"
+                className={`flex-1 min-w-[130px] py-3 px-2 rounded-lg font-medium transition-all text-sm lg:text-base text-center ${activeTab === "basic"
                     ? "bg-[#073532] text-white shadow-md"
                     : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
                   }`}
@@ -292,7 +314,7 @@ export default function Dashboard() {
               </button>
               <button
                 onClick={() => setActiveTab("job")}
-                className={`px-20 py-5 rounded-lg font-medium transition-all ${activeTab === "job"
+                className={`flex-1 min-w-[130px] py-3 px-2 rounded-lg font-medium transition-all text-sm lg:text-base text-center ${activeTab === "job"
                     ? "bg-[#073532] text-white shadow-md"
                     : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
                   }`}
@@ -301,7 +323,7 @@ export default function Dashboard() {
               </button>
               <button
                 onClick={() => setActiveTab("notifications")}
-                className={`px-12 py-5 rounded-lg font-medium transition-all ${activeTab === "notifications"
+                className={`flex-1 min-w-[130px] py-3 px-2 rounded-lg font-medium transition-all text-sm lg:text-base text-center ${activeTab === "notifications"
                     ? "bg-[#073532] text-white shadow-md"
                     : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
                   }`}
@@ -552,6 +574,75 @@ export default function Dashboard() {
         onClose={() => setIsEmailModalOpen(false)}
         id={user?.employee_id || null}
       />
+
+      {/* View All Emails Modal */}
+      {isViewAllEmailsOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-lg max-w-md w-full max-h-[80vh] flex flex-col overflow-hidden">
+            <div className="bg-[#281b0d] px-6 py-4 flex justify-between items-center">
+              <h2 className="text-lg font-semibold text-white">All Email Addresses</h2>
+              <button
+                onClick={() => setIsViewAllEmailsOpen(false)}
+                className="text-white hover:text-gray-300 transition text-xl font-bold"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="flex flex-col gap-3">
+                {user?.emails?.map((email, index) => (
+                  <div key={index} className="p-3 bg-gray-50 rounded-lg border border-gray-200 text-sm text-gray-700">
+                    {email}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="p-4 border-t bg-gray-50 flex justify-end">
+              <button
+                onClick={() => setIsViewAllEmailsOpen(false)}
+                className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-300 transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View All Contacts Modal */}
+      {isViewAllContactsOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-lg max-w-md w-full max-h-[80vh] flex flex-col overflow-hidden">
+            <div className="bg-[#281b0d] px-6 py-4 flex justify-between items-center">
+              <h2 className="text-lg font-semibold text-white">All Contact Numbers</h2>
+              <button
+                onClick={() => setIsViewAllContactsOpen(false)}
+                className="text-white hover:text-gray-300 transition text-xl font-bold"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="flex flex-col gap-3">
+                {user?.contact_numbers?.map((contact, index) => (
+                  <div key={index} className="p-3 bg-gray-50 rounded-lg border border-gray-200 text-sm text-gray-700">
+                    {contact}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="p-4 border-t bg-gray-50 flex justify-end">
+              <button
+                onClick={() => setIsViewAllContactsOpen(false)}
+                className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-300 transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 <div>
       {/* Floating Ticket Button */}
       <FloatingTicketButton />
