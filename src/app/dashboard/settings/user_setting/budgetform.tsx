@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { toast } from "react-hot-toast";
 
-export default function FinanceFormPage() {
+export default function BudgetForm() {
   const [formData, setFormData] = useState({
     deptId: "",
     deptName: "",
@@ -51,7 +51,7 @@ export default function FinanceFormPage() {
     <div className="p-6 min-h-screen font-poppins bg-[#fff7ec] flex flex-col items-center">
       <div className="w-full max-w-4xl mb-8">
         <h2 className="text-2xl font-semibold text-[#3b2b1c]">
-          Finance Request Form
+          Budget Request Form
         </h2>
         <p className="text-sm text-gray-600 mt-1">
           Fill up the details below to submit a new finance or budget request.

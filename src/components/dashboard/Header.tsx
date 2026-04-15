@@ -6,6 +6,7 @@ import {
   Cog6ToothIcon,
   BellIcon,
   ArrowRightOnRectangleIcon,
+  FolderMinusIcon,
 } from "@heroicons/react/24/outline";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -67,15 +68,24 @@ export default function Header({
     setDropdownOpen(false);
   };
 
+  const handleBudget = () => {
+    console.log("Budget clicked");
+    window.location.href = "/dashboard/settings?section=budget";
+    setDropdownOpen(false);
+  };
+
   const handleLogout = () => {
     console.log("Logout clicked");
     setDropdownOpen(false);
     logout();
   };
 
+
+
   const defaultDropdown: DropdownItem[] = [
     { label: "Profile", icon: <UserIcon className="w-5 h-5" />, onClick: handleProfile },
     { label: "Notifications", icon: <BellIcon className="w-5 h-5" />, onClick: handleNotifications },
+    { label: "Budget", icon: <FolderMinusIcon className="w-5 h-5" />, onClick: handleBudget },
     { label: "Settings", icon: <Cog6ToothIcon className="w-5 h-5" />, onClick: handleSettings },
     { label: "Logout", icon: <ArrowRightOnRectangleIcon className="w-5 h-5" />, onClick: handleLogout },
   ];

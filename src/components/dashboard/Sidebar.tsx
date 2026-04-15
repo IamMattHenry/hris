@@ -18,7 +18,6 @@ export default function Sidebar() {
         { name: "Departments", icon: Building, path: "/dashboard/departments" },
         { name: "Payroll", icon: DollarSign, path: "/dashboard/payroll" },
         { name: "Penalty", icon: AlertTriangle, path: "/dashboard/penalty" },
-        { name: "Finance Form", icon: MessageSquareWarning, path: "/dashboard/financeForm" },
     ];
 
     if (user?.role === "superadmin" || user?.role === "admin") {

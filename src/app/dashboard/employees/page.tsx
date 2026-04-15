@@ -17,11 +17,16 @@ import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
 import ViewEmployeeModal from "./view_employee/ViewModal";
 import EditEmployeeModal from "./edit_employee/EditModal";
+import BudgetRequestsModal from "./view_budget/page";
+
+
 import LeaveDetailsModal from "@/components/dashboard/LeaveDetailsModal";
 import { employeeApi, payrollApi } from "@/lib/api";
 import { Employee } from "@/types/api";
 import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "react-hot-toast";
+import { a } from "framer-motion/client";
+
 
 interface FinanceBudget {
   budget_id: number;
@@ -63,8 +68,10 @@ export default function EmployeeTable() {
   const [staffSalariesBudget, setStaffSalariesBudget] = useState<FinanceBudget | null>(null);
   const [expenseRequests, setExpenseRequests] = useState<ExpenseBudgetRequestItem[]>([]);
   const [expenseRequestsLoading, setExpenseRequestsLoading] = useState(false);
+  const [isExpenseRequestsModalOpen, setIsExpenseRequestsModalOpen] = useState(false);
   const [isBudgetRequestOpen, setIsBudgetRequestOpen] = useState(false);
   const [budgetRequestSubmitting, setBudgetRequestSubmitting] = useState(false);
+  const [showAllRequests, setShowAllRequests] = useState(false);
   const [budgetRequestForm, setBudgetRequestForm] = useState<BudgetRequestForm>({
     title: "",
     description: "",
@@ -73,7 +80,9 @@ export default function EmployeeTable() {
   });
 
   const [currentPage, setCurrentPage] = useState(1);
+  const [activeComponentTab, setActiveComponentTab] = useState<'budget' | 'employees'>('employees');
   const itemsPerPage = 10; // change page size here
+
 
   const formatCurrency = (value?: number | null) => {
     if (value == null || Number.isNaN(Number(value))) return "₱0.00";
@@ -278,7 +287,7 @@ export default function EmployeeTable() {
 
 
 
-  // 🔹 Handlers
+  // Download all EmployeeQR
   const handleDownloadAllQR = async () => {
     try {
       if (employees.length === 0) {
@@ -518,242 +527,307 @@ export default function EmployeeTable() {
             />
           )}
 
-          <ActionButton
-            label="Download All QR"
-            onClick={handleDownloadAllQR}
-            icon={Download}
-            className="py-4"
-          />
 
         </div>
       </div>
 
-      <div className="rounded-lg border border-[#e6d2b5] bg-[#FFF2E0] px-4 py-3 text-sm text-[#3b2b1c]">
-        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
-          <div>
-            <p className="font-medium">
-              Latest Staff Salaries Budget: {formatCurrency(staffSalariesBudget?.amount)}
-            </p>
-            {staffSalariesBudget?.budget_id ? (
-              <p className="mt-1 text-xs text-[#6b5344]">
-                Source: Finance Department
-              </p>
-            ) : (
-              <p className="mt-1 text-xs text-[#6b5344]">
-                Budget data unavailable. Employee salary updates may be blocked until Finance budget is configured.
-              </p>
-            )}
-          </div>
+      {/* Staff Salaries Budget */}
+      <div className="space-y-6">
+      {/* Tabs Navigation */}
+      <div className="border-b border-[#e6d2b5]">
+        <div className="flex gap-8">
           <button
-            onClick={() => setIsBudgetRequestOpen(true)}
-            className="px-4 py-2 rounded-md bg-[#3b2b1c] text-white text-xs font-medium hover:opacity-90 transition"
+            onClick={() => setActiveComponentTab('employees')}
+            className={`pb-4 px-1 text-sm font-medium transition-all relative ${
+              activeComponentTab === 'employees'
+                ? 'text-[#3b2b1c] border-b-2 border-[#3b2b1c]'
+                : 'text-[#6b5344] hover:text-[#3b2b1c]'
+            }`}
           >
-            Request Additional Budget
+            Employee Records
+          </button>
+
+            <button
+            onClick={() => setActiveComponentTab('budget')}
+            className={`pb-4 px-1 text-sm font-medium transition-all relative ${
+              activeComponentTab === 'budget'
+                ? 'text-[#3b2b1c] border-b-2 border-[#3b2b1c]'
+                : 'text-[#6b5344] hover:text-[#3b2b1c]'
+            }`}
+          >
+            Budget Overview
           </button>
         </div>
+      </div>
 
-        <div className="mt-3 border-t border-[#e6d2b5] pt-3">
-          <p className="text-xs font-semibold text-[#6b5344] mb-2">Recent Submitted Budget Requests</p>
-          {expenseRequestsLoading ? (
-            <p className="text-xs text-[#6b5344]">Loading requests...</p>
-          ) : expenseRequests.length === 0 ? (
-            <p className="text-xs text-[#6b5344]">No submitted requests yet.</p>
-          ) : (
-            <div className="space-y-2">
-              {expenseRequests.slice(0, 5).map((request) => (
-                <div key={request.notification_id} className="rounded-md border border-[#e6d2b5] bg-[#fff7ec] px-3 py-2">
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-1">
-                    <p className="text-xs font-medium text-[#3b2b1c] truncate">{request.title}</p>
-                    <span className={`text-[10px] px-2 py-1 rounded-full w-fit ${request.status === "accepted"
-                        ? "bg-green-100 text-green-700"
-                        : request.status === "rejected"
-                          ? "bg-red-100 text-red-700"
-                          : request.status === "cancelled"
-                            ? "bg-gray-100 text-gray-700"
-                            : "bg-yellow-100 text-yellow-700"
-                      }`}>
-                      {request.status}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-[#6b5344] mt-1">
-                    {formatCurrency(request.requested_amount)} • {request.priority} priority
+      {/* Tab Content */}
+      <div>
+        {/* ==================== BUDGET TAB ==================== */}
+        {activeComponentTab === 'budget' && (
+          <div className="rounded-lg border border-[#e6d2b5] bg-[#FFF2E0] px-4 py-5 text-sm text-[#3b2b1c]">
+            {/* Main Budget Info */}
+            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+              <div className="flex-1">
+                <p className="font-medium">
+                  Latest Staff Salaries Budget:{' '}
+                  {staffSalariesBudget?.amount
+                    ? formatCurrency(staffSalariesBudget.amount)
+                    : 'Not set'}
+                </p>
+
+                {staffSalariesBudget?.budget_id ? (
+                  <p className="mt-1 text-xs text-[#6b5344]">
+                    Source: Finance Department
                   </p>
-                </div>
-              ))}
+                ) : (
+                  <p className="mt-1 text-xs text-[#6b5344]">
+                    Budget data unavailable. Employee salary updates may be blocked until Finance budget is configured.
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setIsBudgetRequestOpen(true)}
+                className="px-5 py-2.5 rounded-xl bg-[#3b2b1c] text-white text-xs font-medium hover:bg-[#2a2118] active:bg-[#1f1812] transition-all whitespace-nowrap"
+              >
+                Request Additional Budget
+              </button>
             </div>
-          )}
-        </div>
-      </div>
 
-      {/* Table */}
-      <div className="w-full">
-        <h2 className="text-lg font-semibold mb-2">Employee Records</h2>
+            {/* Recent Submitted Budget Requests */}
+            <div className="mt-6 border-t border-[#e6d2b5] pt-4">
+              <div className="flex items-center justify-center mb-3">
+                <p className="text-xs font-semibold text-[#6b5344]">
+                  Recent Submitted Budget Requests
+                </p>
+              </div>
 
-        <table className="w-full text-sm table-fixed border-separate border-spacing-y-2">
-          <thead className="bg-[#3b2b1c] text-white text-left sticky top-0 z-20">
-            <tr>
-              <th className="py-4 px-4 rounded-l-lg">ID</th>
-              <th className="py-4 px-4">Name</th>
-              <th className="py-4 px-4">Position</th>
-              <th className="py-4 px-4">Department</th>
-              <th className="py-4 px-4">Status</th>
-              <th className="py-4 px-4">Actions</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {currentEmployees.length > 0 ? (
-              currentEmployees.map((emp) => (
-                <tr
-                  key={emp.employee_id}
-                  className="bg-[#fff4e6] border border-orange-100 rounded-lg hover:shadow-sm transition relative"
-                >
-                  <td className="py-3 px-4">{emp.employee_code}</td>
-                  <td className="py-3 px-4 flex items-center space-x-3">
-                    <div className="w-8 h-8 rounded-full bg-[#800000] flex items-center justify-center text-white text-sm font-semibold">
-                      {emp.first_name && emp.last_name
-                        ? `${emp.first_name[0]}${emp.last_name[0]}`.toUpperCase()
-                        : "?"}
-                    </div>
-                    <span>{emp.first_name} {emp.last_name}</span>
-                  </td>
-                  <td className="py-3 px-4">
-                    <span>{emp.position_name || "N/A"}</span>
-                    {/*emp.extra_position_count && emp.extra_position_count > 0 && (
-                      <span className="ml-1 text-xs px-1.5 py-0.5 bg-[#e6d2b5] text-[#4b0b14] rounded-full font-medium">
-                        
-                      </span>
-                    ) */}
-                  </td>
-                  <td className="py-3 px-4">{emp.department_name || "N/A"}</td>
-                  <td className="py-3 px-4">
-                    <span
-                      onClick={() => {
-                        if (emp.status === "on-leave") {
-                          setLeaveDetailEmployee({
-                            id: emp.employee_id,
-                            name: `${emp.first_name} ${emp.last_name}`,
-                          });
-                        }
-                      }}
-                      className={`px-3 py-2 rounded-full text-xs font-medium inline-block ${emp.status === "active"
-                          ? "bg-green-100 text-green-700"
-                          : emp.status === "resigned"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : emp.status === "on-leave"
-                              ? "bg-blue-100 text-blue-700 cursor-pointer hover:shadow-md transition"
-                              : "bg-red-100 text-red-700"
-                        }`}
+              {expenseRequestsLoading ? (
+                <p className="text-xs text-[#6b5344] py-4">Loading requests...</p>
+              ) : expenseRequests.length === 0 ? (
+                <p className="text-xs text-[#6b5344] py-4">No submitted requests yet.</p>
+              ) : (
+                <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1 custom-scrollbar">
+                  {expenseRequests.slice(0, 5).map((request) => (
+                    <div
+                      key={request.notification_id}
+                      className="rounded-md border border-[#e6d2b5] bg-[#fff7ec] px-3 py-3 hover:bg-[#ffebd0] transition-colors"
                     >
-                      {emp.status === "on-leave" ? " " : ""}
-                      {emp.status.charAt(0).toUpperCase() +
-                        emp.status.slice(1).replace("-", " ")}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-left relative">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedMenu(selectedMenu === emp.employee_id ? null : emp.employee_id);
-                      }}
-                      className="p-1 rounded hover:bg-gray-200 menu-button"
-                    >
-                      <MoreVertical size={18} className="text-gray-600" />
-                    </button>
+                      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-[#3b2b1c] truncate">
+                            {request.title}
+                          </p>
+                          <p className="text-[11px] text-[#6b5344] mt-1">
+                            {formatCurrency(request.requested_amount)} •{' '}
+                            <span className="capitalize">{request.priority}</span> priority
+                          </p>
+                        </div>
 
-                    {selectedMenu === emp.employee_id && (
-                      <div className="absolute right-4 top-10 bg-[#FFF2E0] rounded-lg shadow-lg w-36 z-50 employee-dropdown">
-                        <button onClick={() => handleView(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-gray-50">View</button>
-                        {canEdit && (
-                          <button onClick={() => handleEdit(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-gray-50">Edit</button>
-                        )}
-                        {canTerminate && (
-                          <button
-                            onClick={() => handleTerminate(emp.employee_id)}
-                            disabled={emp.status === "terminated"}
-                            className={`w-full text-left px-4 py-2 ${emp.status === "terminated"
-                                ? "text-gray-400 cursor-not-allowed"
-                                : "hover:bg-red-100 text-red-600"
-                              }`}
-                          >
-                            {emp.status === "terminated" ? "Terminated" : "Terminate"}
-                          </button>
-                        )}
+                        <span
+                          className={`text-[10px] px-3 py-1 rounded-full whitespace-nowrap self-start ${
+                            request.status === "accepted"
+                              ? "bg-green-100 text-green-700"
+                              : request.status === "rejected"
+                                ? "bg-red-100 text-red-700"
+                                : request.status === "cancelled"
+                                  ? "bg-gray-100 text-gray-700"
+                                  : "bg-yellow-100 text-yellow-700"
+                          }`}
+                        >
+                          {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                        </span>
                       </div>
-                    )}
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={6} className="py-8 text-center text-gray-500">
-                  No employees found
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
-        {/* Pagination */}
-        <div className="flex justify-between items-center mt-4 select-none w-full gap-4">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => goToPage(currentPage - 1)}
-            disabled={currentPage === 1}
-            className="px-4 py-3 rounded bg-[#3b2b1c] cursor-pointer text-white text-sm disabled:opacity-40"
-          >
-            Prev
-          </button>
-
-          <div className="flex items-center gap-1 overflow-hidden truncate">
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .slice(
-                Math.max(currentPage - 2, 0),
-                Math.min(currentPage + 1, totalPages)
-              )
-              .map((num) => (
-                <button
-                  key={num}
-                  onClick={() => goToPage(num)}
-                  className={`px-3 py-2 rounded text-sm transition cursor-pointer ${currentPage === num
-                      ? "bg-[#3b2b1c] text-white"
-                      : "text-[#3b2b1c] hover:underline"
-                    }`}
-                >
-                  {num}
-                </button>
-              ))}
-
-            {/* Ellipsis if many pages */}
-            {totalPages > 5 && currentPage < totalPages - 2 && (
-              <span className="px-1 text-[#3b2b1c]">...</span>
+            {expenseRequests.length > 10 && (
+              <button
+                onClick={() => setShowAllRequests(true)}
+                className="text-md text-[#6b5344] hover:text-[#3b2b1c] mt-4 w-full flex items-center justify-center font-medium gap-1 transition-colors"
+              >
+                View all ({expenseRequests.length})
+              </button>
             )}
           </div>
+        )}
 
-          <button
-            onClick={() => goToPage(currentPage + 1)}
-            disabled={currentPage === totalPages}
-            className="px-4 py-3 rounded bg-[#3b2b1c] cursor-pointer text-white text-sm disabled:opacity-40"
-          >
-            Next
-          </button>
-        </div>
-
-        <ActionButton
-          label="Download All QR"
-          onClick={handleDownloadAllQR}
-          icon={Download}
-          className="py-4 gap-2"
-        />
-      </div>
+        {/* ==================== EMPLOYEES TAB ==================== */}
+        {activeComponentTab === 'employees' && (
+          <div className="w-full">
         
+            <table className="w-full text-sm table-fixed border-separate border-spacing-y-2">
+              <thead className="bg-[#3b2b1c] text-white text-left sticky top-0 z-20">
+                <tr>
+                  <th className="py-4 px-4 rounded-l-lg">ID</th>
+                  <th className="py-4 px-4">Name</th>
+                  <th className="py-4 px-4">Position</th>
+                  <th className="py-4 px-4">Department</th>
+                  <th className="py-4 px-4">Status</th>
+                  <th className="py-4 px-4">Actions</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {currentEmployees.length > 0 ? (
+                  currentEmployees.map((emp) => (
+                    <tr
+                      key={emp.employee_id}
+                      className="bg-[#fff4e6] border border-orange-100 rounded-lg hover:shadow-sm transition relative"
+                    >
+                      <td className="py-3 px-4">{emp.employee_code}</td>
+                      <td className="py-3 px-4 flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded-full bg-[#800000] flex items-center justify-center text-white text-sm font-semibold">
+                          {emp.first_name && emp.last_name
+                            ? `${emp.first_name[0]}${emp.last_name[0]}`.toUpperCase()
+                            : "?"}
+                        </div>
+                        <span>{emp.first_name} {emp.last_name}</span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span>{emp.position_name || "N/A"}</span>
+                      </td>
+                      <td className="py-3 px-4">{emp.department_name || "N/A"}</td>
+                      <td className="py-3 px-4">
+                        <span
+                          onClick={() => {
+                            if (emp.status === "on-leave") {
+                              setLeaveDetailEmployee({
+                                id: emp.employee_id,
+                                name: `${emp.first_name} ${emp.last_name}`,
+                              });
+                            }
+                          }}
+                          className={`px-3 py-2 rounded-full text-xs font-medium inline-block cursor-pointer ${
+                            emp.status === "active"
+                              ? "bg-green-100 text-green-700"
+                              : emp.status === "resigned"
+                                ? "bg-yellow-100 text-yellow-700"
+                                : emp.status === "on-leave"
+                                  ? "bg-blue-100 text-blue-700 hover:shadow-md transition"
+                                  : "bg-red-100 text-red-700"
+                          }`}
+                        >
+                          {emp.status.charAt(0).toUpperCase() +
+                            emp.status.slice(1).replace("-", " ")}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-left relative">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedMenu(selectedMenu === emp.employee_id ? null : emp.employee_id);
+                          }}
+                          className="p-1 rounded hover:bg-gray-200 menu-button"
+                        >
+                          <MoreVertical size={18} className="text-gray-600" />
+                        </button>
+
+                        {selectedMenu === emp.employee_id && (
+                          <div className="absolute right-4 top-10 bg-[#FFF2E0] rounded-lg shadow-lg w-36 z-50 employee-dropdown">
+                            <button onClick={() => handleView(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-gray-50">View</button>
+                            {canEdit && (
+                              <button onClick={() => handleEdit(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-gray-50">Edit</button>
+                            )}
+                            {canTerminate && (
+                              <button
+                                onClick={() => handleTerminate(emp.employee_id)}
+                                disabled={emp.status === "terminated"}
+                                className={`w-full text-left px-4 py-2 ${
+                                  emp.status === "terminated"
+                                    ? "text-gray-400 cursor-not-allowed"
+                                    : "hover:bg-red-100 text-red-600"
+                                }`}
+                              >
+                                {emp.status === "terminated" ? "Terminated" : "Terminate"}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-gray-500">
+                      No employees found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            {/* Pagination */}
+            <div className="flex justify-between items-center mt-4 select-none w-full gap-4">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => goToPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="px-4 py-3 rounded bg-[#3b2b1c] cursor-pointer text-white text-sm disabled:opacity-40"
+                >
+                  Prev
+                </button>
+
+                <div className="flex items-center gap-1 overflow-hidden truncate">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .slice(
+                      Math.max(currentPage - 2, 0),
+                      Math.min(currentPage + 1, totalPages)
+                    )
+                    .map((num) => (
+                      <button
+                        key={num}
+                        onClick={() => goToPage(num)}
+                        className={`px-3 py-2 rounded text-sm transition cursor-pointer ${
+                          currentPage === num
+                            ? "bg-[#3b2b1c] text-white"
+                            : "text-[#3b2b1c] hover:underline"
+                        }`}
+                      >
+                        {num}
+                      </button>
+                    ))}
+
+                  {totalPages > 5 && currentPage < totalPages - 2 && (
+                    <span className="px-1 text-[#3b2b1c]">...</span>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => goToPage(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-3 rounded bg-[#3b2b1c] cursor-pointer text-white text-sm disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
+
+              <ActionButton
+                label="Download All QR"
+                onClick={handleDownloadAllQR}
+                icon={Download}
+                className="py-4 gap-2"
+              />
+            </div>
+          </div>
+        )}
       </div>
+    </div>
 
 
       {/* Modals */}
       <AddModal isOpen={isModalOpen} onClose={handleModalClose} />
       <ViewEmployeeModal isOpen={employeeToView !== null} onClose={() => setEmployeeToView(null)} id={employeeToView!} />
       <EditEmployeeModal isOpen={employeeToEdit !== null} onClose={() => setEmployeeToEdit(null)} id={employeeToEdit!} />
+      <BudgetRequestsModal
+        isOpen={showAllRequests}
+        onClose={() => setShowAllRequests(false)}
+        expenseRequests={expenseRequests}
+        expenseRequestsLoading={expenseRequestsLoading}
+        formatCurrency={formatCurrency}
+      />
       <LeaveDetailsModal
         isOpen={leaveDetailEmployee !== null}
         onClose={() => setLeaveDetailEmployee(null)}
