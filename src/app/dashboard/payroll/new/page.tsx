@@ -370,7 +370,7 @@ export default function NewPayrollRunModal({
                 </p>
                 {payrollBudget?.department_budget_id ? (
                   <p className="text-xs text-[#3D1A0B]/70 mt-1">
-                    Source: budget_department (department_budget_id #{payrollBudget.department_budget_id}, budget_id #{payrollBudget.budget_id})
+                    Source: Budget from the Finance Department
                   </p>
                 ) : (
                   <p className="text-xs text-[#3D1A0B]/70 mt-1">

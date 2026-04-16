@@ -7,7 +7,9 @@ import {
   BudgetValidationError,
   ensureAmountWithinBudget,
   getFinanceBudgetsSnapshot,
+  getCurrentStaffSalaryMonthlyTotal,
 } from '../services/financeBudgetService.js';
+import { notifyHrUsersBudgetStatus } from '../services/notificationService.js';
 
 const round2 = (value) => Number((Number(value) || 0).toFixed(2));
 
@@ -1151,6 +1153,48 @@ export const getPayrollSettings = async (req, res, next) => {
       throw budgetError;
     }
 
+    let budgetOverview = null;
+    try {
+      const currentStaffSalaryMonthlyTotal = await getCurrentStaffSalaryMonthlyTotal({});
+      const staffSalariesBudgetAmount = round2(Number(budgets?.staff_salaries?.amount) || 0);
+      const remainingStaffSalariesBudget = round2(staffSalariesBudgetAmount - currentStaffSalaryMonthlyTotal);
+      const staffSalariesBudgetUtilizationPercent = staffSalariesBudgetAmount > 0
+        ? round2((currentStaffSalaryMonthlyTotal / staffSalariesBudgetAmount) * 100)
+        : null;
+
+      let staffSalariesBudgetStatusCode = 'within_budget';
+      let staffSalariesBudgetStatusLabel = 'Within Budget';
+
+      if (staffSalariesBudgetUtilizationPercent != null && staffSalariesBudgetUtilizationPercent > 100) {
+        staffSalariesBudgetStatusCode = 'over_budget';
+        staffSalariesBudgetStatusLabel = 'Over Budget';
+      } else if (staffSalariesBudgetUtilizationPercent != null && staffSalariesBudgetUtilizationPercent >= 90) {
+        staffSalariesBudgetStatusCode = 'near_limit';
+        staffSalariesBudgetStatusLabel = 'Near Limit';
+      }
+
+      budgetOverview = {
+        current_staff_salary_monthly_total: currentStaffSalaryMonthlyTotal,
+        staff_salaries_budget_amount: staffSalariesBudgetAmount,
+        remaining_staff_salaries_budget: remainingStaffSalariesBudget,
+        staff_salaries_budget_utilization_percent: staffSalariesBudgetUtilizationPercent,
+        staff_salaries_budget_status_code: staffSalariesBudgetStatusCode,
+        staff_salaries_budget_status_label: staffSalariesBudgetStatusLabel,
+      };
+
+      if (staffSalariesBudgetStatusCode === 'near_limit' || staffSalariesBudgetStatusCode === 'over_budget') {
+        await notifyHrUsersBudgetStatus({
+          actorUserId: req.user?.user_id || null,
+          statusCode: staffSalariesBudgetStatusCode,
+          statusLabel: staffSalariesBudgetStatusLabel,
+          utilizationPercent: staffSalariesBudgetUtilizationPercent,
+          remainingBudget: remainingStaffSalariesBudget,
+        });
+      }
+    } catch (summaryError) {
+      logger.error('Payroll budget overview summary compute failed:', summaryError);
+    }
+
     res.json({
       success: true,
       message: 'Payroll settings fetched successfully',
@@ -1158,6 +1202,7 @@ export const getPayrollSettings = async (req, res, next) => {
         current,
         history,
         budgets,
+        budget_overview: budgetOverview,
       },
     });
   } catch (error) {

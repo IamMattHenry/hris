@@ -184,6 +184,63 @@ export const notifyHrUsers = async ({
   }
 };
 
+export const notifyHrUsersBudgetStatus = async ({
+  actorUserId = null,
+  statusCode,
+  statusLabel,
+  utilizationPercent = null,
+  remainingBudget = null,
+  cooldownMinutes = 120,
+}) => {
+  try {
+    const normalizedStatusCode = String(statusCode || '').trim().toLowerCase();
+    if (!normalizedStatusCode || !['near_limit', 'over_budget'].includes(normalizedStatusCode)) {
+      return [];
+    }
+
+    await ensureNotificationsTable();
+
+    const threshold = new Date(Date.now() - (Number(cooldownMinutes) || 120) * 60 * 1000);
+    const referenceId = `staff_salaries_budget_status:${normalizedStatusCode}`;
+
+    const recent = await db.getOne(
+      `SELECT notification_id
+       FROM user_notifications
+       WHERE category = ?
+         AND reference_module = ?
+         AND reference_id = ?
+         AND created_at >= ?
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      ['budget_alert', 'payroll', referenceId, threshold]
+    );
+
+    if (recent?.notification_id) {
+      return [];
+    }
+
+    const utilizationText = utilizationPercent == null
+      ? 'N/A'
+      : `${Number(utilizationPercent).toFixed(2)}%`;
+
+    const remainingText = remainingBudget == null
+      ? 'N/A'
+      : `₱${Number(remainingBudget).toFixed(2)}`;
+
+    return await notifyHrUsers({
+      actorUserId,
+      title: `Staff Salaries Budget Status: ${statusLabel}`,
+      message: `Current utilization is ${utilizationText}. Remaining budget is ${remainingText}. Please review staffing and budget actions.`,
+      category: 'budget_alert',
+      referenceModule: 'payroll',
+      referenceId,
+    });
+  } catch (error) {
+    logger.error('notifyHrUsersBudgetStatus failed:', error);
+    return [];
+  }
+};
+
 export const notifyLeaveAttendanceOfficers = async ({
   actorUserId = null,
   excludeUserIds = [],

@@ -34,6 +34,15 @@ interface FinanceBudget {
   amount: number;
 }
 
+interface BudgetOverviewSummary {
+  current_staff_salary_monthly_total: number;
+  staff_salaries_budget_amount: number;
+  remaining_staff_salaries_budget: number;
+  staff_salaries_budget_utilization_percent: number | null;
+  staff_salaries_budget_status_code: "within_budget" | "near_limit" | "over_budget";
+  staff_salaries_budget_status_label: "Within Budget" | "Near Limit" | "Over Budget";
+}
+
 interface BudgetRequestForm {
   title: string;
   description: string;
@@ -67,6 +76,7 @@ export default function EmployeeTable() {
   const [sortBy, setSortBy] = useState<string>("");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [staffSalariesBudget, setStaffSalariesBudget] = useState<FinanceBudget | null>(null);
+  const [budgetOverview, setBudgetOverview] = useState<BudgetOverviewSummary | null>(null);
   const [expenseRequests, setExpenseRequests] = useState<ExpenseBudgetRequestItem[]>([]);
   const [expenseRequestsLoading, setExpenseRequestsLoading] = useState(false);
   const [isExpenseRequestsModalOpen, setIsExpenseRequestsModalOpen] = useState(false);
@@ -93,6 +103,16 @@ export default function EmployeeTable() {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(Number(value));
+  };
+
+  const getBudgetStatusStyles = (statusCode?: BudgetOverviewSummary["staff_salaries_budget_status_code"] | null) => {
+    if (statusCode === "over_budget") {
+      return "bg-red-100 text-red-700 border border-red-200";
+    }
+    if (statusCode === "near_limit") {
+      return "bg-yellow-100 text-yellow-700 border border-yellow-200";
+    }
+    return "bg-green-100 text-green-700 border border-green-200";
   };
 
 
@@ -139,11 +159,29 @@ export default function EmployeeTable() {
             department_budget_id: Number(budget.department_budget_id),
             amount: Number(budget.amount),
           });
+          const summary = res.data?.budget_overview;
+          if (summary) {
+            setBudgetOverview({
+              current_staff_salary_monthly_total: Number(summary.current_staff_salary_monthly_total),
+              staff_salaries_budget_amount: Number(summary.staff_salaries_budget_amount),
+              remaining_staff_salaries_budget: Number(summary.remaining_staff_salaries_budget),
+              staff_salaries_budget_utilization_percent:
+                summary.staff_salaries_budget_utilization_percent == null
+                  ? null
+                  : Number(summary.staff_salaries_budget_utilization_percent),
+              staff_salaries_budget_status_code: summary.staff_salaries_budget_status_code,
+              staff_salaries_budget_status_label: summary.staff_salaries_budget_status_label,
+            });
+          } else {
+            setBudgetOverview(null);
+          }
         } else {
           setStaffSalariesBudget(null);
+          setBudgetOverview(null);
         }
       } catch {
         setStaffSalariesBudget(null);
+        setBudgetOverview(null);
       }
     };
 
@@ -579,7 +617,7 @@ export default function EmployeeTable() {
 
                 {staffSalariesBudget?.budget_id ? (
                   <p className="mt-1 text-xs text-[#6b5344]">
-                    Source: budget_department
+                    Source: Budget from the Finance Department
                   </p>
                 ) : (
                   <p className="mt-1 text-xs text-[#6b5344]">
@@ -594,6 +632,38 @@ export default function EmployeeTable() {
                 Request Additional Budget
               </button>
             </div>
+
+            {budgetOverview && (
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="rounded-md border border-[#e6d2b5] bg-[#fff7ec] px-3 py-3">
+                  <p className="text-[11px] text-[#6b5344]">Overall Monthly Salaries</p>
+                  <p className="text-sm font-semibold text-[#3b2b1c] mt-1">
+                    {formatCurrency(budgetOverview.current_staff_salary_monthly_total)}
+                  </p>
+                </div>
+                <div className="rounded-md border border-[#e6d2b5] bg-[#fff7ec] px-3 py-3">
+                  <p className="text-[11px] text-[#6b5344]">Remaining Budget</p>
+                  <p className="text-sm font-semibold text-[#3b2b1c] mt-1">
+                    {formatCurrency(budgetOverview.remaining_staff_salaries_budget)}
+                  </p>
+                </div>
+                <div className="rounded-md border border-[#e6d2b5] bg-[#fff7ec] px-3 py-3">
+                  <p className="text-[11px] text-[#6b5344]">Budget Utilization</p>
+                  <p className="text-sm font-semibold text-[#3b2b1c] mt-1">
+                    {budgetOverview.staff_salaries_budget_utilization_percent == null
+                      ? 'N/A'
+                      : `${budgetOverview.staff_salaries_budget_utilization_percent.toFixed(2)}%`}
+                  </p>
+                  <span
+                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium mt-2 ${getBudgetStatusStyles(
+                      budgetOverview.staff_salaries_budget_status_code
+                    )}`}
+                  >
+                    {budgetOverview.staff_salaries_budget_status_label}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Recent Submitted Budget Requests */}
             <div className="mt-6 border-t border-[#e6d2b5] pt-4">
