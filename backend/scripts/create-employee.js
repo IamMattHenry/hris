@@ -587,17 +587,26 @@ async function main() {
     // Maps position name (lowercase) → RBAC role_key
     const HR_POSITION_ROLE_MAP = {
       'hr manager':                    'hr_manager',
-      'leave & attendance officer':    'leave_attendance_officer',
+      'leave and attendance officer':  'leave_attendance_officer',
       'recruitment officer':           'recruitment_officer',
       'hr supervisor':                 'hr_supervisor',
+      'payroll officer':               'payroll_officer',
     };
+
+    const normalizePositionName = (value) =>
+      String(value || '')
+        .toLowerCase()
+        .replace(/&/g, ' and ')
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
 
     const isHrDept = departmentName &&
       (departmentName.toLowerCase().includes('human resource') ||
        departmentName.toLowerCase() === 'hr');
 
     if (isHrDept && positionName) {
-      const posKey     = positionName.trim().toLowerCase();
+      const posKey     = normalizePositionName(positionName);
       const rbacRoleKey = HR_POSITION_ROLE_MAP[posKey];
 
       if (rbacRoleKey) {

@@ -10,7 +10,7 @@ import AddLeaveModal from "./add_request/AddModal";
 import ViewLeaveModal from "./view_request/ViewModal";
 import { toast } from "react-hot-toast";
 
-type TabKey = "Leave Request" | "History";
+type TabKey = "Leave Request" | "History" | "Expired Leave";
 type LeaveType =
   | "vacation"
   | "sick"
@@ -55,7 +55,7 @@ interface Leave {
   hr_approved_at?: string | null;
 }
 
-const tabs: TabKey[] = ["Leave Request", "History"];
+const tabs: TabKey[] = ["Leave Request", "History", "Expired Leave"];
 
 const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
   vacation: "Vacation Leave",
@@ -137,15 +137,31 @@ export default function RequestsPage() {
     setIsRefreshing(false);
   };
 
+  const isExpiredLeave = (endDate: string): boolean => {
+    const leaveEnd = new Date(endDate);
+    leaveEnd.setHours(23, 59, 59, 999);
+    return leaveEnd < new Date();
+  };
+
   // Filter leaves based on tab and search
   const getFilteredLeaves = () => {
     let filtered = leaves;
 
-    // Filter by tab and role-specific stage
-    if (activeTab === "Leave Request") {
-      filtered = filtered.filter(l => l.status === "pending" || l.status === "supervisor_approved");
+    // Filter by tab and expiration
+    if (activeTab === "Expired Leave") {
+      filtered = filtered.filter(l => isExpiredLeave(l.end_date) && l.status === "pending");
+    } else if (activeTab === "Leave Request") {
+      filtered = filtered.filter(
+        l =>
+          !isExpiredLeave(l.end_date) &&
+          (l.status === "pending" || l.status === "supervisor_approved")
+      );
     } else {
-      filtered = filtered.filter(l => !(l.status === "pending" || l.status === "supervisor_approved"));
+      filtered = filtered.filter(
+        l =>
+          !isExpiredLeave(l.end_date) &&
+          !(l.status === "pending" || l.status === "supervisor_approved")
+      );
     }
 
     // Filter by search
@@ -187,11 +203,7 @@ export default function RequestsPage() {
   };
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchRequest, filterLeaveType, filterStatus]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filterRequesterRole]);
+  }, [activeTab, searchRequest, filterLeaveType, filterStatus, filterRequesterRole]);
 
   const handleView = (leave: Leave) => {
     setSelectedLeave(leave);
@@ -375,11 +387,14 @@ export default function RequestsPage() {
                 </tr>
               </thead>
               <tbody>
-                {currentLeaves.map((leave) => (
-                  <tr
-                    key={leave.leave_id}
-                    className="border-b border-[#eadfcd] hover:bg-[#fdf4e7] transition"
-                  >
+                {currentLeaves.map((leave) => {
+                  const isExpired = isExpiredLeave(leave.end_date);
+
+                  return (
+                    <tr
+                      key={leave.leave_id}
+                      className="border-b border-[#eadfcd] hover:bg-[#fdf4e7] transition"
+                    >
                     <td className="py-3 px-4">{leave.leave_code}</td>
                     <td className="py-3 px-4">{leave.first_name} {leave.last_name}</td>
                     <td className="py-3 px-4">{LEAVE_TYPE_LABELS[leave.leave_type]}</td>
@@ -414,44 +429,51 @@ export default function RequestsPage() {
                       </div>
                     </td>
                     <td className="py-3 px-4 text-center relative">
-                      <button
-                        onClick={() =>
-                          setSelectedMenu(
-                            selectedMenu === leave.leave_id ? null : leave.leave_id
-                          )
-                        }
-                        className="menu-button inline-block"
-                      >
-                        <MoreVertical
-                          size={18}
-                          className="text-[#3b2b1c]/70 cursor-pointer"
-                        />
-                      </button>
-
-                      {selectedMenu === leave.leave_id && (
-                        <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg z-50 leave-dropdown">
+                      {isExpired ? (
+                        <span className="text-xs text-[#7a5c4a]">No actions</span>
+                      ) : (
+                        <>
                           <button
-                            onClick={() => handleView(leave)}
-                            className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm"
+                            onClick={() =>
+                              setSelectedMenu(
+                                selectedMenu === leave.leave_id ? null : leave.leave_id
+                              )
+                            }
+                            className="menu-button inline-block"
                           >
-                            View
+                            <MoreVertical
+                              size={18}
+                              className="text-[#3b2b1c]/70 cursor-pointer"
+                            />
                           </button>
-                          {canDeleteLeave && (
-                            <button
-                              onClick={() => {
-                                handleDelete(leave.leave_id);
-                                setSelectedMenu(null);
-                              }}
-                              className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm text-red-600"
-                            >
-                              Delete
-                            </button>
+
+                          {selectedMenu === leave.leave_id && (
+                            <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg z-50 leave-dropdown">
+                              <button
+                                onClick={() => handleView(leave)}
+                                className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm"
+                              >
+                                View
+                              </button>
+                              {canDeleteLeave && (
+                                <button
+                                  onClick={() => {
+                                    handleDelete(leave.leave_id);
+                                    setSelectedMenu(null);
+                                  }}
+                                  className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm text-red-600"
+                                >
+                                  Delete
+                                </button>
+                              )}
+                            </div>
                           )}
-                        </div>
+                        </>
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

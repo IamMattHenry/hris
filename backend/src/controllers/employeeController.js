@@ -25,7 +25,7 @@ const isStaffBudgetApplicableStatus = (value) => {
 };
 
 /**
- * Position-name → RBAC role_key mapping for HR department (department_id = 1).
+ * Position-name → RBAC role_key mapping for HR department.
  * When an employee is in the HR department and their position matches one of
  * these names, the system auto-assigns the corresponding RBAC role.
  */
@@ -34,6 +34,7 @@ const POSITION_TO_RBAC_ROLE = {
   'leave and attendance officer': 'leave_attendance_officer',
   'recruitment officer': 'recruitment_officer',
   'hr supervisor': 'hr_supervisor',
+  'payroll officer': 'payroll_officer',
 };
 
 const HR_POSITION_ROLE_KEYS = Object.values(POSITION_TO_RBAC_ROLE);
@@ -48,7 +49,7 @@ const normalizePositionName = (value) =>
 
 /**
  * Auto-assign RBAC role based on department + position.
- * Only applies to department_id = 1 (HR) with specific position names.
+ * Applies only to the detected HR department with specific position names.
  * @param {number} userId - The user_id to assign the role to
  * @param {number} departmentId - The employee's department_id
  * @param {number} positionId - The employee's position_id
@@ -57,6 +58,17 @@ const normalizePositionName = (value) =>
 async function syncHrRbacRoleForUser(userId, departmentId, positionId, assignedBy = null) {
   try {
     if (!userId) return;
+
+    const hrDepartment = await db.getOne(
+      `SELECT department_id
+       FROM departments
+       WHERE LOWER(department_name) LIKE '%human resource%'
+          OR LOWER(department_name) = 'hr'
+          OR LOWER(department_name) = 'human resources'
+       ORDER BY department_id
+       LIMIT 1`
+    );
+    const hrDepartmentId = hrDepartment?.department_id ?? 1;
 
     const roleRows = await db.getAll(
       `SELECT role_id, role_key FROM roles WHERE role_key IN (${HR_POSITION_ROLE_KEYS.map(() => '?').join(', ')})`,
@@ -76,8 +88,8 @@ async function syncHrRbacRoleForUser(userId, departmentId, positionId, assignedB
       [userId, ...managedRoleIds]
     );
 
-    // Only map position-based HR roles for HR department (department_id = 1)
-    if (departmentId !== 1 || !positionId) {
+    // Only map position-based HR roles for HR department
+    if (Number(departmentId) !== Number(hrDepartmentId) || !positionId) {
       invalidatePermissionCache();
       return;
     }

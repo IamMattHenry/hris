@@ -5,6 +5,7 @@ const POSITION_TO_RBAC_ROLE = {
   'leave and attendance officer': 'leave_attendance_officer',
   'recruitment officer': 'recruitment_officer',
   'hr supervisor': 'hr_supervisor',
+  'payroll officer': 'payroll_officer',
 };
 
 const normalizePositionName = (value) =>
@@ -16,6 +17,22 @@ const normalizePositionName = (value) =>
     .trim();
 
 async function syncHrRolesByPosition() {
+  const hrDepartment = await db.getOne(
+    `SELECT department_id
+     FROM departments
+     WHERE LOWER(department_name) LIKE '%human resource%'
+        OR LOWER(department_name) = 'hr'
+        OR LOWER(department_name) = 'human resources'
+     ORDER BY department_id
+     LIMIT 1`
+  );
+
+  if (!hrDepartment?.department_id) {
+    console.log('HR department not found. Nothing to sync.');
+    return;
+  }
+
+  const hrDepartmentId = Number(hrDepartment.department_id);
   const roleKeys = Object.values(POSITION_TO_RBAC_ROLE);
 
   const roleRows = await db.getAll(
@@ -47,7 +64,7 @@ async function syncHrRolesByPosition() {
 
     let assignedCount = 0;
     for (const employee of employees) {
-      if (Number(employee.department_id) !== 1) continue;
+      if (Number(employee.department_id) !== hrDepartmentId) continue;
 
       const normalizedPosition = normalizePositionName(employee.position_name);
       const roleKey = POSITION_TO_RBAC_ROLE[normalizedPosition];
