@@ -48,6 +48,7 @@ interface Dependent {
 
 interface FinanceBudget {
   budget_id: number;
+  department_budget_id?: number;
   amount: number;
 }
 
@@ -466,6 +467,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
           if (res.success && budget) {
             setStaffSalariesBudget({
               budget_id: Number(budget.budget_id),
+              department_budget_id: Number(budget.department_budget_id),
               amount: Number(budget.amount),
             });
           } else {
@@ -1215,7 +1217,9 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
                     <p className="text-xs text-[#6b5344] mb-2">
                       Latest Staff Salaries Budget: {formatCurrency(staffSalariesBudget?.amount)}
-                      {staffSalariesBudget?.budget_id ? ` (budget_id #${staffSalariesBudget.budget_id})` : ""}
+                      {staffSalariesBudget?.department_budget_id
+                        ? ` (department_budget_id #${staffSalariesBudget.department_budget_id}, budget_id #${staffSalariesBudget.budget_id})`
+                        : ""}
                     </p>
 
                     <div className="flex items-center border border-[#e6d2b5] rounded-lg bg-[#FFF2E0] overflow-hidden">

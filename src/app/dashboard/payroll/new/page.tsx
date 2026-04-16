@@ -26,6 +26,7 @@ interface Department {
 
 interface FinanceBudget {
   budget_id: number;
+  department_budget_id?: number;
   amount: number;
 }
 
@@ -115,6 +116,7 @@ export default function NewPayrollRunModal({
         if (settingsRes.success && latestPayrollBudget) {
           setPayrollBudget({
             budget_id: Number(latestPayrollBudget.budget_id),
+            department_budget_id: Number(latestPayrollBudget.department_budget_id),
             amount: Number(latestPayrollBudget.amount),
           });
         } else {
@@ -366,9 +368,9 @@ export default function NewPayrollRunModal({
                 <p className="font-medium">
                   Latest Payroll Budget: {formatCurrency(payrollBudget?.amount)}
                 </p>
-                {payrollBudget?.budget_id ? (
+                {payrollBudget?.department_budget_id ? (
                   <p className="text-xs text-[#3D1A0B]/70 mt-1">
-                    Source: budget_category (budget_id #{payrollBudget.budget_id})
+                    Source: budget_department (department_budget_id #{payrollBudget.department_budget_id}, budget_id #{payrollBudget.budget_id})
                   </p>
                 ) : (
                   <p className="text-xs text-[#3D1A0B]/70 mt-1">

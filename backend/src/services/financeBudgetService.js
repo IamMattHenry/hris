@@ -6,6 +6,8 @@ const REQUIRED_BUDGET_NAMES = Object.freeze({
   STAFF_SALARIES: 'Staff Salaries',
 });
 
+const HRIS_DEPARTMENT_ID = 1;
+
 const DEFAULT_MONTHLY_WORK_DAYS = 22;
 const FULL_DAY_HOURS = 8;
 
@@ -47,12 +49,15 @@ export class BudgetValidationError extends Error {
 const normalizeBudgetRow = (row) => {
   if (!row) return null;
 
+  const departmentBudgetId = Number(row.department_budget_id);
+  const departmentId = Number(row.department_id);
   const budgetId = Number(row.budget_id);
-  const budgetCategoryId = Number(row.budget_category_id);
-  const amount = Number(row.amount);
+  const amount = Number(row.allocated_amount);
 
   return {
-    budget_category_id: Number.isFinite(budgetCategoryId) ? budgetCategoryId : null,
+    budget_category_id: null,
+    department_budget_id: Number.isFinite(departmentBudgetId) ? departmentBudgetId : null,
+    department_id: Number.isFinite(departmentId) ? departmentId : null,
     budget_id: Number.isFinite(budgetId) ? budgetId : null,
     budget_name: String(row.budget_name || '').trim(),
     budget_description: row.budget_description || null,
@@ -63,12 +68,20 @@ const normalizeBudgetRow = (row) => {
 const fetchLatestBudgetRow = async (budgetName) => {
   try {
     const row = await db.getOne(
-      `SELECT budget_category_id, budget_name, budget_description, amount, budget_id
-       FROM budget_category
-       WHERE budget_name = ?
-       ORDER BY budget_id DESC
+      `SELECT
+         bd.department_budget_id,
+         bd.department_id,
+         bd.allocated_amount,
+         bd.budget_id,
+         b.budget_name,
+         b.description AS budget_description
+       FROM budget_department bd
+       LEFT JOIN budget b ON b.budget_id = bd.budget_id
+       WHERE bd.department_id = ?
+         AND bd.is_active = 1
+       ORDER BY bd.department_budget_id DESC
        LIMIT 1`,
-      [budgetName]
+      [HRIS_DEPARTMENT_ID]
     );
 
     return normalizeBudgetRow(row);
@@ -89,7 +102,7 @@ export const getLatestValidatedBudgetByName = async (budgetName) => {
   if (!normalizedName) {
     throw new BudgetValidationError({
       code: 'BUDGET_NAME_REQUIRED',
-      publicMessage: 'Budget name is required for finance validation.',
+      publicMessage: 'Budget name is required for budget validation.',
       technicalMessage: 'Missing budgetName argument',
       statusCode: 500,
     });
@@ -100,8 +113,8 @@ export const getLatestValidatedBudgetByName = async (budgetName) => {
   if (!row) {
     throw new BudgetValidationError({
       code: 'BUDGET_MISSING',
-      publicMessage: `No Finance budget record found for '${normalizedName}'. Please ask Finance to configure it in budget_category.`,
-      technicalMessage: `No budget_category row found for '${normalizedName}'`,
+      publicMessage: `No active budget record found in budget_department for HRIS (department_id: ${HRIS_DEPARTMENT_ID}). Please ask Finance to configure it.`,
+      technicalMessage: `No active budget_department row found for department_id=${HRIS_DEPARTMENT_ID} while validating '${normalizedName}'`,
       statusCode: 422,
     });
   }
@@ -109,12 +122,13 @@ export const getLatestValidatedBudgetByName = async (budgetName) => {
   if (!Number.isFinite(row.amount) || row.amount < 0) {
     throw new BudgetValidationError({
       code: 'BUDGET_INVALID_AMOUNT',
-      publicMessage: `Finance budget '${normalizedName}' has an invalid amount. Please ask Finance to correct budget_category.amount.`,
+      publicMessage: `HRIS budget has an invalid allocated amount. Please ask Finance to correct budget_department.allocated_amount.`,
       technicalMessage: `Invalid budget amount for '${normalizedName}': ${row.amount}`,
       statusCode: 422,
       data: {
         budget_name: row.budget_name,
         budget_id: row.budget_id,
+        department_budget_id: row.department_budget_id,
       },
     });
   }
@@ -216,14 +230,11 @@ export const getCurrentStaffSalaryMonthlyTotal = async ({
 };
 
 export const getFinanceBudgetsSnapshot = async () => {
-  const [payrollBudget, staffSalariesBudget] = await Promise.all([
-    getLatestValidatedBudgetByName(REQUIRED_BUDGET_NAMES.PAYROLL),
-    getLatestValidatedBudgetByName(REQUIRED_BUDGET_NAMES.STAFF_SALARIES),
-  ]);
+  const budget = await getLatestValidatedBudgetByName(REQUIRED_BUDGET_NAMES.PAYROLL);
 
   return {
-    payroll: payrollBudget,
-    staff_salaries: staffSalariesBudget,
+    payroll: budget,
+    staff_salaries: budget,
   };
 };
 

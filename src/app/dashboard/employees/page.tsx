@@ -30,6 +30,7 @@ import { a } from "framer-motion/client";
 
 interface FinanceBudget {
   budget_id: number;
+  department_budget_id?: number;
   amount: number;
 }
 
@@ -135,6 +136,7 @@ export default function EmployeeTable() {
         if (res.success && budget) {
           setStaffSalariesBudget({
             budget_id: Number(budget.budget_id),
+            department_budget_id: Number(budget.department_budget_id),
             amount: Number(budget.amount),
           });
         } else {
@@ -577,7 +579,7 @@ export default function EmployeeTable() {
 
                 {staffSalariesBudget?.budget_id ? (
                   <p className="mt-1 text-xs text-[#6b5344]">
-                    Source: Finance Department
+                    Source: budget_department
                   </p>
                 ) : (
                   <p className="mt-1 text-xs text-[#6b5344]">

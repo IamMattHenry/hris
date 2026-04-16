@@ -16,6 +16,7 @@ interface HolidayOverride {
 
 interface FinanceBudget {
   budget_id: number;
+  department_budget_id?: number;
   amount: number;
 }
 
@@ -91,6 +92,7 @@ export default function PayrollSettingsModal({
       if (latestPayrollBudget) {
         setPayrollBudget({
           budget_id: Number(latestPayrollBudget.budget_id),
+          department_budget_id: Number(latestPayrollBudget.department_budget_id),
           amount: Number(latestPayrollBudget.amount),
         });
       } else {
@@ -100,6 +102,7 @@ export default function PayrollSettingsModal({
       if (latestStaffSalariesBudget) {
         setStaffSalariesBudget({
           budget_id: Number(latestStaffSalariesBudget.budget_id),
+          department_budget_id: Number(latestStaffSalariesBudget.department_budget_id),
           amount: Number(latestStaffSalariesBudget.amount),
         });
       } else {
@@ -230,8 +233,8 @@ export default function PayrollSettingsModal({
                   <p className="text-sm font-medium text-[#3D1A0B]">Latest Payroll Budget</p>
                   <p className="text-lg font-semibold text-[#3D1A0B] mt-1">{formatCurrency(payrollBudget?.amount)}</p>
                   <p className="text-xs text-[#3D1A0B]/70 mt-1">
-                    {payrollBudget?.budget_id
-                      ? `Source: budget_category (budget_id #${payrollBudget.budget_id})`
+                    {payrollBudget?.department_budget_id
+                      ? `Source: budget_department (department_budget_id #${payrollBudget.department_budget_id}, budget_id #${payrollBudget.budget_id})`
                       : "No active payroll budget configured."}
                   </p>
                 </div>
@@ -240,8 +243,8 @@ export default function PayrollSettingsModal({
                   <p className="text-sm font-medium text-[#3D1A0B]">Latest Staff Salaries Budget</p>
                   <p className="text-lg font-semibold text-[#3D1A0B] mt-1">{formatCurrency(staffSalariesBudget?.amount)}</p>
                   <p className="text-xs text-[#3D1A0B]/70 mt-1">
-                    {staffSalariesBudget?.budget_id
-                      ? `Source: budget_category (budget_id #${staffSalariesBudget.budget_id})`
+                    {staffSalariesBudget?.department_budget_id
+                      ? `Source: budget_department (department_budget_id #${staffSalariesBudget.department_budget_id}, budget_id #${staffSalariesBudget.budget_id})`
                       : "No active staff salaries budget configured."}
                   </p>
                 </div>

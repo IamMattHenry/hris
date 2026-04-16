@@ -158,6 +158,7 @@ interface RegionData {
 
 interface FinanceBudget {
   budget_id: number;
+  department_budget_id?: number;
   amount: number;
 }
 
@@ -456,6 +457,7 @@ const [cityCode, setCityCode] = useState("");
         if (res.success && budget) {
           setStaffSalariesBudget({
             budget_id: Number(budget.budget_id),
+            department_budget_id: Number(budget.department_budget_id),
             amount: Number(budget.amount),
           });
         } else {
@@ -1379,7 +1381,9 @@ useEffect(() => {
                     <div>
                       <p className="text-xs text-[#6b5344] mb-2">
                         Latest Staff Salaries Budget: {formatCurrency(staffSalariesBudget?.amount)}
-                        {staffSalariesBudget?.budget_id ? ` (budget_id #${staffSalariesBudget.budget_id})` : ""}
+                        {staffSalariesBudget?.department_budget_id
+                          ? ` (department_budget_id #${staffSalariesBudget.department_budget_id}, budget_id #${staffSalariesBudget.budget_id})`
+                          : ""}
                       </p>
                       <FormInput
                         label={workType?.toLowerCase() === 'part-time' ? "Salary (Hourly Rate)" : "Salary (Monthly)"}

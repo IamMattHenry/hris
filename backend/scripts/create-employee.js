@@ -157,6 +157,7 @@ const generateCode = (prefix, id) => `${prefix}-${String(id).padStart(4, '0')}`;
 const generateEmployeeCode = (id) => generateCode('EMP', id);
 
 const STAFF_SALARIES_BUDGET_NAME = 'Staff Salaries';
+const HRIS_DEPARTMENT_ID = 1;
 const DEFAULT_MONTHLY_WORK_DAYS = 22;
 const FULL_DAY_HOURS = 8;
 
@@ -244,25 +245,32 @@ async function validateStaffSalariesBudget(connection, projectedMonthlySalary = 
   }
 
   const [budgetRows] = await connection.execute(
-    `SELECT budget_category_id, budget_id, budget_name, amount
-     FROM budget_category
-     WHERE budget_name = ?
-     ORDER BY budget_id DESC
+    `SELECT
+       bd.department_budget_id,
+       bd.department_id,
+       bd.budget_id,
+       bd.allocated_amount,
+       b.budget_name
+     FROM budget_department bd
+     LEFT JOIN budget b ON b.budget_id = bd.budget_id
+     WHERE bd.department_id = ?
+       AND bd.is_active = 1
+     ORDER BY bd.department_budget_id DESC
      LIMIT 1`,
-    [STAFF_SALARIES_BUDGET_NAME]
+    [HRIS_DEPARTMENT_ID]
   );
 
   if (budgetRows.length === 0) {
     throw new Error(
-      `No Finance budget record found for '${STAFF_SALARIES_BUDGET_NAME}'. Please configure it in budget_category first.`
+      `No active budget record found in budget_department for HRIS (department_id: ${HRIS_DEPARTMENT_ID}). Please ask Finance to configure it first.`
     );
   }
 
   const latestBudget = budgetRows[0];
-  const budgetAmount = Number(latestBudget.amount);
+  const budgetAmount = Number(latestBudget.allocated_amount);
   if (!Number.isFinite(budgetAmount) || budgetAmount < 0) {
     throw new Error(
-      `Finance budget '${STAFF_SALARIES_BUDGET_NAME}' has an invalid amount in budget_category.amount.`
+      `HRIS budget has an invalid amount in budget_department.allocated_amount.`
     );
   }
 
