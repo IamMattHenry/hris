@@ -188,6 +188,59 @@ export function requirePermission(...requiredPermissions) {
 }
 
 /**
+ * Middleware: require at least one of the specified RBAC role keys.
+ * Must be used AFTER verifyToken middleware.
+ *
+ * @param  {...string} requiredRoleKeys - role keys (OR logic: user needs at least one)
+ * @returns Express middleware
+ */
+export function requireRole(...requiredRoleKeys) {
+  return async (req, res, next) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required',
+        });
+      }
+
+      const { user_id, role } = req.user;
+
+      if (role === 'superadmin') {
+        req.userPermissions = new Set(['*']);
+        req.userRbacRoles = ['superadmin'];
+        return next();
+      }
+
+      const { roleKeys, permissions } = await getUserPermissions(user_id, role);
+      req.userPermissions = permissions;
+      req.userRbacRoles = roleKeys;
+
+      const hasRequiredRole = requiredRoleKeys.some((roleKey) => roleKeys.includes(roleKey));
+
+      if (!hasRequiredRole) {
+        logger.warn(
+          `RBAC role denied: user ${req.user.username} (roles: [${roleKeys.join(', ')}]) ` +
+          `lacks required roles: [${requiredRoleKeys.join(', ')}]`
+        );
+        return res.status(403).json({
+          success: false,
+          message: 'Insufficient role for this action.',
+        });
+      }
+
+      next();
+    } catch (error) {
+      logger.error('RBAC requireRole middleware error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Authorization check failed',
+      });
+    }
+  };
+}
+
+/**
  * Middleware: load user permissions without enforcing — useful for
  * controllers that need to conditionally filter data based on permissions.
  */
@@ -247,6 +300,7 @@ export async function logRbacChange(userId, targetUserId, action, details) {
 
 export default {
   requirePermission,
+  requireRole,
   loadPermissions,
   hasPermission,
   invalidatePermissionCache,

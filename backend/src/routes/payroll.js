@@ -1,7 +1,7 @@
 import express from 'express';
 import { body } from 'express-validator';
 import { verifyToken } from '../middleware/auth.js';
-import { requirePermission } from '../middleware/rbac.js';
+import { requirePermission, requireRole } from '../middleware/rbac.js';
 import { handleValidationErrors } from '../middleware/validation.js';
 import {
   getPayrollRuns,
@@ -26,6 +26,7 @@ router.get('/runs', verifyToken, requirePermission('payroll.read'), getPayrollRu
 router.post(
   '/runs',
   verifyToken,
+  requireRole('payroll_officer'),
   requirePermission('payroll.create'),
   [
     body('pay_period_start').isISO8601().withMessage('pay_period_start must be a valid date'),

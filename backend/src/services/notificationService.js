@@ -2,6 +2,15 @@ import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
 
 const HR_ROLES = ['admin', 'superadmin'];
+const HR_PORTAL_ROLE_KEYS = [
+  'hr_manager',
+  'hr_supervisor',
+  'payroll_officer',
+  'leave_attendance_officer',
+  'recruitment_officer',
+];
+
+const inFlightNotificationKeys = new Set();
 
 let ensureTablePromise = null;
 
@@ -56,6 +65,34 @@ const getUserIdsByRoleKey = async (roleKey) => {
   return rows
     .map((row) => Number(row.user_id))
     .filter((id) => Number.isInteger(id) && id > 0);
+};
+
+const withNotificationGuard = async (guardKey, handler) => {
+  if (inFlightNotificationKeys.has(guardKey)) {
+    return [];
+  }
+
+  inFlightNotificationKeys.add(guardKey);
+  try {
+    return await handler();
+  } finally {
+    inFlightNotificationKeys.delete(guardKey);
+  }
+};
+
+const getHrPortalUserIds = async () => {
+  await ensureNotificationsTable();
+
+  const portalRoleUserLists = await Promise.all(
+    HR_PORTAL_ROLE_KEYS.map((roleKey) => getUserIdsByRoleKey(roleKey))
+  );
+
+  return Array.from(
+    new Set([
+      ...(await getHrUserIds()),
+      ...portalRoleUserLists.flat(),
+    ])
+  ).filter((id) => Number.isInteger(id) && id > 0);
 };
 
 export const createNotification = async ({
@@ -198,42 +235,52 @@ export const notifyHrUsersBudgetStatus = async ({
       return [];
     }
 
-    await ensureNotificationsTable();
-
-    const threshold = new Date(Date.now() - (Number(cooldownMinutes) || 120) * 60 * 1000);
     const referenceId = `staff_salaries_budget_status:${normalizedStatusCode}`;
+    const guardKey = `budget_alert:payroll:${referenceId}`;
 
-    const recent = await db.getOne(
-      `SELECT notification_id
-       FROM user_notifications
-       WHERE category = ?
-         AND reference_module = ?
-         AND reference_id = ?
-         AND created_at >= ?
-       ORDER BY created_at DESC
-       LIMIT 1`,
-      ['budget_alert', 'payroll', referenceId, threshold]
-    );
+    return await withNotificationGuard(guardKey, async () => {
+      await ensureNotificationsTable();
 
-    if (recent?.notification_id) {
-      return [];
-    }
+      const threshold = new Date(Date.now() - (Number(cooldownMinutes) || 120) * 60 * 1000);
 
-    const utilizationText = utilizationPercent == null
-      ? 'N/A'
-      : `${Number(utilizationPercent).toFixed(2)}%`;
+      const recent = await db.getOne(
+        `SELECT notification_id
+         FROM user_notifications
+         WHERE category = ?
+           AND reference_module = ?
+           AND reference_id = ?
+           AND created_at >= ?
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        ['budget_alert', 'payroll', referenceId, threshold]
+      );
 
-    const remainingText = remainingBudget == null
-      ? 'N/A'
-      : `₱${Number(remainingBudget).toFixed(2)}`;
+      if (recent?.notification_id) {
+        return [];
+      }
 
-    return await notifyHrUsers({
-      actorUserId,
-      title: `Staff Salaries Budget Status: ${statusLabel}`,
-      message: `Current utilization is ${utilizationText}. Remaining budget is ${remainingText}. Please review staffing and budget actions.`,
-      category: 'budget_alert',
-      referenceModule: 'payroll',
-      referenceId,
+      const utilizationText = utilizationPercent == null
+        ? 'N/A'
+        : `${Number(utilizationPercent).toFixed(2)}%`;
+
+      const remainingText = remainingBudget == null
+        ? 'N/A'
+        : `₱${Number(remainingBudget).toFixed(2)}`;
+
+      const recipients = await getHrPortalUserIds();
+      if (recipients.length === 0) {
+        return [];
+      }
+
+      return await createNotificationsForUsers({
+        recipientUserIds: recipients,
+        actorUserId,
+        title: `Staff Salaries Budget Status: ${statusLabel}`,
+        message: `Current utilization is ${utilizationText}. Remaining budget is ${remainingText}. Please review staffing and budget actions.`,
+        category: 'budget_alert',
+        referenceModule: 'payroll',
+        referenceId,
+      });
     });
   } catch (error) {
     logger.error('notifyHrUsersBudgetStatus failed:', error);

@@ -6,6 +6,7 @@ import { Eye, Plus } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
 import { departmentApi, payrollApi } from "@/lib/api";
+import { usePermissions } from "@/hooks/usePermissions";
 import { showToast } from "@/utils/toast";
 import PayrollRunDetailPage from "./view/page";
 import NewPayrollRunPage from "./new/page";
@@ -42,6 +43,9 @@ const formatPeriod = (start: string, end: string) => {
 };
 
 export default function PayrollTable() {
+  const { hasRole, loading: permissionsLoading } = usePermissions();
+  const canCreatePayrollRun = hasRole("payroll_officer");
+
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
@@ -202,7 +206,14 @@ export default function PayrollTable() {
               <option key={type} value={type}>{type}</option>
             ))}
           </select>
-          <ActionButton label="Create Payroll Run" onClick={() => setShowPayrollModal(true)} icon={Plus} />
+          {canCreatePayrollRun && (
+            <ActionButton
+              label="Create Payroll Run"
+              onClick={() => setShowPayrollModal(true)}
+              icon={Plus}
+              disabled={permissionsLoading}
+            />
+          )}
         </div>
       </div>
 
