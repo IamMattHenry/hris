@@ -10,14 +10,16 @@ import {
   ChevronUp,
   Download,
 } from "lucide-react";
-import JSZip from "jszip";
-import QRCode from "qrcode";
+import JSZip from 'jszip';          
+import QRCode from 'qrcode';
+import html2canvas from 'html2canvas';
 import AddModal from "./add_employee/AddModal";
 import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
 import ViewEmployeeModal from "./view_employee/ViewModal";
 import EditEmployeeModal from "./edit_employee/EditModal";
 import BudgetRequestsModal from "./view_budget/page";
+//import photo_url from "@/assets/images/user.png";
 
 
 import LeaveDetailsModal from "@/components/dashboard/LeaveDetailsModal";
@@ -25,22 +27,12 @@ import { employeeApi, payrollApi } from "@/lib/api";
 import { Employee } from "@/types/api";
 import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "react-hot-toast";
-import { a } from "framer-motion/client";
+
 
 
 interface FinanceBudget {
   budget_id: number;
-  department_budget_id?: number;
   amount: number;
-}
-
-interface BudgetOverviewSummary {
-  current_staff_salary_monthly_total: number;
-  staff_salaries_budget_amount: number;
-  remaining_staff_salaries_budget: number;
-  staff_salaries_budget_utilization_percent: number | null;
-  staff_salaries_budget_status_code: "within_budget" | "near_limit" | "over_budget";
-  staff_salaries_budget_status_label: "Within Budget" | "Near Limit" | "Over Budget";
 }
 
 interface BudgetRequestForm {
@@ -76,7 +68,6 @@ export default function EmployeeTable() {
   const [sortBy, setSortBy] = useState<string>("");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [staffSalariesBudget, setStaffSalariesBudget] = useState<FinanceBudget | null>(null);
-  const [budgetOverview, setBudgetOverview] = useState<BudgetOverviewSummary | null>(null);
   const [expenseRequests, setExpenseRequests] = useState<ExpenseBudgetRequestItem[]>([]);
   const [expenseRequestsLoading, setExpenseRequestsLoading] = useState(false);
   const [isExpenseRequestsModalOpen, setIsExpenseRequestsModalOpen] = useState(false);
@@ -103,16 +94,6 @@ export default function EmployeeTable() {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(Number(value));
-  };
-
-  const getBudgetStatusStyles = (statusCode?: BudgetOverviewSummary["staff_salaries_budget_status_code"] | null) => {
-    if (statusCode === "over_budget") {
-      return "bg-red-100 text-red-700 border border-red-200";
-    }
-    if (statusCode === "near_limit") {
-      return "bg-yellow-100 text-yellow-700 border border-yellow-200";
-    }
-    return "bg-green-100 text-green-700 border border-green-200";
   };
 
 
@@ -156,32 +137,13 @@ export default function EmployeeTable() {
         if (res.success && budget) {
           setStaffSalariesBudget({
             budget_id: Number(budget.budget_id),
-            department_budget_id: Number(budget.department_budget_id),
             amount: Number(budget.amount),
           });
-          const summary = res.data?.budget_overview;
-          if (summary) {
-            setBudgetOverview({
-              current_staff_salary_monthly_total: Number(summary.current_staff_salary_monthly_total),
-              staff_salaries_budget_amount: Number(summary.staff_salaries_budget_amount),
-              remaining_staff_salaries_budget: Number(summary.remaining_staff_salaries_budget),
-              staff_salaries_budget_utilization_percent:
-                summary.staff_salaries_budget_utilization_percent == null
-                  ? null
-                  : Number(summary.staff_salaries_budget_utilization_percent),
-              staff_salaries_budget_status_code: summary.staff_salaries_budget_status_code,
-              staff_salaries_budget_status_label: summary.staff_salaries_budget_status_label,
-            });
-          } else {
-            setBudgetOverview(null);
-          }
         } else {
           setStaffSalariesBudget(null);
-          setBudgetOverview(null);
         }
       } catch {
         setStaffSalariesBudget(null);
-        setBudgetOverview(null);
       }
     };
 
@@ -328,6 +290,8 @@ export default function EmployeeTable() {
 
 
   // Download all EmployeeQR
+
+  {/*
   const handleDownloadAllQR = async () => {
     try {
       if (employees.length === 0) {
@@ -380,6 +344,228 @@ export default function EmployeeTable() {
       toast.error("Failed to generate ZIP file.");
     }
   };
+
+
+  */}
+
+  const handleDownloadAllQR = async (): Promise<void> => {
+  try {
+    if (employees.length === 0) {
+      toast.error("No employees to generate ID cards for.");
+      return;
+    }
+
+    const toastId = toast.loading("Generating Celestia Hotel ID cards...");
+    const zip = new JSZip();
+
+    for (const emp of employees) {
+      const dataToEncode = JSON.stringify({
+        employee_id: Number(emp.employee_id),
+        employee_code: emp.employee_code || "",
+        first_name: emp.first_name || "",
+        last_name: emp.last_name || "",
+        position_name: emp.position_name || "N/A",
+        department_name: emp.department_name || "Department",
+        schedule_time: "08:00",
+      });
+
+      const idCard = document.createElement("div");
+
+      Object.assign(idCard.style, {
+        position: "fixed",
+        top: "-9999px",
+        left: "-9999px",
+        width: "320px",
+        height: "500px",
+        background: "#fdfdfd",
+        border: "2px solid #d4af37",
+        borderRadius: "16px",
+        overflow: "hidden",
+        fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+        display: "flex",
+        flexDirection: "column",
+        boxSizing: "border-box",
+      });
+
+      idCard.innerHTML = `
+        <!-- Header -->
+        <div style="
+          background: #3b2b1c;
+          width: 100%;
+          padding: 24px 20px;
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          flex-shrink: 0;
+          box-sizing: border-box;
+        ">
+          <img src="/logo/logo_outline.png" alt="Logo" style="width: 32px; height: 32px; object-fit: contain;" crossorigin="anonymous" />
+          <div style="
+            color: #ffffff;
+            font-weight: 700;
+            font-size: 20px;
+            letter-spacing: 2.5px;
+            text-transform: uppercase;
+            line-height: 1;
+          ">Celestia Hotel</div>
+        </div>
+
+        <!-- Gold divider -->
+        <div style="
+          background: linear-gradient(90deg, #b8860b, #e6be8a, #d4af37, #e6be8a, #b8860b);
+          height: 5px;
+          width: 100%;
+          flex-shrink: 0;
+        "></div>
+
+        <!-- Body -->
+        <div style="
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: space-between;
+          padding: 28px 24px 20px;
+          box-sizing: border-box;
+          background: #fdfdfd;
+        ">
+
+          <!-- Name & Role block -->
+          <div style="text-align: center; width: 100%;">
+            <h2 style="
+              margin: 0 0 10px;
+              color: #3b2b1c;
+              font-size: 22px;
+              font-weight: 800;
+              letter-spacing: 1px;
+              line-height: 1.2;
+              text-transform: uppercase;
+            ">${emp.first_name} ${emp.last_name}</h2>
+            <div style="
+              height: 2px;
+              width: 50px;
+              background: linear-gradient(90deg, #b8860b, #e6be8a, #b8860b);
+              margin: 0 auto 12px;
+            "></div>
+            <p style="
+              margin: 0 0 4px;
+              font-size: 13px;
+              font-weight: 600;
+              color: #555555;
+              font-style: italic;
+            ">${emp.position_name || "Staff"}</p>
+            <p style="
+              margin: 0;
+              font-size: 10px;
+              color: #aaaaaa;
+              text-transform: uppercase;
+              letter-spacing: 2px;
+              font-weight: 500;
+            ">${emp.department_name || "Operations"}</p>
+          </div>
+
+          <!-- QR Code -->
+          <div style="
+            background: #ffffff;
+            padding: 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+          ">
+            <canvas id="qr-${emp.employee_id}" width="148" height="148"></canvas>
+          </div>
+
+          <!-- Employee ID Badge -->
+          <div style="
+            border: 1px solid #d4af37;
+            border-radius: 6px;
+            padding: 7px 22px;
+            background: #ffffff;
+            text-align: center;
+          ">
+            <span style="
+              color: #3b2b1c;
+              font-size: 10px;
+              font-weight: 700;
+              letter-spacing: 2px;
+              text-transform: uppercase;
+            ">Employee ID: ${emp.employee_code || emp.employee_id}</span>
+          </div>
+
+        </div>
+
+        <!-- Footer strip -->
+        <div style="
+          background: #3b2b1c;
+          height: 30px;
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        ">
+          <span style="
+            color: #d4af37;
+            font-size: 8px;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            font-weight: 500;
+          ">Staff Identification Card</span>
+        </div>
+      `;
+
+      document.body.appendChild(idCard);
+
+      const qrCanvas = idCard.querySelector(
+        `#qr-${emp.employee_id}`
+      ) as HTMLCanvasElement;
+
+      await QRCode.toCanvas(qrCanvas, dataToEncode, {
+        width: 148,
+        margin: 1,
+        color: {
+          dark: "#3b2b1c",
+          light: "#ffffff",
+        },
+        errorCorrectionLevel: "H",
+      });
+
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      const canvas = await html2canvas(idCard, {
+        scale: 3,
+        backgroundColor: null,
+        useCORS: true,
+      });
+
+      document.body.removeChild(idCard);
+
+      const base64 = canvas.toDataURL("image/png").split(",")[1];
+      const fileName = `${emp.first_name}_${emp.last_name}_ID.png`.replace(
+        /[^a-zA-Z0-9_.-]/g,
+        ""
+      );
+
+      zip.file(fileName, base64, { base64: true });
+    }
+
+    const blob = await zip.generateAsync({ type: "blob" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "Celestia_Hotel_Staff_IDs.zip";
+    link.click();
+
+    URL.revokeObjectURL(link.href);
+    toast.dismiss(toastId);
+    toast.success(`Generated ${employees.length} luxury ID cards!`);
+  } catch (err) {
+    console.error(err);
+    toast.error("Failed to generate cards.");
+  }
+};
+
 
   const handleView = (id: number) => setEmployeeToView(id);
   const handleEdit = (id: number) => setEmployeeToEdit(id);
@@ -573,320 +759,282 @@ export default function EmployeeTable() {
 
       {/* Staff Salaries Budget */}
       <div className="space-y-6">
-      {/* Tabs Navigation */}
-      <div className="border-b border-[#e6d2b5]">
-        <div className="flex gap-8">
-          <button
-            onClick={() => setActiveComponentTab('employees')}
-            className={`pb-4 px-1 text-sm font-medium transition-all relative ${
-              activeComponentTab === 'employees'
-                ? 'text-[#3b2b1c] border-b-2 border-[#3b2b1c]'
-                : 'text-[#6b5344] hover:text-[#3b2b1c]'
-            }`}
-          >
-            Employee Records
-          </button>
+        {/* Tabs Navigation */}
+        <div className="border-b border-[#e6d2b5]">
+          <div className="flex gap-8">
+            <button
+              onClick={() => setActiveComponentTab('employees')}
+              className={`pb-4 px-1 text-sm font-medium transition-all relative ${activeComponentTab === 'employees'
+                  ? 'text-[#3b2b1c] border-b-2 border-[#3b2b1c]'
+                  : 'text-[#6b5344] hover:text-[#3b2b1c]'
+                }`}
+            >
+              Employee Records
+            </button>
 
             <button
-            onClick={() => setActiveComponentTab('budget')}
-            className={`pb-4 px-1 text-sm font-medium transition-all relative ${
-              activeComponentTab === 'budget'
-                ? 'text-[#3b2b1c] border-b-2 border-[#3b2b1c]'
-                : 'text-[#6b5344] hover:text-[#3b2b1c]'
-            }`}
-          >
-            Budget Overview
-          </button>
-        </div>
-      </div>
-
-      {/* Tab Content */}
-      <div>
-        {/* ==================== BUDGET TAB ==================== */}
-        {activeComponentTab === 'budget' && (
-          <div className="rounded-lg border border-[#e6d2b5] bg-[#FFF2E0] px-4 py-5 text-sm text-[#3b2b1c]">
-            {/* Main Budget Info */}
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-              <div className="flex-1">
-                <p className="font-medium">
-                  Latest Staff Salaries Budget:{' '}
-                  {staffSalariesBudget?.amount
-                    ? formatCurrency(staffSalariesBudget.amount)
-                    : 'Not set'}
-                </p>
-
-                {staffSalariesBudget?.budget_id ? (
-                  <p className="mt-1 text-xs text-[#6b5344]">
-                    Source: Budget from the Finance Department
-                  </p>
-                ) : (
-                  <p className="mt-1 text-xs text-[#6b5344]">
-                    Budget data unavailable. Employee salary updates may be blocked until Finance budget is configured.
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={() => setIsBudgetRequestOpen(true)}
-                className="px-5 py-2.5 rounded-xl bg-[#3b2b1c] text-white text-xs font-medium hover:bg-[#2a2118] active:bg-[#1f1812] transition-all whitespace-nowrap"
-              >
-                Request Additional Budget
-              </button>
-            </div>
-
-            {budgetOverview && (
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="rounded-md border border-[#e6d2b5] bg-[#fff7ec] px-3 py-3">
-                  <p className="text-[11px] text-[#6b5344]">Overall Monthly Salaries</p>
-                  <p className="text-sm font-semibold text-[#3b2b1c] mt-1">
-                    {formatCurrency(budgetOverview.current_staff_salary_monthly_total)}
-                  </p>
-                </div>
-                <div className="rounded-md border border-[#e6d2b5] bg-[#fff7ec] px-3 py-3">
-                  <p className="text-[11px] text-[#6b5344]">Remaining Budget</p>
-                  <p className="text-sm font-semibold text-[#3b2b1c] mt-1">
-                    {formatCurrency(budgetOverview.remaining_staff_salaries_budget)}
-                  </p>
-                </div>
-                <div className="rounded-md border border-[#e6d2b5] bg-[#fff7ec] px-3 py-3">
-                  <p className="text-[11px] text-[#6b5344]">Budget Utilization</p>
-                  <p className="text-sm font-semibold text-[#3b2b1c] mt-1">
-                    {budgetOverview.staff_salaries_budget_utilization_percent == null
-                      ? 'N/A'
-                      : `${budgetOverview.staff_salaries_budget_utilization_percent.toFixed(2)}%`}
-                  </p>
-                  <span
-                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium mt-2 ${getBudgetStatusStyles(
-                      budgetOverview.staff_salaries_budget_status_code
-                    )}`}
-                  >
-                    {budgetOverview.staff_salaries_budget_status_label}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Recent Submitted Budget Requests */}
-            <div className="mt-6 border-t border-[#e6d2b5] pt-4">
-              <div className="flex items-center justify-center mb-3">
-                <p className="text-xs font-semibold text-[#6b5344]">
-                  Recent Submitted Budget Requests
-                </p>
-              </div>
-
-              {expenseRequestsLoading ? (
-                <p className="text-xs text-[#6b5344] py-4">Loading requests...</p>
-              ) : expenseRequests.length === 0 ? (
-                <p className="text-xs text-[#6b5344] py-4">No submitted requests yet.</p>
-              ) : (
-                <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1 custom-scrollbar">
-                  {expenseRequests.slice(0, 5).map((request) => (
-                    <div
-                      key={request.notification_id}
-                      className="rounded-md border border-[#e6d2b5] bg-[#fff7ec] px-3 py-3 hover:bg-[#ffebd0] transition-colors"
-                    >
-                      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-[#3b2b1c] truncate">
-                            {request.title}
-                          </p>
-                          <p className="text-[11px] text-[#6b5344] mt-1">
-                            {formatCurrency(request.requested_amount)} •{' '}
-                            <span className="capitalize">{request.priority}</span> priority
-                          </p>
-                        </div>
-
-                        <span
-                          className={`text-[10px] px-3 py-1 rounded-full whitespace-nowrap self-start ${
-                            request.status === "accepted"
-                              ? "bg-green-100 text-green-700"
-                              : request.status === "rejected"
-                                ? "bg-red-100 text-red-700"
-                                : request.status === "cancelled"
-                                  ? "bg-gray-100 text-gray-700"
-                                  : "bg-yellow-100 text-yellow-700"
-                          }`}
-                        >
-                          {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {expenseRequests.length > 10 && (
-              <button
-                onClick={() => setShowAllRequests(true)}
-                className="text-md text-[#6b5344] hover:text-[#3b2b1c] mt-4 w-full flex items-center justify-center font-medium gap-1 transition-colors"
-              >
-                View all ({expenseRequests.length})
-              </button>
-            )}
+              onClick={() => setActiveComponentTab('budget')}
+              className={`pb-4 px-1 text-sm font-medium transition-all relative ${activeComponentTab === 'budget'
+                  ? 'text-[#3b2b1c] border-b-2 border-[#3b2b1c]'
+                  : 'text-[#6b5344] hover:text-[#3b2b1c]'
+                }`}
+            >
+              Budget Overview
+            </button>
           </div>
-        )}
+        </div>
 
-        {/* ==================== EMPLOYEES TAB ==================== */}
-        {activeComponentTab === 'employees' && (
-          <div className="w-full">
-        
-            <table className="w-full text-sm table-fixed border-separate border-spacing-y-2">
-              <thead className="bg-[#3b2b1c] text-white text-left sticky top-0 z-20">
-                <tr>
-                  <th className="py-4 px-4 rounded-l-lg">ID</th>
-                  <th className="py-4 px-4">Name</th>
-                  <th className="py-4 px-4">Position</th>
-                  <th className="py-4 px-4">Department</th>
-                  <th className="py-4 px-4">Status</th>
-                  <th className="py-4 px-4">Actions</th>
-                </tr>
-              </thead>
+        {/* Tab Content */}
+        <div>
+          {/* ==================== BUDGET TAB ==================== */}
+          {activeComponentTab === 'budget' && (
+            <div className="rounded-lg border border-[#e6d2b5] bg-[#FFF2E0] px-4 py-5 text-sm text-[#3b2b1c]">
+              {/* Main Budget Info */}
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                <div className="flex-1">
+                  <p className="font-medium">
+                    Latest Staff Salaries Budget:{' '}
+                    {staffSalariesBudget?.amount
+                      ? formatCurrency(staffSalariesBudget.amount)
+                      : 'Not set'}
+                  </p>
 
-              <tbody>
-                {currentEmployees.length > 0 ? (
-                  currentEmployees.map((emp) => (
-                    <tr
-                      key={emp.employee_id}
-                      className="bg-[#fff4e6] border border-orange-100 rounded-lg hover:shadow-sm transition relative"
-                    >
-                      <td className="py-3 px-4">{emp.employee_code}</td>
-                      <td className="py-3 px-4 flex items-center space-x-3">
-                        <div className="w-8 h-8 rounded-full bg-[#800000] flex items-center justify-center text-white text-sm font-semibold">
-                          {emp.first_name && emp.last_name
-                            ? `${emp.first_name[0]}${emp.last_name[0]}`.toUpperCase()
-                            : "?"}
-                        </div>
-                        <span>{emp.first_name} {emp.last_name}</span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span>{emp.position_name || "N/A"}</span>
-                      </td>
-                      <td className="py-3 px-4">{emp.department_name || "N/A"}</td>
-                      <td className="py-3 px-4">
-                        <span
-                          onClick={() => {
-                            if (emp.status === "on-leave") {
-                              setLeaveDetailEmployee({
-                                id: emp.employee_id,
-                                name: `${emp.first_name} ${emp.last_name}`,
-                              });
-                            }
-                          }}
-                          className={`px-3 py-2 rounded-full text-xs font-medium inline-block cursor-pointer ${
-                            emp.status === "active"
-                              ? "bg-green-100 text-green-700"
-                              : emp.status === "resigned"
-                                ? "bg-yellow-100 text-yellow-700"
-                                : emp.status === "on-leave"
-                                  ? "bg-blue-100 text-blue-700 hover:shadow-md transition"
-                                  : "bg-red-100 text-red-700"
-                          }`}
-                        >
-                          {emp.status.charAt(0).toUpperCase() +
-                            emp.status.slice(1).replace("-", " ")}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-left relative">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedMenu(selectedMenu === emp.employee_id ? null : emp.employee_id);
-                          }}
-                          className="p-1 rounded hover:bg-gray-200 menu-button"
-                        >
-                          <MoreVertical size={18} className="text-gray-600" />
-                        </button>
-
-                        {selectedMenu === emp.employee_id && (
-                          <div className="absolute right-4 top-10 bg-[#FFF2E0] rounded-lg shadow-lg w-36 z-50 employee-dropdown">
-                            <button onClick={() => handleView(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-gray-50">View</button>
-                            {canEdit && (
-                              <button onClick={() => handleEdit(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-gray-50">Edit</button>
-                            )}
-                            {canTerminate && (
-                              <button
-                                onClick={() => handleTerminate(emp.employee_id)}
-                                disabled={emp.status === "terminated"}
-                                className={`w-full text-left px-4 py-2 ${
-                                  emp.status === "terminated"
-                                    ? "text-gray-400 cursor-not-allowed"
-                                    : "hover:bg-red-100 text-red-600"
-                                }`}
-                              >
-                                {emp.status === "terminated" ? "Terminated" : "Terminate"}
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={6} className="py-8 text-center text-gray-500">
-                      No employees found
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-
-            {/* Pagination */}
-            <div className="flex justify-between items-center mt-4 select-none w-full gap-4">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => goToPage(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  className="px-4 py-3 rounded bg-[#3b2b1c] cursor-pointer text-white text-sm disabled:opacity-40"
-                >
-                  Prev
-                </button>
-
-                <div className="flex items-center gap-1 overflow-hidden truncate">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1)
-                    .slice(
-                      Math.max(currentPage - 2, 0),
-                      Math.min(currentPage + 1, totalPages)
-                    )
-                    .map((num) => (
-                      <button
-                        key={num}
-                        onClick={() => goToPage(num)}
-                        className={`px-3 py-2 rounded text-sm transition cursor-pointer ${
-                          currentPage === num
-                            ? "bg-[#3b2b1c] text-white"
-                            : "text-[#3b2b1c] hover:underline"
-                        }`}
-                      >
-                        {num}
-                      </button>
-                    ))}
-
-                  {totalPages > 5 && currentPage < totalPages - 2 && (
-                    <span className="px-1 text-[#3b2b1c]">...</span>
+                  {staffSalariesBudget?.budget_id ? (
+                    <p className="mt-1 text-xs text-[#6b5344]">
+                      Source: Finance Department
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs text-[#6b5344]">
+                      Budget data unavailable. Employee salary updates may be blocked until Finance budget is configured.
+                    </p>
                   )}
                 </div>
-
                 <button
-                  onClick={() => goToPage(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  className="px-4 py-3 rounded bg-[#3b2b1c] cursor-pointer text-white text-sm disabled:opacity-40"
+                  onClick={() => setIsBudgetRequestOpen(true)}
+                  className="px-5 py-2.5 rounded-xl bg-[#3b2b1c] text-white text-xs font-medium hover:bg-[#2a2118] active:bg-[#1f1812] transition-all whitespace-nowrap"
                 >
-                  Next
+                  Request Additional Budget
                 </button>
               </div>
 
-              <ActionButton
-                label="Download All QR"
-                onClick={handleDownloadAllQR}
-                icon={Download}
-                className="py-4 gap-2"
-              />
+              {/* Recent Submitted Budget Requests */}
+              <div className="mt-6 border-t border-[#e6d2b5] pt-4">
+                <div className="flex items-center justify-center mb-3">
+                  <p className="text-xs font-semibold text-[#6b5344]">
+                    Recent Submitted Budget Requests
+                  </p>
+                </div>
+
+                {expenseRequestsLoading ? (
+                  <p className="text-xs text-[#6b5344] py-4">Loading requests...</p>
+                ) : expenseRequests.length === 0 ? (
+                  <p className="text-xs text-[#6b5344] py-4">No submitted requests yet.</p>
+                ) : (
+                  <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1 custom-scrollbar">
+                    {expenseRequests.slice(0, 5).map((request) => (
+                      <div
+                        key={request.notification_id}
+                        className="rounded-md border border-[#e6d2b5] bg-[#fff7ec] px-3 py-3 hover:bg-[#ffebd0] transition-colors"
+                      >
+                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-[#3b2b1c] truncate">
+                              {request.title}
+                            </p>
+                            <p className="text-[11px] text-[#6b5344] mt-1">
+                              {formatCurrency(request.requested_amount)} •{' '}
+                              <span className="capitalize">{request.priority}</span> priority
+                            </p>
+                          </div>
+
+                          <span
+                            className={`text-[10px] px-3 py-1 rounded-full whitespace-nowrap self-start ${request.status === "accepted"
+                                ? "bg-green-100 text-green-700"
+                                : request.status === "rejected"
+                                  ? "bg-red-100 text-red-700"
+                                  : request.status === "cancelled"
+                                    ? "bg-gray-100 text-gray-700"
+                                    : "bg-yellow-100 text-yellow-700"
+                              }`}
+                          >
+                            {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {expenseRequests.length > 10 && (
+                <button
+                  onClick={() => setShowAllRequests(true)}
+                  className="text-md text-[#6b5344] hover:text-[#3b2b1c] mt-4 w-full flex items-center justify-center font-medium gap-1 transition-colors"
+                >
+                  View all ({expenseRequests.length})
+                </button>
+              )}
             </div>
-          </div>
-        )}
+          )}
+
+          {/* ==================== EMPLOYEES TAB ==================== */}
+          {activeComponentTab === 'employees' && (
+            <div className="w-full">
+
+              <table className="w-full text-sm table-fixed border-separate border-spacing-y-2">
+                <thead className="bg-[#3b2b1c] text-white text-left sticky top-0 z-20">
+                  <tr>
+                    <th className="py-4 px-4 rounded-l-lg">ID</th>
+                    <th className="py-4 px-4">Name</th>
+                    <th className="py-4 px-4">Position</th>
+                    <th className="py-4 px-4">Department</th>
+                    <th className="py-4 px-4">Status</th>
+                    <th className="py-4 px-4">Actions</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {currentEmployees.length > 0 ? (
+                    currentEmployees.map((emp) => (
+                      <tr
+                        key={emp.employee_id}
+                        className="bg-[#fff4e6] border border-orange-100 rounded-lg hover:shadow-sm transition relative"
+                      >
+                        <td className="py-3 px-4">{emp.employee_code}</td>
+                        <td className="py-3 px-4 flex items-center space-x-3">
+                          <div className="w-8 h-8 rounded-full bg-[#800000] flex items-center justify-center text-white text-sm font-semibold">
+                            {emp.first_name && emp.last_name
+                              ? `${emp.first_name[0]}${emp.last_name[0]}`.toUpperCase()
+                              : "?"}
+                          </div>
+                          <span>{emp.first_name} {emp.last_name}</span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span>{emp.position_name || "N/A"}</span>
+                        </td>
+                        <td className="py-3 px-4">{emp.department_name || "N/A"}</td>
+                        <td className="py-3 px-4">
+                          <span
+                            onClick={() => {
+                              if (emp.status === "on-leave") {
+                                setLeaveDetailEmployee({
+                                  id: emp.employee_id,
+                                  name: `${emp.first_name} ${emp.last_name}`,
+                                });
+                              }
+                            }}
+                            className={`px-3 py-2 rounded-full text-xs font-medium inline-block cursor-pointer ${emp.status === "active"
+                                ? "bg-green-100 text-green-700"
+                                : emp.status === "resigned"
+                                  ? "bg-yellow-100 text-yellow-700"
+                                  : emp.status === "on-leave"
+                                    ? "bg-blue-100 text-blue-700 hover:shadow-md transition"
+                                    : "bg-red-100 text-red-700"
+                              }`}
+                          >
+                            {emp.status.charAt(0).toUpperCase() +
+                              emp.status.slice(1).replace("-", " ")}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-left relative">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedMenu(selectedMenu === emp.employee_id ? null : emp.employee_id);
+                            }}
+                            className="p-1 rounded hover:bg-gray-200 menu-button"
+                          >
+                            <MoreVertical size={18} className="text-gray-600" />
+                          </button>
+
+                          {selectedMenu === emp.employee_id && (
+                            <div className="absolute right-4 top-10 bg-[#FFF2E0] rounded-lg shadow-lg w-36 z-50 employee-dropdown">
+                              <button onClick={() => handleView(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-gray-50">View</button>
+                              {canEdit && (
+                                <button onClick={() => handleEdit(emp.employee_id)} className="w-full text-left px-4 py-2 hover:bg-gray-50">Edit</button>
+                              )}
+                              {canTerminate && (
+                                <button
+                                  onClick={() => handleTerminate(emp.employee_id)}
+                                  disabled={emp.status === "terminated"}
+                                  className={`w-full text-left px-4 py-2 ${emp.status === "terminated"
+                                      ? "text-gray-400 cursor-not-allowed"
+                                      : "hover:bg-red-100 text-red-600"
+                                    }`}
+                                >
+                                  {emp.status === "terminated" ? "Terminated" : "Terminate"}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-gray-500">
+                        No employees found
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+
+              {/* Pagination */}
+              <div className="flex justify-between items-center mt-4 select-none w-full gap-4">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => goToPage(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className="px-4 py-3 rounded bg-[#3b2b1c] cursor-pointer text-white text-sm disabled:opacity-40"
+                  >
+                    Prev
+                  </button>
+
+                  <div className="flex items-center gap-1 overflow-hidden truncate">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .slice(
+                        Math.max(currentPage - 2, 0),
+                        Math.min(currentPage + 1, totalPages)
+                      )
+                      .map((num) => (
+                        <button
+                          key={num}
+                          onClick={() => goToPage(num)}
+                          className={`px-3 py-2 rounded text-sm transition cursor-pointer ${currentPage === num
+                              ? "bg-[#3b2b1c] text-white"
+                              : "text-[#3b2b1c] hover:underline"
+                            }`}
+                        >
+                          {num}
+                        </button>
+                      ))}
+
+                    {totalPages > 5 && currentPage < totalPages - 2 && (
+                      <span className="px-1 text-[#3b2b1c]">...</span>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => goToPage(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className="px-4 py-3 rounded bg-[#3b2b1c] cursor-pointer text-white text-sm disabled:opacity-40"
+                  >
+                    Next
+                  </button>
+                </div>
+
+                <ActionButton
+                  label="Download All QR"
+                  onClick={handleDownloadAllQR}
+                  icon={Download}
+                  className="py-4 gap-2"
+                />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
 
 
       {/* Modals */}
