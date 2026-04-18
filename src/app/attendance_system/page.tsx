@@ -332,7 +332,7 @@ export default function AttendanceSystemPage() {
               <LogIn className="w-9 h-9 text-white" />
             </div>
             <h2 className="text-2xl font-bold text-[#3b2b1c]">HR Authentication</h2>
-            <p className="text-[#8b7355] mt-2">Please contact HR staff to login to use QR Code Attendance</p>
+            <p className="text-[#8b7355] mt-2">Please contact HR staff to login and use QR Code Attendance</p>
           </div>
 
           <form onSubmit={handleHRLogin} className="space-y-6">
