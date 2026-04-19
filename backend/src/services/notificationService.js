@@ -221,6 +221,42 @@ export const notifyHrUsers = async ({
   }
 };
 
+const notifyHrPortalUsers = async ({
+  actorUserId = null,
+  excludeUserIds = [],
+  title,
+  message,
+  category = 'general',
+  referenceModule = null,
+  referenceId = null,
+}) => {
+  const recipients = await getHrPortalUserIds();
+  if (recipients.length === 0) {
+    return [];
+  }
+
+  const exclusionSet = new Set(
+    (Array.isArray(excludeUserIds) ? excludeUserIds : [excludeUserIds])
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id) && id > 0)
+  );
+
+  const filteredRecipients = recipients.filter((id) => !exclusionSet.has(id));
+  if (filteredRecipients.length === 0) {
+    return [];
+  }
+
+  return await createNotificationsForUsers({
+    recipientUserIds: filteredRecipients,
+    actorUserId,
+    title,
+    message,
+    category,
+    referenceModule,
+    referenceId,
+  });
+};
+
 export const notifyHrUsersBudgetStatus = async ({
   actorUserId = null,
   statusCode,
@@ -267,13 +303,7 @@ export const notifyHrUsersBudgetStatus = async ({
         ? 'N/A'
         : `₱${Number(remainingBudget).toFixed(2)}`;
 
-      const recipients = await getHrPortalUserIds();
-      if (recipients.length === 0) {
-        return [];
-      }
-
-      return await createNotificationsForUsers({
-        recipientUserIds: recipients,
+      return await notifyHrPortalUsers({
         actorUserId,
         title: `Staff Salaries Budget Status: ${statusLabel}`,
         message: `Current utilization is ${utilizationText}. Remaining budget is ${remainingText}. Please review staffing and budget actions.`,
@@ -284,6 +314,84 @@ export const notifyHrUsersBudgetStatus = async ({
     });
   } catch (error) {
     logger.error('notifyHrUsersBudgetStatus failed:', error);
+    return [];
+  }
+};
+
+export const notifyHrUsersBudgetRequestStatusChange = async ({
+  actorUserId = null,
+  referenceId = null,
+  requestTitle,
+  requestedAmount = null,
+  status,
+  previousStatus = null,
+  departmentName = null,
+}) => {
+  try {
+    const normalizedStatus = String(status || '').trim().toLowerCase();
+    if (!normalizedStatus) {
+      return [];
+    }
+
+    const normalizedPreviousStatus = String(previousStatus || '').trim().toLowerCase();
+    const changeLabel = normalizedPreviousStatus && normalizedPreviousStatus !== normalizedStatus
+      ? `${normalizedPreviousStatus} → ${normalizedStatus}`
+      : normalizedStatus;
+
+    const amountText = requestedAmount == null
+      ? 'N/A'
+      : `₱${Number(requestedAmount).toFixed(2)}`;
+
+    const title = `Budget request ${normalizedStatus}`;
+    const message = [
+      `Budget request${requestTitle ? ` "${requestTitle}"` : ''} changed to ${changeLabel}.`,
+      departmentName ? `Department: ${departmentName}.` : null,
+      `Amount: ${amountText}.`,
+    ].filter(Boolean).join(' ');
+
+    return await notifyHrPortalUsers({
+      actorUserId,
+      title,
+      message,
+      category: 'budget_request_status',
+      referenceModule: 'payroll',
+      referenceId: referenceId != null ? String(referenceId) : null,
+    });
+  } catch (error) {
+    logger.error('notifyHrUsersBudgetRequestStatusChange failed:', error);
+    return [];
+  }
+};
+
+export const notifyHrUsersBudgetAmountChange = async ({
+  actorUserId = null,
+  referenceId = null,
+  previousAmount = null,
+  currentAmount = null,
+  budgetLabel = 'HR Budget',
+}) => {
+  try {
+    const previous = Number(previousAmount);
+    const current = Number(currentAmount);
+    if (!Number.isFinite(previous) || !Number.isFinite(current) || previous === current) {
+      return [];
+    }
+
+    const direction = current > previous ? 'increased' : 'decreased';
+    const delta = Math.abs(current - previous);
+    const title = `${budgetLabel} ${direction}`;
+    const message = `${budgetLabel} changed from ₱${previous.toFixed(2)} to ₱${current.toFixed(2)} (${direction} by ₱${delta.toFixed(2)}).`;
+
+    return await notifyHrPortalUsers({
+      actorUserId,
+      title,
+      message,
+      category: 'budget_change',
+      referenceModule: 'payroll',
+      referenceId: referenceId != null ? String(referenceId) : null,
+    });
+  } catch (error) {
+    logger.error('notifyHrUsersBudgetAmountChange failed:', error);
     return [];
   }
 };

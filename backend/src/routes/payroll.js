@@ -15,6 +15,7 @@ import {
   getPayrollSettings,
   getExpenseBudgetRequests,
   createExpenseBudgetRequest,
+  updateExpenseBudgetRequestStatus,
   updatePayrollSettings,
   overridePayrollRecord,
 } from '../controllers/payrollController.js';
@@ -89,6 +90,17 @@ router.post(
   ],
   handleValidationErrors,
   createExpenseBudgetRequest
+);
+
+router.patch(
+  '/expense-requests/:id/status',
+  verifyToken,
+  requirePermission('payroll.update'),
+  [
+    body('status').isIn(['pending', 'accepted', 'rejected', 'cancelled']).withMessage('Invalid status value'),
+  ],
+  handleValidationErrors,
+  updateExpenseBudgetRequestStatus
 );
 
 router.put(

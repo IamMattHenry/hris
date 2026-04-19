@@ -9,9 +9,11 @@ import {
   getFinanceBudgetsSnapshot,
   getCurrentStaffSalaryMonthlyTotal,
 } from '../services/financeBudgetService.js';
-import { notifyHrUsersBudgetStatus } from '../services/notificationService.js';
+import { notifyHrUsersBudgetAmountChange, notifyHrUsersBudgetRequestStatusChange, notifyHrUsersBudgetStatus } from '../services/notificationService.js';
 
 const round2 = (value) => Number((Number(value) || 0).toFixed(2));
+
+let lastStaffSalariesBudgetAmountNotified = null;
 
 const parseJson = (value, fallback = null) => {
   if (value == null) return fallback;
@@ -1182,6 +1184,19 @@ export const getPayrollSettings = async (req, res, next) => {
         staff_salaries_budget_status_label: staffSalariesBudgetStatusLabel,
       };
 
+      if (lastStaffSalariesBudgetAmountNotified != null && lastStaffSalariesBudgetAmountNotified !== staffSalariesBudgetAmount) {
+        await notifyHrUsersBudgetAmountChange({
+          actorUserId: req.user?.user_id || null,
+          referenceId: `staff_salaries_budget_amount:${staffSalariesBudgetAmount}`,
+          previousAmount: lastStaffSalariesBudgetAmountNotified,
+          currentAmount: staffSalariesBudgetAmount,
+          budgetLabel: 'HR Budget',
+        });
+      }
+      if (Number.isFinite(staffSalariesBudgetAmount)) {
+        lastStaffSalariesBudgetAmountNotified = staffSalariesBudgetAmount;
+      }
+
       if (staffSalariesBudgetStatusCode === 'near_limit' || staffSalariesBudgetStatusCode === 'over_budget') {
         await notifyHrUsersBudgetStatus({
           actorUserId: req.user?.user_id || null,
@@ -1371,6 +1386,115 @@ export const createExpenseBudgetRequest = async (req, res, next) => {
     });
   } catch (error) {
     logger.error('Create expense budget request error:', error);
+    next(error);
+  }
+};
+
+export const updateExpenseBudgetRequestStatus = async (req, res, next) => {
+  try {
+    const requestId = Number(req.params?.id);
+    const normalizedStatus = String(req.body?.status || '').trim().toLowerCase();
+    const allowedStatuses = new Set(['pending', 'accepted', 'rejected', 'cancelled']);
+
+    if (!Number.isInteger(requestId) || requestId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'request id must be a positive integer',
+      });
+    }
+
+    if (!allowedStatuses.has(normalizedStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: 'status must be one of pending, accepted, rejected, or cancelled',
+      });
+    }
+
+    const columns = await getTableColumns('expense_notifications');
+    const statusColumn = findFirstExistingColumn(columns, ['status', 'request_status']);
+    const departmentIdColumn = findFirstExistingColumn(columns, ['department_id', 'request_department_id', 'dept_id']);
+    const departmentNameColumn = findFirstExistingColumn(columns, ['department_name', 'request_department_name']);
+    const metadataColumn = columns.has('metadata') ? 'metadata' : null;
+
+    if (!statusColumn) {
+      return res.status(500).json({
+        success: false,
+        message: 'expense_notifications schema is missing a status field.',
+      });
+    }
+
+    const current = await db.getOne(
+      `SELECT
+         notification_id,
+         title,
+         requested_amount,
+         priority,
+         ${statusColumn} AS status,
+         requested_by,
+         created_at,
+         updated_at,
+         ${departmentIdColumn ? `${departmentIdColumn}` : 'NULL'} AS department_id,
+         ${departmentNameColumn ? `${departmentNameColumn}` : 'NULL'} AS department_name,
+         ${metadataColumn ? `${metadataColumn}` : 'NULL'} AS metadata
+       FROM expense_notifications
+       WHERE notification_id = ?
+       LIMIT 1`,
+      [requestId]
+    );
+
+    if (!current) {
+      return res.status(404).json({
+        success: false,
+        message: 'Budget request not found',
+      });
+    }
+
+    const previousStatus = String(current.status || '').trim().toLowerCase();
+    if (previousStatus === normalizedStatus) {
+      return res.json({
+        success: true,
+        message: 'Budget request status is already up to date.',
+        data: {
+          id: requestId,
+          status: normalizedStatus,
+        },
+      });
+    }
+
+    await db.update('expense_notifications', {
+      [statusColumn]: normalizedStatus,
+      updated_at: new Date(),
+    }, 'notification_id = ?', [requestId]);
+
+    const metadata = parseJson(current.metadata, {});
+    const resolvedDepartmentName = current.department_name ?? metadata?.requested_department_name ?? null;
+
+    await notifyHrUsersBudgetRequestStatusChange({
+      actorUserId: req.user?.user_id || null,
+      referenceId: requestId,
+      requestTitle: current.title || `Budget request #${requestId}`,
+      requestedAmount: Number(current.requested_amount) || null,
+      status: normalizedStatus,
+      previousStatus,
+      departmentName: resolvedDepartmentName ? String(resolvedDepartmentName) : null,
+    });
+
+    await writeActivityLog({
+      userId: req.user?.user_id || null,
+      action: 'UPDATE',
+      description: `Updated budget request #${requestId} status from ${previousStatus || 'unknown'} to ${normalizedStatus}`,
+    });
+
+    return res.json({
+      success: true,
+      message: 'Budget request status updated successfully',
+      data: {
+        id: requestId,
+        status: normalizedStatus,
+      },
+    });
+  } catch (error) {
+    logger.error('Update expense budget request status error:', error);
     next(error);
   }
 };

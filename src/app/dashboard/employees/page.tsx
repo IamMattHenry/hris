@@ -109,18 +109,14 @@ export default function EmployeeTable() {
     }).format(Number(value));
   };
 
-
-  // RBAC permission checks (replaces hardcoded role checks)
   const canCreate = can('employees.create');
   const canEdit = can('employees.update');
   const canTerminate = canAny('employees.terminate', 'employees.delete');
   const canViewLeave = canAny('leave.read', 'leave.read_department');
 
-  // 🔹 Close menus when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      // Only close if click is outside dropdowns or buttons
       if (
         !target.closest(".employee-dropdown") &&
         !target.closest(".menu-button") &&
@@ -136,7 +132,6 @@ export default function EmployeeTable() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // 🔹 Fetch employees
   useEffect(() => {
     fetchEmployees();
   }, []);

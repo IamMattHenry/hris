@@ -1115,6 +1115,18 @@ export const payrollApi = {
     });
   },
 
+  updateExpenseRequestStatus: async (
+    id: number | string,
+    data: {
+      status: 'pending' | 'accepted' | 'rejected' | 'cancelled';
+    }
+  ) => {
+    return apiCall<any>(`/payroll/expense-requests/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
   updateSettings: async (data: {
     pay_schedule: 'weekly' | 'semi-monthly' | 'monthly';
     allowances_config?: any;
