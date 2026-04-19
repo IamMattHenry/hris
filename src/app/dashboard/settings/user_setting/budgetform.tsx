@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
+import { departmentApi } from "@/lib/api";
+import { Department } from "@/types/api";
 
 export default function BudgetForm() {
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [formData, setFormData] = useState({
-    deptId: "",
-    deptName: "",
+    department_id: "",
+    department_name: "",
     amount: "",
     budgetName: "",
     senderName: "",
@@ -22,6 +25,23 @@ export default function BudgetForm() {
     }));
   };
 
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const response = await departmentApi.getAll();
+        if (response.success && Array.isArray(response.data)) {
+          setDepartments(response.data as Department[]);
+        } else {
+          setDepartments([]);
+        }
+      } catch {
+        setDepartments([]);
+      }
+    };
+
+    fetchDepartments();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -33,8 +53,8 @@ export default function BudgetForm() {
       
       // Reset form
       setFormData({
-        deptId: "",
-        deptName: "",
+        department_id: "",
+        department_name: "",
         amount: "",
         budgetName: "",
         senderName: "",
@@ -62,34 +82,48 @@ export default function BudgetForm() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="flex flex-col space-y-2">
-              <label htmlFor="deptId" className="text-sm font-medium text-[#3b2b1c]">
-                Department ID
+              <label htmlFor="department_id" className="text-sm font-medium text-[#3b2b1c]">
+                Department
               </label>
-              <input
-                type="text"
-                id="deptId"
-                name="deptId"
-                value={formData.deptId}
-                onChange={handleChange}
+              <select
+                id="department_id"
+                name="department_id"
+                value={formData.department_id}
+                onChange={(e) => {
+                  const selectedDepartment = departments.find(
+                    (department) => String(department.department_id) === e.target.value
+                  );
+                  setFormData((prev) => ({
+                    ...prev,
+                    department_id: e.target.value,
+                    department_name: selectedDepartment?.department_name || "",
+                  }));
+                }}
                 required
                 className="px-4 py-2 border border-[#d6c3aa] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b2b1c] text-[#3b2b1c]"
-                placeholder="Enter Dept ID"
-              />
+              >
+                <option value="">Select department</option>
+                {departments.map((department) => (
+                  <option key={department.department_id} value={department.department_id}>
+                    {department.department_name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="flex flex-col space-y-2">
-              <label htmlFor="deptName" className="text-sm font-medium text-[#3b2b1c]">
+              <label htmlFor="department_name" className="text-sm font-medium text-[#3b2b1c]">
                 Department Name
               </label>
               <input
                 type="text"
-                id="deptName"
-                name="deptName"
-                value={formData.deptName}
+                id="department_name"
+                name="department_name"
+                value={formData.department_name}
                 onChange={handleChange}
-                required
+                readOnly
                 className="px-4 py-2 border border-[#d6c3aa] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b2b1c] text-[#3b2b1c]"
-                placeholder="Enter Dept Name"
+                placeholder="Auto-filled from selected department"
               />
             </div>
           </div>

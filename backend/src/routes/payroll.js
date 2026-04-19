@@ -81,6 +81,7 @@ router.post(
   verifyToken,
   requirePermission('employees.create', 'employees.update', 'payroll.update'),
   [
+    body('department_id').isInt({ min: 1 }).withMessage('department_id must be a positive integer'),
     body('title').trim().notEmpty().withMessage('title is required').isLength({ max: 150 }).withMessage('title must be at most 150 characters'),
     body('description').trim().notEmpty().withMessage('description is required').isLength({ max: 2000 }).withMessage('description must be at most 2000 characters'),
     body('requested_amount').isFloat({ gt: 0 }).withMessage('requested_amount must be greater than 0'),

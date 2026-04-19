@@ -1089,13 +1089,21 @@ export const payrollApi = {
     });
   },
 
-  getExpenseRequests: async () => {
-    return apiCall<any[]>('/payroll/expense-requests', {
+  getExpenseRequests: async (params?: { department_id?: number | string }) => {
+    const search = new URLSearchParams();
+    if (params?.department_id != null && String(params.department_id).trim() !== '') {
+      search.append('department_id', String(params.department_id));
+    }
+
+    const url = `/payroll/expense-requests${search.toString() ? `?${search.toString()}` : ''}`;
+
+    return apiCall<any[]>(url, {
       method: 'GET',
     });
   },
 
   createExpenseRequest: async (data: {
+    department_id: number;
     title: string;
     description: string;
     requested_amount: number;

@@ -1214,6 +1214,7 @@ export const getPayrollSettings = async (req, res, next) => {
 export const createExpenseBudgetRequest = async (req, res, next) => {
   try {
     const {
+      department_id,
       title,
       description,
       requested_amount,
@@ -1223,6 +1224,26 @@ export const createExpenseBudgetRequest = async (req, res, next) => {
     const normalizedTitle = String(title || '').trim();
     const normalizedDescription = String(description || '').trim();
     const requestedAmount = Number(requested_amount);
+    const departmentId = Number(department_id);
+
+    if (!Number.isInteger(departmentId) || departmentId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'department_id must be a positive integer',
+      });
+    }
+
+    const requestedDepartment = await db.getOne(
+      'SELECT department_id, department_name FROM departments WHERE department_id = ?',
+      [departmentId]
+    );
+
+    if (!requestedDepartment) {
+      return res.status(400).json({
+        success: false,
+        message: 'Selected department was not found',
+      });
+    }
 
     if (!normalizedTitle) {
       return res.status(400).json({
@@ -1292,6 +1313,16 @@ export const createExpenseBudgetRequest = async (req, res, next) => {
         : 'medium';
     }
 
+    const departmentIdColumn = findFirstExistingColumn(columns, ['department_id', 'request_department_id', 'dept_id']);
+    if (departmentIdColumn) {
+      payload[departmentIdColumn] = Number(requestedDepartment.department_id);
+    }
+
+    const departmentNameColumn = findFirstExistingColumn(columns, ['department_name', 'request_department_name']);
+    if (departmentNameColumn) {
+      payload[departmentNameColumn] = requestedDepartment.department_name;
+    }
+
     const departmentColumn = findFirstExistingColumn(columns, ['target_department', 'department', 'recipient_department']);
     if (departmentColumn) {
       payload[departmentColumn] = 'Finance Department';
@@ -1314,6 +1345,8 @@ export const createExpenseBudgetRequest = async (req, res, next) => {
       payload.metadata = serializeJson({
         request_for: 'staff_salaries_and_payroll_budget',
         source_module: 'employees',
+        requested_department_id: Number(requestedDepartment.department_id),
+        requested_department_name: requestedDepartment.department_name,
       });
     }
 
@@ -1346,9 +1379,15 @@ export const getExpenseBudgetRequests = async (req, res, next) => {
   try {
     const userId = req.user?.user_id;
     const username = req.user?.username;
+    const requestedDepartmentId = Number(req.query?.department_id);
+    const hasDepartmentFilter = Number.isInteger(requestedDepartmentId) && requestedDepartmentId > 0;
 
-    const requests = await db.getAll(
-      `SELECT
+    const columns = await getTableColumns('expense_notifications');
+    const departmentIdColumn = findFirstExistingColumn(columns, ['department_id', 'request_department_id', 'dept_id']);
+    const departmentNameColumn = findFirstExistingColumn(columns, ['department_name', 'request_department_name']);
+    const metadataColumn = columns.has('metadata') ? 'metadata' : null;
+
+    const query = `SELECT
          notification_id,
          title,
          description,
@@ -1358,7 +1397,10 @@ export const getExpenseBudgetRequests = async (req, res, next) => {
          requested_by,
          external_reference_id,
          created_at,
-         updated_at
+         updated_at,
+         ${departmentIdColumn ? `${departmentIdColumn}` : 'NULL'} AS department_id,
+         ${departmentNameColumn ? `${departmentNameColumn}` : 'NULL'} AS department_name,
+         ${metadataColumn ? `${metadataColumn}` : 'NULL'} AS metadata
        FROM expense_notifications
        WHERE (
          external_reference_id = 'staff_salaries_payroll_budget'
@@ -1370,14 +1412,29 @@ export const getExpenseBudgetRequests = async (req, res, next) => {
          OR requested_by = ?
        )
        ORDER BY created_at DESC
-       LIMIT 10`,
-      [String(userId || ''), String(username || '')]
-    );
+       LIMIT 10`;
+
+    const requests = await db.getAll(query, [String(userId || ''), String(username || '')]);
+
+    const normalizedRequests = requests
+      .map((request) => {
+        const metadata = parseJson(request.metadata, {});
+        const resolvedDepartmentId = request.department_id ?? metadata?.requested_department_id ?? null;
+        const resolvedDepartmentName = request.department_name ?? metadata?.requested_department_name ?? null;
+
+        return {
+          ...request,
+          department_id: resolvedDepartmentId == null ? null : Number(resolvedDepartmentId),
+          department_name: resolvedDepartmentName == null ? null : String(resolvedDepartmentName),
+        };
+      })
+      .filter((request) => !hasDepartmentFilter || request.department_id === requestedDepartmentId)
+      .map(({ metadata, ...request }) => request);
 
     return res.json({
       success: true,
       message: 'Expense budget requests fetched successfully.',
-      data: requests,
+      data: normalizedRequests,
     });
   } catch (error) {
     logger.error('Get expense budget requests error:', error);

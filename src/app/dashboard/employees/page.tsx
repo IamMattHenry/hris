@@ -23,8 +23,8 @@ import BudgetRequestsModal from "./view_budget/page";
 
 
 import LeaveDetailsModal from "@/components/dashboard/LeaveDetailsModal";
-import { employeeApi, payrollApi } from "@/lib/api";
-import { Employee } from "@/types/api";
+import { departmentApi, employeeApi, payrollApi } from "@/lib/api";
+import { Department, Employee } from "@/types/api";
 import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "react-hot-toast";
 
@@ -36,6 +36,7 @@ interface FinanceBudget {
 }
 
 interface BudgetRequestForm {
+  department_id: string;
   title: string;
   description: string;
   requested_amount: string;
@@ -46,6 +47,8 @@ interface ExpenseBudgetRequestItem {
   notification_id: number;
   title: string;
   requested_amount: number;
+  department_id?: number | null;
+  department_name?: string | null;
   status: string;
   priority: "low" | "medium" | "high";
   created_at: string;
@@ -73,8 +76,10 @@ export default function EmployeeTable() {
   const [isExpenseRequestsModalOpen, setIsExpenseRequestsModalOpen] = useState(false);
   const [isBudgetRequestOpen, setIsBudgetRequestOpen] = useState(false);
   const [budgetRequestSubmitting, setBudgetRequestSubmitting] = useState(false);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [showAllRequests, setShowAllRequests] = useState(false);
   const [budgetRequestForm, setBudgetRequestForm] = useState<BudgetRequestForm>({
+    department_id: "",
     title: "",
     description: "",
     requested_amount: "",
@@ -168,6 +173,23 @@ export default function EmployeeTable() {
 
   useEffect(() => {
     fetchExpenseRequests();
+  }, []);
+
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const response = await departmentApi.getAll();
+        if (response.success && Array.isArray(response.data)) {
+          setDepartments(response.data as Department[]);
+          return;
+        }
+        setDepartments([]);
+      } catch {
+        setDepartments([]);
+      }
+    };
+
+    fetchDepartments();
   }, []);
 
   const fetchEmployees = async () => {
@@ -597,6 +619,7 @@ export default function EmployeeTable() {
 
   const resetBudgetRequestForm = () => {
     setBudgetRequestForm({
+      department_id: "",
       title: "",
       description: "",
       requested_amount: "",
@@ -620,6 +643,12 @@ export default function EmployeeTable() {
       return;
     }
 
+    const departmentId = Number(budgetRequestForm.department_id);
+    if (!Number.isInteger(departmentId) || departmentId <= 0) {
+      toast.error("Please select a department.");
+      return;
+    }
+
     const amount = Number(budgetRequestForm.requested_amount);
     if (!Number.isFinite(amount) || amount <= 0) {
       toast.error("Requested amount must be greater than 0.");
@@ -634,6 +663,7 @@ export default function EmployeeTable() {
     setBudgetRequestSubmitting(true);
     try {
       const result = await payrollApi.createExpenseRequest({
+        department_id: departmentId,
         title,
         description,
         requested_amount: amount,
@@ -1085,7 +1115,24 @@ export default function EmployeeTable() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium mb-1 text-[#3b2b1c]">Department</label>
+                  <select
+                    value={budgetRequestForm.department_id}
+                    onChange={(e) => setBudgetRequestForm((prev) => ({ ...prev, department_id: e.target.value }))}
+                    className="w-full rounded-md border border-[#d9c3a4] px-3 py-2 text-sm focus:outline-none"
+                    required
+                  >
+                    <option value="">Select department</option>
+                    {departments.map((department) => (
+                      <option key={department.department_id} value={department.department_id}>
+                        {department.department_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div>
                   <label className="block text-xs font-medium mb-1 text-[#3b2b1c]">Requested Amount</label>
                   <div className="relative">

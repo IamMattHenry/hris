@@ -6,6 +6,8 @@ interface ExpenseRequest {
   notification_id: number;
   title: string;
   requested_amount: number;
+  department_id?: number | null;
+  department_name?: string | null;
   priority: string;
   status: string;
 }
@@ -73,6 +75,10 @@ const BudgetRequestsModal: React.FC<BudgetRequestsModalProps> = ({
                       <div className="flex items-center gap-2 mt-2">
                         <span className="font-medium text-[#3b2b1c]">
                           {formatCurrency(request.requested_amount)}
+                        </span>
+                        <span className="text-[#6b5344]">•</span>
+                        <span className="text-[#6b5344] text-sm">
+                          {request.department_name || (request.department_id ? `Department #${request.department_id}` : "No department")}
                         </span>
                         <span className="text-[#6b5344]">•</span>
                         <span className="capitalize text-[#6b5344] text-sm">
