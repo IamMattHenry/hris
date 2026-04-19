@@ -42,6 +42,13 @@ FROM roles r
 JOIN permissions p ON p.permission_key IN ('payroll.read', 'payroll.create', 'payroll.update', 'payroll.finalize', 'payroll.override')
 WHERE r.role_key = 'payroll_officer';
 
+-- Payroll Officer: module-level read access aligned with HR module visibility
+INSERT IGNORE INTO role_permissions (role_id, permission_id)
+SELECT r.role_id, p.permission_id
+FROM roles r
+JOIN permissions p ON p.permission_key IN ('employees.read', 'attendance.read', 'leave.read', 'positions.read', 'departments.read', 'penalties.read')
+WHERE r.role_key = 'payroll_officer';
+
 -- HR Supervisor: read, create, update, finalize (no override)
 INSERT IGNORE INTO role_permissions (role_id, permission_id)
 SELECT r.role_id, p.permission_id

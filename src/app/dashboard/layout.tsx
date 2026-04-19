@@ -80,6 +80,7 @@ export default function DashboardLayout({
       allowedRbacRoles={[
         'hr_manager',
         'hr_supervisor',
+        'payroll_officer',
         'leave_attendance_officer',
         'recruitment_officer',
       ]}

@@ -4,21 +4,58 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, Users, CheckCircle, Mail, Briefcase, Building, LogsIcon, Headset, DollarSign, MessageSquareWarning, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 
 export default function Sidebar() {
     const pathname = usePathname();
     const { user } = useAuth();
+    const { canAny, loading: permissionsLoading } = usePermissions();
 
     const links = [
-        { name: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
-        { name: "Employees", icon: Users, path: "/dashboard/employees" },
-        { name: "Attendance", icon: CheckCircle, path: "/dashboard/attendance" },
-        { name: "Requests", icon: Mail, path: "/dashboard/requests" },
-        { name: "Positions", icon: Briefcase, path: "/dashboard/positions" },
-        { name: "Departments", icon: Building, path: "/dashboard/departments" },
-        { name: "Payroll", icon: DollarSign, path: "/dashboard/payroll" },
-        { name: "Penalty", icon: AlertTriangle, path: "/dashboard/penalty" },
-    ];
+        { name: "Dashboard", icon: LayoutDashboard, path: "/dashboard", show: true },
+        {
+            name: "Employees",
+            icon: Users,
+            path: "/dashboard/employees",
+            show: canAny('employees.read', 'employees.read_own', 'employees.create', 'employees.update'),
+        },
+        {
+            name: "Attendance",
+            icon: CheckCircle,
+            path: "/dashboard/attendance",
+            show: canAny('attendance.read', 'attendance.read_own', 'attendance.update', 'attendance.create'),
+        },
+        {
+            name: "Requests",
+            icon: Mail,
+            path: "/dashboard/requests",
+            show: canAny('leave.read', 'leave.read_own', 'leave.read_department', 'leave.manage_status'),
+        },
+        {
+            name: "Positions",
+            icon: Briefcase,
+            path: "/dashboard/positions",
+            show: canAny('positions.read', 'positions.create', 'positions.update', 'positions.delete'),
+        },
+        {
+            name: "Departments",
+            icon: Building,
+            path: "/dashboard/departments",
+            show: canAny('departments.read', 'departments.create', 'departments.update', 'departments.delete'),
+        },
+        {
+            name: "Payroll",
+            icon: DollarSign,
+            path: "/dashboard/payroll",
+            show: canAny('payroll.read', 'payroll.create', 'payroll.update', 'payroll.finalize', 'payroll.override'),
+        },
+        {
+            name: "Penalty",
+            icon: AlertTriangle,
+            path: "/dashboard/penalty",
+            show: canAny('penalties.read', 'penalties.create', 'penalties.update', 'penalties.approve', 'penalties.settle', 'penalties.cancel', 'penalties.delete'),
+        },
+    ].filter((link) => link.show || permissionsLoading);
 
     if (user?.role === "superadmin" || user?.role === "admin") {
         links.push({ name: "Activity Log", icon: LogsIcon, path: "/dashboard/activity_log" });

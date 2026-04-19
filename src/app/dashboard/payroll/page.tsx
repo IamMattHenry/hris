@@ -43,8 +43,9 @@ const formatPeriod = (start: string, end: string) => {
 };
 
 export default function PayrollTable() {
-  const { hasRole, loading: permissionsLoading } = usePermissions();
+  const { hasRole, canAny, loading: permissionsLoading } = usePermissions();
   const canCreatePayrollRun = hasRole("payroll_officer");
+  const canReadDepartments = canAny("departments.read", "departments.create", "departments.update", "departments.delete");
 
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -81,6 +82,11 @@ export default function PayrollTable() {
   };
 
   const fetchDepartments = async () => {
+    if (!canReadDepartments) {
+      setDepartments([]);
+      return;
+    }
+
     try {
       const response = await departmentApi.getAll();
       if (!response.success) {
@@ -98,7 +104,7 @@ export default function PayrollTable() {
 
   useEffect(() => {
     fetchDepartments();
-  }, []);
+  }, [canReadDepartments]);
 
   useEffect(() => {
     fetchRuns();
