@@ -35,6 +35,13 @@ interface FinanceBudget {
   amount: number;
 }
 
+interface BudgetOverview {
+  current_staff_salary_monthly_total?: number | null;
+  remaining_staff_salaries_budget?: number | null;
+  staff_salaries_budget_utilization_percent?: number | null;
+  staff_salaries_budget_status_label?: string | null;
+}
+
 interface BudgetRequestForm {
   department_id: string;
   title: string;
@@ -71,6 +78,7 @@ export default function EmployeeTable() {
   const [sortBy, setSortBy] = useState<string>("");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [staffSalariesBudget, setStaffSalariesBudget] = useState<FinanceBudget | null>(null);
+  const [budgetOverview, setBudgetOverview] = useState<BudgetOverview | null>(null);
   const [expenseRequests, setExpenseRequests] = useState<ExpenseBudgetRequestItem[]>([]);
   const [expenseRequestsLoading, setExpenseRequestsLoading] = useState(false);
   const [isExpenseRequestsModalOpen, setIsExpenseRequestsModalOpen] = useState(false);
@@ -138,17 +146,32 @@ export default function EmployeeTable() {
       try {
         const res = await payrollApi.getSettings();
         const budget = res.data?.budgets?.staff_salaries;
+        const overview = res.data?.budget_overview;
 
-        if (res.success && budget) {
-          setStaffSalariesBudget({
+        if (res.success) {
+          setStaffSalariesBudget(budget ? {
             budget_id: Number(budget.budget_id),
             amount: Number(budget.amount),
+          } : null);
+          setBudgetOverview({
+            current_staff_salary_monthly_total: overview?.current_staff_salary_monthly_total != null
+              ? Number(overview.current_staff_salary_monthly_total)
+              : null,
+            remaining_staff_salaries_budget: overview?.remaining_staff_salaries_budget != null
+              ? Number(overview.remaining_staff_salaries_budget)
+              : null,
+            staff_salaries_budget_utilization_percent: overview?.staff_salaries_budget_utilization_percent != null
+              ? Number(overview.staff_salaries_budget_utilization_percent)
+              : null,
+            staff_salaries_budget_status_label: overview?.staff_salaries_budget_status_label || null,
           });
         } else {
           setStaffSalariesBudget(null);
+          setBudgetOverview(null);
         }
       } catch {
         setStaffSalariesBudget(null);
+        setBudgetOverview(null);
       }
     };
 
@@ -787,7 +810,7 @@ export default function EmployeeTable() {
         </div>
       </div>
 
-      {/* Staff Salaries Budget */}
+      {/* HR Budget */}
       <div className="space-y-6">
         {/* Tabs Navigation */}
         <div className="border-b border-[#e6d2b5]">
@@ -823,11 +846,29 @@ export default function EmployeeTable() {
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                 <div className="flex-1">
                   <p className="font-medium">
-                    Latest Staff Salaries Budget:{' '}
-                    {staffSalariesBudget?.amount
+                    Latest HR Budget:{' '}
+                    {staffSalariesBudget?.amount != null
                       ? formatCurrency(staffSalariesBudget.amount)
                       : 'Not set'}
                   </p>
+
+                  <p className="mt-1 text-xs text-[#6b5344]">
+                    Overall employee salary total:{' '}
+                    {budgetOverview?.current_staff_salary_monthly_total != null
+                      ? formatCurrency(budgetOverview.current_staff_salary_monthly_total)
+                      : 'Not available'}
+                  </p>
+
+                  {staffSalariesBudget?.amount != null && budgetOverview?.current_staff_salary_monthly_total != null && (
+                    <p className={`mt-1 text-xs font-medium ${staffSalariesBudget.amount >= budgetOverview.current_staff_salary_monthly_total
+                      ? 'text-green-700'
+                      : 'text-red-700'
+                      }`}>
+                      {staffSalariesBudget.amount >= budgetOverview.current_staff_salary_monthly_total
+                        ? `Remaining budget: ${formatCurrency(staffSalariesBudget.amount - budgetOverview.current_staff_salary_monthly_total)}`
+                        : `Over budget by: ${formatCurrency(budgetOverview.current_staff_salary_monthly_total - staffSalariesBudget.amount)}`}
+                    </p>
+                  )}
 
                   {staffSalariesBudget?.budget_id ? (
                     <p className="mt-1 text-xs text-[#6b5344]">
