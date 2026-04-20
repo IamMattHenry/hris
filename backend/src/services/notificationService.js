@@ -396,6 +396,57 @@ export const notifyHrUsersBudgetAmountChange = async ({
   }
 };
 
+export const notifyHrUsersPayrollRunUpdate = async ({
+  actorUserId = null,
+  runId,
+  status,
+  payPeriodStart = null,
+  payPeriodEnd = null,
+  grossPay = null,
+}) => {
+  try {
+    const normalizedStatus = String(status || '').trim().toLowerCase();
+    if (!normalizedStatus || !runId) {
+      return [];
+    }
+
+    const title = `Payroll run #${runId} ${normalizedStatus.replace(/_/g, ' ')}`;
+    const periodText = payPeriodStart && payPeriodEnd
+      ? `Period: ${payPeriodStart} to ${payPeriodEnd}.`
+      : null;
+    const grossText = grossPay == null
+      ? null
+      : `Gross pay: ₱${Number(grossPay).toFixed(2)}.`;
+
+    const statusMessageMap = {
+      draft: 'A new payroll draft has been created and sent for Finance review.',
+      pending_finance_approval: 'A payroll run is awaiting Finance approval.',
+      finance_approved: 'Finance approved this payroll run and it can now be finalized.',
+      finance_rejected: 'Finance rejected this payroll run and it cannot be finalized until corrected.',
+      finalized: 'Payroll run has been finalized and is now immutable.',
+      aborted: 'Payroll run has been aborted and will not be processed further.',
+    };
+
+    const message = [
+      statusMessageMap[normalizedStatus] || `Payroll run status changed to ${normalizedStatus}.`,
+      periodText,
+      grossText,
+    ].filter(Boolean).join(' ');
+
+    return await notifyHrPortalUsers({
+      actorUserId,
+      title,
+      message,
+      category: 'payroll_run_status',
+      referenceModule: 'payroll',
+      referenceId: `payroll_run:${runId}:${normalizedStatus}`,
+    });
+  } catch (error) {
+    logger.error('notifyHrUsersPayrollRunUpdate failed:', error);
+    return [];
+  }
+};
+
 export const notifyLeaveAttendanceOfficers = async ({
   actorUserId = null,
   excludeUserIds = [],

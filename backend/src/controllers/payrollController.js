@@ -9,9 +9,18 @@ import {
   getFinanceBudgetsSnapshot,
   getCurrentStaffSalaryMonthlyTotal,
 } from '../services/financeBudgetService.js';
-import { notifyHrUsersBudgetAmountChange, notifyHrUsersBudgetRequestStatusChange, notifyHrUsersBudgetStatus } from '../services/notificationService.js';
+import { notifyHrUsersBudgetAmountChange, notifyHrUsersBudgetRequestStatusChange, notifyHrUsersBudgetStatus, notifyHrUsersPayrollRunUpdate } from '../services/notificationService.js';
 
 const round2 = (value) => Number((Number(value) || 0).toFixed(2));
+
+const PAYROLL_RUN_STATUSES = Object.freeze({
+  DRAFT: 'draft',
+  PENDING_FINANCE_APPROVAL: 'pending_finance_approval',
+  FINANCE_APPROVED: 'finance_approved',
+  FINANCE_REJECTED: 'finance_rejected',
+  FINALIZED: 'finalized',
+  ABORTED: 'aborted',
+});
 
 let lastStaffSalariesBudgetAmountNotified = null;
 
@@ -347,6 +356,36 @@ const findFirstExistingColumn = (columns, candidates = []) => {
   return candidates.find((column) => columns.has(column)) || null;
 };
 
+const syncPayrollRunStatuses = async ({ runId, status, actorUserId = null }) => {
+  const normalizedStatus = String(status || '').trim().toLowerCase();
+  const now = new Date();
+  const runUpdate = {
+    status: normalizedStatus,
+    updated_at: now,
+  };
+
+  if (normalizedStatus === PAYROLL_RUN_STATUSES.FINANCE_APPROVED || normalizedStatus === PAYROLL_RUN_STATUSES.FINANCE_REJECTED) {
+    runUpdate.finance_reviewed_by = actorUserId ? Number(actorUserId) : null;
+    runUpdate.finance_reviewed_at = now;
+  }
+
+  if (normalizedStatus === PAYROLL_RUN_STATUSES.FINALIZED) {
+    runUpdate.finalized_by = actorUserId ? Number(actorUserId) : null;
+    runUpdate.finalized_at = now;
+  }
+
+  if (normalizedStatus === PAYROLL_RUN_STATUSES.ABORTED) {
+    runUpdate.aborted_by = actorUserId ? Number(actorUserId) : null;
+    runUpdate.aborted_at = now;
+  }
+
+  await db.transactionUpdate('payroll_runs', runUpdate, 'id = ?', [runId]);
+  await db.transactionUpdate('payroll_records', {
+    status: normalizedStatus,
+    updated_at: now,
+  }, 'run_id = ?', [runId]);
+};
+
 export const getPayrollRuns = async (req, res, next) => {
   try {
     const { department_id, employment_type } = req.query;
@@ -590,6 +629,10 @@ export const createPayrollRun = async (req, res, next) => {
       throw budgetError;
     }
 
+    const scopeDesc = [];
+    if (scopeFilters?.department_id) scopeDesc.push(`Department: ${scopeFilters.department_id}`);
+    if (scopeFilters?.employment_type) scopeDesc.push(`Employment Type: ${scopeFilters.employment_type}`);
+
     await db.beginTransaction();
     try {
       const runId = await db.transactionInsert('payroll_runs', {
@@ -606,6 +649,7 @@ export const createPayrollRun = async (req, res, next) => {
         const recordId = await db.transactionInsert('payroll_records', {
           run_id: runId,
           employee_id: item.employee_id,
+          status: 'draft',
           gross_pay: item.gross_pay,
           total_deductions: item.total_deductions,
           withholding_tax: item.withholding_tax,
@@ -678,11 +722,89 @@ export const createPayrollRun = async (req, res, next) => {
         }
       }
 
+      const columns = await getTableColumns('expense_notifications');
+      const titleColumn = findFirstExistingColumn(columns, ['title', 'request_title', 'subject']);
+      const descriptionColumn = findFirstExistingColumn(columns, ['description', 'details', 'message']);
+      const amountColumn = findFirstExistingColumn(columns, ['requested_amount', 'amount', 'request_amount']);
+
+      if (!titleColumn || !descriptionColumn || !amountColumn) {
+        throw new Error('expense_notifications schema is missing one or more required fields (title/description/requested_amount).');
+      }
+
+      const requestTitle = `Payroll run #${runId} approval request`;
+      const requestDescription = [
+        `Draft payroll run #${runId} for ${periodStart} to ${periodEnd} requires Finance approval.`,
+        `Gross pay total: ₱${round2(Number(computed.summary?.gross_pay) || 0).toFixed(2)}.`,
+        `Scope: ${scopeDesc.length ? scopeDesc.join(', ') : 'All employees'}.`,
+      ].join(' ');
+
+      const payload = {
+        [titleColumn]: requestTitle,
+        [descriptionColumn]: requestDescription,
+        [amountColumn]: round2(Number(computed.summary?.gross_pay) || 0),
+      };
+
+      const requestTypeColumn = findFirstExistingColumn(columns, ['request_type', 'notification_type', 'type']);
+      if (requestTypeColumn) {
+        payload[requestTypeColumn] = 'payroll_run_finance_approval';
+      }
+
+      if (columns.has('external_reference_id')) {
+        payload.external_reference_id = `payroll_run:${runId}`;
+      }
+
+      const statusColumn = findFirstExistingColumn(columns, ['status', 'request_status']);
+      if (statusColumn) {
+        payload[statusColumn] = 'pending';
+      }
+
+      const priorityColumn = findFirstExistingColumn(columns, ['priority', 'urgency']);
+      if (priorityColumn) {
+        payload[priorityColumn] = 'high';
+      }
+
+      const departmentColumn = findFirstExistingColumn(columns, ['target_department', 'department', 'recipient_department']);
+      if (departmentColumn) {
+        payload[departmentColumn] = 'Finance Department';
+      }
+
+      const requestedByColumn = findFirstExistingColumn(columns, ['requested_by', 'created_by', 'user_id']);
+      if (requestedByColumn) {
+        payload[requestedByColumn] = req.user?.username || String(req.user?.user_id || '');
+      }
+
+      if (columns.has('created_at')) {
+        payload.created_at = new Date();
+      }
+
+      if (columns.has('updated_at')) {
+        payload.updated_at = new Date();
+      }
+
+      if (columns.has('metadata')) {
+        payload.metadata = serializeJson({
+          request_for: 'payroll_run',
+          source_module: 'payroll',
+          payroll_run_id: Number(runId),
+          pay_period_start: periodStart,
+          pay_period_end: periodEnd,
+          gross_pay: round2(Number(computed.summary?.gross_pay) || 0),
+          scope_filters: scopeFilters,
+        });
+      }
+
+      if (columns.has('purpose')) {
+        payload.purpose = 'Request Finance approval for draft payroll run';
+      }
+
+      await db.transactionInsert('expense_notifications', payload);
+
+      await db.transactionUpdate('payroll_runs', {
+        approval_requested_at: new Date(),
+      }, 'id = ?', [runId]);
+
       await db.commit();
 
-      const scopeDesc = [];
-      if (scopeFilters?.department_id) scopeDesc.push(`Department: ${scopeFilters.department_id}`);
-      if (scopeFilters?.employment_type) scopeDesc.push(`Employment Type: ${scopeFilters.employment_type}`);
       const scopeStr = scopeDesc.length ? ` [${scopeDesc.join(', ')}]` : '';
 
       await writeActivityLog({
@@ -691,9 +813,18 @@ export const createPayrollRun = async (req, res, next) => {
         description: `Created payroll run #${runId} (${periodStart} to ${periodEnd}, ${computed.records.length} employees)${scopeStr}`,
       });
 
+      await notifyHrUsersPayrollRunUpdate({
+        actorUserId: req.user?.user_id || null,
+        runId,
+        status: 'draft',
+        payPeriodStart: periodStart,
+        payPeriodEnd: periodEnd,
+        grossPay: round2(Number(computed.summary?.gross_pay) || 0),
+      });
+
       return res.status(201).json({
         success: true,
-        message: 'Payroll run created successfully',
+        message: 'Payroll run created successfully and submitted for Finance approval.',
         data: {
           id: runId,
           status: 'draft',
@@ -806,13 +937,24 @@ export const deletePayrollRun = async (req, res, next) => {
     if (run.status === 'finalized') {
       return res.status(400).json({
         success: false,
-        message: 'Finalized payroll runs are immutable and cannot be deleted.',
+        message: 'Finalized payroll runs are immutable and cannot be aborted.',
       });
     }
 
     await db.beginTransaction();
     try {
-      await db.transactionQuery('DELETE FROM payroll_runs WHERE id = ?', [id]);
+      await syncPayrollRunStatuses({
+        runId: Number(id),
+        status: PAYROLL_RUN_STATUSES.ABORTED,
+        actorUserId: req.user?.user_id || null,
+      });
+
+      await db.transactionQuery(
+        `UPDATE expense_notifications
+         SET status = 'cancelled', updated_at = NOW()
+         WHERE external_reference_id = ?`,
+        [`payroll_run:${id}`]
+      );
       await db.commit();
     } catch (error) {
       await db.rollback();
@@ -822,15 +964,23 @@ export const deletePayrollRun = async (req, res, next) => {
     await writeActivityLog({
       userId: req.user?.user_id || null,
       action: 'DELETE',
-      description: `Deleted payroll run #${id} (${run.pay_period_start} to ${run.pay_period_end})`,
+      description: `Aborted payroll run #${id} (${run.pay_period_start} to ${run.pay_period_end})`,
+    });
+
+    await notifyHrUsersPayrollRunUpdate({
+      actorUserId: req.user?.user_id || null,
+      runId: Number(id),
+      status: PAYROLL_RUN_STATUSES.ABORTED,
+      payPeriodStart: run.pay_period_start,
+      payPeriodEnd: run.pay_period_end,
     });
 
     res.json({
       success: true,
-      message: 'Payroll run deleted successfully',
+      message: 'Payroll run aborted successfully',
       data: {
         id: Number(id),
-        status: 'deleted',
+        status: PAYROLL_RUN_STATUSES.ABORTED,
       },
     });
   } catch (error) {
@@ -858,11 +1008,26 @@ export const finalizePayrollRun = async (req, res, next) => {
       });
     }
 
-    await db.update('payroll_runs', {
-      status: 'finalized',
-      finalized_by: req.user?.user_id || null,
-      finalized_at: new Date(),
-    }, 'id = ?', [id]);
+    if (String(run.status || '').toLowerCase() !== PAYROLL_RUN_STATUSES.FINANCE_APPROVED) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payroll run must be approved by Finance before it can be finalized.',
+      });
+    }
+
+    await db.beginTransaction();
+    try {
+      await syncPayrollRunStatuses({
+        runId: Number(id),
+        status: PAYROLL_RUN_STATUSES.FINALIZED,
+        actorUserId: req.user?.user_id || null,
+      });
+
+      await db.commit();
+    } catch (error) {
+      await db.rollback();
+      throw error;
+    }
 
     await writeActivityLog({
       userId: req.user?.user_id || null,
@@ -870,12 +1035,28 @@ export const finalizePayrollRun = async (req, res, next) => {
       description: `Finalized payroll run #${id}`,
     });
 
+    const runGross = await db.getOne(
+      `SELECT COALESCE(SUM(gross_pay), 0) AS gross_pay
+       FROM payroll_records
+       WHERE run_id = ?`,
+      [id]
+    );
+
+    await notifyHrUsersPayrollRunUpdate({
+      actorUserId: req.user?.user_id || null,
+      runId: Number(id),
+      status: PAYROLL_RUN_STATUSES.FINALIZED,
+      payPeriodStart: run.pay_period_start,
+      payPeriodEnd: run.pay_period_end,
+      grossPay: Number(runGross?.gross_pay) || null,
+    });
+
     res.json({
       success: true,
       message: 'Payroll run finalized successfully. The run is now immutable.',
       data: {
         id: Number(id),
-        status: 'finalized',
+        status: PAYROLL_RUN_STATUSES.FINALIZED,
       },
     });
   } catch (error) {
@@ -1430,6 +1611,7 @@ export const updateExpenseBudgetRequestStatus = async (req, res, next) => {
          requested_amount,
          priority,
          ${statusColumn} AS status,
+         external_reference_id,
          requested_by,
          created_at,
          updated_at,
@@ -1461,13 +1643,41 @@ export const updateExpenseBudgetRequestStatus = async (req, res, next) => {
       });
     }
 
-    await db.update('expense_notifications', {
-      [statusColumn]: normalizedStatus,
-      updated_at: new Date(),
-    }, 'notification_id = ?', [requestId]);
-
     const metadata = parseJson(current.metadata, {});
     const resolvedDepartmentName = current.department_name ?? metadata?.requested_department_name ?? null;
+    const isPayrollRunRequest = String(current.external_reference_id || '').startsWith('payroll_run:') || metadata?.request_for === 'payroll_run';
+    const payrollRunId = Number(metadata?.payroll_run_id || String(current.external_reference_id || '').replace('payroll_run:', ''));
+
+    await db.beginTransaction();
+    try {
+      await db.transactionUpdate('expense_notifications', {
+        [statusColumn]: normalizedStatus,
+        updated_at: new Date(),
+      }, 'notification_id = ?', [requestId]);
+
+      if (isPayrollRunRequest && Number.isInteger(payrollRunId) && payrollRunId > 0) {
+        const mappedPayrollStatus = normalizedStatus === 'accepted'
+          ? PAYROLL_RUN_STATUSES.FINANCE_APPROVED
+          : normalizedStatus === 'rejected'
+            ? PAYROLL_RUN_STATUSES.FINANCE_REJECTED
+            : normalizedStatus === 'cancelled'
+              ? PAYROLL_RUN_STATUSES.ABORTED
+              : PAYROLL_RUN_STATUSES.DRAFT;
+
+        if (mappedPayrollStatus !== PAYROLL_RUN_STATUSES.DRAFT) {
+          await syncPayrollRunStatuses({
+            runId: payrollRunId,
+            status: mappedPayrollStatus,
+            actorUserId: req.user?.user_id || null,
+          });
+        }
+      }
+
+      await db.commit();
+    } catch (error) {
+      await db.rollback();
+      throw error;
+    }
 
     await notifyHrUsersBudgetRequestStatusChange({
       actorUserId: req.user?.user_id || null,
@@ -1478,6 +1688,19 @@ export const updateExpenseBudgetRequestStatus = async (req, res, next) => {
       previousStatus,
       departmentName: resolvedDepartmentName ? String(resolvedDepartmentName) : null,
     });
+
+    if (isPayrollRunRequest && Number.isInteger(payrollRunId) && payrollRunId > 0 && normalizedStatus !== 'pending') {
+      await notifyHrUsersPayrollRunUpdate({
+        actorUserId: req.user?.user_id || null,
+        runId: payrollRunId,
+        status: normalizedStatus === 'accepted'
+          ? PAYROLL_RUN_STATUSES.FINANCE_APPROVED
+          : normalizedStatus === 'rejected'
+            ? PAYROLL_RUN_STATUSES.FINANCE_REJECTED
+            : PAYROLL_RUN_STATUSES.ABORTED,
+        grossPay: Number(current.requested_amount) || null,
+      });
+    }
 
     await writeActivityLog({
       userId: req.user?.user_id || null,
@@ -1505,6 +1728,7 @@ export const getExpenseBudgetRequests = async (req, res, next) => {
     const username = req.user?.username;
     const requestedDepartmentId = Number(req.query?.department_id);
     const hasDepartmentFilter = Number.isInteger(requestedDepartmentId) && requestedDepartmentId > 0;
+    const canViewAllRequests = Boolean(req.userPermissions && (req.userPermissions.has('payroll.update') || req.userPermissions.has('*')));
 
     const columns = await getTableColumns('expense_notifications');
     const departmentIdColumn = findFirstExistingColumn(columns, ['department_id', 'request_department_id', 'dept_id']);
@@ -1531,14 +1755,14 @@ export const getExpenseBudgetRequests = async (req, res, next) => {
          OR LOWER(COALESCE(purpose, '')) LIKE '%staff salaries%'
          OR LOWER(COALESCE(purpose, '')) LIKE '%payroll%'
        )
-       AND (
+       ${canViewAllRequests ? '' : `AND (
          requested_by = ?
          OR requested_by = ?
-       )
+       )`}
        ORDER BY created_at DESC
        LIMIT 10`;
 
-    const requests = await db.getAll(query, [String(userId || ''), String(username || '')]);
+    const requests = await db.getAll(query, canViewAllRequests ? [] : [String(userId || ''), String(username || '')]);
 
     const normalizedRequests = requests
       .map((request) => {

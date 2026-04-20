@@ -18,7 +18,7 @@ interface PayrollRun {
   pay_period_start: string;
   pay_period_end: string;
   pay_schedule: "weekly" | "semi-monthly" | "monthly";
-  status: "draft" | "finalized";
+  status: "draft" | "pending_finance_approval" | "finance_approved" | "finance_rejected" | "finalized" | "aborted";
   gross_pay: number;
   total_deductions: number;
   net_pay: number;
@@ -40,6 +40,23 @@ const formatPeriod = (start: string, end: string) => {
   const s = new Date(start).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   const e = new Date(end).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   return `${s} - ${e}`;
+};
+
+const getStatusClasses = (status: PayrollRun["status"]) => {
+  switch (status) {
+    case "finalized":
+      return "bg-green-100 text-green-800 border border-green-300";
+    case "finance_approved":
+      return "bg-sky-100 text-sky-800 border border-sky-300";
+    case "finance_rejected":
+      return "bg-red-100 text-red-800 border border-red-300";
+    case "aborted":
+      return "bg-gray-100 text-gray-700 border border-gray-300";
+    case "pending_finance_approval":
+      return "bg-amber-100 text-amber-800 border border-amber-300";
+    default:
+      return "bg-amber-100 text-amber-800 border border-amber-300";
+  }
 };
 
 export default function PayrollTable() {
@@ -274,10 +291,7 @@ export default function PayrollTable() {
                   <td className="py-4 px-4 text-right text-red-700">{formatMoney(run.total_deductions)}</td>
                   <td className="py-4 px-4 text-right font-bold">{formatMoney(run.net_pay)}</td>
                   <td className="py-4 px-4 text-center">
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${run.status === "finalized"
-                        ? "bg-green-100 text-green-800 border border-green-300"
-                        : "bg-amber-100 text-amber-800 border border-amber-300"
-                      }`}>
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusClasses(run.status)}`}>
                       {run.status.toUpperCase()}
                     </span>
                   </td>
