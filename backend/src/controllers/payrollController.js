@@ -1,5 +1,6 @@
 import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
+import emailService from '../utils/emailService.js';
 import { computePayrollRun } from '../utils/payrollEngine.js';
 import { applyPenaltyDeductionsForPayrollRecord } from './penaltyController.js';
 import {
@@ -205,8 +206,9 @@ const validatePayPeriodContinuity = async ({
   scopeFilters,
 }) => {
   const runs = await db.getAll(
-    `SELECT id, pay_period_start, pay_period_end, employee_scope
+    `SELECT id, pay_period_start, pay_period_end, employee_scope, status
      FROM payroll_runs
+     WHERE LOWER(COALESCE(status, 'draft')) <> 'aborted'
      ORDER BY pay_period_start ASC, id ASC`
   );
 
@@ -217,6 +219,7 @@ const validatePayPeriodContinuity = async ({
       ...run,
       normalized_scope: normalizeScopeFilters(parseJson(run.employee_scope, {})),
     }))
+    .filter((run) => String(run.status || '').trim().toLowerCase() !== PAYROLL_RUN_STATUSES.ABORTED)
     .filter((run) => buildScopeKey(run.normalized_scope) === scopeKey);
 
   const overlap = scopedRuns.find((run) => (
@@ -384,6 +387,177 @@ const syncPayrollRunStatuses = async ({ runId, status, actorUserId = null }) => 
     status: normalizedStatus,
     updated_at: now,
   }, 'run_id = ?', [runId]);
+};
+
+const getEmployeePrimaryEmail = async (employeeId) => {
+  if (!employeeId) return null;
+
+  const emailRow = await db.getOne(
+    `SELECT email
+     FROM employee_emails
+     WHERE employee_id = ?
+       AND email IS NOT NULL
+       AND email <> ''
+     ORDER BY email_id ASC
+     LIMIT 1`,
+    [employeeId]
+  );
+
+  return emailRow?.email ? String(emailRow.email).trim() : null;
+};
+
+const getPayrollDepartmentStakeholders = async (runId) => {
+  const departments = await db.getAll(
+    `SELECT DISTINCT
+       d.department_id,
+       d.department_name,
+       d.supervisor_id
+     FROM payroll_records pr
+     JOIN employees e ON e.employee_id = pr.employee_id
+     LEFT JOIN departments d ON d.department_id = e.department_id
+     WHERE pr.run_id = ?
+       AND e.department_id IS NOT NULL
+     ORDER BY d.department_name ASC`,
+    [runId]
+  );
+
+  const stakeholders = [];
+
+  for (const department of departments) {
+    const departmentId = Number(department.department_id);
+    if (!Number.isInteger(departmentId) || departmentId <= 0) {
+      continue;
+    }
+
+    const manager = await db.getOne(
+      `SELECT
+         e.employee_id,
+         e.employee_code,
+         e.first_name,
+         e.last_name,
+         jp.position_name
+       FROM employees e
+       LEFT JOIN job_positions jp ON jp.position_id = e.position_id
+       WHERE e.department_id = ?
+         AND e.status IN ('active', 'on-leave')
+         AND LOWER(COALESCE(jp.position_name, '')) LIKE '%manager%'
+       ORDER BY e.employee_id ASC
+       LIMIT 1`,
+      [departmentId]
+    );
+
+    const supervisor = department.supervisor_id
+      ? await db.getOne(
+        `SELECT
+           e.employee_id,
+           e.employee_code,
+           e.first_name,
+           e.last_name,
+           jp.position_name
+         FROM employees e
+         LEFT JOIN job_positions jp ON jp.position_id = e.position_id
+         WHERE e.employee_id = ?
+         LIMIT 1`,
+        [department.supervisor_id]
+      )
+      : null;
+
+    const managerEmail = manager?.employee_id ? await getEmployeePrimaryEmail(manager.employee_id) : null;
+    const supervisorEmail = supervisor?.employee_id ? await getEmployeePrimaryEmail(supervisor.employee_id) : null;
+
+    stakeholders.push({
+      department_id: departmentId,
+      department_name: department.department_name || `Department #${departmentId}`,
+      manager,
+      managerEmail,
+      supervisor,
+      supervisorEmail,
+    });
+  }
+
+  return stakeholders;
+};
+
+const sendPayrollFinalizationDepartmentEmails = async ({ runId, payrollRun }) => {
+  const records = await db.getAll(
+    `SELECT
+       rec.employee_id,
+       rec.gross_pay,
+       rec.total_deductions,
+       rec.net_pay,
+       e.employee_code,
+       e.first_name,
+       e.last_name,
+       e.department_id,
+       d.department_name
+     FROM payroll_records rec
+     JOIN employees e ON e.employee_id = rec.employee_id
+     LEFT JOIN departments d ON d.department_id = e.department_id
+     WHERE rec.run_id = ?
+     ORDER BY d.department_name ASC, e.last_name ASC, e.first_name ASC`,
+    [runId]
+  );
+
+  const stakeholderRows = await getPayrollDepartmentStakeholders(runId);
+  const stakeholderMap = new Map(stakeholderRows.map((row) => [Number(row.department_id), row]));
+
+  const recordsByDepartment = new Map();
+  for (const record of records) {
+    const departmentId = Number(record.department_id);
+    if (!Number.isInteger(departmentId) || departmentId <= 0) {
+      continue;
+    }
+
+    if (!recordsByDepartment.has(departmentId)) {
+      recordsByDepartment.set(departmentId, []);
+    }
+
+    recordsByDepartment.get(departmentId).push({
+      employee_code: record.employee_code,
+      employee_name: `${record.first_name || ''} ${record.last_name || ''}`.trim(),
+      gross_pay: Number(record.gross_pay) || 0,
+      total_deductions: Number(record.total_deductions) || 0,
+      net_pay: Number(record.net_pay) || 0,
+    });
+  }
+
+  const sentTo = new Set();
+  for (const [departmentId, departmentEmployees] of recordsByDepartment.entries()) {
+    const stakeholder = stakeholderMap.get(departmentId);
+    if (!stakeholder) {
+      continue;
+    }
+
+    const recipientEntries = [
+      stakeholder.managerEmail
+        ? { email: stakeholder.managerEmail, label: stakeholder.manager ? `${stakeholder.manager.first_name || ''} ${stakeholder.manager.last_name || ''}`.trim() : 'Manager' }
+        : null,
+      stakeholder.supervisorEmail
+        ? { email: stakeholder.supervisorEmail, label: stakeholder.supervisor ? `${stakeholder.supervisor.first_name || ''} ${stakeholder.supervisor.last_name || ''}`.trim() : 'Supervisor' }
+        : null,
+    ].filter(Boolean);
+
+    for (const recipient of recipientEntries) {
+      const dedupeKey = `${departmentId}:${recipient.email.toLowerCase()}`;
+      if (sentTo.has(dedupeKey)) {
+        continue;
+      }
+
+      sentTo.add(dedupeKey);
+
+      await emailService.sendPayrollRunFinalizedEmail({
+        to: recipient.email,
+        recipientLabel: recipient.label,
+        departmentName: stakeholder.department_name,
+        runId,
+        payPeriodStart: payrollRun.pay_period_start,
+        payPeriodEnd: payrollRun.pay_period_end,
+        payrollSchedule: payrollRun.pay_schedule,
+        budgetUsed: departmentEmployees.reduce((sum, row) => sum + (Number(row.gross_pay) || 0), 0),
+        employees: departmentEmployees,
+      });
+    }
+  }
 };
 
 export const getPayrollRuns = async (req, res, next) => {
@@ -1050,6 +1224,15 @@ export const finalizePayrollRun = async (req, res, next) => {
       payPeriodEnd: run.pay_period_end,
       grossPay: Number(runGross?.gross_pay) || null,
     });
+
+    try {
+      await sendPayrollFinalizationDepartmentEmails({
+        runId: Number(id),
+        payrollRun: run,
+      });
+    } catch (emailError) {
+      logger.error('Payroll finalization department email notification failed:', emailError);
+    }
 
     res.json({
       success: true,

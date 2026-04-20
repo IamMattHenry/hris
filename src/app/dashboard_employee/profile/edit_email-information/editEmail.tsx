@@ -11,6 +11,7 @@ interface EditEmailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   id: number | null;
+  onSaved?: () => void;
 }
 
 interface EmployeeData {
@@ -22,6 +23,7 @@ export default function EditEmailsModal({
   isOpen,
   onClose,
   id,
+  onSaved,
 }: EditEmailsModalProps) {
   const [employee, setEmployee] = useState<EmployeeData | null>(null);
   const [emails, setEmails] = useState<string[]>([""]);
@@ -72,7 +74,7 @@ export default function EditEmailsModal({
       if (result.success) {
         toast.success("Emails updated successfully!");
         onClose();
-        window.location.reload();
+        onSaved?.();
       } else {
         toast.error(result.message || "Failed to update emails.");
       }

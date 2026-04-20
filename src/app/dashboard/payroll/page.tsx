@@ -371,8 +371,19 @@ export default function PayrollTable() {
         </button>
       </div>
 
-      <PayrollRunDetailPage isOpen={showViewModal} onClose={() => setShowViewModal(false)} payrollId={selectedRunId} />
-      <NewPayrollRunPage isOpen={showPayrollModal} onClose={() => setShowPayrollModal(false)} />
+      <PayrollRunDetailPage
+        isOpen={showViewModal}
+        onClose={() => setShowViewModal(false)}
+        payrollId={selectedRunId}
+        onUpdated={fetchRuns}
+      />
+      <NewPayrollRunPage
+        isOpen={showPayrollModal}
+        onClose={() => setShowPayrollModal(false)}
+        onSave={() => {
+          fetchRuns();
+        }}
+      />
       <PayrollContributionsModal isOpen={showContributionsModal} onClose={() => setShowContributionsModal(false)} />
       <PayrollSettingsModal isOpen={showSettingsModal} onClose={() => setShowSettingsModal(false)} />
     </div>

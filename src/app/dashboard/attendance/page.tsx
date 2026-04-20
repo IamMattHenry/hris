@@ -515,6 +515,7 @@ export default function AttendanceTable() {
         isOpen={attendanceToView !== null}
         onClose={() => setAttendanceToView(null)}
         attendanceId={attendanceToView}
+        onUpdated={fetchAttendance}
       />
     </div>
   );

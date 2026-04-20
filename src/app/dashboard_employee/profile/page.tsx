@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { employeeApi, notificationApi } from "@/lib/api";
 import { Employee } from "@/types/api";
 import FloatingTicketButton from "@/components/dashboard/FloatingTicketButton";
@@ -11,7 +11,7 @@ import EditContactsModal from "./edit_contact-information/editContact";
 import EditEmailModal from "./edit_email-information/editEmail";
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
 
   const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
 
@@ -31,6 +31,7 @@ export default function Dashboard() {
   const [notificationsLoading, setNotificationsLoading] = useState(true);
   const [notificationsError, setNotificationsError] = useState<string | null>(null);
   const [markingNotificationsRead, setMarkingNotificationsRead] = useState(false);
+  const [deletingReadNotifications, setDeletingReadNotifications] = useState(false);
 
   // Modal states
   const [isEditPersonalModalOpen, setIsEditPersonalModalOpen] = useState(false);
@@ -40,49 +41,56 @@ export default function Dashboard() {
   const [isViewAllEmailsOpen, setIsViewAllEmailsOpen] = useState(false);
   const [isViewAllContactsOpen, setIsViewAllContactsOpen] = useState(false);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      setNotificationsLoading(true);
-      setNotificationsError(null);
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setNotificationsLoading(true);
+    setNotificationsError(null);
 
-      try {
-        const notificationsResult = await notificationApi.getMy({ limit: 50 });
+    try {
+      const notificationsResult = await notificationApi.getMy({ limit: 50 });
 
-        // Fetch current employee's detailed data
-        if (user?.employee_id) {
-          const employeeResult = await employeeApi.getById(user.employee_id);
-          if (employeeResult.success && employeeResult.data) {
-            setCurrentEmployee(employeeResult.data as Employee);
-          }
+      // Fetch current employee's detailed data
+      if (user?.employee_id) {
+        const employeeResult = await employeeApi.getById(user.employee_id);
+        if (employeeResult.success && employeeResult.data) {
+          setCurrentEmployee(employeeResult.data as Employee);
         }
-
-        if (notificationsResult.success && Array.isArray(notificationsResult.data)) {
-          setNotifications(notificationsResult.data as {
-            notification_id: number;
-            title: string;
-            message: string;
-            category?: string;
-            status: 'read' | 'unread';
-            created_at: string;
-          }[]);
-        } else {
-          setNotifications([]);
-          setNotificationsError(notificationsResult.message || "Failed to fetch notifications");
-        }
-      } catch (err) {
-        console.error("Error fetching dashboard data:", err);
-        setError("Failed to fetch dashboard data");
-        setNotificationsError("An error occurred while fetching notifications");
-      } finally {
-        setLoading(false);
-        setNotificationsLoading(false);
       }
-    };
 
+      if (notificationsResult.success && Array.isArray(notificationsResult.data)) {
+        setNotifications(notificationsResult.data as {
+          notification_id: number;
+          title: string;
+          message: string;
+          category?: string;
+          status: 'read' | 'unread';
+          created_at: string;
+        }[]);
+      } else {
+        setNotifications([]);
+        setNotificationsError(notificationsResult.message || "Failed to fetch notifications");
+      }
+    } catch (err) {
+      console.error("Error fetching dashboard data:", err);
+      setError("Failed to fetch dashboard data");
+      setNotificationsError("An error occurred while fetching notifications");
+    } finally {
+      setLoading(false);
+      setNotificationsLoading(false);
+    }
+  }, [user?.employee_id]);
+
+  useEffect(() => {
     fetchData();
-  }, [user]);
+  }, [fetchData]);
+
+  const handleProfileSaved = async () => {
+    await Promise.all([
+      refreshUser(),
+      fetchData(),
+    ]);
+  };
 
   if (loading) {
     return (
@@ -178,6 +186,26 @@ export default function Dashboard() {
       setMarkingNotificationsRead(false);
     }
   };
+
+  const handleDeleteAllReadNotifications = async () => {
+    setDeletingReadNotifications(true);
+    setNotificationsError(null);
+    try {
+      const result = await notificationApi.deleteAllRead();
+      if (result.success) {
+        setNotifications((prev) => prev.filter((item) => item.status !== 'read'));
+      } else {
+        setNotificationsError(result.message || "Failed to delete read notifications");
+      }
+    } catch (err) {
+      console.error("Error deleting read notifications:", err);
+      setNotificationsError("An error occurred while deleting read notifications");
+    } finally {
+      setDeletingReadNotifications(false);
+    }
+  };
+
+  const readNotificationsCount = notifications.filter((item) => item.status === 'read').length;
 
   return (
     <div className="min-h-screen p-6 font-poppins">
@@ -497,6 +525,13 @@ export default function Dashboard() {
                     >
                       Mark all as read
                     </button>
+                    <button
+                      onClick={handleDeleteAllReadNotifications}
+                      disabled={deletingReadNotifications || readNotificationsCount === 0}
+                      className="bg-white text-[#281b0d] px-3 py-1 rounded-lg text-sm font-medium hover:bg-gray-100 transition disabled:opacity-50"
+                    >
+                      Delete all read
+                    </button>
                   </div>
                 </div>
 
@@ -556,23 +591,27 @@ export default function Dashboard() {
         isOpen={isEditPersonalModalOpen}
         onClose={() => setIsEditPersonalModalOpen(false)}
         id={user?.employee_id || null}
+        onSaved={handleProfileSaved}
       />
       <EditEmployeeModal
         isOpen={isEditEmployeeModalOpen}
         onClose={() => setIsEditEmployeeModalOpen(false)}
         id={user?.employee_id || null}
+        onSaved={handleProfileSaved}
       />
 
       <EditContactsModal
         isOpen={isEditContactsModalOpen}
         onClose={() => setIsEditContactsModalOpen(false)}
         id={user?.employee_id || null}
+        onSaved={handleProfileSaved}
       />
 
       <EditEmailModal
         isOpen={isEditEmailModalOpen}
         onClose={() => setIsEmailModalOpen(false)}
         id={user?.employee_id || null}
+        onSaved={handleProfileSaved}
       />
 
       {/* View All Emails Modal */}

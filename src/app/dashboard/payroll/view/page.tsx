@@ -41,6 +41,7 @@ interface ViewPayrollDetailsProps {
   isOpen: boolean;
   onClose: () => void;
   payrollId: number | null;
+  onUpdated?: () => void;
 }
 
 const formatMoney = (value: number) =>
@@ -53,6 +54,7 @@ export default function PayrollRunDetailModal({
   isOpen,
   onClose,
   payrollId,
+  onUpdated,
 }: ViewPayrollDetailsProps) {
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -159,6 +161,7 @@ export default function PayrollRunDetailModal({
       showToast.success("Payroll run finalized");
       setShowFinalizeModal(false);
       await fetchRun();
+      onUpdated?.();
     } catch (err: any) {
       showToast.error(err.message || "Failed to finalize payroll run");
     } finally {
@@ -174,6 +177,7 @@ export default function PayrollRunDetailModal({
       if (!res.success) throw new Error(res.message || "Failed to abort");
       showToast.success("Payroll run aborted");
       setShowDeleteModal(false);
+      onUpdated?.();
       onClose();
     } catch (err: any) {
       showToast.error(err.message || "Failed to abort payroll run");
@@ -197,6 +201,7 @@ export default function PayrollRunDetailModal({
       showToast.success("Override applied successfully");
       setShowOverrideModal(false);
       await fetchRun();
+      onUpdated?.();
     } catch (err: any) {
       showToast.error(err.message || "Failed to save override");
     } finally {

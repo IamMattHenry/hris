@@ -13,6 +13,7 @@ interface ViewAttendanceModalProps {
   isOpen: boolean;
   onClose: () => void;
   attendanceId: number | null;
+  onUpdated?: () => void;
 }
 
 interface AttendanceData {
@@ -89,7 +90,7 @@ const formatDatePH = (dateString: string): string => {
   }
 };
 
-export default function ViewAttendanceModal({ isOpen, onClose, attendanceId }: ViewAttendanceModalProps) {
+export default function ViewAttendanceModal({ isOpen, onClose, attendanceId, onUpdated }: ViewAttendanceModalProps) {
   const [attendance, setAttendance] = useState<AttendanceData | null>(null);
   const [summary, setSummary] = useState<AttendanceSummary | null>(null);
   const [loading, setLoading] = useState(false);
@@ -170,6 +171,7 @@ export default function ViewAttendanceModal({ isOpen, onClose, attendanceId }: V
       setMessage({ type: "success", text: "Overtime hours updated successfully" });
       setShowOvertimeModal(false);
       setAttendance({ ...attendance, overtime_hours: overtimeValue });
+      onUpdated?.();
       setTimeout(() => setMessage(null), 3000);
     } else {
       setMessage({ type: "error", text: result.message || "Failed to update overtime hours" });
@@ -188,6 +190,7 @@ export default function ViewAttendanceModal({ isOpen, onClose, attendanceId }: V
       setMessage({ type: "success", text: "Status updated to Absent" });
       setAttendance({ ...attendance, status: "absent" });
       await fetchSummary(attendance.employee_id);
+      onUpdated?.();
       setTimeout(() => setMessage(null), 3000);
     } else {
       setMessage({ type: "error", text: result.message || "Failed to update status" });
@@ -206,6 +209,7 @@ export default function ViewAttendanceModal({ isOpen, onClose, attendanceId }: V
       setMessage({ type: "success", text: "Status updated to On Leave" });
       setAttendance({ ...attendance, status: "on_leave" });
       await fetchSummary(attendance.employee_id);
+      onUpdated?.();
       setTimeout(() => setMessage(null), 3000);
     } else {
       setMessage({ type: "error", text: result.message || "Failed to update status" });
@@ -223,6 +227,7 @@ export default function ViewAttendanceModal({ isOpen, onClose, attendanceId }: V
       setMessage({ type: "success", text: "Status updated to Half Day" });
       setAttendance({ ...attendance, status: "half_day" });
       await fetchSummary(attendance.employee_id);
+      onUpdated?.();
       setTimeout(() => setMessage(null), 3000);
     } else {
       setMessage({ type: "error", text: result.message || "Failed to update status" });

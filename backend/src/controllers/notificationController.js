@@ -1,5 +1,6 @@
 import logger from '../utils/logger.js';
 import {
+  deleteReadNotificationsForUser,
   getNotificationsForUser,
   getUnreadNotificationCount,
   markAllNotificationsAsRead,
@@ -119,6 +120,32 @@ export const readAllNotifications = async (req, res, next) => {
     });
   } catch (error) {
     logger.error('Read all notifications error:', error);
+    next(error);
+  }
+};
+
+export const deleteMyReadNotifications = async (req, res, next) => {
+  try {
+    const userId = req.user?.user_id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized',
+      });
+    }
+
+    const affectedRows = await deleteReadNotificationsForUser(userId);
+
+    return res.json({
+      success: true,
+      message: 'Read notifications deleted successfully',
+      data: {
+        affectedRows,
+      },
+    });
+  } catch (error) {
+    logger.error('Delete read notifications error:', error);
     next(error);
   }
 };

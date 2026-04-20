@@ -14,6 +14,7 @@ interface EditEmployeeModalProps {
   isOpen: boolean;
   onClose: () => void;
   id: number | null;
+  onSaved?: () => void;
 }
 
 interface EmployeeData {
@@ -32,6 +33,7 @@ export default function EditEmployeeModal({
   isOpen,
   onClose,
   id,
+  onSaved,
 }: EditEmployeeModalProps) {
   const [employee, setEmployee] = useState<EmployeeData | null>(null);
 
@@ -104,7 +106,7 @@ export default function EditEmployeeModal({
       if (result.success) {
         toast.success("Profile updated successfully!");
         onClose();
-        window.location.reload();
+        onSaved?.();
       } else {
         toast.error(result.message || "Failed to update profile");
       }

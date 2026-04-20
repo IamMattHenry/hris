@@ -602,3 +602,15 @@ export const markAllNotificationsAsRead = async (userId) => {
 
   return Number(result?.affectedRows || 0);
 };
+
+export const deleteReadNotificationsForUser = async (userId) => {
+  await ensureNotificationsTable();
+
+  const result = await db.query(
+    `DELETE FROM user_notifications
+     WHERE recipient_user_id = ? AND status = 'read'`,
+    [Number(userId)]
+  );
+
+  return Number(result?.affectedRows || 0);
+};

@@ -430,10 +430,8 @@ export default function PositionTable() {
       {/* Modals */}
       <AddJobModal
         isOpen={isInsertOpen}
-        onClose={() => {
-          setInsertIsOpen(false);
-          fetchPositions();
-        }}
+        onClose={() => setInsertIsOpen(false)}
+        onSave={fetchPositions}
       />
 
       <ViewJobModal

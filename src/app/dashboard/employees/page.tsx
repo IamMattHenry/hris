@@ -1106,7 +1106,12 @@ export default function EmployeeTable() {
       {/* Modals */}
       <AddModal isOpen={isModalOpen} onClose={handleModalClose} />
       <ViewEmployeeModal isOpen={employeeToView !== null} onClose={() => setEmployeeToView(null)} id={employeeToView!} />
-      <EditEmployeeModal isOpen={employeeToEdit !== null} onClose={() => setEmployeeToEdit(null)} id={employeeToEdit!} />
+      <EditEmployeeModal
+        isOpen={employeeToEdit !== null}
+        onClose={() => setEmployeeToEdit(null)}
+        id={employeeToEdit!}
+        onSaved={fetchEmployees}
+      />
       <BudgetRequestsModal
         isOpen={showAllRequests}
         onClose={() => setShowAllRequests(false)}

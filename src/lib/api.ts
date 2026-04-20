@@ -1302,6 +1302,12 @@ export const notificationApi = {
       method: 'PUT',
     });
   },
+
+  deleteAllRead: async () => {
+    return apiCall<any>('/notifications/read', {
+      method: 'DELETE',
+    });
+  },
 }
 
 // ============ TICKET API FUNCTIONS ============

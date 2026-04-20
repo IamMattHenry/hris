@@ -66,6 +66,7 @@ const Profile = () => {
     const [notificationsLoading, setNotificationsLoading] = useState(true);
     const [notificationsError, setNotificationsError] = useState<string | null>(null);
     const [markingAllRead, setMarkingAllRead] = useState(false);
+    const [deletingReadNotifications, setDeletingReadNotifications] = useState(false);
 
     useEffect(() => {
         const section = searchParams.get("section");
@@ -163,6 +164,24 @@ const Profile = () => {
         }
     };
 
+    const handleDeleteAllRead = async () => {
+        setDeletingReadNotifications(true);
+        setNotificationsError(null);
+        try {
+            const result = await notificationApi.deleteAllRead();
+            if (result.success) {
+                setNotifications((prev) => prev.filter((item) => item.status !== "read"));
+            } else {
+                setNotificationsError(result.message || "Failed to delete read notifications");
+            }
+        } catch (err) {
+            console.error(err);
+            setNotificationsError("An error occurred while deleting read notifications");
+        } finally {
+            setDeletingReadNotifications(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center text-[#480C1B] font-semibold">
@@ -181,6 +200,7 @@ const Profile = () => {
 
     // Check if user has employee record
     const hasEmployeeRecord = userData.employee_id != null;
+    const readNotificationsCount = notifications.filter((item) => item.status === "read").length;
 
     const formattedData: FormattedData = {
         personal: {
@@ -603,6 +623,13 @@ const Profile = () => {
                                         className="px-3 py-1.5 rounded-md border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                                     >
                                         Mark all as read
+                                    </button>
+                                    <button
+                                        onClick={handleDeleteAllRead}
+                                        disabled={deletingReadNotifications || readNotificationsCount === 0}
+                                        className="px-3 py-1.5 rounded-md border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                                    >
+                                        Delete all read
                                     </button>
                                 </div>
                             </div>
