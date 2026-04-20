@@ -1,0 +1,1685 @@
+// Generated from MySQL database: bt3wljbwprykeblz7tvq
+
+Table accounting_users {
+  user_id int [pk, increment]
+  user_name varchar(100) [not null, unique]
+  password varchar(255) [not null]
+  role varchar(100)
+  otp varchar(50)
+  otpExpiresAt datetime
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+  updated_at timestamp [default: CURRENT_TIMESTAMP]
+  is_active tinyint(1) [default: 1]
+  otp_attempts int [default: 0]
+  last_login_at timestamp
+  email varchar(255) [unique]
+  firstname varchar(100) [not null]
+  lastname varchar(100) [not null]
+  middlename varchar(100)
+  extension varchar(255)
+}
+
+Table accounting_users_otps {
+  otp_id int [pk, increment]
+  user_id int [not null]
+  otp varchar(6) [not null]
+  expires_at datetime [not null]
+  attempts int [not null, default: 0]
+  is_verified tinyint(1) [not null, default: 0]
+  created_at datetime [not null, default: CURRENT_TIMESTAMP]
+}
+
+Table activity_logs {
+  log_id int [pk, increment]
+  user_id int [not null]
+  action varchar(255)
+  module varchar(100)
+  description text
+  created_at datetime [default: CURRENT_TIMESTAMP]
+  created_by int
+}
+
+Table attendance {
+  attendance_id int [pk, increment]
+  attendance_code varchar(10) [unique]
+  employee_id int [not null]
+  date date
+  time_in datetime
+  time_out datetime
+  status enum('present','absent','late','early_leave','half_day','on_leave','work_from_home','overtime','others') [not null, default: 'present']
+  overtime_hours decimal(5,2) [default: 0.00]
+  created_at datetime [default: CURRENT_TIMESTAMP]
+  updated_at datetime [default: CURRENT_TIMESTAMP]
+  created_by int
+  updated_by int
+}
+
+Table audit_log {
+  log_id int [pk, increment]
+  users_id int [not null]
+  action_type varchar(100) [not null]
+  description text [not null]
+  ip_address varchar(45)
+  user_agent varchar(255)
+  created_at datetime(6) [not null, default: 'CURRENT_TIMESTAMP(6)']
+}
+
+Table auth_tokens {
+  id int [not null]
+  selector char(32) [not null]
+  hashed_validator char(255) [not null]
+  user_id int [not null]
+  expires datetime [not null]
+}
+
+Table backup_history {
+  backup_id int [pk, increment]
+  backup_name varchar(255) [not null]
+  backup_type enum('Manual','Automatic') [not null, default: 'Manual']
+  file_path varchar(500)
+  file_size bigint
+  status enum('Success','Failed','In Progress') [not null, default: 'In Progress']
+  created_by int
+  created_at datetime(6) [not null, default: 'CURRENT_TIMESTAMP(6)']
+  start_date date
+  end_date date
+}
+
+Table backup_settings {
+  id int [pk, increment]
+  auto_backup_enabled tinyint [not null, default: 1]
+  backup_time time [not null, default: '03:00:00']
+  retention_days int [not null, default: 30]
+  created_at datetime(6) [not null, default: 'CURRENT_TIMESTAMP(6)']
+  updated_at datetime(6) [not null, default: 'CURRENT_TIMESTAMP(6)']
+}
+
+Table budget {
+  budget_id int [pk, increment]
+  user_id int
+  department_id int
+  budget_name varchar(100) [not null]
+  start_date date
+  end_date date
+  description text
+  period_type enum('Monthly','Quarterly','Yearly')
+  status varchar(20) [not null]
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+  updated_at timestamp [default: CURRENT_TIMESTAMP]
+  created_by int
+  is_archived tinyint(1) [not null, default: 0]
+  total_category_amount decimal(15,2) [not null, default: 0.00]
+  total_department_allocated decimal(15,2) [not null, default: 0.00]
+}
+
+Table budget_category {
+  budget_category_id int [pk, increment]
+  budget_name varchar(100) [not null]
+  budget_description text
+  amount decimal(10,2)
+  budget_id int
+}
+
+Table budget_department {
+  department_budget_id int [pk, increment]
+  budget_id int [not null]
+  department_id int [not null]
+  allocated_amount decimal(12,2) [not null, default: 0.00]
+  notes text
+  is_active tinyint(1) [not null, default: 1]
+  created_at timestamp [not null, default: CURRENT_TIMESTAMP]
+  updated_at timestamp [not null, default: CURRENT_TIMESTAMP]
+
+  indexes {
+    (budget_id, department_id) [unique, name: 'uq_dept_budget']
+  }
+}
+
+Table budget_variance {
+  budget_variance_id int [pk, increment]
+  budget_category_id int [not null]
+  budget_id int
+  expenses_id int
+  total_expenses decimal(10,2) [not null, default: 0.00]
+  variance decimal(10,2)
+  variance_percentage decimal(10,2)
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+  updated_at timestamp [default: CURRENT_TIMESTAMP]
+  status enum('On Track','Monitor','Alert') [default: 'Monitor']
+}
+
+Table client {
+  client_id int [pk]
+  full_name varchar(100) [not null]
+  phone varchar(20)
+  email varchar(100)
+  password varchar(100) [not null]
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+  updated_at timestamp [default: CURRENT_TIMESTAMP]
+}
+
+Table company_deductions {
+  deduction_id int [pk, increment]
+  employee_id int [not null]
+  payroll_run_id int [not null]
+  leave_id int
+  deduction_name varchar(100) [not null]
+  amount decimal(10,2) [not null, default: 0.00]
+  remarks varchar(255)
+  date_applied date [default: 'curdate()']
+}
+
+Table crm_users {
+  account_id int [pk, increment]
+  employee_code varchar(50) [not null]
+  username varchar(100) [not null, unique]
+  email varchar(100) [not null, unique]
+  full_name varchar(150) [not null]
+  password_hash varchar(255) [not null]
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+  last_login timestamp
+  role varchar(50) [default: 'CRM Staff']
+}
+
+Table customer {
+  customer_id int [pk, increment]
+  first_name varchar(50) [not null]
+  last_name varchar(50) [not null]
+  email varchar(100) [not null, unique]
+  password varchar(255) [not null]
+  phone varchar(20)
+  created_at timestamp [not null, default: CURRENT_TIMESTAMP]
+}
+
+Table customers {
+  customer_id int [pk, increment]
+  first_name varchar(100)
+  last_name varchar(100)
+  email varchar(255) [not null, unique]
+  password varchar(255) [not null]
+  phone varchar(20)
+  created_at timestamp [not null, default: CURRENT_TIMESTAMP]
+}
+
+Table department_financial_summary {
+  id int [pk, increment]
+  department_id int
+  total_revenue decimal(15,2) [not null, default: 0.00]
+  total_expenses decimal(15,2) [not null, default: 0.00]
+  net_balance decimal(15,2) [not null, default: 0.00]
+  period_month int [not null]
+  period_year int [not null]
+  last_updated timestamp [not null, default: CURRENT_TIMESTAMP]
+}
+
+Table departments {
+  department_id int [pk, increment]
+  department_code varchar(10) [unique]
+  department_name varchar(100) [not null, unique]
+  description text
+  supervisor_id int
+  created_at datetime [default: CURRENT_TIMESTAMP]
+  updated_at datetime [default: CURRENT_TIMESTAMP]
+  created_by int
+  updated_by int
+}
+
+Table dependant_address {
+  dependant_address_id int [pk, increment]
+  dependant_id int [unique]
+  region_name varchar(100)
+  province_name varchar(50)
+  city_name varchar(50)
+  home_address varchar(255)
+  created_at datetime [default: CURRENT_TIMESTAMP]
+  updated_at datetime [default: CURRENT_TIMESTAMP]
+  created_by int
+  updated_by int
+}
+
+Table dependant_contact {
+  dependant_contact_id int [pk, increment]
+  dependant_id int [unique]
+  contact_no varchar(25)
+  created_at datetime [default: CURRENT_TIMESTAMP]
+  updated_at datetime [default: CURRENT_TIMESTAMP]
+  created_by int
+  updated_by int
+}
+
+Table dependant_email {
+  dependant_email_id int [pk, increment]
+  dependant_id int [unique]
+  email varchar(100)
+  created_at datetime [default: CURRENT_TIMESTAMP]
+  updated_at datetime [default: CURRENT_TIMESTAMP]
+  created_by int
+  updated_by int
+}
+
+Table dependants {
+  dependant_id int [pk, increment]
+  dependant_code varchar(10) [unique]
+  employee_id int [not null]
+  firstname varchar(100)
+  lastname varchar(100)
+  relationship varchar(100)
+  birth_date date
+  created_at datetime [default: CURRENT_TIMESTAMP]
+  updated_at datetime [default: CURRENT_TIMESTAMP]
+  created_by int
+  updated_by int
+}
+
+Table employee_addresses {
+  address_id int [pk, increment]
+  employee_id int [unique]
+  region_name varchar(100)
+  province_name varchar(100)
+  city_name varchar(100)
+  barangay_name varchar(100)
+  home_address varchar(255)
+  created_at datetime [default: CURRENT_TIMESTAMP]
+  updated_at datetime [default: CURRENT_TIMESTAMP]
+  created_by int
+  updated_by int
+}
+
+Table employee_contact_numbers {
+  contact_id int [pk, increment]
+  employee_id int [not null]
+  contact_number varchar(20)
+  created_at datetime [default: CURRENT_TIMESTAMP]
+  updated_at datetime [default: CURRENT_TIMESTAMP]
+  created_by int
+  updated_by int
+}
+
+Table employee_documents {
+  document_id int [pk, increment]
+  employee_id int [not null, unique]
+  sss bit(1) [default: 'b\'0\'']
+  pag_ibig bit(1) [default: 'b\'0\'']
+  tin bit(1) [default: 'b\'0\'']
+  philhealth bit(1) [default: 'b\'0\'']
+  cedula bit(1) [default: 'b\'0\'']
+  birth_cert bit(1) [default: 'b\'0\'']
+  police_clearance bit(1) [default: 'b\'0\'']
+  barangay_clearance bit(1) [default: 'b\'0\'']
+  medical_cert bit(1) [default: 'b\'0\'']
+  others bit(1) [default: 'b\'0\'']
+  created_at datetime [default: CURRENT_TIMESTAMP]
+  updated_at datetime [default: CURRENT_TIMESTAMP]
+  created_by int
+  updated_by int
+}
+
+Table employee_emails {
+  email_id int [pk, increment]
+  employee_id int [not null]
+  email varchar(100)
+  created_at datetime [default: CURRENT_TIMESTAMP]
+  updated_at datetime [default: CURRENT_TIMESTAMP]
+  created_by int
+  updated_by int
+}
+
+Table employee_penalties {
+  id bigint unsigned [pk, increment]
+  employee_id int [not null]
+  issued_by_user_id int
+  code varchar(50) [not null, unique]
+  penalty_type varchar(100) [not null]
+  title varchar(255) [not null]
+  description text [not null]
+  amount decimal(14,2) [not null, default: 0.00]
+  amount_deducted decimal(14,2) [not null, default: 0.00]
+  remaining_amount decimal(14,2) [not null, default: 0.00]
+  currency varchar(10) [not null, default: 'PHP']
+  incident_date date [not null]
+  issued_date date [not null]
+  due_date date
+  status enum('draft','pending','approved','rejected','settled','cancelled','waived') [not null, default: 'pending']
+  payroll_deduction_mode enum('full','next_payroll','installment','manual','none') [not null, default: 'none']
+  installment_count int
+  installment_frequency varchar(30)
+  settled_at datetime
+  cancelled_at datetime
+  cancellation_reason varchar(255)
+  metadata json
+  created_at datetime [not null, default: CURRENT_TIMESTAMP]
+  updated_at datetime [not null, default: CURRENT_TIMESTAMP]
+}
+
+Table employee_penalty_events {
+  id bigint unsigned [pk, increment]
+  penalty_id bigint unsigned [not null]
+  action_type varchar(80) [not null]
+  from_status varchar(30)
+  to_status varchar(30)
+  notes text
+  action_by_user_id int
+  created_at datetime [not null, default: CURRENT_TIMESTAMP]
+}
+
+Table employee_positions {
+  id int [pk, increment]
+  employee_id int [not null]
+  position_id int [not null]
+  salary decimal(12,2)
+  salary_unit varchar(16) [not null, default: 'monthly']
+  is_primary tinyint(1) [not null, default: 0]
+  created_at datetime [not null, default: CURRENT_TIMESTAMP]
+  updated_at datetime [not null, default: CURRENT_TIMESTAMP]
+
+  indexes {
+    (employee_id, position_id) [unique, name: 'uq_emp_pos']
+  }
+}
+
+Table employees {
+  employee_id int [pk, increment]
+  employee_code varchar(10) [unique]
+  user_id int [unique]
+  fingerprint_id int [unique]
+  first_name varchar(100) [not null]
+  last_name varchar(100) [not null]
+  middle_name varchar(100)
+  extension_name varchar(10)
+  birthdate date
+  gender enum('male','female','others') [not null, default: 'others']
+  civil_status enum('single','married','divorced','widowed') [default: 'single']
+  position_id int
+  department_id int
+  hire_date date
+  leave_credit int [default: 15]
+  supervisor_id int
+  status enum('active','resigned','terminated','on-leave') [default: 'active']
+  terminated_at datetime
+  terminated_by_user_id int
+  termination_reason varchar(255)
+  created_at datetime [default: CURRENT_TIMESTAMP]
+  updated_at datetime [default: CURRENT_TIMESTAMP]
+  created_by int
+  updated_by int
+  employment_type enum('regular','probationary') [not null, default: 'probationary']
+  probation_end_date date
+  current_salary decimal(12,2)
+  salary_unit varchar(16)
+  work_type enum('full-time','part-time') [not null, default: 'full-time']
+  scheduled_days json [not null]
+  scheduled_start_time time [not null]
+  scheduled_end_time time [not null]
+}
+
+Table expense_notifications {
+  notification_id int [pk, increment]
+  department_id int
+  external_reference_id varchar(100)
+  title varchar(150) [not null]
+  description text
+  requested_amount decimal(10,2) [not null]
+  budget_category_id int
+  requested_by varchar(255)
+  purpose text
+  priority enum('low','medium','high') [default: 'medium']
+  vendor_supplier varchar(100)
+  due_date date
+  revenue_category_id int
+  attachment_filename varchar(255)
+  attachment_file_path varchar(255)
+  status enum('pending','accepted','rejected','cancelled') [not null, default: 'pending']
+  reviewed_by int
+  rejection_reason text
+  reviewed_at timestamp
+  expense_id int [unique]
+  created_at timestamp [not null, default: CURRENT_TIMESTAMP]
+  updated_at timestamp [not null, default: CURRENT_TIMESTAMP]
+  is_active tinyint [not null, default: 1]
+}
+
+Table expense_variance_view {
+  expense_name varchar(1) [not null]
+  budget_name varchar(1) [not null]
+  category_name varchar(1) [not null]
+  budgeted_amount decimal(10,2)
+  actual_expense decimal(10,2) [not null]
+  variance decimal(11,2)
+}
+
+Table expenses {
+  expenses_id int [pk, increment]
+  user_id int
+  budget_category_id int
+  revenue_category_id int
+  budget_variance_id int
+  expense_name varchar(100) [not null]
+  description text
+  amount decimal(10,2) [not null]
+  status enum('Paid','Pending','Overdue') [default: 'Pending']
+  receipt_filename varchar(255)
+  receipt_file_path varchar(255)
+  notes text
+  tax_amount decimal(10,2)
+  is_active tinyint(1) [default: 1]
+  paid_date date
+  due_date date
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+  updated_at timestamp [default: CURRENT_TIMESTAMP]
+  vendor_supplier varchar(50)
+  paid_date_indexed date
+  department_id int
+}
+
+Table fb_categories {
+  category_id int [pk, increment]
+  name varchar(100) [not null]
+}
+
+Table fb_dining_reservation {
+  reservation_id int [pk, increment]
+  user_id int [not null]
+  first_name varchar(100) [not null]
+  last_name varchar(100) [not null]
+  email varchar(150) [not null]
+  reservation_date date [not null]
+  reservation_time time [not null]
+  party_size int [not null]
+  table_id int
+  status enum('Pending','Confirmed','Seated','No-Show','Cancelled') [default: 'Pending']
+  special_requests text
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+}
+
+Table fb_food_ratings {
+  rating_id int [pk, increment]
+  client_id int [not null]
+  item_id int [not null]
+  rating_value int [not null]
+  review_text text
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+}
+
+Table fb_ingredients {
+  ingredient_id int [pk, increment]
+  name varchar(255) [not null]
+  stock_level decimal(10,2) [not null, default: 0.00]
+  unit_of_measurement varchar(50) [not null]
+  reorder_point decimal(10,2) [not null, default: 10.00]
+  unit_cost decimal(10,2) [not null, default: 0.00]
+  created_at timestamp [not null, default: CURRENT_TIMESTAMP]
+}
+
+Table fb_inventory_logs {
+  log_id int [pk, increment]
+  ingredient_id int [not null]
+  employee_id int
+  staff_id int
+  action_type enum('RESTOCK','WASTE','ADJUST_ADD','ADJUST_SUBTRACT','INITIAL','ORDER_DEDUCT','ORDER_RESTORE') [not null]
+  quantity_change decimal(10,2) [not null]
+  new_stock_level decimal(10,2) [not null]
+  reason text
+  timestamp timestamp [not null, default: CURRENT_TIMESTAMP]
+}
+
+Table fb_menu_item_ingredients {
+  recipe_id int [pk, increment]
+  menu_item_id int [not null]
+  ingredient_id int [not null]
+  quantity_consumed decimal(10,2) [not null]
+}
+
+Table fb_menu_items {
+  item_id int [pk, increment]
+  item_name varchar(255) [not null]
+  category_id int
+  promotion_id int
+  price decimal(10,2) [not null]
+  image_url varchar(255)
+  description text
+}
+
+Table fb_new_order_details {
+  order_detail_id int [pk, increment]
+  order_id int [not null]
+  item_id int [not null]
+  quantity int [not null, default: 1]
+  price_on_purchase decimal(10,2) [not null]
+  instructions text
+  item_status enum('pending','preparing','ready','served','cancelled') [not null, default: 'pending']
+}
+
+Table fb_new_orders {
+  order_id int [pk, increment]
+  client_id int
+  guest_name varchar(100)
+  employee_id int
+  order_type enum('Dine-In','Room Dining') [not null]
+  table_id int
+  room_id int
+  status enum('Open','Billed','Settled') [not null, default: 'Open']
+  payment_status enum('unpaid','paid','charged_to_room') [not null, default: 'unpaid']
+  total_amount decimal(10,2) [not null, default: 0.00]
+  special_instructions text
+  order_date timestamp [default: CURRENT_TIMESTAMP]
+}
+
+Table fb_new_payments {
+  payment_id int [pk, increment]
+  order_id int
+  payment_method varchar(50)
+  amount decimal(10,2)
+  payment_date timestamp [default: CURRENT_TIMESTAMP]
+  change_amount decimal(10,2) [default: 0.00]
+  payment_status varchar(50) [default: 'paid']
+}
+
+Table fb_notifications {
+  notification_id int [pk, increment]
+  client_id int
+  order_id int
+  title varchar(255) [not null]
+  message text [not null]
+  is_read tinyint(1) [not null, default: 0]
+  created_at timestamp [not null, default: CURRENT_TIMESTAMP]
+}
+
+Table fb_order_details {
+  order_detail_id int [pk, increment]
+  order_id int
+  item_id int
+  quantity int [not null]
+  price_on_purchase decimal(10,2) [not null, default: 0.00]
+  subtotal decimal(10,2) [not null]
+  instructions text
+  item_status enum('pending','preparing','ready','served','cancelled') [default: 'pending']
+}
+
+Table fb_order_discounts {
+  id int [pk, increment]
+  order_id int [not null]
+  discount_type varchar(50) [not null]
+  discount_id varchar(100) [not null]
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+}
+
+Table fb_orders {
+  order_id int [pk, increment]
+  client_id int
+  guest_name varchar(100)
+  employee_id int
+  items_total decimal(10,2) [default: 0.00]
+  service_charge_amount decimal(10,2) [default: 0.00]
+  vat_amount decimal(10,2) [default: 0.00]
+  status enum('pending','preparing','ready','served','cancelled') [default: 'pending']
+  payment_status enum('unpaid','paid') [default: 'unpaid']
+  total_amount decimal(10,2)
+  special_instructions text
+  order_type varchar(50) [default: 'Dine-in']
+  delivery_location varchar(100)
+  room_id int
+  table_id int
+  order_date timestamp [not null, default: CURRENT_TIMESTAMP]
+}
+
+Table fb_payments {
+  payment_id int [pk, increment]
+  order_id int
+  payment_method varchar(50)
+  amount decimal(10,2)
+  payment_date timestamp [not null, default: CURRENT_TIMESTAMP]
+  change_amount decimal(10,2) [default: 0.00]
+  payment_status varchar(50) [default: 'paid']
+  paymongo_payment_id varchar(255)
+}
+
+Table fb_promotions {
+  promotion_id int [pk, increment]
+  name varchar(100) [not null]
+  description text
+  discount_percentage int [not null]
+  start_date date [not null]
+  end_date date [not null]
+  is_active tinyint(1) [default: 1]
+}
+
+Table fb_tables {
+  table_id int [pk, increment]
+  table_number varchar(10) [not null, unique]
+  capacity int [not null, default: 4]
+  status enum('Available','Occupied','Reserved') [default: 'Available']
+}
+
+Table fb_view_orders_live {
+  order_id int [not null, default: 0]
+  client_id int
+  employee_id int
+  status enum('pending','preparing','ready','served','cancelled') [default: 'pending']
+  order_type varchar(50) [default: 'Dine-in']
+  delivery_location varchar(100)
+  room_id int
+  table_id int
+  order_date timestamp [not null, default: CURRENT_TIMESTAMP]
+  special_instructions text
+  legacy_items_total decimal(10,2) [default: 0.00]
+  legacy_total_amount decimal(10,2)
+  calculated_items_total decimal(32,2) [not null, default: 0.00]
+  calculated_service_charge decimal(35,4) [not null, default: 0.0000]
+  calculated_vat decimal(39,6) [not null, default: 0.000000]
+  calculated_total_amount decimal(40,6) [not null, default: 0.000000]
+}
+
+Table feedback {
+  id int [pk, increment]
+  customer_name varchar(255) [not null]
+  customer_email varchar(255) [not null]
+  room_no varchar(50)
+  room_type varchar(100)
+  overall_emoji_rating varchar(20)
+  experience_text text
+  cleanliness_rating int
+  comfort_rating int
+  staff_rating int
+  service_rating int
+  amenities_rating int
+  has_complaint varchar(3) [default: 'No']
+  complaint_type varchar(100)
+  complaint_details text
+  tx_hash varchar(255)
+  celestia_namespace_id varchar(255)
+  submitted_at timestamp [default: CURRENT_TIMESTAMP]
+}
+
+Table hotel_settings {
+  setting_id int [pk, increment]
+  hotel_name varchar(255) [not null, default: 'My Hotel']
+  registration_number varchar(100)
+  address text
+  phone_number varchar(20)
+  email varchar(255)
+  website varchar(255)
+  logo_url varchar(500)
+  created_at datetime(6) [not null, default: 'CURRENT_TIMESTAMP(6)']
+  updated_at datetime(6) [not null, default: 'CURRENT_TIMESTAMP(6)']
+}
+
+Table invoice {
+  invoice_id int [pk, increment]
+  invoice_number varchar(50) [not null, unique]
+  guest_name varchar(255) [not null]
+  room_number varchar(50) [not null]
+  check_in_date date [not null]
+  check_out_date date [not null]
+  email_address varchar(255)
+  phone_number varchar(20)
+  subtotal decimal(12,2) [default: 0.00]
+  tax_rate decimal(5,2) [default: 10.00]
+  tax_amount decimal(12,2) [default: 0.00]
+  total_amount decimal(12,2) [default: 0.00]
+  paid_amount decimal(12,2) [default: 0.00]
+  pending_amount decimal(12,2) [default: 0.00]
+  status varchar(50) [default: 'Pending']
+  payment_method varchar(50)
+  notes text
+  created_by int
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+  updated_at timestamp [default: CURRENT_TIMESTAMP]
+}
+
+Table invoice_item {
+  item_id int [pk, increment]
+  invoice_id int [not null]
+  item_description varchar(500) [not null]
+  quantity int [default: 1]
+  unit_price decimal(12,2) [default: 0.00]
+  total_price decimal(12,2) [default: 0.00]
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+  revenue_category_id int
+}
+
+Table job_positions {
+  position_id int [pk, increment]
+  position_name varchar(100) [not null]
+  position_code varchar(10) [unique]
+  position_desc varchar(255)
+  department_id int [not null]
+  salary decimal(10,2)
+  availability int [default: 0]
+  created_at datetime [default: CURRENT_TIMESTAMP]
+  updated_at datetime [default: CURRENT_TIMESTAMP]
+  created_by int
+  updated_by int
+  employment_type varchar(16) [not null, default: 'regular']
+  default_salary decimal(12,2)
+  salary_unit varchar(16) [not null, default: 'monthly']
+}
+
+Table leaves {
+  leave_id int [pk, increment]
+  leave_code varchar(10) [unique]
+  employee_id int [not null]
+  leave_type enum('vacation','sick','emergency','personal','parental','bereavement','half_day','others')
+  start_date date
+  end_date date
+  status enum('pending','approved','rejected','cancelled') [default: 'pending']
+  remarks text
+  supporting_docs text
+  supervisor_approved_by int
+  supervisor_approved_at datetime
+  approved_by int
+  hr_approved_by int
+  hr_approved_at datetime
+  created_at datetime [default: CURRENT_TIMESTAMP]
+  updated_at datetime [default: CURRENT_TIMESTAMP]
+  created_by int
+  updated_by int
+}
+
+Table manual_payment {
+  payment_id int [pk, increment]
+  invoice_id int [not null]
+  payment_method varchar(50) [not null]
+  amount_paid decimal(12,2) [not null]
+  payment_date date [not null]
+  reference_number varchar(100)
+  notes text
+  processed_by int [not null]
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+}
+
+Table migrations {
+  id int [pk, increment]
+  timestamp bigint [not null]
+  name varchar(255) [not null]
+}
+
+Table notification_settings {
+  notification_id int [pk, increment]
+  users_id int [not null, unique]
+  daily_revenue_reports tinyint [not null, default: 1]
+  expense_approvals tinyint [not null, default: 1]
+  bill_payment_reminders tinyint [not null, default: 1]
+  payroll_processing tinyint [not null, default: 1]
+  budget_variance_alerts tinyint [not null, default: 1]
+  system_updates tinyint [not null, default: 1]
+  backup_alerts tinyint [not null, default: 1]
+  security_alerts tinyint [not null, default: 1]
+  created_at datetime(6) [not null, default: 'CURRENT_TIMESTAMP(6)']
+  updated_at datetime(6) [not null, default: 'CURRENT_TIMESTAMP(6)']
+}
+
+Table password_reset_otps {
+  otp_id int [pk, increment]
+  user_id int [not null]
+  identifier varchar(255) [not null]
+  purpose varchar(50) [not null]
+  code_hash varchar(255) [not null]
+  delivery_channel varchar(50) [default: 'email']
+  expires_at datetime [not null]
+  consumed_at datetime
+  attempts int [default: 0]
+  created_at datetime [default: CURRENT_TIMESTAMP]
+  updated_at datetime [default: CURRENT_TIMESTAMP]
+}
+
+Table password_reset_tokens {
+  token_id int [pk, increment]
+  user_id int [not null]
+  token_hash varchar(255) [not null]
+  expires_at datetime [not null]
+  consumed_at datetime
+  created_at datetime [default: CURRENT_TIMESTAMP]
+}
+
+Table payroll_contributions {
+  id bigint unsigned [pk, increment]
+  record_id bigint unsigned [not null]
+  employee_id int [not null]
+  sss_ee decimal(14,2) [not null, default: 0.00]
+  sss_er decimal(14,2) [not null, default: 0.00]
+  philhealth_ee decimal(14,2) [not null, default: 0.00]
+  philhealth_er decimal(14,2) [not null, default: 0.00]
+  pagibig_ee decimal(14,2) [not null, default: 0.00]
+  pagibig_er decimal(14,2) [not null, default: 0.00]
+  bir_withholding decimal(14,2) [not null, default: 0.00]
+  period_start date [not null]
+  period_end date [not null]
+  created_at datetime [not null, default: CURRENT_TIMESTAMP]
+}
+
+Table payroll_override_logs {
+  id bigint unsigned [pk, increment]
+  run_id bigint unsigned [not null]
+  record_id bigint unsigned [not null]
+  employee_id int [not null]
+  changed_by int [not null]
+  reason varchar(255)
+  previous_values json
+  new_values json
+  changed_at datetime [not null, default: CURRENT_TIMESTAMP]
+}
+
+Table payroll_penalty_deductions {
+  id bigint unsigned [pk, increment]
+  penalty_id bigint unsigned [not null]
+  payroll_run_id bigint unsigned [not null]
+  payroll_record_id bigint unsigned [not null]
+  employee_id int [not null]
+  deducted_amount decimal(14,2) [not null, default: 0.00]
+  deduction_date date [not null]
+  created_at datetime [not null, default: CURRENT_TIMESTAMP]
+
+  indexes {
+    (penalty_id, payroll_run_id, payroll_record_id) [unique, name: 'uq_payroll_penalty_deduction_unique']
+  }
+}
+
+Table payroll_records {
+  id bigint unsigned [pk, increment]
+  run_id bigint unsigned [not null]
+  employee_id int [not null]
+  gross_pay decimal(14,2) [not null, default: 0.00]
+  total_deductions decimal(14,2) [not null, default: 0.00]
+  withholding_tax decimal(14,2) [not null, default: 0.00]
+  net_pay decimal(14,2) [not null, default: 0.00]
+  json_breakdown json
+  payslip_data json
+  raw_inputs json
+  override_meta json
+  created_at datetime [not null, default: CURRENT_TIMESTAMP]
+  updated_at datetime [not null, default: CURRENT_TIMESTAMP]
+
+  indexes {
+    (run_id, employee_id) [unique, name: 'uq_payroll_record_run_employee']
+  }
+}
+
+Table payroll_run {
+  payroll_run_id int [pk, increment]
+  payroll_start_date date [not null]
+  payroll_end_date date [not null]
+  status enum('pending','processing','completed') [default: 'pending']
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+  updated_at timestamp [default: CURRENT_TIMESTAMP]
+  period enum('monthly','weekly','yearly')
+  is_archived tinyint [default: 0]
+  email_sent tinyint(1) [default: 0]
+  email_sent_at timestamp
+}
+
+Table payroll_runs {
+  id bigint unsigned [pk, increment]
+  pay_period_start date [not null]
+  pay_period_end date [not null]
+  pay_schedule enum('weekly','semi-monthly','monthly') [not null, default: 'semi-monthly']
+  status enum('draft','finalized') [not null, default: 'draft']
+  employee_scope json
+  notes text
+  created_by int
+  finalized_by int
+  finalized_at datetime
+  created_at datetime [not null, default: CURRENT_TIMESTAMP]
+  updated_at datetime [not null, default: CURRENT_TIMESTAMP]
+}
+
+Table payroll_settings {
+  id int unsigned [pk, increment]
+  pay_schedule enum('weekly','semi-monthly','monthly') [not null, default: 'semi-monthly']
+  allowances_config json
+  holiday_overrides json
+  de_minimis_config json
+  company_name varchar(255)
+  monthly_work_days decimal(6,2) [not null, default: 22.00]
+  effective_date date [not null]
+  is_active tinyint(1) [not null, default: 1]
+  created_by int
+  created_at datetime [not null, default: CURRENT_TIMESTAMP]
+  updated_at datetime [not null, default: CURRENT_TIMESTAMP]
+}
+
+Table payroll_slip {
+  payroll_id int [pk, increment]
+  employee_id int
+  payroll_run_id int
+  user_id int
+  company_deduction_id int
+  total_company_deductions decimal(10,2) [not null, default: 0.00]
+  overtime_hours decimal(10,2)
+  sss_deduction decimal(10,2)
+  pagibig_deduction decimal(10,2)
+  philhealth_deduction decimal(10,2)
+  withholding_tax decimal(10,2)
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+  updated_at timestamp [default: CURRENT_TIMESTAMP]
+  hourly_rate decimal(10,2) [default: 0.00]
+  daily_rate decimal(10,2) [default: 0.00]
+  actual_days decimal(5,2) [default: 0.00]
+  actual_hours decimal(5,2) [default: 0.00]
+  morning_hours decimal(5,2) [default: 0.00]
+  night_hours decimal(5,2) [default: 0.00]
+  expected_days decimal(5,2) [default: 0.00]
+  expected_hours decimal(5,2) [default: 0.00]
+  attendance_percentage decimal(5,2) [default: 0.00]
+  base_salary decimal(10,2) [default: 0.00]
+  night_differential decimal(10,2) [default: 0.00]
+  overtime_pay decimal(10,2) [default: 0.00]
+  gross_pay decimal(10,2) [default: 0.00]
+  attendance_deductions decimal(10,2) [default: 0.00]
+  total_deductions decimal(10,2) [default: 0.00]
+  net_pay decimal(10,2) [default: 0.00]
+  status enum('draft','pending','approved','paid','cancelled') [default: 'draft']
+  notes text
+  payment_date date
+  payment_method varchar(255)
+  payment_reference varchar(255)
+  approved_by int
+  approved_at timestamp
+  needs_recalculation tinyint [not null, default: 0]
+  last_recalculated_at timestamp
+}
+
+Table permissions {
+  permission_id int [pk, increment]
+  permission_key varchar(100) [not null, unique]
+  description varchar(255) [not null]
+  module varchar(50) [not null, default: 'general']
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+}
+
+Table pms_budget_requests {
+  RequestID int [pk, increment]
+  ItemID int
+  ItemName varchar(255) [not null]
+  RequestedQty int [not null]
+  UnitCost decimal(15,2) [not null]
+  TotalAmount decimal(15,2) [not null]
+  Priority varchar(50) [default: 'Normal']
+  Status varchar(50) [default: 'Pending']
+  RequestedBy int [not null]
+  RequestDate datetime [default: CURRENT_TIMESTAMP]
+  Remarks text
+}
+
+Table pms_housekeeping_logs {
+  LogID int [pk, increment]
+  TaskID int
+  RoomID int
+  UserID int
+  Action varchar(50) [not null]
+  Details text
+  Timestamp datetime [not null, default: CURRENT_TIMESTAMP]
+}
+
+Table pms_housekeeping_tasks {
+  TaskID int [pk, increment]
+  RoomID int [not null]
+  UserID int
+  AssignedUserID int
+  TaskType varchar(255) [default: 'Not Specified']
+  Status varchar(50) [not null, default: 'Pending']
+  DateRequested datetime [not null, default: CURRENT_TIMESTAMP]
+  DateCompleted datetime
+  Remarks text
+}
+
+Table pms_inventory {
+  ItemID int [pk, increment]
+  ItemName varchar(255) [not null]
+  ItemType enum('Consumables','Reusable','Equipment')
+  ItemCategoryID int [not null]
+  ItemQuantity decimal(15,2) [not null]
+  UnitCost decimal(15,2) [not null, default: 0.00]
+  ItemUnit varchar(50)
+  StockLimit int [not null, default: 0]
+  ItemDescription varchar(255)
+  ItemStatus varchar(255) [not null]
+  DateofStockIn timestamp [not null, default: CURRENT_TIMESTAMP]
+  ExpirationDate date
+  RestockDate date
+  is_archived tinyint(1) [not null, default: 0]
+}
+
+Table pms_inventorylog {
+  InvLogID int [pk, increment]
+  UserID int [not null]
+  ItemID int [not null]
+  Quantity int [not null]
+  InventoryLogReason varchar(255) [not null]
+  DateofRelease timestamp [not null, default: CURRENT_TIMESTAMP]
+}
+
+Table pms_itemcategory {
+  ItemCategoryID int [pk, increment]
+  ItemCategoryName varchar(255) [not null]
+  is_archived int [default: 0]
+}
+
+Table pms_maintenance_logs {
+  LogID int [pk, increment]
+  RequestID int
+  RoomID int [not null]
+  UserID int
+  Timestamp datetime [not null, default: CURRENT_TIMESTAMP]
+  Action varchar(255) [not null]
+  Details text
+}
+
+Table pms_maintenance_requests {
+  RequestID int [pk, increment]
+  RoomID int [not null]
+  UserID int [not null]
+  IssueType varchar(200) [not null]
+  Status varchar(50) [not null, default: 'Pending']
+  Remarks text
+  DateRequested datetime [not null]
+  DateCompleted datetime
+  AssignedUserID int
+}
+
+Table pms_parking_sessions {
+  SessionID int [pk, increment]
+  SlotID int [not null]
+  PlateNumber varchar(20) [not null]
+  GuestName varchar(255)
+  RoomNumber varchar(20)
+  VehicleTypeID int [not null]
+  VehicleCategoryID int [not null]
+  EntryTime datetime [not null]
+  ExitTime datetime
+  StaffID_Entry int [not null]
+}
+
+Table pms_parkingarea {
+  AreaID int [pk, increment]
+  AreaName varchar(100) [not null]
+  is_archived tinyint(1) [default: 0]
+}
+
+Table pms_parkingslot {
+  SlotID int [pk, increment]
+  AreaID int [not null]
+  SlotName varchar(20) [not null]
+  AllowedVehicleTypeID int [not null]
+  Status enum('available','occupied','reserved','maintenance') [not null, default: 'available']
+  is_archived tinyint(1) [default: 0]
+}
+
+Table pms_room_status {
+  StatusID int [pk, increment]
+  RoomNumber int [not null, unique]
+  RoomStatus varchar(50) [not null]
+  LastClean timestamp
+  LastMaintenance timestamp
+  UserID int
+  LastUpdated timestamp [not null, default: CURRENT_TIMESTAMP]
+}
+
+Table pms_user_logs {
+  LogID int [pk, increment]
+  UserID int
+  ActionType varchar(255) [not null]
+  Timestamp timestamp [not null, default: CURRENT_TIMESTAMP]
+}
+
+Table pms_users {
+  UserID int [pk, increment]
+  EmployeeID varchar(50) [unique]
+  Fname varchar(255) [not null]
+  Lname varchar(255) [not null]
+  Mname varchar(255)
+  Birthday date [not null]
+  AccountType varchar(255) [not null]
+  AvailabilityStatus varchar(20) [not null, default: 'Available']
+  Username varchar(255) [not null, unique]
+  Password varchar(255)
+  EmailAddress varchar(255) [not null]
+  Shift varchar(255) [not null]
+  Address varchar(255) [not null]
+  ContactNumber varchar(50)
+  ActivationToken varchar(64) [unique]
+  TokenExpiry datetime
+  is_archived tinyint(1) [default: 0]
+}
+
+Table pms_vehiclecategory {
+  VehicleCategoryID int [pk, increment]
+  VehicleTypeID int [not null]
+  CategoryName varchar(100) [not null]
+  is_archived tinyint(1) [default: 0]
+}
+
+Table pms_vehicletype {
+  VehicleTypeID int [pk, increment]
+  TypeName varchar(50) [not null]
+  is_archived tinyint(1) [default: 0]
+}
+
+Table public_ticket_emails {
+  id int [pk, increment]
+  ticket_id int [not null]
+  email varchar(100)
+  name varchar(100)
+  created_at datetime [default: CURRENT_TIMESTAMP]
+}
+
+Table rbac_audit_log {
+  audit_id int [pk, increment]
+  user_id int [not null]
+  target_user_id int
+  action enum('ASSIGN_ROLE','REVOKE_ROLE','CREATE_ROLE','UPDATE_ROLE','DELETE_ROLE','GRANT_PERMISSION','REVOKE_PERMISSION') [not null]
+  details json
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+}
+
+Table refund_requests {
+  request_id int [pk, increment]
+  payment_id int [not null]
+  reservation_id int [not null]
+  client_id int [not null]
+  requested_amount decimal(10,2) [not null]
+  cancellation_fee decimal(10,2) [not null, default: 0.00]
+  reason text [not null]
+  status enum('pending','approved','rejected','processing') [default: 'pending']
+  admin_notes text
+  processed_by int
+  processed_at timestamp
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+  updated_at timestamp [default: CURRENT_TIMESTAMP]
+}
+
+Table revenue_analytics {
+  analytics_id int [pk, increment]
+  period varchar(50) [not null]
+  start_date date [not null]
+  end_date date [not null]
+  streams json [not null]
+  trend_data json [not null]
+  total_revenue decimal(12,2) [not null]
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+}
+
+Table revenue_category {
+  revenue_category_id int [pk, increment]
+  revenue_category varchar(100) [not null, unique]
+  status enum('active','inactive') [default: 'active']
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+  updated_at timestamp [default: CURRENT_TIMESTAMP]
+  description text
+  department_id int
+}
+
+Table revenue_entry {
+  revenue_entry_id int [pk, increment]
+  revenue_category_id int
+  amount decimal(10,2) [not null]
+  source varchar(255) [not null]
+  payment_method varchar(100)
+  guest_name varchar(255)
+  room_number varchar(50)
+  date date [not null]
+  additional_notes text
+  is_active tinyint(1) [default: 1]
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+  updated_at timestamp [default: CURRENT_TIMESTAMP]
+  category varchar(100)
+  date_indexed date
+}
+
+Table revenue_trends {
+  trend_id int [pk, increment]
+  revenue_id int
+  date date [not null]
+  total_revenue decimal(12,2) [not null]
+  period_type enum('daily','weekly','monthly','yearly')
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+  updated_at timestamp [default: CURRENT_TIMESTAMP]
+}
+
+Table role_permissions {
+  role_permission_id int [pk, increment]
+  role_id int [not null]
+  permission_id int [not null]
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+
+  indexes {
+    (role_id, permission_id) [unique, name: 'uq_role_perm']
+  }
+}
+
+Table roles {
+  role_id int [pk, increment]
+  role_key varchar(50) [not null, unique]
+  role_name varchar(100) [not null]
+  description varchar(255)
+  is_system tinyint(1) [not null, default: 0]
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+  updated_at timestamp [default: CURRENT_TIMESTAMP]
+}
+
+Table salary_history {
+  id int [pk, increment]
+  employee_id int [not null]
+  old_salary decimal(12,2)
+  new_salary decimal(12,2) [not null]
+  salary_unit varchar(16)
+  changed_by int
+  reason varchar(255)
+  effective_at datetime [default: CURRENT_TIMESTAMP]
+  created_at datetime [default: CURRENT_TIMESTAMP]
+  updated_at datetime [default: CURRENT_TIMESTAMP]
+}
+
+Table staff {
+  staff_id int [pk, increment]
+  first_name varchar(100)
+  last_name varchar(100)
+  email varchar(255) [not null, unique]
+  password varchar(255) [not null]
+  role enum('admin','waiter','cashier') [not null]
+  created_at timestamp [not null, default: CURRENT_TIMESTAMP]
+  shift_schedule varchar(255)
+}
+
+Table tbl_client_companions {
+  client_companion_id int [pk, increment]
+  client_user_id int [not null]
+  first_name varchar(100) [not null]
+  middle_name varchar(100)
+  last_name varchar(100) [not null]
+  extension_name varchar(25)
+  relationship varchar(50)
+  phone varchar(24)
+  email varchar(255)
+  dob date
+  type enum('adult','child') [not null, default: 'adult']
+  gender enum('male','female','other')
+  notes text
+  is_emergency_contact tinyint(1) [not null, default: 0]
+  created_at timestamp [not null, default: CURRENT_TIMESTAMP]
+  updated_at timestamp [not null, default: CURRENT_TIMESTAMP]
+}
+
+Table tbl_client_users {
+  client_id int [pk, increment]
+  first_name varchar(50) [not null]
+  middle_name varchar(50)
+  last_name varchar(50) [not null]
+  extension_name varchar(10)
+  nationality varchar(50) [not null]
+  password varchar(100) [not null]
+  email varchar(100) [not null, unique]
+  phone varchar(20)
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+  is_archived tinyint(1) [default: 0]
+  archived_at timestamp
+  archived_by int
+}
+
+Table tbl_feedbacks {
+  feedback_id int [pk, increment]
+  client_id int [not null]
+  room_id int [not null]
+  reservation_id int
+  overall_emoji_rating enum('sad','neutral','happy') [not null]
+  experience_text text
+  cleanliness_rating int
+  comfort_rating int
+  staff_rating int
+  service_rating int
+  amenities_rating int
+  food_rating int
+  has_complaint enum('Yes','No') [default: 'No']
+  complaint_type varchar(50)
+  complaint_details text
+  submitted_at timestamp [default: CURRENT_TIMESTAMP]
+}
+
+Table tbl_notifications {
+  notification_id int [pk, increment]
+  client_id int [not null]
+  reservation_id int [not null]
+  type enum('approved','declined','check-in','checkout','info','success','warning','error') [not null]
+  title varchar(255) [not null]
+  message longtext [not null]
+  is_read tinyint(1) [default: 0]
+  check_in date
+  check_out date
+  room_nums varchar(255)
+  decline_reason varchar(500)
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+  updated_at timestamp [default: CURRENT_TIMESTAMP]
+}
+
+Table tbl_password_resets {
+  email varchar(255) [pk]
+  code varchar(10) [not null]
+  expires_at datetime [not null]
+}
+
+Table tbl_payment_methods {
+  method_id int [pk, increment]
+  method_name varchar(50) [not null, unique]
+  description varchar(255)
+  is_active tinyint(1) [default: 1]
+}
+
+Table tbl_payments {
+  payment_id int [pk, increment]
+  reservation_id int [not null]
+  method_id int
+  amount decimal(10,2) [not null]
+  payment_date datetime [default: CURRENT_TIMESTAMP]
+  reference_number varchar(100)
+  status enum('Completed','Refunded') [default: 'Completed']
+  is_archived tinyint(1) [default: 0]
+}
+
+Table tbl_qr_payment_sessions {
+  id int [pk, increment]
+  session_id varchar(64) [not null, unique]
+  client_id int [not null]
+  booking_data json [not null]
+  amount decimal(10,2) [not null]
+  reference_number varchar(50) [not null, unique]
+  method_id int
+  status enum('pending','scanned','completed','expired','cancelled') [default: 'pending']
+  scanner_id varchar(50)
+  payment_method varchar(50)
+  transaction_id varchar(100)
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+  expires_at timestamp [not null]
+  scanned_at timestamp
+  completed_at timestamp
+}
+
+Table tbl_reservation_companions {
+  id int [pk, increment]
+  reservation_id int [not null]
+  person_type enum('CLIENT','COMPANION') [not null]
+  client_user_id int
+  client_companion_id int
+  room_id int [not null]
+  created_at timestamp [not null, default: CURRENT_TIMESTAMP]
+
+  indexes {
+    (reservation_id, person_type, client_user_id, client_companion_id) [unique, name: 'uq_person_in_reservation']
+  }
+}
+
+Table tbl_reservation_rooms {
+  reservation_id int [pk]
+  room_id int [pk]
+
+  indexes {
+    (reservation_id, room_id) [pk, name: 'PRIMARY']
+  }
+}
+
+Table tbl_reservations {
+  reservation_id int [pk, increment]
+  client_id int [not null]
+  num_adults int [default: 1]
+  num_children int [default: 0]
+  special_requests text
+  check_in date [not null]
+  check_out date [not null]
+  status varchar(50) [default: 'Pending']
+  declined_by int
+  declined_at datetime
+  decline_reason text
+  approved_by int
+  approved_at datetime
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+  is_archived tinyint(1) [default: 0]
+}
+
+Table tbl_rooms {
+  room_id int [pk, increment]
+  room_num int [not null, unique]
+  floor_num int
+  room_name varchar(225) [not null, unique]
+  room_type varchar(50)
+  capacity int [not null]
+  price decimal(10,2) [not null]
+  description varchar(800) [default: '']
+  status enum('Available','Occupied','Reserved','Unavailable') [default: 'Available']
+  image_url mediumblob
+  is_archived tinyint(1) [default: 0]
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+  created_by int
+  updated_at timestamp [default: CURRENT_TIMESTAMP]
+  updated_by int
+  archived_at timestamp
+  archived_by int
+  restored_at timestamp
+  restored_by int
+  min_capacity int [not null, default: 1]
+}
+
+Table tbl_users {
+  user_id int [pk, increment]
+  employee_id int [unique]
+  password varchar(100) [not null]
+  role enum('Admin','Staff','Manager') [default: 'Staff']
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+  updated_at timestamp [default: CURRENT_TIMESTAMP]
+  created_by int
+  updated_by int
+  is_archived tinyint(1) [default: 0]
+  archived_at datetime
+  archived_by int
+}
+
+Table tickets {
+  ticket_id int [pk, increment]
+  ticket_code varchar(10) [unique]
+  user_id int [not null]
+  fixed_by int
+  title varchar(100) [not null]
+  description text
+  resolution_description text
+  status enum('open','in_progress','resolved','closed') [default: 'open']
+  created_at datetime [default: CURRENT_TIMESTAMP]
+  created_by int
+  updated_at datetime [default: CURRENT_TIMESTAMP]
+  updated_by int
+}
+
+Table user_logs {
+  log_id bigint [pk, increment]
+  actor_user_id int
+  action varchar(100) [not null]
+  module varchar(100) [not null, default: 'system']
+  target_type varchar(100)
+  target_id varchar(100)
+  description text
+  metadata text
+  ip_address varchar(64)
+  user_agent text
+  created_at timestamp [not null, default: CURRENT_TIMESTAMP]
+}
+
+Table user_notifications {
+  notification_id bigint unsigned [pk, increment]
+  recipient_user_id int [not null]
+  actor_user_id int
+  title varchar(255) [not null]
+  message text [not null]
+  category varchar(80) [not null, default: 'general']
+  reference_module varchar(80)
+  reference_id varchar(120)
+  status enum('unread','read') [not null, default: 'unread']
+  created_at datetime [not null, default: CURRENT_TIMESTAMP]
+  read_at datetime
+}
+
+Table user_role_assignments {
+  assignment_id int [pk, increment]
+  user_id int [not null]
+  role_id int [not null]
+  assigned_by int
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+
+  indexes {
+    (user_id, role_id) [unique, name: 'uq_user_role']
+  }
+}
+
+Table user_roles {
+  user_role_id int [pk, increment]
+  user_id int [not null]
+  created_at datetime [default: CURRENT_TIMESTAMP]
+  updated_at datetime [default: CURRENT_TIMESTAMP]
+  created_by int
+  updated_by int
+}
+
+Table users {
+  user_id int [pk, increment]
+  username varchar(50) [not null, unique]
+  password varchar(255) [not null]
+  role enum('employee','admin','supervisor','superadmin') [default: 'employee']
+  is_active tinyint(1) [default: 1]
+  created_at datetime [default: CURRENT_TIMESTAMP]
+  updated_at datetime [default: CURRENT_TIMESTAMP]
+  created_by int
+  updated_by int
+}
+
+Table vendors {
+  vendor_id int [pk, increment]
+  vendor_name varchar(255) [not null]
+  contact_person varchar(255) [not null]
+  email varchar(255) [not null]
+  phone varchar(50) [not null]
+  address text [not null]
+  created_at timestamp [default: CURRENT_TIMESTAMP]
+  updated_at timestamp [default: CURRENT_TIMESTAMP]
+}
+
+// Foreign key relationships
+Ref: accounting_users_otps.user_id > users.user_id
+Ref: activity_logs.user_id > users.user_id
+Ref: attendance.employee_id > employees.employee_id
+Ref: budget.department_id > departments.department_id
+Ref: budget_category.budget_id > budget.budget_id
+Ref: budget_department.budget_id > budget.budget_id
+Ref: budget_department.department_id > departments.department_id
+Ref: budget_variance.budget_id > budget.budget_id
+Ref: budget_variance.budget_category_id > budget_category.budget_category_id
+Ref: budget_variance.expenses_id > expenses.expenses_id
+Ref: company_deductions.employee_id > employees.employee_id
+Ref: company_deductions.leave_id > leaves.leave_id
+Ref: company_deductions.payroll_run_id > payroll_run.payroll_run_id
+Ref: department_financial_summary.department_id > departments.department_id
+Ref: departments.supervisor_id > employees.employee_id
+Ref: dependant_address.dependant_id > dependants.dependant_id
+Ref: dependant_contact.dependant_id > dependants.dependant_id
+Ref: dependant_email.dependant_id > dependants.dependant_id
+Ref: dependants.employee_id > employees.employee_id
+Ref: employee_contact_numbers.employee_id > employees.employee_id
+Ref: employee_documents.employee_id > employees.employee_id
+Ref: employee_emails.employee_id > employees.employee_id
+Ref: employee_penalties.employee_id > employees.employee_id
+Ref: employee_penalties.issued_by_user_id > users.user_id
+Ref: employee_penalty_events.action_by_user_id > users.user_id
+Ref: employee_penalty_events.penalty_id > employee_penalties.id
+Ref: employee_positions.employee_id > employees.employee_id
+Ref: employee_positions.position_id > job_positions.position_id
+Ref: employees.user_id > users.user_id
+Ref: employees.position_id > job_positions.position_id
+Ref: employees.department_id > departments.department_id
+Ref: employees.supervisor_id > employees.employee_id
+Ref: employees.terminated_by_user_id > users.user_id
+Ref: expense_notifications.budget_category_id > budget_category.budget_category_id
+Ref: expense_notifications.expense_id > expenses.expenses_id
+Ref: expense_notifications.revenue_category_id > revenue_category.revenue_category_id
+Ref: expense_notifications.reviewed_by > users.user_id
+Ref: expense_notifications.department_id > departments.department_id
+Ref: expenses.budget_category_id > budget_category.budget_category_id
+Ref: expenses.budget_variance_id > budget_variance.budget_variance_id
+Ref: expenses.department_id > departments.department_id
+Ref: expenses.revenue_category_id > revenue_category.revenue_category_id
+Ref: expenses.user_id > users.user_id
+Ref: fb_dining_reservation.table_id > fb_tables.table_id
+Ref: fb_food_ratings.client_id > tbl_client_users.client_id
+Ref: fb_food_ratings.item_id > fb_menu_items.item_id
+Ref: fb_inventory_logs.ingredient_id > fb_ingredients.ingredient_id
+Ref: fb_menu_item_ingredients.ingredient_id > fb_ingredients.ingredient_id
+Ref: fb_menu_item_ingredients.menu_item_id > fb_menu_items.item_id
+Ref: fb_menu_items.promotion_id > fb_promotions.promotion_id
+Ref: fb_menu_items.category_id > fb_categories.category_id
+Ref: fb_new_order_details.order_id > fb_new_orders.order_id
+Ref: fb_notifications.client_id > tbl_client_users.client_id
+Ref: fb_notifications.order_id > fb_orders.order_id
+Ref: fb_order_details.order_id > fb_orders.order_id
+Ref: fb_order_details.item_id > fb_menu_items.item_id
+Ref: fb_order_discounts.order_id > fb_new_orders.order_id
+Ref: fb_orders.employee_id > employees.employee_id
+Ref: fb_orders.room_id > tbl_rooms.room_id
+Ref: fb_orders.table_id > fb_tables.table_id
+Ref: fb_orders.client_id > tbl_client_users.client_id
+Ref: fb_payments.order_id > fb_orders.order_id
+Ref: invoice.created_by > accounting_users.user_id
+Ref: invoice_item.revenue_category_id > revenue_category.revenue_category_id
+Ref: invoice_item.invoice_id > invoice.invoice_id
+Ref: job_positions.department_id > departments.department_id
+Ref: leaves.hr_approved_by > users.user_id
+Ref: leaves.employee_id > employees.employee_id
+Ref: leaves.approved_by > users.user_id
+Ref: manual_payment.invoice_id > invoice.invoice_id
+Ref: manual_payment.processed_by > accounting_users.user_id
+Ref: password_reset_otps.user_id > users.user_id
+Ref: password_reset_tokens.user_id > users.user_id
+Ref: payroll_contributions.record_id > payroll_records.id
+Ref: payroll_override_logs.record_id > payroll_records.id
+Ref: payroll_override_logs.run_id > payroll_runs.id
+Ref: payroll_penalty_deductions.employee_id > employees.employee_id
+Ref: payroll_penalty_deductions.penalty_id > employee_penalties.id
+Ref: payroll_penalty_deductions.payroll_record_id > payroll_records.id
+Ref: payroll_penalty_deductions.payroll_run_id > payroll_runs.id
+Ref: payroll_records.run_id > payroll_runs.id
+Ref: payroll_slip.company_deduction_id > company_deductions.deduction_id
+Ref: payroll_slip.payroll_run_id > payroll_run.payroll_run_id
+Ref: payroll_slip.employee_id > employees.employee_id
+Ref: payroll_slip.user_id > users.user_id
+Ref: pms_room_status.RoomNumber > tbl_rooms.room_num
+Ref: public_ticket_emails.ticket_id > tickets.ticket_id
+Ref: rbac_audit_log.user_id > users.user_id
+Ref: rbac_audit_log.target_user_id > users.user_id
+Ref: refund_requests.payment_id > tbl_payments.payment_id
+Ref: refund_requests.reservation_id > tbl_reservations.reservation_id
+Ref: refund_requests.client_id > tbl_client_users.client_id
+Ref: refund_requests.processed_by > tbl_users.user_id
+Ref: revenue_category.department_id > departments.department_id
+Ref: revenue_entry.revenue_category_id > revenue_category.revenue_category_id
+Ref: revenue_trends.revenue_id > revenue_entry.revenue_entry_id
+Ref: role_permissions.role_id > roles.role_id
+Ref: role_permissions.permission_id > permissions.permission_id
+Ref: tbl_client_companions.client_user_id > tbl_client_users.client_id
+Ref: tbl_feedbacks.client_id > tbl_client_users.client_id
+Ref: tbl_feedbacks.reservation_id > tbl_reservations.reservation_id
+Ref: tbl_feedbacks.room_id > tbl_rooms.room_id
+Ref: tbl_notifications.client_id > tbl_client_users.client_id
+Ref: tbl_notifications.reservation_id > tbl_reservations.reservation_id
+Ref: tbl_payments.method_id > tbl_payment_methods.method_id
+Ref: tbl_payments.reservation_id > tbl_reservations.reservation_id
+Ref: tbl_qr_payment_sessions.client_id > tbl_client_users.client_id
+Ref: tbl_qr_payment_sessions.method_id > tbl_payment_methods.method_id
+Ref: tbl_reservation_companions.client_user_id > tbl_client_users.client_id
+Ref: tbl_reservation_companions.client_companion_id > tbl_client_companions.client_companion_id
+Ref: tbl_reservation_companions.reservation_id > tbl_reservations.reservation_id
+Ref: tbl_reservation_companions.room_id > tbl_rooms.room_id
+Ref: tbl_reservation_rooms.reservation_id > tbl_reservations.reservation_id
+Ref: tbl_reservation_rooms.room_id > tbl_rooms.room_id
+Ref: tbl_reservations.client_id > tbl_client_users.client_id
+Ref: tbl_users.archived_by > tbl_users.user_id
+Ref: tickets.user_id > users.user_id
+Ref: tickets.fixed_by > users.user_id
+Ref: tickets.created_by > users.user_id
+Ref: tickets.updated_by > users.user_id
+Ref: user_logs.actor_user_id > users.user_id
+Ref: user_role_assignments.user_id > users.user_id
+Ref: user_role_assignments.role_id > roles.role_id
+Ref: user_role_assignments.assigned_by > users.user_id
+Ref: user_roles.user_id > users.user_id

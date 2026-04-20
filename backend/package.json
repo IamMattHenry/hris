@@ -11,6 +11,8 @@
     "seed-hr-role-users": "node scripts/create-hr-role-users.js",
     "sync-hr-roles": "node scripts/syncHrRolesByPosition.js",
     "check-table": "node scripts/checkTableSchema.js",
+    "export-dbml": "node scripts/exportDbml.js",
+    "export-hris-dbml": "node scripts/exportHrisDbml.js",
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js"
   },
   "keywords": [
