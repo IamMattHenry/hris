@@ -15,6 +15,8 @@
  *     --password Secret123 \
  *     --department "Human Resources" \
  *     --position "HR Specialist"
+ *   or
+ *     --positions "Finance Manager, Cashier"
  *
  * All flags:
  *   Required:
@@ -28,6 +30,7 @@
  *     --middle-name    Employee middle name
  *     --department     Department name OR numeric department_id  (default: none)
  *     --position       Position name OR numeric position_id      (default: none)
+ *     --positions      Comma-separated position names/IDs         (default: none)
  *     --role           User role: employee | admin | supervisor  (default: employee)
  *     --hire-date      YYYY-MM-DD                                (default: today)
  *     --monthly-salary Monthly salary for budget projection       (default: position default or 0)
@@ -151,12 +154,21 @@ const password   = params['password'];
 const hireDate   = params['hire-date'] || new Date().toISOString().split('T')[0];
 const deptParam  = params['department'] || null;
 const posParam   = params['position']   || null;
+const positionsParam = params['positions'] || null;
+
+if (posParam && positionsParam) {
+  console.error('❌  Use either --position or --positions, not both.');
+  process.exit(1);
+}
+
+const rawPositionsInput = positionsParam || posParam || null;
 
 // ─── Code generator (mirrors backend/src/utils/codeGenerator.js) ────────────
 const generateCode = (prefix, id) => `${prefix}-${String(id).padStart(4, '0')}`;
 const generateEmployeeCode = (id) => generateCode('EMP', id);
 
 const STAFF_SALARIES_BUDGET_NAME = 'Staff Salaries';
+const HRIS_DEPARTMENT_ID = 1;
 const DEFAULT_MONTHLY_WORK_DAYS = 22;
 const FULL_DAY_HOURS = 8;
 
@@ -244,25 +256,32 @@ async function validateStaffSalariesBudget(connection, projectedMonthlySalary = 
   }
 
   const [budgetRows] = await connection.execute(
-    `SELECT budget_category_id, budget_id, budget_name, amount
-     FROM budget_category
-     WHERE budget_name = ?
-     ORDER BY budget_id DESC
+    `SELECT
+       bd.department_budget_id,
+       bd.department_id,
+       bd.budget_id,
+       bd.allocated_amount,
+       b.budget_name
+     FROM budget_department bd
+     LEFT JOIN budget b ON b.budget_id = bd.budget_id
+     WHERE bd.department_id = ?
+       AND bd.is_active = 1
+     ORDER BY bd.department_budget_id DESC
      LIMIT 1`,
-    [STAFF_SALARIES_BUDGET_NAME]
+    [HRIS_DEPARTMENT_ID]
   );
 
   if (budgetRows.length === 0) {
     throw new Error(
-      `No Finance budget record found for '${STAFF_SALARIES_BUDGET_NAME}'. Please configure it in budget_category first.`
+      `No active budget record found in budget_department for HRIS (department_id: ${HRIS_DEPARTMENT_ID}). Please ask Finance to configure it first.`
     );
   }
 
   const latestBudget = budgetRows[0];
-  const budgetAmount = Number(latestBudget.amount);
+  const budgetAmount = Number(latestBudget.allocated_amount);
   if (!Number.isFinite(budgetAmount) || budgetAmount < 0) {
     throw new Error(
-      `Finance budget '${STAFF_SALARIES_BUDGET_NAME}' has an invalid amount in budget_category.amount.`
+      `HRIS budget has an invalid amount in budget_department.allocated_amount.`
     );
   }
 
@@ -417,47 +436,98 @@ async function main() {
       console.log(`🏢  Department : [${departmentId}] ${departmentName}`);
     }
 
-    // ── Resolve position ────────────────────────────────────────────────────
+    // ── Resolve position(s) ────────────────────────────────────────────────
     let positionId   = null;
     let positionName = null;
     let positionDefaultSalary = null;
     let positionSalaryUnit = null;
+    let additionalPositions = [];
 
-    if (posParam) {
-      if (/^\d+$/.test(posParam)) {
+    const showAvailablePositionsAndExit = async (inputValue) => {
+      const [all] = await connection.execute(
+        'SELECT position_id, position_name FROM job_positions ORDER BY position_id'
+      );
+      console.error(`❌  No position found matching "${inputValue}"`);
+      console.error('    Available positions:');
+      all.forEach((p) => console.error(`      [${p.position_id}] ${p.position_name}`));
+      process.exit(1);
+    };
+
+    const resolveSinglePosition = async (value) => {
+      const token = String(value || '').trim();
+      if (!token) return null;
+
+      if (/^\d+$/.test(token)) {
         const [rows] = await connection.execute(
           'SELECT position_id, position_name, default_salary, salary_unit FROM job_positions WHERE position_id = ?',
-          [posParam]
+          [token]
         );
-        if (rows.length === 0) {
-          console.error(`❌  No position found with ID ${posParam}`);
-          process.exit(1);
-        }
-        positionId   = rows[0].position_id;
-        positionName = rows[0].position_name;
-        positionDefaultSalary = rows[0].default_salary;
-        positionSalaryUnit = rows[0].salary_unit;
-      } else {
-        const [rows] = await connection.execute(
-          'SELECT position_id, position_name, default_salary, salary_unit FROM job_positions WHERE LOWER(position_name) = LOWER(?)',
-          [posParam]
-        );
-        if (rows.length === 0) {
-          // Show available positions (optionally filtered by department)
-          const [all] = await connection.execute(
-            'SELECT position_id, position_name FROM job_positions ORDER BY position_id'
-          );
-          console.error(`❌  No position found matching "${posParam}"`);
-          console.error('    Available positions:');
-          all.forEach((p) => console.error(`      [${p.position_id}] ${p.position_name}`));
-          process.exit(1);
-        }
-        positionId   = rows[0].position_id;
-        positionName = rows[0].position_name;
-        positionDefaultSalary = rows[0].default_salary;
-        positionSalaryUnit = rows[0].salary_unit;
+        return rows.length > 0 ? rows[0] : null;
       }
-      console.log(`💼  Position   : [${positionId}] ${positionName}`);
+
+      const [rows] = await connection.execute(
+        'SELECT position_id, position_name, default_salary, salary_unit FROM job_positions WHERE LOWER(position_name) = LOWER(?)',
+        [token]
+      );
+      return rows.length > 0 ? rows[0] : null;
+    };
+
+    if (rawPositionsInput) {
+      const rawInputText = String(rawPositionsInput).trim();
+      if (rawInputText === '' || rawInputText === 'true') {
+        console.error('❌  Position value cannot be empty. Use --position "Name" or --positions "Name 1, Name 2"');
+        process.exit(1);
+      }
+
+      const exactMatch = await resolveSinglePosition(rawInputText);
+      let resolvedRows = [];
+
+      if (exactMatch) {
+        resolvedRows = [exactMatch];
+      } else {
+        const splitTokens = (rawInputText.includes(',')
+          ? rawInputText.split(',')
+          : rawInputText.split(/\s+and\s+/i)
+        )
+          .map((item) => item.trim())
+          .filter(Boolean);
+
+        if (splitTokens.length === 0) {
+          await showAvailablePositionsAndExit(rawInputText);
+        }
+
+        for (const token of splitTokens) {
+          const row = await resolveSinglePosition(token);
+          if (!row) {
+            await showAvailablePositionsAndExit(token);
+          }
+          resolvedRows.push(row);
+        }
+      }
+
+      const uniqueRows = [];
+      const seenPositionIds = new Set();
+      for (const row of resolvedRows) {
+        const key = Number(row.position_id);
+        if (seenPositionIds.has(key)) continue;
+        seenPositionIds.add(key);
+        uniqueRows.push(row);
+      }
+
+      if (uniqueRows.length === 0) {
+        await showAvailablePositionsAndExit(rawInputText);
+      }
+
+      positionId = uniqueRows[0].position_id;
+      positionName = uniqueRows[0].position_name;
+      positionDefaultSalary = uniqueRows[0].default_salary;
+      positionSalaryUnit = uniqueRows[0].salary_unit;
+      additionalPositions = uniqueRows.slice(1);
+
+      console.log(`💼  Position   : [${positionId}] ${positionName}${additionalPositions.length > 0 ? ' (primary)' : ''}`);
+      if (additionalPositions.length > 0) {
+        console.log(`🧩  Extra pos  : ${additionalPositions.map((p) => `[${p.position_id}] ${p.position_name}`).join(', ')}`);
+      }
     }
 
     let projectedSalarySource = 'defaulted to 0 (no salary input and no position default)';
@@ -533,6 +603,9 @@ async function main() {
     console.log(`  Salary for projection (monthly eq): ${formatCurrency(projectedNewEmployeeMonthlySalary)} (${projectedSalarySource})`);
     if (departmentId) console.log(`  Dept     : [${departmentId}] ${departmentName}`);
     if (positionId)   console.log(`  Position : [${positionId}] ${positionName}`);
+    if (additionalPositions.length > 0) {
+      console.log(`  Extra pos: ${additionalPositions.map((p) => `[${p.position_id}] ${p.position_name}`).join(', ')}`);
+    }
     console.log(`  Schedule : ${scheduledDays.join(', ')}  ${scheduledStartTime} – ${scheduledEndTime}`);
     console.log('');
 
@@ -576,6 +649,39 @@ async function main() {
     );
     console.log(`👨‍💼  Employee created   (employee_id=${employeeId}, code=${employeeCode})`);
 
+    // ── Sync position assignments ───────────────────────────────────────────
+    if (positionId) {
+      const primarySalaryAmount = providedSalaryAmount != null
+        ? providedSalaryAmount
+        : (Number.isFinite(Number(positionDefaultSalary)) && Number(positionDefaultSalary) >= 0
+          ? round2(Number(positionDefaultSalary))
+          : null);
+      const primarySalaryUnit = providedSalaryUnit || normalizeSalaryUnit(positionSalaryUnit);
+
+      await connection.execute(
+        `INSERT IGNORE INTO employee_positions
+           (employee_id, position_id, salary, salary_unit, is_primary)
+         VALUES (?, ?, ?, ?, 1)`,
+        [employeeId, positionId, primarySalaryAmount, primarySalaryUnit]
+      );
+
+      for (const extraPosition of additionalPositions) {
+        const extraSalaryAmount = Number.isFinite(Number(extraPosition.default_salary)) && Number(extraPosition.default_salary) >= 0
+          ? round2(Number(extraPosition.default_salary))
+          : null;
+        const extraSalaryUnit = normalizeSalaryUnit(extraPosition.salary_unit);
+
+        await connection.execute(
+          `INSERT IGNORE INTO employee_positions
+             (employee_id, position_id, salary, salary_unit, is_primary)
+           VALUES (?, ?, ?, ?, 0)`,
+          [employeeId, extraPosition.position_id, extraSalaryAmount, extraSalaryUnit]
+        );
+      }
+
+      console.log(`🧾  Position links set (${1 + additionalPositions.length} total)`);
+    }
+
     // ── Save email ──────────────────────────────────────────────────────────
     await connection.execute(
       'INSERT INTO employee_emails (employee_id, email) VALUES (?, ?)',
@@ -587,17 +693,26 @@ async function main() {
     // Maps position name (lowercase) → RBAC role_key
     const HR_POSITION_ROLE_MAP = {
       'hr manager':                    'hr_manager',
-      'leave & attendance officer':    'leave_attendance_officer',
+      'leave and attendance officer':  'leave_attendance_officer',
       'recruitment officer':           'recruitment_officer',
       'hr supervisor':                 'hr_supervisor',
+      'payroll officer':               'payroll_officer',
     };
+
+    const normalizePositionName = (value) =>
+      String(value || '')
+        .toLowerCase()
+        .replace(/&/g, ' and ')
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
 
     const isHrDept = departmentName &&
       (departmentName.toLowerCase().includes('human resource') ||
        departmentName.toLowerCase() === 'hr');
 
     if (isHrDept && positionName) {
-      const posKey     = positionName.trim().toLowerCase();
+      const posKey     = normalizePositionName(positionName);
       const rbacRoleKey = HR_POSITION_ROLE_MAP[posKey];
 
       if (rbacRoleKey) {

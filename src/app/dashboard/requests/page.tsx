@@ -1,16 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, MoreVertical, Filter, ChevronDown, ChevronUp, X, RotateCw } from "lucide-react";
+import { Plus, MoreVertical, Filter, ChevronDown, ChevronUp, RotateCw } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
-import { leaveApi, employeeApi } from "@/lib/api";
-import { useAuth } from "@/contexts/AuthContext";
+import { leaveApi } from "@/lib/api";
+import { usePermissions } from "@/hooks/usePermissions";
 import AddLeaveModal from "./add_request/AddModal";
 import ViewLeaveModal from "./view_request/ViewModal";
 import { toast } from "react-hot-toast";
 
-type TabKey = "Leave Request" | "History";
+type TabKey = "Leave Request" | "History" | "Expired Leave";
 type LeaveType =
   | "vacation"
   | "sick"
@@ -55,7 +55,7 @@ interface Leave {
   hr_approved_at?: string | null;
 }
 
-const tabs: TabKey[] = ["Leave Request", "History"];
+const tabs: TabKey[] = ["Leave Request", "History", "Expired Leave"];
 
 const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
   vacation: "Vacation Leave",
@@ -76,7 +76,7 @@ const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
 };
 
 export default function RequestsPage() {
-  const { user } = useAuth();
+  const { can, loading: permissionsLoading } = usePermissions();
   const [activeTab, setActiveTab] = useState<TabKey>("Leave Request");
   const [searchRequest, setSearchRequest] = useState<string>("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -95,8 +95,8 @@ export default function RequestsPage() {
   const itemsPerPage = 10; // change page size here
 
   // Role helpers
-  const isSupervisor = user?.role === "supervisor";
-  const isSuperadmin = user?.role === "superadmin";
+  const canDeleteLeave = can("leave.delete");
+  const canCreateLeave = can("leave.apply");
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -137,25 +137,32 @@ export default function RequestsPage() {
     setIsRefreshing(false);
   };
 
+  const isExpiredLeave = (endDate: string): boolean => {
+    const leaveEnd = new Date(endDate);
+    leaveEnd.setHours(23, 59, 59, 999);
+    return leaveEnd < new Date();
+  };
+
   // Filter leaves based on tab and search
   const getFilteredLeaves = () => {
     let filtered = leaves;
 
-    // Filter by tab and role-specific stage
-  if (activeTab === "Leave Request") {
-    if (isSupervisor) {
-      // Supervisors view-only; show pending requests for awareness
-      filtered = filtered.filter(l => l.status === "pending");
-    } else if (isSuperadmin) {
-      // HR acts on pending requests (and legacy supervisor_approved for backward compatibility)
-      filtered = filtered.filter(l => l.status === "pending" || l.status === "supervisor_approved");
+    // Filter by tab and expiration
+    if (activeTab === "Expired Leave") {
+      filtered = filtered.filter(l => isExpiredLeave(l.end_date) && l.status === "pending");
+    } else if (activeTab === "Leave Request") {
+      filtered = filtered.filter(
+        l =>
+          !isExpiredLeave(l.end_date) &&
+          (l.status === "pending" || l.status === "supervisor_approved")
+      );
     } else {
-      // Others see both stages
-      filtered = filtered.filter(l => l.status === "pending" || l.status === "hr_approved");
+      filtered = filtered.filter(
+        l =>
+          !isExpiredLeave(l.end_date) &&
+          !(l.status === "pending" || l.status === "supervisor_approved")
+      );
     }
-  } else {
-    filtered = filtered.filter(l => !(l.status === "pending" || l.status === "hr_approved"));
-  }
 
     // Filter by search
     if (searchRequest) {
@@ -194,14 +201,9 @@ export default function RequestsPage() {
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) setCurrentPage(page);
   };
-  const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1);
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchRequest, filterLeaveType, filterStatus]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filterRequesterRole]);
+  }, [activeTab, searchRequest, filterLeaveType, filterStatus, filterRequesterRole]);
 
   const handleView = (leave: Leave) => {
     setSelectedLeave(leave);
@@ -242,7 +244,14 @@ export default function RequestsPage() {
     }
   };
 
-  if (loading) {
+  const calculateDuration = (startDate: string, endDate: string): number => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 to include both start and end dates
+  };
+
+  if (loading || permissionsLoading) {
     return (
       <div className="min-h-screen bg-[#fff7ec] flex items-center justify-center">
         <div className="text-center">
@@ -272,8 +281,8 @@ export default function RequestsPage() {
             <RotateCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
           </button>
 
-          {/* Add Request button - Disabled for supervisors */}
-          {!isSupervisor && (
+          {/* Add Request button */}
+          {canCreateLeave && (
             <ActionButton label="Add Request" onClick={() => setIsAddModalOpen(true)} icon={Plus} />
           )}
         </div>
@@ -378,78 +387,93 @@ export default function RequestsPage() {
                 </tr>
               </thead>
               <tbody>
-                {currentLeaves.map((leave) => (
-                  <tr
-                    key={leave.leave_id}
-                    className="border-b border-[#eadfcd] hover:bg-[#fdf4e7] transition"
-                  >
+                {currentLeaves.map((leave) => {
+                  const isExpired = isExpiredLeave(leave.end_date);
+
+                  return (
+                    <tr
+                      key={leave.leave_id}
+                      className="border-b border-[#eadfcd] hover:bg-[#fdf4e7] transition"
+                    >
                     <td className="py-3 px-4">{leave.leave_code}</td>
                     <td className="py-3 px-4">{leave.first_name} {leave.last_name}</td>
                     <td className="py-3 px-4">{LEAVE_TYPE_LABELS[leave.leave_type]}</td>
                     <td className="py-3 px-4">{new Date(leave.start_date).toLocaleDateString()}</td>
                     <td className="py-3 px-4">{new Date(leave.end_date).toLocaleDateString()}</td>
                     <td className="py-3 px-4">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          leave.status === "approved"
-                            ? "bg-green-100 text-green-800"
-                            : leave.status === "rejected"
-                            ? "bg-red-100 text-red-800"
-                            : leave.status === "hr_approved"
-                            ? "bg-blue-100 text-blue-800" // Pending Supervisor Review
+                      <div className="flex flex-col gap-1">
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-semibold w-fit ${
+                            leave.status === "approved"
+                              ? "bg-green-100 text-green-800"
+                              : leave.status === "rejected"
+                              ? "bg-red-100 text-red-800"
+                              : leave.status === "hr_approved"
+                              ? "bg-blue-100 text-blue-800" // Pending Supervisor Review
+                              : leave.status === "supervisor_approved"
+                              ? "bg-blue-100 text-blue-800" // legacy
+                              : "bg-yellow-100 text-yellow-800" // pending for HR
+                          }`}
+                        >
+                          {leave.status === "hr_approved"
+                            ? "HR Pre-Approved"
+                            : leave.status === "pending"
+                            ? "Pending HR Review"
                             : leave.status === "supervisor_approved"
-                            ? "bg-blue-100 text-blue-800" // legacy
-                            : "bg-yellow-100 text-yellow-800" // pending for HR
-                        }`}
-                      >
-                        {leave.status === "hr_approved"
-                          ? "HR Pre-Approved"
-                          : leave.status === "pending"
-                          ? "Pending HR Review"
-                          : leave.status === "supervisor_approved"
-                          ? "Pending HR Review"
-                          : leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
-                      </span>
+                            ? "Pending HR Review"
+                            : leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
+                        </span>
+                        <span className="text-xs text-[#7a5c4a]">
+                          {calculateDuration(leave.start_date, leave.end_date)} day(s)
+                        </span>
+                      </div>
                     </td>
                     <td className="py-3 px-4 text-center relative">
-                      <button
-                        onClick={() =>
-                          setSelectedMenu(
-                            selectedMenu === leave.leave_id ? null : leave.leave_id
-                          )
-                        }
-                        className="menu-button inline-block"
-                      >
-                        <MoreVertical
-                          size={18}
-                          className="text-[#3b2b1c]/70 cursor-pointer"
-                        />
-                      </button>
-
-                      {selectedMenu === leave.leave_id && (
-                        <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg z-50 leave-dropdown">
+                      {isExpired ? (
+                        <span className="text-xs text-[#7a5c4a]">No actions</span>
+                      ) : (
+                        <>
                           <button
-                            onClick={() => handleView(leave)}
-                            className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm"
+                            onClick={() =>
+                              setSelectedMenu(
+                                selectedMenu === leave.leave_id ? null : leave.leave_id
+                              )
+                            }
+                            className="menu-button inline-block"
                           >
-                            View
+                            <MoreVertical
+                              size={18}
+                              className="text-[#3b2b1c]/70 cursor-pointer"
+                            />
                           </button>
-                          {!isSupervisor && (
-                            <button
-                              onClick={() => {
-                                handleDelete(leave.leave_id);
-                                setSelectedMenu(null);
-                              }}
-                              className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm text-red-600"
-                            >
-                              Delete
-                            </button>
+
+                          {selectedMenu === leave.leave_id && (
+                            <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg z-50 leave-dropdown">
+                              <button
+                                onClick={() => handleView(leave)}
+                                className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm"
+                              >
+                                View
+                              </button>
+                              {canDeleteLeave && (
+                                <button
+                                  onClick={() => {
+                                    handleDelete(leave.leave_id);
+                                    setSelectedMenu(null);
+                                  }}
+                                  className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm text-red-600"
+                                >
+                                  Delete
+                                </button>
+                              )}
+                            </div>
                           )}
-                        </div>
+                        </>
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

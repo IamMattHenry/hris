@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 import { motion } from "framer-motion";
 import InfoBox from "@/components/forms/FormDisplay";
 import { employeeApi } from "@/lib/api";
-import QRCodeGenerator from "../QRgenerator/QRCodeGenerator";
+import EmployeeIDCard from "../QRgenerator/QRCodeGenerator";
 
 interface ViewEmployeeModalProps {
   isOpen: boolean;
@@ -178,8 +178,8 @@ export default function ViewEmployeeModal({
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`w-full text-left px-4 py-2.5 rounded-lg text-sm cursor-pointer font-medium transition-all ${activeTab === tab.id
-                  ? "bg-[#e8d4b8] text-[#3b2b1c] shadow-sm"
-                  : "text-[#6b5844] hover:bg-[#ede0ca]"
+                ? "bg-[#e8d4b8] text-[#3b2b1c] shadow-sm"
+                : "text-[#6b5844] hover:bg-[#ede0ca]"
                 }`}
             >
               {tab.label}
@@ -324,11 +324,10 @@ export default function ViewEmployeeModal({
                           {employee.positions.map((pos) => (
                             <div
                               key={pos.id}
-                              className={`flex flex-wrap items-center gap-4 px-4 py-3 rounded-lg border ${
-                                pos.is_primary
+                              className={`flex flex-wrap items-center gap-4 px-4 py-3 rounded-lg border ${pos.is_primary
                                   ? "bg-[#f4e6cf] border-[#c9a87c]"
                                   : "bg-white border-[#e6d2b5]"
-                              }`}
+                                }`}
                             >
                               <div className="flex-1 min-w-[160px]">
                                 <p className="text-sm font-medium text-[#3b2b1c]">{pos.position_name}</p>
@@ -400,18 +399,16 @@ export default function ViewEmployeeModal({
                         ].map((doc) => (
                           <div
                             key={doc.key}
-                            className={`flex items-center gap-3 p-4 rounded-lg border-2 ${
-                              employee.documents![doc.key as keyof EmployeeDocuments]
+                            className={`flex items-center gap-3 p-4 rounded-lg border-2 ${employee.documents![doc.key as keyof EmployeeDocuments]
                                 ? "bg-green-50 border-green-300"
                                 : "bg-gray-50 border-gray-300"
-                            }`}
+                              }`}
                           >
                             <div
-                              className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                                employee.documents![doc.key as keyof EmployeeDocuments]
+                              className={`w-6 h-6 rounded-full flex items-center justify-center ${employee.documents![doc.key as keyof EmployeeDocuments]
                                   ? "bg-green-500"
                                   : "bg-gray-300"
-                              }`}
+                                }`}
                             >
                               {employee.documents![doc.key as keyof EmployeeDocuments] && (
                                 <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -419,11 +416,10 @@ export default function ViewEmployeeModal({
                                 </svg>
                               )}
                             </div>
-                            <span className={`font-medium ${
-                              employee.documents![doc.key as keyof EmployeeDocuments]
+                            <span className={`font-medium ${employee.documents![doc.key as keyof EmployeeDocuments]
                                 ? "text-green-700"
                                 : "text-gray-600"
-                            }`}>
+                              }`}>
                               {doc.label}
                             </span>
                           </div>
@@ -444,41 +440,50 @@ export default function ViewEmployeeModal({
                     <div className="grid grid-cols-3 gap-4">
                       <InfoBox label="Username" value={employee.username || "N/A"} />
                       <InfoBox label="Role" value={employee.role || "Employee"} />
-
                     </div>
 
-                    {/* QR Code Section */}
-                    <div className="mt-6 pt-6 border-t border-[#d4c5b9]">
-                      <h3 className="text-lg font-semibold text-[#3b2b1c] mb-4">Employee QR Code</h3>
-                      <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
-                        <div className="w-full md:w-auto">
-                          <QRCodeGenerator
-                            employeeData={{
+                    {/* QR Code & ID Card Section */}
+                    <div className="mt-8 pt-6 border-t border-[#d4c5b9]">
+                      <h3 className="text-lg font-semibold text-[#3b2b1c] mb-5">Employee QR Code & ID Card</h3>
+
+                      <div className="flex flex-col lg:flex-row gap-8">
+                        {/* QR Code Preview */}
+                        <div className="flex-shrink-0">
+                          <EmployeeIDCard
+                            employee={{
                               employee_id: employee.employee_id,
                               employee_code: employee.employee_code,
                               first_name: employee.first_name,
                               last_name: employee.last_name,
-                              position_name: employee.position_name || "N/A",
+                              position_name: employee.position_name || "Staff",
+                              department_name: employee.department_name,
                               schedule_time: "08:00",
                             }}
-                            size={200}
+                            size={220}
                           />
                         </div>
-                        <div className="flex-1">
-                          <p className="text-sm text-[#6b5844] mb-2">
-                            This QR code contains employee information including: <span className="font-semibold text-[#3b2b1c]">{employee.employee_code}</span>
+
+                        {/* Information */}
+                        <div className="flex-1 space-y-4">
+                          <p className="text-sm text-[#6b5844]">
+                            This QR code contains the employee's basic information for quick scanning in attendance, security, or verification systems.
                           </p>
-                          <p className="text-xs text-[#8b7355] mb-2">
-                            Scan this code for quick employee identification and attendance tracking.
-                          </p>
-                          <div className="text-xs text-[#8b7355] bg-[#fff7ec] p-3 rounded-md border border-[#d4c5b9]">
-                            <p className="font-semibold mb-1">QR Code Data:</p>
-                              <ul className="list-disc list-inside space-y-1">
-                              <li>Employee ID: {employee.employee_id}</li>
-                              <li>Employee Code: {employee.employee_code}</li>
-                              <li>Name: {employee.first_name} {employee.last_name}</li>
-                              <li>Position: {employee.position_name || "N/A"}</li>
+
+                          <div className="bg-[#fff7ec] border border-[#d4c5b9] p-4 rounded-xl text-xs">
+                            <p className="font-semibold text-[#3b2b1c] mb-2">QR Code Contains:</p>
+                            <ul className="list-disc list-inside space-y-1 text-[#6b5844]">
+                              <li>Employee ID: <span className="font-medium text-[#3b2b1c]">{employee.employee_id}</span></li>
+                              <li>Employee Code: <span className="font-medium text-[#3b2b1c]">{employee.employee_code}</span></li>
+                              <li>Full Name: <span className="font-medium text-[#3b2b1c]">{employee.first_name} {employee.last_name}</span></li>
+                              <li>Position: <span className="font-medium text-[#3b2b1c]">{employee.position_name || "N/A"}</span></li>
+                              <li>Department: <span className="font-medium text-[#3b2b1c]">{employee.department_name || "N/A"}</span></li>
                             </ul>
+                          </div>
+
+                          <div className="pt-3">
+                            <p className="text-xs text-[#8b7355]">
+                              Tip: You can also generate the full <strong>Staff Identification Card</strong> (with photo + QR) from the Employees list page using "Download All ID Cards".
+                            </p>
                           </div>
                         </div>
                       </div>

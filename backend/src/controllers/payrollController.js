@@ -1,5 +1,6 @@
 import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
+import emailService from '../utils/emailService.js';
 import { computePayrollRun } from '../utils/payrollEngine.js';
 import { applyPenaltyDeductionsForPayrollRecord } from './penaltyController.js';
 import {
@@ -7,9 +8,22 @@ import {
   BudgetValidationError,
   ensureAmountWithinBudget,
   getFinanceBudgetsSnapshot,
+  getCurrentStaffSalaryMonthlyTotal,
 } from '../services/financeBudgetService.js';
+import { createNotification, notifyHrUsersBudgetAmountChange, notifyHrUsersBudgetRequestStatusChange, notifyHrUsersBudgetStatus, notifyHrUsersPayrollRunUpdate } from '../services/notificationService.js';
 
 const round2 = (value) => Number((Number(value) || 0).toFixed(2));
+
+const PAYROLL_RUN_STATUSES = Object.freeze({
+  DRAFT: 'draft',
+  PENDING_FINANCE_APPROVAL: 'pending_finance_approval',
+  FINANCE_APPROVED: 'finance_approved',
+  FINANCE_REJECTED: 'finance_rejected',
+  FINALIZED: 'finalized',
+  ABORTED: 'aborted',
+});
+
+let lastStaffSalariesBudgetAmountNotified = null;
 
 const parseJson = (value, fallback = null) => {
   if (value == null) return fallback;
@@ -192,8 +206,9 @@ const validatePayPeriodContinuity = async ({
   scopeFilters,
 }) => {
   const runs = await db.getAll(
-    `SELECT id, pay_period_start, pay_period_end, employee_scope
+    `SELECT id, pay_period_start, pay_period_end, employee_scope, status
      FROM payroll_runs
+     WHERE LOWER(COALESCE(status, 'draft')) <> 'aborted'
      ORDER BY pay_period_start ASC, id ASC`
   );
 
@@ -204,6 +219,7 @@ const validatePayPeriodContinuity = async ({
       ...run,
       normalized_scope: normalizeScopeFilters(parseJson(run.employee_scope, {})),
     }))
+    .filter((run) => String(run.status || '').trim().toLowerCase() !== PAYROLL_RUN_STATUSES.ABORTED)
     .filter((run) => buildScopeKey(run.normalized_scope) === scopeKey);
 
   const overlap = scopedRuns.find((run) => (
@@ -341,6 +357,207 @@ const getTableColumns = async (tableName) => {
 
 const findFirstExistingColumn = (columns, candidates = []) => {
   return candidates.find((column) => columns.has(column)) || null;
+};
+
+const syncPayrollRunStatuses = async ({ runId, status, actorUserId = null }) => {
+  const normalizedStatus = String(status || '').trim().toLowerCase();
+  const now = new Date();
+  const runUpdate = {
+    status: normalizedStatus,
+    updated_at: now,
+  };
+
+  if (normalizedStatus === PAYROLL_RUN_STATUSES.FINANCE_APPROVED || normalizedStatus === PAYROLL_RUN_STATUSES.FINANCE_REJECTED) {
+    runUpdate.finance_reviewed_by = actorUserId ? Number(actorUserId) : null;
+    runUpdate.finance_reviewed_at = now;
+  }
+
+  if (normalizedStatus === PAYROLL_RUN_STATUSES.FINALIZED) {
+    runUpdate.finalized_by = actorUserId ? Number(actorUserId) : null;
+    runUpdate.finalized_at = now;
+  }
+
+  if (normalizedStatus === PAYROLL_RUN_STATUSES.ABORTED) {
+    runUpdate.aborted_by = actorUserId ? Number(actorUserId) : null;
+    runUpdate.aborted_at = now;
+  }
+
+  await db.transactionUpdate('payroll_runs', runUpdate, 'id = ?', [runId]);
+  await db.transactionUpdate('payroll_records', {
+    status: normalizedStatus,
+    updated_at: now,
+  }, 'run_id = ?', [runId]);
+};
+
+const getEmployeePrimaryEmail = async (employeeId) => {
+  if (!employeeId) return null;
+
+  const emailRow = await db.getOne(
+    `SELECT email
+     FROM employee_emails
+     WHERE employee_id = ?
+       AND email IS NOT NULL
+       AND email <> ''
+     ORDER BY email_id ASC
+     LIMIT 1`,
+    [employeeId]
+  );
+
+  return emailRow?.email ? String(emailRow.email).trim() : null;
+};
+
+const getPayrollDepartmentStakeholders = async (runId) => {
+  const departments = await db.getAll(
+    `SELECT DISTINCT
+       d.department_id,
+       d.department_name,
+       d.supervisor_id
+     FROM payroll_records pr
+     JOIN employees e ON e.employee_id = pr.employee_id
+     LEFT JOIN departments d ON d.department_id = e.department_id
+     WHERE pr.run_id = ?
+       AND e.department_id IS NOT NULL
+     ORDER BY d.department_name ASC`,
+    [runId]
+  );
+
+  const stakeholders = [];
+
+  for (const department of departments) {
+    const departmentId = Number(department.department_id);
+    if (!Number.isInteger(departmentId) || departmentId <= 0) {
+      continue;
+    }
+
+    const manager = await db.getOne(
+      `SELECT
+         e.employee_id,
+         e.employee_code,
+         e.first_name,
+         e.last_name,
+         jp.position_name
+       FROM employees e
+       LEFT JOIN job_positions jp ON jp.position_id = e.position_id
+       WHERE e.department_id = ?
+         AND e.status IN ('active', 'on-leave')
+         AND LOWER(COALESCE(jp.position_name, '')) LIKE '%manager%'
+       ORDER BY e.employee_id ASC
+       LIMIT 1`,
+      [departmentId]
+    );
+
+    const supervisor = department.supervisor_id
+      ? await db.getOne(
+        `SELECT
+           e.employee_id,
+           e.employee_code,
+           e.first_name,
+           e.last_name,
+           jp.position_name
+         FROM employees e
+         LEFT JOIN job_positions jp ON jp.position_id = e.position_id
+         WHERE e.employee_id = ?
+         LIMIT 1`,
+        [department.supervisor_id]
+      )
+      : null;
+
+    const managerEmail = manager?.employee_id ? await getEmployeePrimaryEmail(manager.employee_id) : null;
+    const supervisorEmail = supervisor?.employee_id ? await getEmployeePrimaryEmail(supervisor.employee_id) : null;
+
+    stakeholders.push({
+      department_id: departmentId,
+      department_name: department.department_name || `Department #${departmentId}`,
+      manager,
+      managerEmail,
+      supervisor,
+      supervisorEmail,
+    });
+  }
+
+  return stakeholders;
+};
+
+const sendPayrollFinalizationDepartmentEmails = async ({ runId, payrollRun }) => {
+  const records = await db.getAll(
+    `SELECT
+       rec.employee_id,
+       rec.gross_pay,
+       rec.total_deductions,
+       rec.net_pay,
+       e.employee_code,
+       e.first_name,
+       e.last_name,
+       e.department_id,
+       d.department_name
+     FROM payroll_records rec
+     JOIN employees e ON e.employee_id = rec.employee_id
+     LEFT JOIN departments d ON d.department_id = e.department_id
+     WHERE rec.run_id = ?
+     ORDER BY d.department_name ASC, e.last_name ASC, e.first_name ASC`,
+    [runId]
+  );
+
+  const stakeholderRows = await getPayrollDepartmentStakeholders(runId);
+  const stakeholderMap = new Map(stakeholderRows.map((row) => [Number(row.department_id), row]));
+
+  const recordsByDepartment = new Map();
+  for (const record of records) {
+    const departmentId = Number(record.department_id);
+    if (!Number.isInteger(departmentId) || departmentId <= 0) {
+      continue;
+    }
+
+    if (!recordsByDepartment.has(departmentId)) {
+      recordsByDepartment.set(departmentId, []);
+    }
+
+    recordsByDepartment.get(departmentId).push({
+      employee_code: record.employee_code,
+      employee_name: `${record.first_name || ''} ${record.last_name || ''}`.trim(),
+      gross_pay: Number(record.gross_pay) || 0,
+      total_deductions: Number(record.total_deductions) || 0,
+      net_pay: Number(record.net_pay) || 0,
+    });
+  }
+
+  const sentTo = new Set();
+  for (const [departmentId, departmentEmployees] of recordsByDepartment.entries()) {
+    const stakeholder = stakeholderMap.get(departmentId);
+    if (!stakeholder) {
+      continue;
+    }
+
+    const recipientEntries = [
+      stakeholder.managerEmail
+        ? { email: stakeholder.managerEmail, label: stakeholder.manager ? `${stakeholder.manager.first_name || ''} ${stakeholder.manager.last_name || ''}`.trim() : 'Manager' }
+        : null,
+      stakeholder.supervisorEmail
+        ? { email: stakeholder.supervisorEmail, label: stakeholder.supervisor ? `${stakeholder.supervisor.first_name || ''} ${stakeholder.supervisor.last_name || ''}`.trim() : 'Supervisor' }
+        : null,
+    ].filter(Boolean);
+
+    for (const recipient of recipientEntries) {
+      const dedupeKey = `${departmentId}:${recipient.email.toLowerCase()}`;
+      if (sentTo.has(dedupeKey)) {
+        continue;
+      }
+
+      sentTo.add(dedupeKey);
+
+      await emailService.sendPayrollRunFinalizedEmail({
+        to: recipient.email,
+        recipientLabel: recipient.label,
+        departmentName: stakeholder.department_name,
+        runId,
+        payPeriodStart: payrollRun.pay_period_start,
+        payPeriodEnd: payrollRun.pay_period_end,
+        payrollSchedule: payrollRun.pay_schedule,
+        budgetUsed: departmentEmployees.reduce((sum, row) => sum + (Number(row.gross_pay) || 0), 0),
+        employees: departmentEmployees,
+      });
+    }
+  }
 };
 
 export const getPayrollRuns = async (req, res, next) => {
@@ -586,6 +803,10 @@ export const createPayrollRun = async (req, res, next) => {
       throw budgetError;
     }
 
+    const scopeDesc = [];
+    if (scopeFilters?.department_id) scopeDesc.push(`Department: ${scopeFilters.department_id}`);
+    if (scopeFilters?.employment_type) scopeDesc.push(`Employment Type: ${scopeFilters.employment_type}`);
+
     await db.beginTransaction();
     try {
       const runId = await db.transactionInsert('payroll_runs', {
@@ -602,6 +823,7 @@ export const createPayrollRun = async (req, res, next) => {
         const recordId = await db.transactionInsert('payroll_records', {
           run_id: runId,
           employee_id: item.employee_id,
+          status: 'draft',
           gross_pay: item.gross_pay,
           total_deductions: item.total_deductions,
           withholding_tax: item.withholding_tax,
@@ -674,11 +896,89 @@ export const createPayrollRun = async (req, res, next) => {
         }
       }
 
+      const columns = await getTableColumns('expense_notifications');
+      const titleColumn = findFirstExistingColumn(columns, ['title', 'request_title', 'subject']);
+      const descriptionColumn = findFirstExistingColumn(columns, ['description', 'details', 'message']);
+      const amountColumn = findFirstExistingColumn(columns, ['requested_amount', 'amount', 'request_amount']);
+
+      if (!titleColumn || !descriptionColumn || !amountColumn) {
+        throw new Error('expense_notifications schema is missing one or more required fields (title/description/requested_amount).');
+      }
+
+      const requestTitle = `Payroll run #${runId} approval request`;
+      const requestDescription = [
+        `Draft payroll run #${runId} for ${periodStart} to ${periodEnd} requires Finance approval.`,
+        `Gross pay total: ₱${round2(Number(computed.summary?.gross_pay) || 0).toFixed(2)}.`,
+        `Scope: ${scopeDesc.length ? scopeDesc.join(', ') : 'All employees'}.`,
+      ].join(' ');
+
+      const payload = {
+        [titleColumn]: requestTitle,
+        [descriptionColumn]: requestDescription,
+        [amountColumn]: round2(Number(computed.summary?.gross_pay) || 0),
+      };
+
+      const requestTypeColumn = findFirstExistingColumn(columns, ['request_type', 'notification_type', 'type']);
+      if (requestTypeColumn) {
+        payload[requestTypeColumn] = 'payroll_run_finance_approval';
+      }
+
+      if (columns.has('external_reference_id')) {
+        payload.external_reference_id = `payroll_run:${runId}`;
+      }
+
+      const statusColumn = findFirstExistingColumn(columns, ['status', 'request_status']);
+      if (statusColumn) {
+        payload[statusColumn] = 'pending';
+      }
+
+      const priorityColumn = findFirstExistingColumn(columns, ['priority', 'urgency']);
+      if (priorityColumn) {
+        payload[priorityColumn] = 'high';
+      }
+
+      const departmentColumn = findFirstExistingColumn(columns, ['target_department', 'department', 'recipient_department']);
+      if (departmentColumn) {
+        payload[departmentColumn] = 'Finance Department';
+      }
+
+      const requestedByColumn = findFirstExistingColumn(columns, ['requested_by', 'created_by', 'user_id']);
+      if (requestedByColumn) {
+        payload[requestedByColumn] = req.user?.username || String(req.user?.user_id || '');
+      }
+
+      if (columns.has('created_at')) {
+        payload.created_at = new Date();
+      }
+
+      if (columns.has('updated_at')) {
+        payload.updated_at = new Date();
+      }
+
+      if (columns.has('metadata')) {
+        payload.metadata = serializeJson({
+          request_for: 'payroll_run',
+          source_module: 'payroll',
+          payroll_run_id: Number(runId),
+          pay_period_start: periodStart,
+          pay_period_end: periodEnd,
+          gross_pay: round2(Number(computed.summary?.gross_pay) || 0),
+          scope_filters: scopeFilters,
+        });
+      }
+
+      if (columns.has('purpose')) {
+        payload.purpose = 'Request Finance approval for draft payroll run';
+      }
+
+      await db.transactionInsert('expense_notifications', payload);
+
+      await db.transactionUpdate('payroll_runs', {
+        approval_requested_at: new Date(),
+      }, 'id = ?', [runId]);
+
       await db.commit();
 
-      const scopeDesc = [];
-      if (scopeFilters?.department_id) scopeDesc.push(`Department: ${scopeFilters.department_id}`);
-      if (scopeFilters?.employment_type) scopeDesc.push(`Employment Type: ${scopeFilters.employment_type}`);
       const scopeStr = scopeDesc.length ? ` [${scopeDesc.join(', ')}]` : '';
 
       await writeActivityLog({
@@ -687,9 +987,18 @@ export const createPayrollRun = async (req, res, next) => {
         description: `Created payroll run #${runId} (${periodStart} to ${periodEnd}, ${computed.records.length} employees)${scopeStr}`,
       });
 
+      await notifyHrUsersPayrollRunUpdate({
+        actorUserId: req.user?.user_id || null,
+        runId,
+        status: 'draft',
+        payPeriodStart: periodStart,
+        payPeriodEnd: periodEnd,
+        grossPay: round2(Number(computed.summary?.gross_pay) || 0),
+      });
+
       return res.status(201).json({
         success: true,
-        message: 'Payroll run created successfully',
+        message: 'Payroll run created successfully and submitted for Finance approval.',
         data: {
           id: runId,
           status: 'draft',
@@ -802,13 +1111,24 @@ export const deletePayrollRun = async (req, res, next) => {
     if (run.status === 'finalized') {
       return res.status(400).json({
         success: false,
-        message: 'Finalized payroll runs are immutable and cannot be deleted.',
+        message: 'Finalized payroll runs are immutable and cannot be aborted.',
       });
     }
 
     await db.beginTransaction();
     try {
-      await db.transactionQuery('DELETE FROM payroll_runs WHERE id = ?', [id]);
+      await syncPayrollRunStatuses({
+        runId: Number(id),
+        status: PAYROLL_RUN_STATUSES.ABORTED,
+        actorUserId: req.user?.user_id || null,
+      });
+
+      await db.transactionQuery(
+        `UPDATE expense_notifications
+         SET status = 'cancelled', updated_at = NOW()
+         WHERE external_reference_id = ?`,
+        [`payroll_run:${id}`]
+      );
       await db.commit();
     } catch (error) {
       await db.rollback();
@@ -818,15 +1138,23 @@ export const deletePayrollRun = async (req, res, next) => {
     await writeActivityLog({
       userId: req.user?.user_id || null,
       action: 'DELETE',
-      description: `Deleted payroll run #${id} (${run.pay_period_start} to ${run.pay_period_end})`,
+      description: `Aborted payroll run #${id} (${run.pay_period_start} to ${run.pay_period_end})`,
+    });
+
+    await notifyHrUsersPayrollRunUpdate({
+      actorUserId: req.user?.user_id || null,
+      runId: Number(id),
+      status: PAYROLL_RUN_STATUSES.ABORTED,
+      payPeriodStart: run.pay_period_start,
+      payPeriodEnd: run.pay_period_end,
     });
 
     res.json({
       success: true,
-      message: 'Payroll run deleted successfully',
+      message: 'Payroll run aborted successfully',
       data: {
         id: Number(id),
-        status: 'deleted',
+        status: PAYROLL_RUN_STATUSES.ABORTED,
       },
     });
   } catch (error) {
@@ -854,11 +1182,26 @@ export const finalizePayrollRun = async (req, res, next) => {
       });
     }
 
-    await db.update('payroll_runs', {
-      status: 'finalized',
-      finalized_by: req.user?.user_id || null,
-      finalized_at: new Date(),
-    }, 'id = ?', [id]);
+    if (String(run.status || '').toLowerCase() !== PAYROLL_RUN_STATUSES.FINANCE_APPROVED) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payroll run must be approved by Finance before it can be finalized.',
+      });
+    }
+
+    await db.beginTransaction();
+    try {
+      await syncPayrollRunStatuses({
+        runId: Number(id),
+        status: PAYROLL_RUN_STATUSES.FINALIZED,
+        actorUserId: req.user?.user_id || null,
+      });
+
+      await db.commit();
+    } catch (error) {
+      await db.rollback();
+      throw error;
+    }
 
     await writeActivityLog({
       userId: req.user?.user_id || null,
@@ -866,12 +1209,37 @@ export const finalizePayrollRun = async (req, res, next) => {
       description: `Finalized payroll run #${id}`,
     });
 
+    const runGross = await db.getOne(
+      `SELECT COALESCE(SUM(gross_pay), 0) AS gross_pay
+       FROM payroll_records
+       WHERE run_id = ?`,
+      [id]
+    );
+
+    await notifyHrUsersPayrollRunUpdate({
+      actorUserId: req.user?.user_id || null,
+      runId: Number(id),
+      status: PAYROLL_RUN_STATUSES.FINALIZED,
+      payPeriodStart: run.pay_period_start,
+      payPeriodEnd: run.pay_period_end,
+      grossPay: Number(runGross?.gross_pay) || null,
+    });
+
+    try {
+      await sendPayrollFinalizationDepartmentEmails({
+        runId: Number(id),
+        payrollRun: run,
+      });
+    } catch (emailError) {
+      logger.error('Payroll finalization department email notification failed:', emailError);
+    }
+
     res.json({
       success: true,
       message: 'Payroll run finalized successfully. The run is now immutable.',
       data: {
         id: Number(id),
-        status: 'finalized',
+        status: PAYROLL_RUN_STATUSES.FINALIZED,
       },
     });
   } catch (error) {
@@ -1151,6 +1519,61 @@ export const getPayrollSettings = async (req, res, next) => {
       throw budgetError;
     }
 
+    let budgetOverview = null;
+    try {
+      const currentStaffSalaryMonthlyTotal = await getCurrentStaffSalaryMonthlyTotal({});
+      const staffSalariesBudgetAmount = round2(Number(budgets?.staff_salaries?.amount) || 0);
+      const remainingStaffSalariesBudget = round2(staffSalariesBudgetAmount - currentStaffSalaryMonthlyTotal);
+      const staffSalariesBudgetUtilizationPercent = staffSalariesBudgetAmount > 0
+        ? round2((currentStaffSalaryMonthlyTotal / staffSalariesBudgetAmount) * 100)
+        : null;
+
+      let staffSalariesBudgetStatusCode = 'within_budget';
+      let staffSalariesBudgetStatusLabel = 'Within Budget';
+
+      if (staffSalariesBudgetUtilizationPercent != null && staffSalariesBudgetUtilizationPercent > 100) {
+        staffSalariesBudgetStatusCode = 'over_budget';
+        staffSalariesBudgetStatusLabel = 'Over Budget';
+      } else if (staffSalariesBudgetUtilizationPercent != null && staffSalariesBudgetUtilizationPercent >= 90) {
+        staffSalariesBudgetStatusCode = 'near_limit';
+        staffSalariesBudgetStatusLabel = 'Near Limit';
+      }
+
+      budgetOverview = {
+        current_staff_salary_monthly_total: currentStaffSalaryMonthlyTotal,
+        staff_salaries_budget_amount: staffSalariesBudgetAmount,
+        remaining_staff_salaries_budget: remainingStaffSalariesBudget,
+        staff_salaries_budget_utilization_percent: staffSalariesBudgetUtilizationPercent,
+        staff_salaries_budget_status_code: staffSalariesBudgetStatusCode,
+        staff_salaries_budget_status_label: staffSalariesBudgetStatusLabel,
+      };
+
+      if (lastStaffSalariesBudgetAmountNotified != null && lastStaffSalariesBudgetAmountNotified !== staffSalariesBudgetAmount) {
+        await notifyHrUsersBudgetAmountChange({
+          actorUserId: req.user?.user_id || null,
+          referenceId: `staff_salaries_budget_amount:${staffSalariesBudgetAmount}`,
+          previousAmount: lastStaffSalariesBudgetAmountNotified,
+          currentAmount: staffSalariesBudgetAmount,
+          budgetLabel: 'HR Budget',
+        });
+      }
+      if (Number.isFinite(staffSalariesBudgetAmount)) {
+        lastStaffSalariesBudgetAmountNotified = staffSalariesBudgetAmount;
+      }
+
+      if (staffSalariesBudgetStatusCode === 'near_limit' || staffSalariesBudgetStatusCode === 'over_budget') {
+        await notifyHrUsersBudgetStatus({
+          actorUserId: req.user?.user_id || null,
+          statusCode: staffSalariesBudgetStatusCode,
+          statusLabel: staffSalariesBudgetStatusLabel,
+          utilizationPercent: staffSalariesBudgetUtilizationPercent,
+          remainingBudget: remainingStaffSalariesBudget,
+        });
+      }
+    } catch (summaryError) {
+      logger.error('Payroll budget overview summary compute failed:', summaryError);
+    }
+
     res.json({
       success: true,
       message: 'Payroll settings fetched successfully',
@@ -1158,6 +1581,7 @@ export const getPayrollSettings = async (req, res, next) => {
         current,
         history,
         budgets,
+        budget_overview: budgetOverview,
       },
     });
   } catch (error) {
@@ -1169,6 +1593,7 @@ export const getPayrollSettings = async (req, res, next) => {
 export const createExpenseBudgetRequest = async (req, res, next) => {
   try {
     const {
+      department_id,
       title,
       description,
       requested_amount,
@@ -1178,6 +1603,26 @@ export const createExpenseBudgetRequest = async (req, res, next) => {
     const normalizedTitle = String(title || '').trim();
     const normalizedDescription = String(description || '').trim();
     const requestedAmount = Number(requested_amount);
+    const departmentId = Number(department_id);
+
+    if (!Number.isInteger(departmentId) || departmentId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'department_id must be a positive integer',
+      });
+    }
+
+    const requestedDepartment = await db.getOne(
+      'SELECT department_id, department_name FROM departments WHERE department_id = ?',
+      [departmentId]
+    );
+
+    if (!requestedDepartment) {
+      return res.status(400).json({
+        success: false,
+        message: 'Selected department was not found',
+      });
+    }
 
     if (!normalizedTitle) {
       return res.status(400).json({
@@ -1247,6 +1692,16 @@ export const createExpenseBudgetRequest = async (req, res, next) => {
         : 'medium';
     }
 
+    const departmentIdColumn = findFirstExistingColumn(columns, ['department_id', 'request_department_id', 'dept_id']);
+    if (departmentIdColumn) {
+      payload[departmentIdColumn] = Number(requestedDepartment.department_id);
+    }
+
+    const departmentNameColumn = findFirstExistingColumn(columns, ['department_name', 'request_department_name']);
+    if (departmentNameColumn) {
+      payload[departmentNameColumn] = requestedDepartment.department_name;
+    }
+
     const departmentColumn = findFirstExistingColumn(columns, ['target_department', 'department', 'recipient_department']);
     if (departmentColumn) {
       payload[departmentColumn] = 'Finance Department';
@@ -1269,6 +1724,8 @@ export const createExpenseBudgetRequest = async (req, res, next) => {
       payload.metadata = serializeJson({
         request_for: 'staff_salaries_and_payroll_budget',
         source_module: 'employees',
+        requested_department_id: Number(requestedDepartment.department_id),
+        requested_department_name: requestedDepartment.department_name,
       });
     }
 
@@ -1297,13 +1754,192 @@ export const createExpenseBudgetRequest = async (req, res, next) => {
   }
 };
 
+export const updateExpenseBudgetRequestStatus = async (req, res, next) => {
+  try {
+    const requestId = Number(req.params?.id);
+    const normalizedStatus = String(req.body?.status || '').trim().toLowerCase();
+    const allowedStatuses = new Set(['pending', 'accepted', 'rejected', 'cancelled']);
+
+    if (!Number.isInteger(requestId) || requestId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'request id must be a positive integer',
+      });
+    }
+
+    if (!allowedStatuses.has(normalizedStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: 'status must be one of pending, accepted, rejected, or cancelled',
+      });
+    }
+
+    const columns = await getTableColumns('expense_notifications');
+    const statusColumn = findFirstExistingColumn(columns, ['status', 'request_status']);
+    const departmentIdColumn = findFirstExistingColumn(columns, ['department_id', 'request_department_id', 'dept_id']);
+    const departmentNameColumn = findFirstExistingColumn(columns, ['department_name', 'request_department_name']);
+    const metadataColumn = columns.has('metadata') ? 'metadata' : null;
+
+    if (!statusColumn) {
+      return res.status(500).json({
+        success: false,
+        message: 'expense_notifications schema is missing a status field.',
+      });
+    }
+
+    const current = await db.getOne(
+      `SELECT
+         notification_id,
+         title,
+         requested_amount,
+         priority,
+         ${statusColumn} AS status,
+         external_reference_id,
+         requested_by,
+         created_at,
+         updated_at,
+         ${departmentIdColumn ? `${departmentIdColumn}` : 'NULL'} AS department_id,
+         ${departmentNameColumn ? `${departmentNameColumn}` : 'NULL'} AS department_name,
+         ${metadataColumn ? `${metadataColumn}` : 'NULL'} AS metadata
+       FROM expense_notifications
+       WHERE notification_id = ?
+       LIMIT 1`,
+      [requestId]
+    );
+
+    if (!current) {
+      return res.status(404).json({
+        success: false,
+        message: 'Budget request not found',
+      });
+    }
+
+    const previousStatus = String(current.status || '').trim().toLowerCase();
+    if (previousStatus === normalizedStatus) {
+      return res.json({
+        success: true,
+        message: 'Budget request status is already up to date.',
+        data: {
+          id: requestId,
+          status: normalizedStatus,
+        },
+      });
+    }
+
+    const metadata = parseJson(current.metadata, {});
+    const resolvedDepartmentName = current.department_name ?? metadata?.requested_department_name ?? null;
+    const isPayrollRunRequest = String(current.external_reference_id || '').startsWith('payroll_run:') || metadata?.request_for === 'payroll_run';
+    const payrollRunId = Number(metadata?.payroll_run_id || String(current.external_reference_id || '').replace('payroll_run:', ''));
+    const payrollRunRequest = isPayrollRunRequest && Number.isInteger(payrollRunId) && payrollRunId > 0
+      ? await db.getOne(
+        `SELECT id, created_by, pay_period_start, pay_period_end, pay_schedule
+         FROM payroll_runs
+         WHERE id = ?
+         LIMIT 1`,
+        [payrollRunId]
+      )
+      : null;
+
+    await db.beginTransaction();
+    try {
+      await db.transactionUpdate('expense_notifications', {
+        [statusColumn]: normalizedStatus,
+        updated_at: new Date(),
+      }, 'notification_id = ?', [requestId]);
+
+      if (isPayrollRunRequest && Number.isInteger(payrollRunId) && payrollRunId > 0) {
+        const mappedPayrollStatus = normalizedStatus === 'accepted'
+          ? PAYROLL_RUN_STATUSES.FINANCE_APPROVED
+          : normalizedStatus === 'rejected'
+            ? PAYROLL_RUN_STATUSES.FINANCE_REJECTED
+            : normalizedStatus === 'cancelled'
+              ? PAYROLL_RUN_STATUSES.ABORTED
+              : PAYROLL_RUN_STATUSES.DRAFT;
+
+        if (mappedPayrollStatus !== PAYROLL_RUN_STATUSES.DRAFT) {
+          await syncPayrollRunStatuses({
+            runId: payrollRunId,
+            status: mappedPayrollStatus,
+            actorUserId: req.user?.user_id || null,
+          });
+        }
+      }
+
+      await db.commit();
+    } catch (error) {
+      await db.rollback();
+      throw error;
+    }
+
+    await notifyHrUsersBudgetRequestStatusChange({
+      actorUserId: req.user?.user_id || null,
+      referenceId: requestId,
+      requestTitle: current.title || `Budget request #${requestId}`,
+      requestedAmount: Number(current.requested_amount) || null,
+      status: normalizedStatus,
+      previousStatus,
+      departmentName: resolvedDepartmentName ? String(resolvedDepartmentName) : null,
+    });
+
+    if (isPayrollRunRequest && Number.isInteger(payrollRunId) && payrollRunId > 0 && normalizedStatus !== 'pending') {
+      await notifyHrUsersPayrollRunUpdate({
+        actorUserId: req.user?.user_id || null,
+        runId: payrollRunId,
+        status: normalizedStatus === 'accepted'
+          ? PAYROLL_RUN_STATUSES.FINANCE_APPROVED
+          : normalizedStatus === 'rejected'
+            ? PAYROLL_RUN_STATUSES.FINANCE_REJECTED
+            : PAYROLL_RUN_STATUSES.ABORTED,
+        grossPay: Number(current.requested_amount) || null,
+      });
+    }
+
+      if (isPayrollRunRequest && normalizedStatus === 'accepted' && payrollRunRequest?.created_by) {
+        await createNotification({
+          recipientUserId: payrollRunRequest.created_by,
+          actorUserId: req.user?.user_id || null,
+          title: `Payroll run #${payrollRunId} approved by Finance`,
+          message: `Finance approved payroll run #${payrollRunId} for ${resolvedDepartmentName || 'the selected scope'}. It is now ready for finalization.`,
+          category: 'payroll_run_status',
+          referenceModule: 'payroll',
+          referenceId: `payroll_run:${payrollRunId}:finance_approved`,
+        });
+      }
+
+    await writeActivityLog({
+      userId: req.user?.user_id || null,
+      action: 'UPDATE',
+      description: `Updated budget request #${requestId} status from ${previousStatus || 'unknown'} to ${normalizedStatus}`,
+    });
+
+    return res.json({
+      success: true,
+      message: 'Budget request status updated successfully',
+      data: {
+        id: requestId,
+        status: normalizedStatus,
+      },
+    });
+  } catch (error) {
+    logger.error('Update expense budget request status error:', error);
+    next(error);
+  }
+};
+
 export const getExpenseBudgetRequests = async (req, res, next) => {
   try {
     const userId = req.user?.user_id;
     const username = req.user?.username;
+    const requestedDepartmentId = Number(req.query?.department_id);
+    const hasDepartmentFilter = Number.isInteger(requestedDepartmentId) && requestedDepartmentId > 0;
+    const canViewAllRequests = Boolean(req.userPermissions && (req.userPermissions.has('payroll.update') || req.userPermissions.has('*')));
 
-    const requests = await db.getAll(
-      `SELECT
+    const columns = await getTableColumns('expense_notifications');
+    const departmentIdColumn = findFirstExistingColumn(columns, ['department_id', 'request_department_id', 'dept_id']);
+    const departmentNameColumn = findFirstExistingColumn(columns, ['department_name', 'request_department_name']);
+    const metadataColumn = columns.has('metadata') ? 'metadata' : null;
+
+    const query = `SELECT
          notification_id,
          title,
          description,
@@ -1313,26 +1949,48 @@ export const getExpenseBudgetRequests = async (req, res, next) => {
          requested_by,
          external_reference_id,
          created_at,
-         updated_at
+         updated_at,
+         ${departmentIdColumn ? `${departmentIdColumn}` : 'NULL'} AS department_id,
+         ${departmentNameColumn ? `${departmentNameColumn}` : 'NULL'} AS department_name,
+         ${metadataColumn ? `${metadataColumn}` : 'NULL'} AS metadata
        FROM expense_notifications
        WHERE (
          external_reference_id = 'staff_salaries_payroll_budget'
          OR LOWER(COALESCE(purpose, '')) LIKE '%staff salaries%'
          OR LOWER(COALESCE(purpose, '')) LIKE '%payroll%'
        )
-       AND (
+       ${canViewAllRequests ? '' : `AND (
          requested_by = ?
          OR requested_by = ?
-       )
+       )`}
        ORDER BY created_at DESC
-       LIMIT 10`,
-      [String(userId || ''), String(username || '')]
-    );
+       LIMIT 10`;
+
+    const requests = await db.getAll(query, canViewAllRequests ? [] : [String(userId || ''), String(username || '')]);
+
+    const normalizedRequests = requests
+      .map((request) => {
+        const metadata = parseJson(request.metadata, {});
+        const resolvedDepartmentId = request.department_id ?? metadata?.requested_department_id ?? null;
+        const resolvedDepartmentName = request.department_name ?? metadata?.requested_department_name ?? null;
+
+        return {
+          ...request,
+          department_id: resolvedDepartmentId == null ? null : Number(resolvedDepartmentId),
+          department_name: resolvedDepartmentName == null ? null : String(resolvedDepartmentName),
+        };
+      })
+      .filter((request) => !hasDepartmentFilter || request.department_id === requestedDepartmentId)
+      .map((request) => {
+        const responseRequest = { ...request };
+        delete responseRequest.metadata;
+        return responseRequest;
+      });
 
     return res.json({
       success: true,
       message: 'Expense budget requests fetched successfully.',
-      data: requests,
+      data: normalizedRequests,
     });
   } catch (error) {
     logger.error('Get expense budget requests error:', error);

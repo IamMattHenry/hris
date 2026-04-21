@@ -352,6 +352,12 @@ export default function AttendanceTable() {
                       value={pendingDate}
                       max={getCurrentPHDate()}
                       onChange={(e) => setPendingDate(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          setIsDateModalOpen(false);
+                          if (pendingDate !== selectedDate) setSelectedDate(pendingDate);
+                        }
+                      }}
                       className="border border-gray-300 rounded px-3 py-2 w-full"
                     />
 
@@ -509,6 +515,7 @@ export default function AttendanceTable() {
         isOpen={attendanceToView !== null}
         onClose={() => setAttendanceToView(null)}
         attendanceId={attendanceToView}
+        onUpdated={fetchAttendance}
       />
     </div>
   );

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { X, Save } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
@@ -26,6 +25,7 @@ interface Department {
 
 interface FinanceBudget {
   budget_id: number;
+  department_budget_id?: number;
   amount: number;
 }
 
@@ -35,14 +35,89 @@ interface NewPayrollRunModalProps {
   onSave?: (payrollRunId: number) => void; // optional: if parent wants the new ID
 }
 
-const today = new Date().toISOString().slice(0, 10);
+const toDateInputString = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
-export default function NewPayrollRunModal({
-  isOpen,
-  onClose,
-  onSave,
-}: NewPayrollRunModalProps) {
-  const router = useRouter();
+const parseDateInput = (value: string) => {
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+};
+
+const getYesterdayDate = () => {
+  const now = new Date();
+  now.setDate(now.getDate() - 1);
+  return toDateInputString(now);
+};
+
+const derivePayPeriodFromSchedule = (
+  referenceDate: string,
+  paySchedule: "weekly" | "semi-monthly" | "monthly"
+) => {
+  const date = parseDateInput(referenceDate);
+  if (!date) {
+    return {
+      start: referenceDate,
+      end: referenceDate,
+    };
+  }
+
+  if (paySchedule === "monthly") {
+    const start = new Date(date.getFullYear(), date.getMonth(), 1);
+    const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+    return {
+      start: toDateInputString(start),
+      end: toDateInputString(end),
+    };
+  }
+
+  if (paySchedule === "weekly") {
+    const day = date.getDay();
+    const mondayOffset = day === 0 ? -6 : 1 - day;
+    const start = new Date(date);
+    start.setDate(start.getDate() + mondayOffset);
+
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+
+    return {
+      start: toDateInputString(start),
+      end: toDateInputString(end),
+    };
+  }
+
+  const dayOfMonth = date.getDate();
+  if (dayOfMonth <= 15) {
+    const start = new Date(date.getFullYear(), date.getMonth(), 1);
+    const end = new Date(date.getFullYear(), date.getMonth(), 15);
+    return {
+      start: toDateInputString(start),
+      end: toDateInputString(end),
+    };
+  }
+
+  const start = new Date(date.getFullYear(), date.getMonth(), 16);
+  const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  return {
+    start: toDateInputString(start),
+    end: toDateInputString(end),
+  };
+};
+
+const today = toDateInputString(new Date());
+const defaultReferenceDate = getYesterdayDate();
+const defaultPeriod = derivePayPeriodFromSchedule(defaultReferenceDate, "semi-monthly");
+
+export default function NewPayrollRunModal(props: any) {
+  const {
+    isOpen,
+    onClose,
+    onSave,
+  } = props as NewPayrollRunModalProps;
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -51,8 +126,9 @@ export default function NewPayrollRunModal({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const [periodStart, setPeriodStart] = useState(today);
-  const [periodEnd, setPeriodEnd] = useState(today);
+  const [referenceDate, setReferenceDate] = useState(defaultReferenceDate);
+  const [periodStart, setPeriodStart] = useState(defaultPeriod.start);
+  const [periodEnd, setPeriodEnd] = useState(defaultPeriod.end);
   const [paySchedule, setPaySchedule] = useState<"weekly" | "semi-monthly" | "monthly">("semi-monthly");
   const [departmentId, setDepartmentId] = useState("");
   const [employmentType, setEmploymentType] = useState("");
@@ -108,13 +184,18 @@ export default function NewPayrollRunModal({
         }
 
         if (settingsRes.success && settingsRes.data?.current?.pay_schedule) {
-          setPaySchedule(settingsRes.data.current.pay_schedule);
+          const schedule = settingsRes.data.current.pay_schedule as "weekly" | "semi-monthly" | "monthly";
+          setPaySchedule(schedule);
+          const alignedPeriod = derivePayPeriodFromSchedule(defaultReferenceDate, schedule);
+          setPeriodStart(alignedPeriod.start);
+          setPeriodEnd(alignedPeriod.end);
         }
 
         const latestPayrollBudget = settingsRes.data?.budgets?.payroll;
         if (settingsRes.success && latestPayrollBudget) {
           setPayrollBudget({
             budget_id: Number(latestPayrollBudget.budget_id),
+            department_budget_id: Number(latestPayrollBudget.department_budget_id),
             amount: Number(latestPayrollBudget.amount),
           });
         } else {
@@ -133,8 +214,10 @@ export default function NewPayrollRunModal({
     return () => {
       setSelected([]);
       setSearch("");
-      setPeriodStart(today);
-      setPeriodEnd(today);
+      setReferenceDate(defaultReferenceDate);
+      const resetPeriod = derivePayPeriodFromSchedule(defaultReferenceDate, "semi-monthly");
+      setPeriodStart(resetPeriod.start);
+      setPeriodEnd(resetPeriod.end);
       setDepartmentId("");
       setEmploymentType("");
       setNotes("");
@@ -185,6 +268,11 @@ export default function NewPayrollRunModal({
   const handleCreate = async () => {
     if (!periodStart || !periodEnd) {
       showToast.error("Please choose a pay period.");
+      return;
+    }
+
+    if (periodEnd >= today) {
+      showToast.error(`Payroll period must be completed. Please choose a reference date before ${today}.`);
       return;
     }
 
@@ -271,13 +359,19 @@ export default function NewPayrollRunModal({
           ) : (
             <div className="p-6 space-y-6 overflow-y-auto flex-1">
               {/* Form row */}
-              <div className="grid md:grid-cols-6 gap-4">
+              <div className="grid md:grid-cols-5 gap-4">
                 <label className="space-y-1.5">
-                  <span className="text-sm font-medium">Pay Period Start</span>
+                  <span className="text-sm font-medium">Reference Date</span>
                   <input
                     type="date"
-                    value={periodStart}
-                    onChange={(e) => setPeriodStart(e.target.value)}
+                    value={referenceDate}
+                    onChange={(e) => {
+                      const nextReferenceDate = e.target.value;
+                      setReferenceDate(nextReferenceDate);
+                      const alignedPeriod = derivePayPeriodFromSchedule(nextReferenceDate, paySchedule);
+                      setPeriodStart(alignedPeriod.start);
+                      setPeriodEnd(alignedPeriod.end);
+                    }}
                     className="w-full bg-white border border-[#E8D9C4] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#3D1A0B]/30"
                   />
                 </label>
@@ -287,7 +381,7 @@ export default function NewPayrollRunModal({
                   <input
                     type="date"
                     value={periodEnd}
-                    onChange={(e) => setPeriodEnd(e.target.value)}
+                    readOnly
                     className="w-full bg-white border border-[#E8D9C4] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#3D1A0B]/30"
                   />
                 </label>
@@ -296,7 +390,13 @@ export default function NewPayrollRunModal({
                   <span className="text-sm font-medium">Pay Schedule</span>
                   <select
                     value={paySchedule}
-                    onChange={(e) => setPaySchedule(e.target.value as any)}
+                    onChange={(e) => {
+                      const schedule = e.target.value as "weekly" | "semi-monthly" | "monthly";
+                      setPaySchedule(schedule);
+                      const alignedPeriod = derivePayPeriodFromSchedule(referenceDate, schedule);
+                      setPeriodStart(alignedPeriod.start);
+                      setPeriodEnd(alignedPeriod.end);
+                    }}
                     className="w-full bg-white border border-[#E8D9C4] rounded-lg px-3 py-2"
                   >
                     <option value="weekly">Weekly</option>
@@ -336,14 +436,28 @@ export default function NewPayrollRunModal({
                     ))}
                   </select>
                 </label>
+              </div>
 
-                <label className="space-y-1.5 md:col-span-2 lg:col-span-1">
-                  <span className="text-sm font-medium">Notes (opt)</span>
-                  <input
+              {/* Second Row for Notes */}
+              <div className="w-full relative">
+                <label className="space-y-1.5 block">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Notes (opt)</span>
+                    <span className={`text-xs ${notes.length > 200 ? 'text-red-500 font-bold' : 'text-[#3D1A0B]/60'}`}>
+                      {notes.length} / 200
+                    </span>
+                  </div>
+                  <textarea
                     value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
+                    onChange={(e) => {
+                      if (e.target.value.length <= 200) {
+                        setNotes(e.target.value);
+                      }
+                    }}
                     placeholder="Payroll batch note"
-                    className="w-full bg-white border border-[#E8D9C4] rounded-lg px-3 py-2"
+                    className="w-full bg-white border border-[#E8D9C4] rounded-lg px-3 py-2 resize-y"
+                    rows={2}
+                    maxLength={500}
                   />
                 </label>
               </div>
@@ -352,9 +466,9 @@ export default function NewPayrollRunModal({
                 <p className="font-medium">
                   Latest Payroll Budget: {formatCurrency(payrollBudget?.amount)}
                 </p>
-                {payrollBudget?.budget_id ? (
+                {payrollBudget?.department_budget_id ? (
                   <p className="text-xs text-[#3D1A0B]/70 mt-1">
-                    Source: budget_category (budget_id #{payrollBudget.budget_id})
+                    Source: Budget from the Finance Department
                   </p>
                 ) : (
                   <p className="text-xs text-[#3D1A0B]/70 mt-1">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { X, Save } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
 import { payrollApi } from "@/lib/api";
@@ -16,7 +16,17 @@ interface HolidayOverride {
 
 interface FinanceBudget {
   budget_id: number;
+  department_budget_id?: number;
   amount: number;
+}
+
+interface BudgetOverviewSummary {
+  current_staff_salary_monthly_total: number;
+  staff_salaries_budget_amount: number;
+  remaining_staff_salaries_budget: number;
+  staff_salaries_budget_utilization_percent: number | null;
+  staff_salaries_budget_status_code: "within_budget" | "near_limit" | "over_budget";
+  staff_salaries_budget_status_label: "Within Budget" | "Near Limit" | "Over Budget";
 }
 
 interface PayrollSettingsModalProps {
@@ -26,10 +36,11 @@ interface PayrollSettingsModalProps {
   // onSettingsSaved?: () => void;
 }
 
-export default function PayrollSettingsModal({
-  isOpen,
-  onClose,
-}: PayrollSettingsModalProps) {
+export default function PayrollSettingsModal(props: any) {
+  const {
+    isOpen,
+    onClose,
+  } = props as PayrollSettingsModalProps;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -45,6 +56,7 @@ export default function PayrollSettingsModal({
   const [holidayOverrides, setHolidayOverrides] = useState<HolidayOverride[]>([]);
   const [payrollBudget, setPayrollBudget] = useState<FinanceBudget | null>(null);
   const [staffSalariesBudget, setStaffSalariesBudget] = useState<FinanceBudget | null>(null);
+  const [budgetOverview, setBudgetOverview] = useState<BudgetOverviewSummary | null>(null);
 
   const [newHolidayDate, setNewHolidayDate] = useState("");
   const [newHolidayName, setNewHolidayName] = useState("");
@@ -60,7 +72,17 @@ export default function PayrollSettingsModal({
     }).format(Number(value));
   };
 
-  const fetchSettings = async () => {
+  const getBudgetStatusStyles = (statusCode?: BudgetOverviewSummary["staff_salaries_budget_status_code"] | null) => {
+    if (statusCode === "over_budget") {
+      return "bg-red-100 text-red-700 border border-red-200";
+    }
+    if (statusCode === "near_limit") {
+      return "bg-yellow-100 text-yellow-700 border border-yellow-200";
+    }
+    return "bg-green-100 text-green-700 border border-green-200";
+  };
+
+  const fetchSettings = useCallback(async () => {
     if (!isOpen) return;
 
     try {
@@ -91,6 +113,7 @@ export default function PayrollSettingsModal({
       if (latestPayrollBudget) {
         setPayrollBudget({
           budget_id: Number(latestPayrollBudget.budget_id),
+          department_budget_id: Number(latestPayrollBudget.department_budget_id),
           amount: Number(latestPayrollBudget.amount),
         });
       } else {
@@ -100,21 +123,40 @@ export default function PayrollSettingsModal({
       if (latestStaffSalariesBudget) {
         setStaffSalariesBudget({
           budget_id: Number(latestStaffSalariesBudget.budget_id),
+          department_budget_id: Number(latestStaffSalariesBudget.department_budget_id),
           amount: Number(latestStaffSalariesBudget.amount),
         });
       } else {
         setStaffSalariesBudget(null);
       }
+
+      const summary = response.data?.budget_overview;
+      if (summary) {
+        setBudgetOverview({
+          current_staff_salary_monthly_total: Number(summary.current_staff_salary_monthly_total),
+          staff_salaries_budget_amount: Number(summary.staff_salaries_budget_amount),
+          remaining_staff_salaries_budget: Number(summary.remaining_staff_salaries_budget),
+          staff_salaries_budget_utilization_percent:
+            summary.staff_salaries_budget_utilization_percent == null
+              ? null
+              : Number(summary.staff_salaries_budget_utilization_percent),
+          staff_salaries_budget_status_code: summary.staff_salaries_budget_status_code,
+          staff_salaries_budget_status_label: summary.staff_salaries_budget_status_label,
+        });
+      } else {
+        setBudgetOverview(null);
+      }
     } catch (error: any) {
       showToast.error(error.message || "Failed to load payroll settings");
+      setBudgetOverview(null);
     } finally {
       setLoading(false);
     }
-  };
+  }, [isOpen]);
 
   useEffect(() => {
     fetchSettings();
-  }, [isOpen]);
+  }, [fetchSettings]);
 
   const addHolidayOverride = () => {
     if (!newHolidayDate || !newHolidayName.trim()) {
@@ -230,8 +272,8 @@ export default function PayrollSettingsModal({
                   <p className="text-sm font-medium text-[#3D1A0B]">Latest Payroll Budget</p>
                   <p className="text-lg font-semibold text-[#3D1A0B] mt-1">{formatCurrency(payrollBudget?.amount)}</p>
                   <p className="text-xs text-[#3D1A0B]/70 mt-1">
-                    {payrollBudget?.budget_id
-                      ? `Source: budget_category (budget_id #${payrollBudget.budget_id})`
+                    {payrollBudget?.department_budget_id
+                      ? "Source: Budget from the Finance Department"
                       : "No active payroll budget configured."}
                   </p>
                 </div>
@@ -240,12 +282,46 @@ export default function PayrollSettingsModal({
                   <p className="text-sm font-medium text-[#3D1A0B]">Latest Staff Salaries Budget</p>
                   <p className="text-lg font-semibold text-[#3D1A0B] mt-1">{formatCurrency(staffSalariesBudget?.amount)}</p>
                   <p className="text-xs text-[#3D1A0B]/70 mt-1">
-                    {staffSalariesBudget?.budget_id
-                      ? `Source: budget_category (budget_id #${staffSalariesBudget.budget_id})`
+                    {staffSalariesBudget?.department_budget_id
+                      ? "Source: Budget from the Finance Department"
                       : "No active staff salaries budget configured."}
                   </p>
                 </div>
               </div>
+
+              {budgetOverview && (
+                <div className="grid sm:grid-cols-3 gap-4">
+                  <div className="rounded-lg border border-[#E8D9C4] bg-white px-4 py-3">
+                    <p className="text-sm font-medium text-[#3D1A0B]">Overall Monthly Salaries</p>
+                    <p className="text-lg font-semibold text-[#3D1A0B] mt-1">
+                      {formatCurrency(budgetOverview.current_staff_salary_monthly_total)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg border border-[#E8D9C4] bg-white px-4 py-3">
+                    <p className="text-sm font-medium text-[#3D1A0B]">Remaining Budget</p>
+                    <p className="text-lg font-semibold text-[#3D1A0B] mt-1">
+                      {formatCurrency(budgetOverview.remaining_staff_salaries_budget)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg border border-[#E8D9C4] bg-white px-4 py-3">
+                    <p className="text-sm font-medium text-[#3D1A0B]">Budget Utilization</p>
+                    <p className="text-lg font-semibold text-[#3D1A0B] mt-1">
+                      {budgetOverview.staff_salaries_budget_utilization_percent == null
+                        ? "N/A"
+                        : `${budgetOverview.staff_salaries_budget_utilization_percent.toFixed(2)}%`}
+                    </p>
+                    <span
+                      className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium mt-2 ${getBudgetStatusStyles(
+                        budgetOverview.staff_salaries_budget_status_code
+                      )}`}
+                    >
+                      {budgetOverview.staff_salaries_budget_status_label}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* Basic Settings */}
               <div className="grid sm:grid-cols-3 gap-4">

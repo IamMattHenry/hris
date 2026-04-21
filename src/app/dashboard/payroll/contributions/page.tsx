@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { X, Download } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
 import { payrollApi } from "@/lib/api";
@@ -17,15 +17,16 @@ interface PayrollContributionsModalProps {
   onClose: () => void;
 }
 
-export default function PayrollContributionsModal({
-  isOpen,
-  onClose,
-}: PayrollContributionsModalProps) {
+export default function PayrollContributionsModal(props: any) {
+  const {
+    isOpen,
+    onClose,
+  } = props as PayrollContributionsModalProps;
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<any[]>([]);
   const [totals, setTotals] = useState<any>({});
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!isOpen) return;
 
     try {
@@ -41,11 +42,11 @@ export default function PayrollContributionsModal({
     } finally {
       setLoading(false);
     }
-  };
+  }, [isOpen]);
 
   useEffect(() => {
     fetchData();
-  }, [isOpen]);
+  }, [fetchData]);
 
   const totalEmployees = useMemo(
     () => new Set(rows.map((row) => row.employee_id)).size,

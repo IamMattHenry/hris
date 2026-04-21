@@ -169,6 +169,7 @@ const handleLogin = async (req, res, next, { allowedRoles, allowedRoleKeys = [],
 const HR_PORTAL_ROLE_KEYS = [
   'hr_manager',
   'hr_supervisor',
+  'payroll_officer',
   'leave_attendance_officer',
   'recruitment_officer',
 ];

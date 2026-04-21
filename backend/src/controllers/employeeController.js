@@ -16,6 +16,7 @@ import {
   getCurrentStaffSalaryMonthlyTotal,
   toMonthlyEquivalentCompensation,
 } from '../services/financeBudgetService.js';
+import { notifyEmployeeByEmployeeId, notifyHrUsers } from '../services/notificationService.js';
 
 const round2 = (value) => Number((Number(value) || 0).toFixed(2));
 const isStaffBudgetApplicableStatus = (value) => {
@@ -24,62 +25,97 @@ const isStaffBudgetApplicableStatus = (value) => {
 };
 
 /**
- * Position-name → RBAC role_key mapping for HR department (department_id = 1).
+ * Position-name → RBAC role_key mapping for HR department.
  * When an employee is in the HR department and their position matches one of
  * these names, the system auto-assigns the corresponding RBAC role.
  */
 const POSITION_TO_RBAC_ROLE = {
   'hr manager': 'hr_manager',
-  'leave & attendance officer': 'leave_attendance_officer',
+  'leave and attendance officer': 'leave_attendance_officer',
   'recruitment officer': 'recruitment_officer',
   'hr supervisor': 'hr_supervisor',
+  'payroll officer': 'payroll_officer',
 };
+
+const HR_POSITION_ROLE_KEYS = Object.values(POSITION_TO_RBAC_ROLE);
+
+const normalizePositionName = (value) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 /**
  * Auto-assign RBAC role based on department + position.
- * Only applies to department_id = 1 (HR) with specific position names.
+ * Applies only to the detected HR department with specific position names.
  * @param {number} userId - The user_id to assign the role to
  * @param {number} departmentId - The employee's department_id
  * @param {number} positionId - The employee's position_id
  * @param {number|null} assignedBy - The user performing the action
  */
-async function autoAssignRbacRole(userId, departmentId, positionId, assignedBy = null) {
+async function syncHrRbacRoleForUser(userId, departmentId, positionId, assignedBy = null) {
   try {
-    // Only auto-assign for HR department (department_id = 1)
-    if (departmentId !== 1) return;
+    if (!userId) return;
 
-    // Look up position name
-    const position = await db.getOne(
-      'SELECT position_name FROM job_positions WHERE position_id = ?',
-      [positionId]
+    const hrDepartment = await db.getOne(
+      `SELECT department_id
+       FROM departments
+       WHERE LOWER(department_name) LIKE '%human resource%'
+          OR LOWER(department_name) = 'hr'
+          OR LOWER(department_name) = 'human resources'
+       ORDER BY department_id
+       LIMIT 1`
     );
-    if (!position) return;
+    const hrDepartmentId = hrDepartment?.department_id ?? 1;
 
-    const roleKey = POSITION_TO_RBAC_ROLE[position.position_name.toLowerCase().trim()];
+    const roleRows = await db.getAll(
+      `SELECT role_id, role_key FROM roles WHERE role_key IN (${HR_POSITION_ROLE_KEYS.map(() => '?').join(', ')})`,
+      HR_POSITION_ROLE_KEYS
+    );
+
+    if (!roleRows.length) {
+      logger.warn('No HR RBAC roles found in roles table — skipping position-to-role sync');
+      return;
+    }
+
+    const roleIdByKey = new Map(roleRows.map((row) => [row.role_key, row.role_id]));
+    const managedRoleIds = roleRows.map((row) => row.role_id);
+
+    await db.query(
+      `DELETE FROM user_role_assignments WHERE user_id = ? AND role_id IN (${managedRoleIds.map(() => '?').join(', ')})`,
+      [userId, ...managedRoleIds]
+    );
+
+    // Only map position-based HR roles for HR department
+    if (Number(departmentId) !== Number(hrDepartmentId) || !positionId) {
+      invalidatePermissionCache();
+      return;
+    }
+
+    const position = await db.getOne('SELECT position_name FROM job_positions WHERE position_id = ?', [positionId]);
+    const normalizedPosition = normalizePositionName(position?.position_name);
+    const roleKey = POSITION_TO_RBAC_ROLE[normalizedPosition];
     if (!roleKey) return;
 
-    // Look up role_id for this role_key
-    const role = await db.getOne(
-      'SELECT role_id FROM roles WHERE role_key = ?',
-      [roleKey]
-    );
-    if (!role) {
+    const roleId = roleIdByKey.get(roleKey);
+    if (!roleId) {
       logger.warn(`RBAC role '${roleKey}' not found in roles table — skipping auto-assign`);
       return;
     }
 
-    // Insert assignment (IGNORE to skip if already assigned)
     await db.query(
       `INSERT IGNORE INTO user_role_assignments (user_id, role_id, assigned_by)
        VALUES (?, ?, ?)`,
-      [userId, role.role_id, assignedBy]
+      [userId, roleId, assignedBy]
     );
 
     invalidatePermissionCache();
-    logger.info(`RBAC auto-assigned role '${roleKey}' to user ${userId} (position: ${position.position_name})`);
+    logger.info(`RBAC synchronized role '${roleKey}' for user ${userId} (position: ${position.position_name})`);
   } catch (err) {
     // Non-blocking: log but don't fail the request
-    logger.error('autoAssignRbacRole error:', err);
+    logger.error('syncHrRbacRoleForUser error:', err);
   }
 }
 
@@ -1033,7 +1069,7 @@ export const createEmployee = async (req, res, next) => {
       );
 
       // Auto-assign RBAC role based on department + position (non-blocking)
-      await autoAssignRbacRole(userId, department_id, position_id, created_by);
+      await syncHrRbacRoleForUser(userId, department_id, position_id, created_by);
 
       // Create activity log entry (outside transaction)
       try {
@@ -1724,7 +1760,29 @@ export const updateEmployee = async (req, res, next) => {
       const finalDeptId = updates.department_id || employee.department_id;
       const finalPosId = updates.position_id || employee.position_id;
       if (employee.user_id && finalDeptId && finalPosId) {
-        await autoAssignRbacRole(employee.user_id, finalDeptId, finalPosId, updatedBy);
+        await syncHrRbacRoleForUser(employee.user_id, finalDeptId, finalPosId, updatedBy);
+      }
+
+      if (isSelfUpdate) {
+        await notifyHrUsers({
+          actorUserId: updatedBy || null,
+          excludeUserIds: [updatedBy].filter(Boolean),
+          title: 'Employee profile updated',
+          message: `${employee.first_name} ${employee.last_name} (${employee.employee_code}) updated their profile details.`,
+          category: 'employee_profile_update',
+          referenceModule: 'employees',
+          referenceId: employee.employee_id,
+        });
+      } else if (employee.user_id && updatedBy && Number(employee.user_id) !== Number(updatedBy)) {
+        await notifyEmployeeByEmployeeId({
+          employeeId: employee.employee_id,
+          actorUserId: updatedBy,
+          title: 'Profile updated by HR',
+          message: `Your employee profile was updated by HR. Please review your latest profile information.`,
+          category: 'employee_profile_updated_by_hr',
+          referenceModule: 'employees',
+          referenceId: employee.employee_id,
+        });
       }
 
       res.json({
@@ -1999,6 +2057,16 @@ const performEmployeeTermination = async (req, res, next) => {
       // Log the error but don't fail the request
       logger.error("Failed to create activity log:", logError);
     }
+
+    await notifyEmployeeByEmployeeId({
+      employeeId: id,
+      actorUserId: terminatedBy || null,
+      title: 'Employment status updated',
+      message: 'Your employment status has been marked as terminated. Please contact HR for details.',
+      category: 'employee_terminated',
+      referenceModule: 'employees',
+      referenceId: id,
+    });
 
     res.json({
       success: true,

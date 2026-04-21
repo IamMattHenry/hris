@@ -1,18 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { employeeApi, leaveApi, attendanceApi } from "@/lib/api";
+import { useCallback, useEffect, useState } from "react";
+import { employeeApi, notificationApi } from "@/lib/api";
 import { Employee } from "@/types/api";
 import FloatingTicketButton from "@/components/dashboard/FloatingTicketButton";
 import { useAuth } from "@/contexts/AuthContext";
-import Image from "next/image";
 import EditPersonalModal from "./edit_personal-information/EditPersonalModal";
 import EditEmployeeModal from "./edit_employee-information/EditEmployeeModal";
 import EditContactsModal from "./edit_contact-information/editContact";
 import EditEmailModal from "./edit_email-information/editEmail";
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
 
   const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
 
@@ -20,54 +19,78 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
  
 
-  const [activeTab, setActiveTab] = useState<"basic" | "job">("basic");
-  const [employeeAttendanceSummary, setEmployeeAttendanceSummary] = useState<{
-    present: number;
-    absent: number;
-    leave: number;
-    late: number;
-  } | null>(null);
+  const [activeTab, setActiveTab] = useState<"basic" | "job" | "notifications">("basic");
+  const [notifications, setNotifications] = useState<{
+    notification_id: number;
+    title: string;
+    message: string;
+    category?: string;
+    status: 'read' | 'unread';
+    created_at: string;
+  }[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(true);
+  const [notificationsError, setNotificationsError] = useState<string | null>(null);
+  const [markingNotificationsRead, setMarkingNotificationsRead] = useState(false);
+  const [deletingReadNotifications, setDeletingReadNotifications] = useState(false);
 
   // Modal states
   const [isEditPersonalModalOpen, setIsEditPersonalModalOpen] = useState(false);
   const [isEditEmployeeModalOpen, setIsEditEmployeeModalOpen] = useState(false);
   const [isEditContactsModalOpen, setIsEditContactsModalOpen] = useState(false);
   const [isEditEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [isViewAllEmailsOpen, setIsViewAllEmailsOpen] = useState(false);
+  const [isViewAllContactsOpen, setIsViewAllContactsOpen] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setNotificationsLoading(true);
+    setNotificationsError(null);
+
+    try {
+      const notificationsResult = await notificationApi.getMy({ limit: 50 });
+
+      // Fetch current employee's detailed data
+      if (user?.employee_id) {
+        const employeeResult = await employeeApi.getById(user.employee_id);
+        if (employeeResult.success && employeeResult.data) {
+          setCurrentEmployee(employeeResult.data as Employee);
+        }
+      }
+
+      if (notificationsResult.success && Array.isArray(notificationsResult.data)) {
+        setNotifications(notificationsResult.data as {
+          notification_id: number;
+          title: string;
+          message: string;
+          category?: string;
+          status: 'read' | 'unread';
+          created_at: string;
+        }[]);
+      } else {
+        setNotifications([]);
+        setNotificationsError(notificationsResult.message || "Failed to fetch notifications");
+      }
+    } catch (err) {
+      console.error("Error fetching dashboard data:", err);
+      setError("Failed to fetch dashboard data");
+      setNotificationsError("An error occurred while fetching notifications");
+    } finally {
+      setLoading(false);
+      setNotificationsLoading(false);
+    }
+  }, [user?.employee_id]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const [empResult, statsResult] = await Promise.all([
-          employeeApi.getAll(),
-          leaveApi.getDashboardStats(),
-        ]);
-
-        // Fetch current employee's detailed data
-        if (user?.employee_id) {
-          const employeeResult = await employeeApi.getById(user.employee_id);
-          if (employeeResult.success && employeeResult.data) {
-            setCurrentEmployee(employeeResult.data as Employee);
-          }
-
-          // Fetch current employee's attendance summary
-          const attendanceSummaryResult = await attendanceApi.getSummary(user.employee_id);
-          if (attendanceSummaryResult.success && attendanceSummaryResult.data) {
-            setEmployeeAttendanceSummary(attendanceSummaryResult.data);
-          }
-        }
-      } catch (err) {
-        console.error("Error fetching dashboard data:", err);
-        setError("Failed to fetch dashboard data");
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchData();
-  }, [user]);
+  }, [fetchData]);
+
+  const handleProfileSaved = async () => {
+    await Promise.all([
+      refreshUser(),
+      fetchData(),
+    ]);
+  };
 
   if (loading) {
     return (
@@ -103,6 +126,86 @@ export default function Dashboard() {
   const handleEmailModal = () => {
     setIsEmailModalOpen(true);
   };
+
+  const refreshNotifications = async () => {
+    setNotificationsLoading(true);
+    setNotificationsError(null);
+
+    try {
+      const result = await notificationApi.getMy({ limit: 50 });
+      if (result.success && Array.isArray(result.data)) {
+        setNotifications(result.data as {
+          notification_id: number;
+          title: string;
+          message: string;
+          category?: string;
+          status: 'read' | 'unread';
+          created_at: string;
+        }[]);
+      } else {
+        setNotifications([]);
+        setNotificationsError(result.message || "Failed to fetch notifications");
+      }
+    } catch (err) {
+      console.error("Error fetching notifications:", err);
+      setNotifications([]);
+      setNotificationsError("An error occurred while fetching notifications");
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
+  const handleMarkNotificationRead = async (id: number) => {
+    try {
+      const result = await notificationApi.markRead(id);
+      if (result.success) {
+        setNotifications((prev) =>
+          prev.map((item) =>
+            item.notification_id === id ? { ...item, status: 'read' as const } : item
+          )
+        );
+      }
+    } catch (err) {
+      console.error("Error marking notification as read:", err);
+    }
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    setMarkingNotificationsRead(true);
+    try {
+      const result = await notificationApi.markAllRead();
+      if (result.success) {
+        setNotifications((prev) => prev.map((item) => ({ ...item, status: 'read' as const })));
+      } else {
+        setNotificationsError(result.message || "Failed to mark notifications as read");
+      }
+    } catch (err) {
+      console.error("Error marking all notifications as read:", err);
+      setNotificationsError("An error occurred while updating notifications");
+    } finally {
+      setMarkingNotificationsRead(false);
+    }
+  };
+
+  const handleDeleteAllReadNotifications = async () => {
+    setDeletingReadNotifications(true);
+    setNotificationsError(null);
+    try {
+      const result = await notificationApi.deleteAllRead();
+      if (result.success) {
+        setNotifications((prev) => prev.filter((item) => item.status !== 'read'));
+      } else {
+        setNotificationsError(result.message || "Failed to delete read notifications");
+      }
+    } catch (err) {
+      console.error("Error deleting read notifications:", err);
+      setNotificationsError("An error occurred while deleting read notifications");
+    } finally {
+      setDeletingReadNotifications(false);
+    }
+  };
+
+  const readNotificationsCount = notifications.filter((item) => item.status === 'read').length;
 
   return (
     <div className="min-h-screen p-6 font-poppins">
@@ -165,11 +268,21 @@ export default function Dashboard() {
                   </div>
                   <hr className="w-80 border-[#e3b983]" />
                   <div className="text-left">
-                    <div className="text-sm text-[#412f23d4] flex flex-col">
+                    <div className="text-sm text-[#412f23d4] flex flex-col items-start">
                       {user?.emails && user.emails.length > 0 ? (
-                        user.emails.map((email, index) => (
-                          <span key={index}>{email}</span>
-                        ))
+                        <>
+                          {user.emails.slice(0, 5).map((email, index) => (
+                            <span key={index}>{email}</span>
+                          ))}
+                          {user.emails.length > 5 && (
+                            <button
+                              onClick={() => setIsViewAllEmailsOpen(true)}
+                              className="mt-1 text-xs font-semibold underline cursor-pointer text-[#412f23de] hover:text-[#8b4513]"
+                            >
+                              View all {user.emails.length} emails
+                            </button>
+                          )}
+                        </>
                       ) : (
                         <span>N/A</span>
                       )}
@@ -184,15 +297,25 @@ export default function Dashboard() {
                   </div>
                   <hr className="w-80 border-[#e3b983]" />
                   <div className="text-left">
-                    <p className="text-sm text-[#412f23d4] flex flex-col">
+                    <div className="text-sm text-[#412f23d4] flex flex-col items-start">
                       {user?.contact_numbers && user.contact_numbers.length > 0 ? (
-                        user.contact_numbers.map((contact, index) => (
-                          <span key={index}>{contact}</span>
-                        ))
+                        <>
+                          {user.contact_numbers.slice(0, 5).map((contact, index) => (
+                            <span key={index}>{contact}</span>
+                          ))}
+                          {user.contact_numbers.length > 5 && (
+                            <button
+                              onClick={() => setIsViewAllContactsOpen(true)}
+                              className="mt-1 text-xs font-semibold underline cursor-pointer text-[#412f23de] hover:text-[#8b4513]"
+                            >
+                              View all {user.contact_numbers.length} contacts
+                            </button>
+                          )}
+                        </>
                       ) : (
                         <span>N/A</span>  
                       )}
-                    </p>
+                    </div>
                   </div>
                 </div>
 
@@ -207,10 +330,10 @@ export default function Dashboard() {
           {/* Right Column - Shifts and Attendance Summary */}
           <div className="space-y-6">
             {/* Tab Buttons */}
-            <div className="flex gap-3 justify-center">
+            <div className="flex flex-wrap gap-2 lg:gap-3 justify-center">
               <button
                 onClick={() => setActiveTab("basic")}
-                className={`px-20 py-5 rounded-lg font-medium transition-all ${activeTab === "basic"
+                className={`flex-1 min-w-[130px] py-3 px-2 rounded-lg font-medium transition-all text-sm lg:text-base text-center ${activeTab === "basic"
                     ? "bg-[#073532] text-white shadow-md"
                     : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
                   }`}
@@ -219,12 +342,21 @@ export default function Dashboard() {
               </button>
               <button
                 onClick={() => setActiveTab("job")}
-                className={`px-20 py-5 rounded-lg font-medium transition-all ${activeTab === "job"
+                className={`flex-1 min-w-[130px] py-3 px-2 rounded-lg font-medium transition-all text-sm lg:text-base text-center ${activeTab === "job"
                     ? "bg-[#073532] text-white shadow-md"
                     : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
                   }`}
               >
                 Job Information
+              </button>
+              <button
+                onClick={() => setActiveTab("notifications")}
+                className={`flex-1 min-w-[130px] py-3 px-2 rounded-lg font-medium transition-all text-sm lg:text-base text-center ${activeTab === "notifications"
+                    ? "bg-[#073532] text-white shadow-md"
+                    : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+                  }`}
+              >
+                Notifications
               </button>
             </div>
 
@@ -374,6 +506,82 @@ export default function Dashboard() {
                 </div>
               </>
             )}
+
+            {activeTab === "notifications" && (
+              <div className="bg-white rounded-xl shadow-sm border border-[#e8dcc8] overflow-hidden">
+                <div className="bg-[#281b0d] px-6 py-3 shadow-lg rounded-b-lg flex justify-between items-center">
+                  <h2 className="text-lg font-semibold text-white">Notifications</h2>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={refreshNotifications}
+                      className="bg-white text-[#281b0d] px-3 py-1 rounded-lg text-sm font-medium hover:bg-gray-100 transition"
+                    >
+                      Refresh
+                    </button>
+                    <button
+                      onClick={handleMarkAllNotificationsRead}
+                      disabled={markingNotificationsRead || notifications.length === 0}
+                      className="bg-white text-[#281b0d] px-3 py-1 rounded-lg text-sm font-medium hover:bg-gray-100 transition disabled:opacity-50"
+                    >
+                      Mark all as read
+                    </button>
+                    <button
+                      onClick={handleDeleteAllReadNotifications}
+                      disabled={deletingReadNotifications || readNotificationsCount === 0}
+                      className="bg-white text-[#281b0d] px-3 py-1 rounded-lg text-sm font-medium hover:bg-gray-100 transition disabled:opacity-50"
+                    >
+                      Delete all read
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-6">
+                  {notificationsLoading ? (
+                    <p className="text-sm text-gray-500">Loading notifications...</p>
+                  ) : notificationsError ? (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">
+                      {notificationsError}
+                    </div>
+                  ) : notifications.length === 0 ? (
+                    <p className="text-sm text-gray-500">No notifications yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {notifications.map((item) => (
+                        <div
+                          key={item.notification_id}
+                          className={`rounded-md border px-4 py-3 ${item.status === 'unread'
+                            ? 'bg-[#fff7ec] border-[#e2c8a9]'
+                            : 'bg-white border-[#ece7df]'
+                            }`}
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <p className="text-sm font-semibold text-gray-800">{item.title}</p>
+                              <p className="text-xs text-gray-600 mt-1">{item.message}</p>
+                              <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                                <span className="capitalize">{item.category || 'general'}</span>
+                                <span>{new Date(item.created_at).toLocaleString()}</span>
+                                <span className={`px-2 py-0.5 rounded-full ${item.status === 'unread' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700'}`}>
+                                  {item.status === 'unread' ? 'Unread' : 'Read'}
+                                </span>
+                              </div>
+                            </div>
+                            {item.status === 'unread' && (
+                              <button
+                                onClick={() => handleMarkNotificationRead(item.notification_id)}
+                                className="px-3 py-1.5 rounded-md border border-gray-300 text-xs text-gray-700 hover:bg-gray-50"
+                              >
+                                Mark as read
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -383,24 +591,97 @@ export default function Dashboard() {
         isOpen={isEditPersonalModalOpen}
         onClose={() => setIsEditPersonalModalOpen(false)}
         id={user?.employee_id || null}
+        onSaved={handleProfileSaved}
       />
       <EditEmployeeModal
         isOpen={isEditEmployeeModalOpen}
         onClose={() => setIsEditEmployeeModalOpen(false)}
         id={user?.employee_id || null}
+        onSaved={handleProfileSaved}
       />
 
       <EditContactsModal
         isOpen={isEditContactsModalOpen}
         onClose={() => setIsEditContactsModalOpen(false)}
         id={user?.employee_id || null}
+        onSaved={handleProfileSaved}
       />
 
       <EditEmailModal
         isOpen={isEditEmailModalOpen}
         onClose={() => setIsEmailModalOpen(false)}
         id={user?.employee_id || null}
+        onSaved={handleProfileSaved}
       />
+
+      {/* View All Emails Modal */}
+      {isViewAllEmailsOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-lg max-w-md w-full max-h-[80vh] flex flex-col overflow-hidden">
+            <div className="bg-[#281b0d] px-6 py-4 flex justify-between items-center">
+              <h2 className="text-lg font-semibold text-white">All Email Addresses</h2>
+              <button
+                onClick={() => setIsViewAllEmailsOpen(false)}
+                className="text-white hover:text-gray-300 transition text-xl font-bold"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="flex flex-col gap-3">
+                {user?.emails?.map((email, index) => (
+                  <div key={index} className="p-3 bg-gray-50 rounded-lg border border-gray-200 text-sm text-gray-700">
+                    {email}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="p-4 border-t bg-gray-50 flex justify-end">
+              <button
+                onClick={() => setIsViewAllEmailsOpen(false)}
+                className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-300 transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View All Contacts Modal */}
+      {isViewAllContactsOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-lg max-w-md w-full max-h-[80vh] flex flex-col overflow-hidden">
+            <div className="bg-[#281b0d] px-6 py-4 flex justify-between items-center">
+              <h2 className="text-lg font-semibold text-white">All Contact Numbers</h2>
+              <button
+                onClick={() => setIsViewAllContactsOpen(false)}
+                className="text-white hover:text-gray-300 transition text-xl font-bold"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="flex flex-col gap-3">
+                {user?.contact_numbers?.map((contact, index) => (
+                  <div key={index} className="p-3 bg-gray-50 rounded-lg border border-gray-200 text-sm text-gray-700">
+                    {contact}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="p-4 border-t bg-gray-50 flex justify-end">
+              <button
+                onClick={() => setIsViewAllContactsOpen(false)}
+                className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-300 transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 <div>
       {/* Floating Ticket Button */}
       <FloatingTicketButton />

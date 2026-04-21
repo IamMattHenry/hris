@@ -26,7 +26,7 @@ interface PayrollRunDetail {
   pay_period_start: string;
   pay_period_end: string;
   pay_schedule: string;
-  status: "draft" | "finalized";
+  status: "draft" | "pending_finance_approval" | "finance_approved" | "finance_rejected" | "finalized" | "aborted";
   summary: {
     gross_pay: number;
     total_deductions: number;
@@ -41,6 +41,7 @@ interface ViewPayrollDetailsProps {
   isOpen: boolean;
   onClose: () => void;
   payrollId: number | null;
+  onUpdated?: () => void;
 }
 
 const formatMoney = (value: number) =>
@@ -49,11 +50,13 @@ const formatMoney = (value: number) =>
     maximumFractionDigits: 2,
   })}`;
 
-export default function PayrollRunDetailModal({
-  isOpen,
-  onClose,
-  payrollId,
-}: ViewPayrollDetailsProps) {
+export default function PayrollRunDetailModal(props: any) {
+  const {
+    isOpen,
+    onClose,
+    payrollId,
+    onUpdated,
+  } = props as ViewPayrollDetailsProps;
   const modalRef = useRef<HTMLDivElement>(null);
 
   const runId = payrollId;
@@ -159,6 +162,7 @@ export default function PayrollRunDetailModal({
       showToast.success("Payroll run finalized");
       setShowFinalizeModal(false);
       await fetchRun();
+      onUpdated?.();
     } catch (err: any) {
       showToast.error(err.message || "Failed to finalize payroll run");
     } finally {
@@ -171,12 +175,13 @@ export default function PayrollRunDetailModal({
     try {
       setDeleting(true);
       const res = await payrollApi.deleteRun(run.id);
-      if (!res.success) throw new Error(res.message || "Failed to delete");
-      showToast.success("Payroll run deleted");
+      if (!res.success) throw new Error(res.message || "Failed to abort");
+      showToast.success("Payroll run aborted");
       setShowDeleteModal(false);
+      onUpdated?.();
       onClose();
     } catch (err: any) {
-      showToast.error(err.message || "Failed to delete payroll run");
+      showToast.error(err.message || "Failed to abort payroll run");
     } finally {
       setDeleting(false);
     }
@@ -197,6 +202,7 @@ export default function PayrollRunDetailModal({
       showToast.success("Override applied successfully");
       setShowOverrideModal(false);
       await fetchRun();
+      onUpdated?.();
     } catch (err: any) {
       showToast.error(err.message || "Failed to save override");
     } finally {
@@ -358,17 +364,19 @@ export default function PayrollRunDetailModal({
               {/* Footer */}
               {run && !loading && (
                 <div className="px-6 py-4 border-t border-[#E8D9C4] flex flex-wrap gap-3 justify-end bg-[#F3E5CF]/40">
-                  {run.status === "draft" ? (
-                    <>
-                      <button
-                        onClick={() => setShowDeleteModal(true)}
-                        className="px-5 py-2 rounded-lg bg-red-100 text-red-700 border border-red-300 hover:opacity-90 transition inline-flex items-center gap-2"
-                        disabled={deleting || finalizing}
-                      >
-                        <Trash2 size={16} />
-                        {deleting ? "Deleting..." : "Delete Run"}
-                      </button>
+                  {run.status !== "finalized" && run.status !== "aborted" && (
+                    <button
+                      onClick={() => setShowDeleteModal(true)}
+                      className="px-5 py-2 rounded-lg bg-red-100 text-red-700 border border-red-300 hover:opacity-90 transition inline-flex items-center gap-2"
+                      disabled={deleting || finalizing}
+                    >
+                      <Trash2 size={16} />
+                      {deleting ? "Aborting..." : "Abort Run"}
+                    </button>
+                  )}
 
+                  {run.status === "finance_approved" ? (
+                    <>
                       <ActionButton
                         label={finalizing ? "Finalizing..." : "Finalize Run"}
                         onClick={() => setShowFinalizeModal(true)}
@@ -376,9 +384,21 @@ export default function PayrollRunDetailModal({
                         disabled={finalizing || deleting}
                       />
                     </>
-                  ) : (
+                  ) : run.status === "finalized" ? (
                     <span className="px-5 py-2 rounded-lg bg-green-100 text-green-800 border border-green-300 font-semibold">
                       FINALIZED
+                    </span>
+                  ) : run.status === "aborted" ? (
+                    <span className="px-5 py-2 rounded-lg bg-gray-100 text-gray-700 border border-gray-300 font-semibold">
+                      ABORTED
+                    </span>
+                  ) : run.status === "finance_rejected" ? (
+                    <span className="px-5 py-2 rounded-lg bg-red-100 text-red-700 border border-red-300 font-semibold">
+                      FINANCE REJECTED
+                    </span>
+                  ) : (
+                    <span className="px-5 py-2 rounded-lg bg-amber-100 text-amber-800 border border-amber-300 font-semibold">
+                      AWAITING FINANCE APPROVAL
                     </span>
                   )}
                 </div>
@@ -390,11 +410,11 @@ export default function PayrollRunDetailModal({
 
       {/* Nested Modals */}
       <AnimatePresence>
-        {showDeleteModal && run?.status === "draft" && (
+        {showDeleteModal && run?.status !== "finalized" && run?.status !== "aborted" && (
           <ConfirmationModal
-            title="Delete Payroll Run"
-            message="This will permanently delete this payroll run and all associated records. This action cannot be undone."
-            confirmText="Delete Run"
+            title="Abort Payroll Run"
+            message="This will abort the payroll run and mark it as inactive. Finance approval and finalization will no longer be possible."
+            confirmText="Abort Run"
             confirmColor="bg-red-700"
             isLoading={deleting}
             onConfirm={handleDeleteRun}

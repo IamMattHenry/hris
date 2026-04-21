@@ -11,6 +11,7 @@ interface EditContactsModalProps {
     isOpen: boolean;
     onClose: () => void;
     id: number | null;
+    onSaved?: () => void;
 }
 
 interface EmployeeData {
@@ -22,6 +23,7 @@ export default function EditContactsModal({
     isOpen,
     onClose,
     id,
+    onSaved,
 }: EditContactsModalProps) {
     const [employee, setEmployee] = useState<EmployeeData | null>(null);
     const [contacts, setContacts] = useState<string[]>([""]);
@@ -132,7 +134,7 @@ export default function EditContactsModal({
             if (result.success) {
                 toast.success("Contact numbers updated successfully!");
                 onClose();
-                window.location.reload();
+                onSaved?.();
             } else {
                 toast.error(result.message || "Failed to update contacts.");
             }

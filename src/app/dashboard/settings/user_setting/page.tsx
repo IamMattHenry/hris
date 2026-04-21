@@ -1,11 +1,21 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import ProfileSection from "./profile";
 import DependantsSection from "./dependant";
+import BudgetForm from "./budgetform";
 import ActionButton from "@/components/buttons/ActionButton";
 
 const AboutUserTab = () => {
     const [activeSection, setActiveSection] = useState('profile');
+    const searchParams = useSearchParams();
+
+    useEffect(() => {
+        const section = searchParams.get("section");
+        if (section === "budget") {
+            setActiveSection("budget");
+        }
+    }, [searchParams]);
 
     return (
         <div className="flex gap-6">
@@ -14,6 +24,7 @@ const AboutUserTab = () => {
                 {[
                     { id: "profile", label: "Profile & Contacts" },
                     { id: "dependants", label: "Dependants" },
+                    { id: "budget", label: "Budget" },
                 ].map((item) => {
                     const isActive = activeSection === item.id;
                     return (
@@ -37,6 +48,7 @@ const AboutUserTab = () => {
             <div className="flex-1 max-h-screen">
                 {activeSection === 'profile' && <ProfileSection />}
                 {activeSection === 'dependants' && <DependantsSection />}
+                {activeSection === 'budget' && <BudgetForm />}
             </div>
         </div>
     );

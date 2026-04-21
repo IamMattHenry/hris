@@ -1,8 +1,32 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { User, Briefcase, Shield } from "lucide-react";
-import { authApi } from "@/lib/api";
+import { useSearchParams } from "next/navigation";
+import { User, Briefcase, Shield, Bell } from "lucide-react";
+import { authApi, notificationApi } from "@/lib/api";
+
+const formatNotificationTime = (value: string) => {
+    if (!value) return '';
+
+    const normalized = value.includes('T') ? value : value.replace(' ', 'T');
+    const withOffset = /([zZ]|[+-]\d{2}:\d{2})$/.test(normalized) ? normalized : `${normalized}+08:00`;
+    const date = new Date(withOffset);
+
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+
+    return new Intl.DateTimeFormat('en-PH', {
+        timeZone: 'Asia/Manila',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+    }).format(date);
+};
 
 type ContactItem = { id: number; number: string };
 type EmailItem = { id: number; email: string; isPrimary: boolean };
@@ -46,31 +70,140 @@ type FormattedData = {
     attendance: any[];
 };
 
+type UserNotification = {
+    notification_id: number;
+    title: string;
+    message: string;
+    category?: string;
+    status: "read" | "unread";
+    created_at: string;
+};
+
 const Profile = () => {
+    const searchParams = useSearchParams();
     const [activeSection, setActiveSection] = useState("personal");
     const [userData, setUserData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [notifications, setNotifications] = useState<UserNotification[]>([]);
+    const [notificationsLoading, setNotificationsLoading] = useState(true);
+    const [notificationsError, setNotificationsError] = useState<string | null>(null);
+    const [markingAllRead, setMarkingAllRead] = useState(false);
+    const [deletingReadNotifications, setDeletingReadNotifications] = useState(false);
+
+    useEffect(() => {
+        const section = searchParams.get("section");
+        if (section === "notifications") {
+            setActiveSection("notifications");
+        }
+    }, [searchParams]);
+
+    const loadNotifications = async () => {
+        setNotificationsLoading(true);
+        setNotificationsError(null);
+
+        try {
+            const result = await notificationApi.getMy({ limit: 50 });
+            if (result.success && Array.isArray(result.data)) {
+                setNotifications(result.data as UserNotification[]);
+            } else {
+                setNotifications([]);
+                setNotificationsError(result.message || "Failed to fetch notifications");
+            }
+        } catch (err) {
+            console.error(err);
+            setNotifications([]);
+            setNotificationsError("An error occurred while fetching notifications");
+        } finally {
+            setNotificationsLoading(false);
+        }
+    };
 
     useEffect(() => {
         const fetchUserData = async () => {
             try {
                 setLoading(true);
-                const result = await authApi.getCurrentUser();
-                if (result.success && result.data) {
-                    setUserData(result.data);
+                const [userResult, notificationsResult] = await Promise.all([
+                    authApi.getCurrentUser(),
+                    notificationApi.getMy({ limit: 50 }),
+                ]);
+
+                if (userResult.success && userResult.data) {
+                    setUserData(userResult.data);
                 } else {
-                    setError(result.message || "Failed to fetch user data");
+                    setError(userResult.message || "Failed to fetch user data");
+                }
+
+                if (notificationsResult.success && Array.isArray(notificationsResult.data)) {
+                    setNotifications(notificationsResult.data as UserNotification[]);
+                    setNotificationsError(null);
+                } else {
+                    setNotifications([]);
+                    setNotificationsError(notificationsResult.message || "Failed to fetch notifications");
                 }
             } catch (err) {
                 console.error(err);
                 setError("An error occurred while fetching user data");
+                setNotificationsError("An error occurred while fetching notifications");
             } finally {
                 setLoading(false);
+                setNotificationsLoading(false);
             }
         };
         fetchUserData();
     }, []);
+
+    const handleMarkNotificationRead = async (id: number) => {
+        try {
+            const result = await notificationApi.markRead(id);
+            if (result.success) {
+                setNotifications((prev) =>
+                    prev.map((item) =>
+                        item.notification_id === id
+                            ? { ...item, status: "read" as const }
+                            : item
+                    )
+                );
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleMarkAllRead = async () => {
+        setMarkingAllRead(true);
+        try {
+            const result = await notificationApi.markAllRead();
+            if (result.success) {
+                setNotifications((prev) => prev.map((item) => ({ ...item, status: "read" as const })));
+            } else {
+                setNotificationsError(result.message || "Failed to mark notifications as read");
+            }
+        } catch (err) {
+            console.error(err);
+            setNotificationsError("An error occurred while updating notifications");
+        } finally {
+            setMarkingAllRead(false);
+        }
+    };
+
+    const handleDeleteAllRead = async () => {
+        setDeletingReadNotifications(true);
+        setNotificationsError(null);
+        try {
+            const result = await notificationApi.deleteAllRead();
+            if (result.success) {
+                setNotifications((prev) => prev.filter((item) => item.status !== "read"));
+            } else {
+                setNotificationsError(result.message || "Failed to delete read notifications");
+            }
+        } catch (err) {
+            console.error(err);
+            setNotificationsError("An error occurred while deleting read notifications");
+        } finally {
+            setDeletingReadNotifications(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -90,6 +223,7 @@ const Profile = () => {
 
     // Check if user has employee record
     const hasEmployeeRecord = userData.employee_id != null;
+    const readNotificationsCount = notifications.filter((item) => item.status === "read").length;
 
     const formattedData: FormattedData = {
         personal: {
@@ -146,6 +280,7 @@ const Profile = () => {
         { id: "personal", label: "Personal Information", icon: User },
         { id: "job", label: "Job Information", icon: Briefcase },
         { id: "account", label: "Account Information", icon: Shield },
+        { id: "notifications", label: "Notifications", icon: Bell },
     ];
 
     return (
@@ -491,6 +626,85 @@ const Profile = () => {
                                     </p>
                                 </div>
                             </div>
+                        </section>
+                    )}
+
+                    {activeSection === "notifications" && (
+                        <section>
+                            <div className="flex items-center justify-between mb-6">
+                                <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={loadNotifications}
+                                        className="px-3 py-1.5 rounded-md border border-gray-300 text-sm text-gray-700 hover:bg-gray-50"
+                                    >
+                                        Refresh
+                                    </button>
+                                    <button
+                                        onClick={handleMarkAllRead}
+                                        disabled={markingAllRead || notifications.length === 0}
+                                        className="px-3 py-1.5 rounded-md border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                                    >
+                                        Mark all as read
+                                    </button>
+                                    <button
+                                        onClick={handleDeleteAllRead}
+                                        disabled={deletingReadNotifications || readNotificationsCount === 0}
+                                        className="px-3 py-1.5 rounded-md border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                                    >
+                                        Delete all read
+                                    </button>
+                                </div>
+                            </div>
+
+                            {notificationsLoading ? (
+                                <p className="text-gray-600">Loading notifications...</p>
+                            ) : notificationsError ? (
+                                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+                                    {notificationsError}
+                                </div>
+                            ) : notifications.length === 0 ? (
+                                <p className="text-gray-600">No notifications yet.</p>
+                            ) : (
+                                <div className="space-y-3">
+                                    {notifications.map((notification) => (
+                                        <div
+                                            key={notification.notification_id}
+                                            className={`p-4 rounded-lg border ${notification.status === "unread"
+                                                ? "bg-amber-50 border-amber-200"
+                                                : "bg-white border-gray-200"
+                                                }`}
+                                        >
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div>
+                                                    <p className="font-semibold text-gray-900">{notification.title}</p>
+                                                    <p className="text-sm text-gray-700 mt-1">{notification.message}</p>
+                                                    <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                                                        <span className="capitalize">{notification.category || "general"}</span>
+                                                        <span>{formatNotificationTime(notification.created_at)}</span>
+                                                        <span
+                                                            className={`px-2 py-0.5 rounded-full ${notification.status === "unread"
+                                                                ? "bg-amber-100 text-amber-800"
+                                                                : "bg-gray-100 text-gray-700"
+                                                                }`}
+                                                        >
+                                                            {notification.status === "unread" ? "Unread" : "Read"}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                {notification.status === "unread" && (
+                                                    <button
+                                                        onClick={() => handleMarkNotificationRead(notification.notification_id)}
+                                                        className="px-3 py-1.5 rounded-md border border-gray-300 text-xs text-gray-700 hover:bg-gray-50"
+                                                    >
+                                                        Mark as read
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </section>
                     )}
                 </div>

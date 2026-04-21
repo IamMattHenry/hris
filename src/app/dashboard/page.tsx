@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { employeeApi, leaveApi, attendanceApi, ticketApi } from "@/lib/api";
+import { employeeApi, leaveApi, attendanceApi, ticketApi, notificationApi } from "@/lib/api";
 import { Employee } from "@/types/api";
-import { X, ChevronRight } from "lucide-react";
+import { X, ChevronRight, ChevronDown } from "lucide-react";
 import FloatingTicketButton from "@/components/dashboard/FloatingTicketButton";
 import FingerprintRegistrationModal from "@/components/dashboard/FingerprintRegistrationModal";
 import { useAuth } from "@/contexts/AuthContext";
@@ -57,6 +57,13 @@ interface DashboardStats {
   pending_requests: number;
   total_positions: number;
   total_departments: number;
+}
+
+interface UserNotification {
+  notification_id: number;
+  title: string;
+  message: string;
+  status: 'read' | 'unread';
 }
 
 const COUNTED_STATUSES = new Set(["present", "late", "half_day", "work_from_home"]);
@@ -123,12 +130,17 @@ export default function Dashboard() {
   const [showAbsenceRecords, setShowAbsenceRecords] = useState(false);
   const [showFingerprintModal, setShowFingerprintModal] = useState(false);
   const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
+  const [notifications, setNotifications] = useState<UserNotification[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(true);
+  const [markingNotificationsRead, setMarkingNotificationsRead] = useState(false);
+  const [showAllNotifications, setShowAllNotifications] = useState(false);
   // Role-aware actionable pending count (supervisors: 'pending'; superadmin/HR: 'supervisor_approved')
   const [pendingActionableCount, setPendingActionableCount] = useState<number | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
+      setNotificationsLoading(true);
       setError(null);
 
       try {
@@ -136,14 +148,16 @@ export default function Dashboard() {
         const actionablePromise = role === 'supervisor'
           ? Promise.resolve({ success: true, data: [] })
           : role === 'superadmin'
-          ? leaveApi.getByStatus('pending')
-          : Promise.resolve({ success: true, data: [] });
+            ? leaveApi.getByStatus('pending')
+            : Promise.resolve({ success: true, data: [] });
 
-        const [empResult, statsResult, attendanceResult, actionableResult] = await Promise.all([
+        const [empResult, statsResult, attendanceResult, actionableResult, notificationsResult, absenceResult] = await Promise.all([
           employeeApi.getAll(),
           leaveApi.getDashboardStats(),
           attendanceApi.getAll(),
           actionablePromise,
+          notificationApi.getMy({ limit: 8 }),
+          leaveApi.getAbsenceRecords(),
         ]);
 
         if (empResult.success && empResult.data) {
@@ -180,6 +194,24 @@ export default function Dashboard() {
           setPendingActionableCount(null);
         }
 
+        if (notificationsResult.success && Array.isArray(notificationsResult.data)) {
+          setNotifications(notificationsResult.data as UserNotification[]);
+        } else {
+          setNotifications([]);
+        }
+
+        if (absenceResult.success && absenceResult.data) {
+          const records = absenceResult.data as AbsenceRecord[];
+          const currentMonth = new Date().getMonth();
+          const currentYear = new Date().getFullYear();
+          const thisMonthAbsences = records.filter(record => {
+            if (!record.date) return false;
+            const recordDate = new Date(record.date);
+            return recordDate.getMonth() === currentMonth && recordDate.getFullYear() === currentYear;
+          });
+          setAbsenceRecords(thisMonthAbsences);
+        }
+
         // Check if current user needs fingerprint registration
         if (user?.employee_id) {
           const employeeResult = await employeeApi.getById(user.employee_id);
@@ -190,7 +222,7 @@ export default function Dashboard() {
             // Check if modal should be shown (only once per session)
             const modalKey = `fingerprint_modal_shown_${user?.user_id ?? 'unknown'}`;
             // Clean legacy global key so it won't affect other accounts in this session
-            try { sessionStorage.removeItem('fingerprint_modal_shown'); } catch {}
+            try { sessionStorage.removeItem('fingerprint_modal_shown'); } catch { }
             const hasShownModal = sessionStorage.getItem(modalKey);
             const missingFingerprint = emp.fingerprint_id == null || (typeof emp.fingerprint_id === 'number' && emp.fingerprint_id <= 0);
             if (missingFingerprint && !hasShownModal) {
@@ -205,6 +237,7 @@ export default function Dashboard() {
         setError(msg);
         toast.error(msg);
       } finally {
+        setNotificationsLoading(false);
         setLoading(false);
       }
     };
@@ -309,7 +342,15 @@ export default function Dashboard() {
     try {
       const result = await leaveApi.getAbsenceRecords();
       if (result.success && result.data) {
-        setAbsenceRecords(result.data as AbsenceRecord[]);
+        const records = result.data as AbsenceRecord[];
+        const currentMonth = new Date().getMonth();
+        const currentYear = new Date().getFullYear();
+        const thisMonthAbsences = records.filter(record => {
+          if (!record.date) return false;
+          const recordDate = new Date(record.date);
+          return recordDate.getMonth() === currentMonth && recordDate.getFullYear() === currentYear;
+        });
+        setAbsenceRecords(thisMonthAbsences);
         setShowAbsenceRecords(true);
       } else {
         toast.error(result.message || 'Failed to load absence records.');
@@ -359,6 +400,18 @@ export default function Dashboard() {
     setShowFingerprintModal(false);
   };
 
+  const handleMarkAllNotificationsRead = async () => {
+    setMarkingNotificationsRead(true);
+    try {
+      const result = await notificationApi.markAllRead();
+      if (result.success) {
+        setNotifications((prev) => prev.map((item) => ({ ...item, status: 'read' })));
+      }
+    } finally {
+      setMarkingNotificationsRead(false);
+    }
+  };
+
   return (
     <div className="min-h-screen p-6 font-poppins">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -390,8 +443,8 @@ export default function Dashboard() {
               const label = isSuperadmin
                 ? 'Pending HR Review'
                 : isSupervisor
-                ? 'Pending HR Review'
-                : 'Pending Requests';
+                  ? 'Pending HR Review'
+                  : 'Pending Requests';
               return (
                 <>
                   <p className="text-3xl font-bold text-gray-800">{count}</p>
@@ -400,6 +453,76 @@ export default function Dashboard() {
               );
             })()}
           </div>
+        </div>
+
+        <div className="bg-[#faf5ed] rounded-xl shadow-sm p-5 border border-[#e8dcc8] relative z-40">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-semibold text-gray-800">Recent Notifications</h2>
+              {notifications.length > 1 && (
+                <button
+                  onClick={() => setShowAllNotifications(!showAllNotifications)}
+                  className="text-gray-500 hover:text-gray-700 transition"
+                >
+                  <ChevronDown
+                    size={20}
+                    className={`transform transition-transform duration-200 ${
+                      showAllNotifications ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+              )}
+            </div>
+            <button
+              onClick={handleMarkAllNotificationsRead}
+              disabled={markingNotificationsRead || notifications.length === 0}
+              className="text-xs px-3 py-1 rounded-md border border-[#d7c6ac] text-[#4B0B14] disabled:opacity-50"
+            >
+              Mark all as read
+            </button>
+          </div>
+
+          {notificationsLoading ? (
+            <p className="text-sm text-gray-500">Loading notifications...</p>
+          ) : notifications.length === 0 ? (
+            <p className="text-sm text-gray-500">No notifications yet.</p>
+          ) : (
+            <>
+              {/* Always show 1 preview item to maintain card layout */}
+              <div className="space-y-2 pr-1">
+                {notifications.slice(0, 1).map((item) => (
+                  <div
+                    key={item.notification_id}
+                    className={`rounded-md border px-3 py-2 ${item.status === 'unread' ? 'bg-[#fff7ec] border-[#e2c8a9]' : 'bg-white border-[#ece7df]'}`}
+                  >
+                    <p className="text-sm font-semibold text-gray-800">{item.title}</p>
+                    <p className="text-xs text-gray-600 mt-1">{item.message}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Absolutely positioned dropdown (modal-like) for the full list */}
+              {showAllNotifications && notifications.length > 1 && (
+                <div
+                  className={`absolute left-0 right-0 top-full mt-2 bg-[#faf5ed] rounded-xl shadow-xl border border-[#e8dcc8] z-50 ${
+                    notifications.length > 5 ? 'max-h-[380px] overflow-y-auto' : ''
+                  }`}
+                >
+                  <div className="p-4 space-y-2">
+                    {notifications.map((item) => (
+                      <div
+                        key={item.notification_id}
+                        className={`rounded-md border px-3 py-2 ${item.status === 'unread' ? 'bg-[#fff7ec] border-[#e2c8a9]' : 'bg-white border-[#ece7df]'}`}
+                      >
+                        <p className="text-sm font-semibold text-gray-800">{item.title}</p>
+                        <p className="text-xs text-gray-600 mt-1">{item.message}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         {/* Main Grid */}
@@ -469,6 +592,7 @@ export default function Dashboard() {
               >
                 View Pending Requests <ChevronRight size={16} className="ml-1" />
               </button>
+            
               <div className="absolute top-6 right-6">
                 <svg className="w-16 h-16" viewBox="0 0 100 100">
                   <circle cx="50" cy="50" r="40" fill="none" stroke="#e8dcc8" strokeWidth="8" />
@@ -492,6 +616,19 @@ export default function Dashboard() {
                   />
                 </svg>
               </div>
+            </div>
+
+            {/* Absences Card */}
+            <div className="bg-[#faf5ed] rounded-xl shadow-sm p-6 border border-[#e8dcc8] relative">
+              <h3 className="text-sm font-medium text-gray-600 mb-2">Absences (This Month)</h3>
+              <p className="text-4xl font-bold text-gray-800">{absenceRecords.length || 0}</p>
+              <button
+                onClick={handleViewAbsenceRecords}
+                className="text-sm text-gray-600 mt-2 cursor-pointer flex items-center hover:text-gray-800 transition"
+              >
+                View Absence <ChevronRight size={16} className="ml-1" />
+              </button>
+             
             </div>
 
             {/* Gender Card */}
@@ -606,7 +743,7 @@ export default function Dashboard() {
             </div>
 
 
-        
+
             {/* Department List */}
             <div className="space-y-3">
               {departmentData.map((dept, index) => (
@@ -634,34 +771,12 @@ export default function Dashboard() {
 
           </div>
         </div>
-
-        {/* Quick Actions Section */}
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-[#e8dcc8]">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <button
-              onClick={handleViewPendingLeaves}
-              className="flex items-center justify-between p-4 bg-[#f0e6d2] hover:bg-[#e8dcc8] rounded-lg transition"
-            >
-              <span className="font-medium text-gray-800">View Pending Leave Requests</span>
-              <ChevronRight className="h-5 w-5 text-gray-500" />
-            </button>
-            <button
-              onClick={handleViewAbsenceRecords}
-              className="flex items-center justify-between p-4 bg-[#f0e6d2] hover:bg-[#e8dcc8] rounded-lg transition"
-            >
-              <span className="font-medium text-gray-800">View Absence Records</span>
-              <ChevronRight className="h-5 w-5 text-gray-500" />
-            </button>
-          </div>
-        </div>
       </div>
-
       {/* Pending Leave Requests Modal */}
       {showPendingLeaves && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
-            <div className="p-6">
+        <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl ">
+            <div className="p-6 max-h-[80vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-bold text-gray-800">Pending Leave Requests</h3>
                 <button
@@ -717,8 +832,8 @@ export default function Dashboard() {
 
       {/* Absence Records Modal */}
       {showAbsenceRecords && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh]">
             <div className="p-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-bold text-gray-800">Absence Records</h3>
@@ -730,7 +845,7 @@ export default function Dashboard() {
                 </button>
               </div>
               {absenceRecords.length > 0 ? (
-                <div className="space-y-4">
+                <div className="space-y-4 overflow-y-auto max-h-[60vh]">
                   {absenceRecords.map((record) => (
                     <div key={record.attendance_id} className="border border-gray-200 rounded-lg p-4">
                       <div className="grid grid-cols-2 gap-4">
@@ -776,3 +891,26 @@ export default function Dashboard() {
     </div>
   );
 }
+
+  {/* Quick Actions Section 
+        <div className="bg-white rounded-xl shadow-sm p-6 border border-[#e8dcc8]">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <button
+              onClick={handleViewPendingLeaves}
+              className="flex items-center justify-between p-4 bg-[#f0e6d2] hover:bg-[#e8dcc8] rounded-lg transition"
+            >
+              <span className="font-medium text-gray-800">View Pending Leave Requests</span>
+              <ChevronRight className="h-5 w-5 text-gray-500" />
+            </button>
+            <button
+              onClick={handleViewAbsenceRecords}
+              className="flex items-center justify-between p-4 bg-[#f0e6d2] hover:bg-[#e8dcc8] rounded-lg transition"
+            >
+              <span className="font-medium text-gray-800">View Absence Records</span>
+              <ChevronRight className="h-5 w-5 text-gray-500" />
+            </button>
+          </div>
+        </div>
+      </div>
+      */}

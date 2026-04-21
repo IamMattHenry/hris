@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
 import { useAuth } from "@/contexts/AuthContext";
 import InfoBox from "@/components/forms/FormDisplay";
+import { usePermissions } from "@/hooks/usePermissions";
 
 
 type LeaveStatus = "pending" | "hr_approved" | "approved" | "rejected" | "supervisor_approved"; // include legacy
@@ -95,9 +96,13 @@ export default function ViewLeaveModal({
   onReject: () => void;
 }) {
   const { user } = useAuth();
+  const { can, canAny, hasRole } = usePermissions();
   const isSupervisor = user?.role === "supervisor";
-  const isAdmin = user?.role === "admin";
-  const isSuperadmin = user?.role === "superadmin";
+  const isLeaveAttendanceOfficer = hasRole("leave_attendance_officer");
+  const isHrManager = hasRole("hr_manager");
+  const canApproveLeave = isLeaveAttendanceOfficer || (can("leave.approve") && !isHrManager);
+  const canRejectLeave = isLeaveAttendanceOfficer || (can("leave.reject") && !isHrManager);
+  const canManageLeave = isLeaveAttendanceOfficer || (canAny("leave.approve", "leave.reject") && !isHrManager);
 
   if (!isOpen) return null;
 
@@ -105,7 +110,7 @@ export default function ViewLeaveModal({
   let docs: Record<string, any> | null = null;
   try {
     docs = leave.supporting_docs ? JSON.parse(leave.supporting_docs) : null;
-  } catch (e) {
+  } catch {
     docs = null;
   }
 
@@ -123,7 +128,7 @@ export default function ViewLeaveModal({
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
       <div
-        className="bg-[#fdf3e2] w-full max-w-md p-8 rounded-2xl shadow-lg relative text-[#3b2b1c]"
+        className="bg-[#fdf3e2] w-full max-w-2xl p-8 rounded-2xl shadow-lg relative text-[#3b2b1c] max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <button onClick={onClose} className="absolute top-4 right-4 text-[#3b2b1c] hover:opacity-70">
@@ -132,7 +137,7 @@ export default function ViewLeaveModal({
 
         <h2 className="text-2xl font-semibold mb-6">Leave Request Details</h2>
 
-        <div className="space-y-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
           <InfoBox label="Code" value={leave.leave_code} />
           <InfoBox label="Employee" value={`${leave.first_name} ${leave.last_name}`} />
           <InfoBox label="Department" value={leave.department_name || (leave.department_id ? `Department #${leave.department_id}` : 'N/A')} />
@@ -172,7 +177,7 @@ export default function ViewLeaveModal({
         </div>
 
         {/* Supporting Documents section (visible to supervisors, HR, admins) */}
-        {(isSupervisor || isSuperadmin || isAdmin) && docs && (
+        {(isSupervisor || canManageLeave) && docs && (
           <div className="mb-6">
             <h3 className="text-lg font-semibold mb-2">Supporting Documents</h3>
             <div className="space-y-2">
@@ -208,33 +213,32 @@ export default function ViewLeaveModal({
         )}
 
         {/* Stage-based actions (reversed flow) */}
-        {leave.status === "pending" && isSuperadmin && (
+        {leave.status === "pending" && canManageLeave && (
           <div className="flex justify-end gap-3">
-            <ActionButton label="Reject" onClick={onReject} />
-            <ActionButton label="Approve" onClick={onApprove} />
+            {canRejectLeave && <ActionButton label="Reject" onClick={onReject} />}
+            {canApproveLeave && <ActionButton label="Approve" onClick={onApprove} />}
           </div>
         )}
         {/* No supervisor actions: supervisors cannot approve/reject */}
         {/* Legacy support: HR can finalize legacy supervisor_approved */}
-        {leave.status === "supervisor_approved" && isSuperadmin && (
+        {leave.status === "supervisor_approved" && canManageLeave && (
           <div className="flex justify-end gap-3">
-            <ActionButton label="Reject" onClick={onReject} />
-            <ActionButton label="Approve" onClick={onApprove} />
+            {canRejectLeave && <ActionButton label="Reject" onClick={onReject} />}
+            {canApproveLeave && <ActionButton label="Approve" onClick={onApprove} />}
           </div>
         )}
 
-        {/* Admins can only view, show message (superadmin excluded) */}
-        {leave.status === "pending" && isAdmin && !isSuperadmin && (
+  {leave.status === "pending" && !canManageLeave && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
             <p className="text-sm text-yellow-800">
-              ℹ️ Only HR can approve or reject leave requests at this stage.
+               Only HR can approve or reject leave requests at this stage.
             </p>
           </div>
         )}
 
         {/* Close button when user can't act at this stage */}
-        {((leave.status === "pending" && !isSuperadmin) ||
-          (leave.status === "supervisor_approved" && !isSuperadmin) ||
+        {((leave.status === "pending" && !canManageLeave) ||
+          (leave.status === "supervisor_approved" && !canManageLeave) ||
           (leave.status !== "pending" && leave.status !== "supervisor_approved")) && (
           <div className="flex justify-end">
             <ActionButton label="Close" onClick={onClose} />

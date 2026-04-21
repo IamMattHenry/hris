@@ -11,11 +11,13 @@ import { toast } from "react-hot-toast";
 interface AddJobModalProps {
     isOpen: boolean;
     onClose: () => void;
+    onSave?: () => void;
 }
 
 export default function AddJobModal({
     isOpen,
     onClose,
+    onSave,
 }: AddJobModalProps) {
     const [jobTitle, setJobTitle] = useState("");
     const [jobDescription, setJobDescription] = useState("");
@@ -178,6 +180,7 @@ export default function AddJobModal({
 
         if (result.success) {
             toast.success("Position created successfully");
+            onSave?.();
             onClose();
         } else {
             toast.error(result.message || "Failed to create position");

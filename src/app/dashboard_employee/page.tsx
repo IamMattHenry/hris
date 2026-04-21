@@ -2,13 +2,19 @@
 
 import { useState, useEffect } from "react";
 import { Cell, Tooltip, ResponsiveContainer, PieChart, Pie, Legend } from "recharts";
-import { employeeApi, attendanceApi, ticketApi } from "@/lib/api";
+import { employeeApi, attendanceApi, ticketApi, notificationApi } from "@/lib/api";
 import { Employee, Dependent } from "@/types/api";
 import FloatingTicketButton from "@/components/dashboard/FloatingTicketButton";
 import FingerprintRegistrationModal from "@/components/dashboard/FingerprintRegistrationModal";
 import { useAuth } from "@/contexts/AuthContext";
-import Image from "next/image";
 import { toast } from "react-hot-toast";
+
+interface UserNotification {
+  notification_id: number;
+  title: string;
+  message: string;
+  status: 'read' | 'unread';
+}
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -22,6 +28,9 @@ export default function Dashboard() {
     leave: number;
     late: number;
   } | null>(null);
+  const [notifications, setNotifications] = useState<UserNotification[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(true);
+  const [markingNotificationsRead, setMarkingNotificationsRead] = useState(false);
   const [currentTime, setCurrentTime] = useState<string>("");
   const [showFingerprintModal, setShowFingerprintModal] = useState(false);
 
@@ -47,12 +56,14 @@ export default function Dashboard() {
     const fetchData = async () => {
       if (!user?.employee_id) return;
       setLoading(true);
+      setNotificationsLoading(true);
       setError(null);
 
       try {
-        const [employeeResult, summaryResult] = await Promise.all([
+        const [employeeResult, summaryResult, notificationsResult] = await Promise.all([
           employeeApi.getById(user.employee_id),
           attendanceApi.getSummary(user.employee_id),
+          notificationApi.getMy({ limit: 8 }),
         ]);
 
         if (employeeResult.success && employeeResult.data) {
@@ -75,10 +86,17 @@ export default function Dashboard() {
         if (summaryResult.success && summaryResult.data) {
           setEmployeeAttendanceSummary(summaryResult.data);
         }
+
+        if (notificationsResult.success && Array.isArray(notificationsResult.data)) {
+          setNotifications(notificationsResult.data as UserNotification[]);
+        } else {
+          setNotifications([]);
+        }
       } catch (err) {
         console.error(err);
         setError("Failed to fetch dashboard data.");
       } finally {
+        setNotificationsLoading(false);
         setLoading(false);
       }
     };
@@ -113,6 +131,18 @@ export default function Dashboard() {
 
   const handleDismissModal = () => {
     setShowFingerprintModal(false);
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    setMarkingNotificationsRead(true);
+    try {
+      const result = await notificationApi.markAllRead();
+      if (result.success) {
+        setNotifications((prev) => prev.map((item) => ({ ...item, status: 'read' })));
+      }
+    } finally {
+      setMarkingNotificationsRead(false);
+    }
   };
 
   if (loading)
@@ -171,6 +201,37 @@ export default function Dashboard() {
             </span>
           </div>
         )}
+
+        <div className="bg-white rounded-xl shadow-md border border-[#e8dcc8] p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-gray-800">Recent Notifications</h2>
+            <button
+              onClick={handleMarkAllNotificationsRead}
+              disabled={markingNotificationsRead || notifications.length === 0}
+              className="text-xs px-3 py-1 rounded-md border border-[#e8dcc8] text-[#4B0B14] disabled:opacity-50"
+            >
+              Mark all as read
+            </button>
+          </div>
+
+          {notificationsLoading ? (
+            <p className="text-sm text-gray-500">Loading notifications...</p>
+          ) : notifications.length === 0 ? (
+            <p className="text-sm text-gray-500">No notifications yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {notifications.map((item) => (
+                <div
+                  key={item.notification_id}
+                  className={`rounded-md border px-3 py-2 ${item.status === 'unread' ? 'bg-[#fff7ec] border-[#e2c8a9]' : 'bg-white border-[#ece7df]'}`}
+                >
+                  <p className="text-sm font-semibold text-gray-800">{item.title}</p>
+                  <p className="text-xs text-gray-600 mt-1">{item.message}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Profile Section */}
         <div className="bg-white rounded-xl shadow-md border border-[#e8dcc8] flex flex-col lg:flex-row gap-6 p-6">

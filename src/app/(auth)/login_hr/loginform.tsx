@@ -78,9 +78,10 @@ export default function LoginForm() {
       } else {
         if (result.message === "Invalid credentials") {
           setErrorMessage("Incorrect username or password.");
-          alert("Incorrect username or password.");
           window.location.href = "/login_hr";
           return;
+        } else if (result.message === "Validation Error" && username.includes("@")) {
+          setErrorMessage("Enter your username");
         } else {
           setErrorMessage(result.message || "Login failed. Please try again.");
           alert(result.message || "Login failed. Please try again.");
@@ -190,7 +191,7 @@ export default function LoginForm() {
         {/* Password */}
         <PasswordBox
           label="Password"
-          placeholder="Password"
+          placeholder="Enter your Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />

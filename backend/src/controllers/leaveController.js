@@ -2,10 +2,17 @@ import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
 import { generateLeaveCode } from '../utils/codeGenerator.js';
 import { hasPermission } from '../middleware/rbac.js';
+import { notifyEmployeeByEmployeeId, notifyHrUsers, notifyLeaveAttendanceOfficers } from '../services/notificationService.js';
 
 export const getLeaveRequests = async (req, res, next) => {
   try {
     const { employee_id, status } = req.query;
+    const roleKeys = new Set(req.userRbacRoles || []);
+    const canViewAllLeaveRequests =
+      roleKeys.has('leave_attendance_officer') ||
+      roleKeys.has('hr_manager') ||
+      roleKeys.has('hr_supervisor') ||
+      hasPermission(req, 'leave.read');
 
     let sql = `
       SELECT
@@ -52,13 +59,20 @@ export const getLeaveRequests = async (req, res, next) => {
     }
 
     // Employee users can only view their own leave requests
-    if (req.user?.role === 'employee') {
+    if (req.user?.role === 'employee' && !canViewAllLeaveRequests) {
       sql += ' AND e.user_id = ?';
       params.push(req.user.user_id);
     }
 
-    // Department-based filtering for supervisors: show only requests from their department
-    if (req.user?.role === 'supervisor') {
+    // Legacy supervisor fallback filtering: only apply when no explicit HR RBAC role exists.
+    // This prevents Leave & Attendance Officer / HR Manager accounts (that may still have
+    // legacy users.role='supervisor') from being incorrectly restricted to own/department data.
+    const hasExplicitHrRole =
+      roleKeys.has('leave_attendance_officer') ||
+      roleKeys.has('hr_manager') ||
+      roleKeys.has('hr_supervisor');
+
+    if (req.user?.role === 'supervisor' && !hasExplicitHrRole) {
       const userDept = await db.getOne(
         `SELECT department_id FROM employees WHERE user_id = ?`,
         [req.user.user_id]
@@ -166,15 +180,24 @@ export const applyLeave = async (req, res, next) => {
     }
 
     // Check if employee has a pending leave request
-    const pendingLeave = await db.getOne(
-      'SELECT * FROM leaves WHERE employee_id = ? AND status = ?',
-      [targetEmployeeId, 'pending']
+    const overlappingLeave = await db.getOne(
+      `SELECT leave_id, leave_code, status, start_date, end_date
+       FROM leaves
+       WHERE employee_id = ?
+         AND status IN ('pending', 'hr_approved', 'supervisor_approved', 'approved')
+         AND start_date <= ?
+         AND end_date >= ?
+       LIMIT 1`,
+      [targetEmployeeId, end_date, start_date]
     );
 
-    if (pendingLeave) {
+    if (overlappingLeave) {
+      const overlapMessage = overlappingLeave.status === 'approved'
+        ? 'You already have an approved leave for this period.'
+        : 'You already have an existing leave request for this period.';
       return res.status(400).json({
         success: false,
-        message: 'Employee already has a pending leave request. Please wait for approval or rejection before submitting a new request.',
+        message: overlapMessage,
       });
     }
 
@@ -354,6 +377,26 @@ export const applyLeave = async (req, res, next) => {
       logger.error("Failed to create activity log:", logError);
     }
 
+    await notifyHrUsers({
+      actorUserId: createdBy || null,
+      excludeUserIds: [createdBy].filter(Boolean),
+      title: 'New leave request submitted',
+      message: `Employee ID ${targetEmployeeId} submitted leave request ${leaveCode}.`,
+      category: 'leave_request',
+      referenceModule: 'leave',
+      referenceId: leaveId,
+    });
+
+    await notifyLeaveAttendanceOfficers({
+      actorUserId: createdBy || null,
+      excludeUserIds: [createdBy].filter(Boolean),
+      title: 'New leave request pending review',
+      message: `Employee ID ${targetEmployeeId} submitted leave request ${leaveCode}. Please review it in the Leave Requests page.`,
+      category: 'leave_request',
+      referenceModule: 'leave',
+      referenceId: leaveId,
+    });
+
     res.status(201).json({
       success: true,
       message: 'Leave request submitted successfully',
@@ -368,6 +411,16 @@ export const applyLeave = async (req, res, next) => {
 export const approveLeave = async (req, res, next) => {
   try {
     const { id } = req.params;
+    const roleKeys = new Set(req.userRbacRoles || []);
+    const isSuperadmin = req.user?.role === 'superadmin';
+    const isLeaveAttendanceOfficer = roleKeys.has('leave_attendance_officer');
+    const isHrManagerOnly = roleKeys.has('hr_manager') && !isLeaveAttendanceOfficer;
+    const canApproveByPermission = hasPermission(req, 'leave.approve');
+    const canApprove = isSuperadmin || isLeaveAttendanceOfficer || (canApproveByPermission && !isHrManagerOnly);
+
+    if (!canApprove) {
+      return res.status(403).json({ success: false, message: 'Insufficient permissions to approve leave requests' });
+    }
 
     // Load leave with employee details
     const leave = await db.getOne(
@@ -385,7 +438,6 @@ export const approveLeave = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Leave request not found' });
     }
 
-    const approverRole = req.user?.role;
     const approverUserId = req.user?.user_id;
 
     // Load approver employee info when available (for department and self checks)
@@ -394,113 +446,112 @@ export const approveLeave = async (req, res, next) => {
       [approverUserId]
     );
 
-    // Single-stage HR approval: HR (superadmin) finalizes to 'approved' with deductions
-    if (approverRole === 'superadmin') {
-      if (approver && approver.employee_id === leave.emp_id) {
-        return res.status(403).json({ success: false, message: 'You cannot approve your own leave request' });
+    if (approver && approver.employee_id === leave.emp_id) {
+      return res.status(403).json({ success: false, message: 'You cannot approve your own leave request' });
+    }
+
+    // Allow HR to finalize from current/new/legacy intermediate states
+    const allowedStatuses = ['pending', 'hr_approved', 'supervisor_approved'];
+    if (!allowedStatuses.includes(leave.status)) {
+      return res.status(400).json({ success: false, message: 'Only pending (or legacy pre-approved) leave requests can be approved by HR' });
+    }
+
+    // Determine deduction rules per leave type
+    const type = (leave.leave_type || '').toLowerCase();
+    const isSickLeave = type === 'sick';
+    const isSIL = type === 'sil';
+    const isStatNoDeduction = ['maternity','paternity','vawc','special_women','solo_parent','bereavement'].includes(type);
+
+    // Validate date range
+    const start = new Date(leave.start_date);
+    const end = new Date(leave.end_date);
+    const today = new Date();
+    const diffMs = end.getTime() - start.getTime();
+    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
+    if (!Number.isFinite(days) || days <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid leave date range' });
+    }
+    if (end < today) {
+      return res.status(400).json({ success: false, message: 'End date of the leave request has ended already.' });
+    }
+
+    const availableCredits = Number(leave.emp_leave_credit ?? 0);
+    const deductsCredits = !isSickLeave && !isStatNoDeduction && !isSIL;
+    const isNonPaid = deductsCredits && availableCredits < 1;
+
+    await db.beginTransaction();
+    try {
+      const newRemarks = isNonPaid
+        ? (leave.remarks ? `${leave.remarks} [NON-PAID]` : '[NON-PAID]')
+        : leave.remarks;
+      await db.transactionUpdate(
+        'leaves',
+        {
+          status: 'approved',
+          approved_by: approverUserId,
+          hr_approved_at: new Date(), // record HR approval timestamp
+          updated_by: approverUserId,
+          remarks: newRemarks,
+        },
+        'leave_id = ?',
+        [id]
+      );
+
+      let deducted = 0;
+      let newCredits = availableCredits;
+      if (isSIL) {
+        deducted = days; // SIL: deduct actual days
+        newCredits = availableCredits - days;
+      } else if (deductsCredits && !isNonPaid) {
+        deducted = 1; // Company-policy leaves: 1 credit per leave
+        newCredits = availableCredits - 1;
       }
 
-      // Allow HR to finalize from current/new/legacy intermediate states
-      const allowedStatuses = ['pending', 'hr_approved', 'supervisor_approved'];
-      if (!allowedStatuses.includes(leave.status)) {
-        return res.status(400).json({ success: false, message: 'Only pending (or legacy pre-approved) leave requests can be approved by HR' });
-      }
+      const employeeUpdate = deducted > 0
+        ? { status: 'on-leave', leave_credit: newCredits }
+        : { status: 'on-leave' };
+      await db.transactionUpdate('employees', employeeUpdate, 'employee_id = ?', [leave.emp_id]);
 
-      // Determine deduction rules per leave type
-      const type = (leave.leave_type || '').toLowerCase();
-      const isSickLeave = type === 'sick';
-      const isSIL = type === 'sil';
-      const isStatNoDeduction = ['maternity','paternity','vawc','special_women','solo_parent','bereavement'].includes(type);
+      await db.commit();
 
-      // Validate date range
-      const start = new Date(leave.start_date);
-      const end = new Date(leave.end_date);
-      const today = new Date();
-      const diffMs = end.getTime() - start.getTime();
-      const days = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
-      if (!Number.isFinite(days) || days <= 0) {
-        return res.status(400).json({ success: false, message: 'Invalid leave date range' });
-      }
-      if (end < today) {
-        return res.status(400).json({ success: false, message: 'End date of the leave request has ended already.' });
-      }
+      const deductionMsg = isSIL
+        ? `deducted ${days} credit(s) (SIL)`
+        : isSickLeave
+          ? 'no credit deducted (sick leave)'
+          : isStatNoDeduction
+            ? 'no credit deducted (statutory leave)'
+            : isNonPaid
+              ? 'approved as non-paid (0 credits)'
+              : 'deducted 1 credit';
 
-      const availableCredits = Number(leave.emp_leave_credit ?? 0);
-      const deductsCredits = !isSickLeave && !isStatNoDeduction && !isSIL;
-      const isNonPaid = deductsCredits && availableCredits < 1;
-
-      await db.beginTransaction();
+      // Activity log
       try {
-        const newRemarks = isNonPaid
-          ? (leave.remarks ? `${leave.remarks} [NON-PAID]` : '[NON-PAID]')
-          : leave.remarks;
-        await db.transactionUpdate(
-          'leaves',
-          {
-            status: 'approved',
-            approved_by: approverUserId,
-            hr_approved_at: new Date(), // record HR approval timestamp
-            updated_by: approverUserId,
-            remarks: newRemarks,
-          },
-          'leave_id = ?',
-          [id]
-        );
-
-        let deducted = 0;
-        let newCredits = availableCredits;
-        if (isSIL) {
-          deducted = days; // SIL: deduct actual days
-          newCredits = availableCredits - days;
-        } else if (deductsCredits && !isNonPaid) {
-          deducted = 1; // Company-policy leaves: 1 credit per leave
-          newCredits = availableCredits - 1;
-        }
-
-        const employeeUpdate = deducted > 0
-          ? { status: 'on-leave', leave_credit: newCredits }
-          : { status: 'on-leave' };
-        await db.transactionUpdate('employees', employeeUpdate, 'employee_id = ?', [leave.emp_id]);
-
-        await db.commit();
-
-        const deductionMsg = isSIL
-          ? `deducted ${days} credit(s) (SIL)`
-          : isSickLeave
-            ? 'no credit deducted (sick leave)'
-            : isStatNoDeduction
-              ? 'no credit deducted (statutory leave)'
-              : isNonPaid
-                ? 'approved as non-paid (0 credits)'
-                : 'deducted 1 credit';
-
-        // Activity log
-        try {
-          await db.insert('activity_logs', {
-            user_id: approverUserId || 1,
-            action: 'UPDATE',
-            module: 'leaves',
-            description: `HR approved leave request ${leave.leave_code} (employee ID ${leave.emp_id}); ${deductionMsg}`,
-            created_by: approverUserId || 1,
-          });
-        } catch (logError) {
-          logger.error('Failed to create activity log:', logError);
-        }
-
-        return res.json({ success: true, message: `Leave request approved; ${deductionMsg}` });
-      } catch (error) {
-        await db.rollback();
-        throw error;
+        await db.insert('activity_logs', {
+          user_id: approverUserId || 1,
+          action: 'UPDATE',
+          module: 'leaves',
+          description: `HR approved leave request ${leave.leave_code} (employee ID ${leave.emp_id}); ${deductionMsg}`,
+          created_by: approverUserId || 1,
+        });
+      } catch (logError) {
+        logger.error('Failed to create activity log:', logError);
       }
-    }
 
-    // Supervisors no longer approve in the new policy
-    if (approverRole === 'supervisor' || approverRole === 'admin') {
-      return res.status(403).json({ success: false, message: 'Only HR can approve leave requests' });
-    }
+      await notifyEmployeeByEmployeeId({
+        employeeId: leave.emp_id,
+        actorUserId: approverUserId || null,
+        title: 'Leave request approved',
+        message: `Your leave request ${leave.leave_code} has been approved (${deductionMsg}).`,
+        category: 'leave_approved',
+        referenceModule: 'leave',
+        referenceId: id,
+      });
 
-    // Any other role cannot approve
-    return res.status(403).json({ success: false, message: 'You do not have permission to approve at this stage' });
+      return res.json({ success: true, message: `Leave request approved; ${deductionMsg}` });
+    } catch (error) {
+      await db.rollback();
+      throw error;
+    }
   } catch (error) {
     logger.error('Approve leave error:', error);
     next(error);
@@ -511,6 +562,16 @@ export const rejectLeave = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { remarks } = req.body;
+    const roleKeys = new Set(req.userRbacRoles || []);
+    const isSuperadmin = req.user?.role === 'superadmin';
+    const isLeaveAttendanceOfficer = roleKeys.has('leave_attendance_officer');
+    const isHrManagerOnly = roleKeys.has('hr_manager') && !isLeaveAttendanceOfficer;
+    const canRejectByPermission = hasPermission(req, 'leave.reject');
+    const canReject = isSuperadmin || isLeaveAttendanceOfficer || (canRejectByPermission && !isHrManagerOnly);
+
+    if (!canReject) {
+      return res.status(403).json({ success: false, message: 'Insufficient permissions to reject leave requests' });
+    }
 
     // Load leave with employee details
     const leave = await db.getOne(
@@ -531,7 +592,6 @@ export const rejectLeave = async (req, res, next) => {
       });
     }
 
-    const approverRole = req.user?.role;
     const approverUserId = req.user?.user_id;
 
     // Load approver employee info when available (for department and self checks)
@@ -540,25 +600,19 @@ export const rejectLeave = async (req, res, next) => {
       [approverUserId]
     );
 
-    // Two-stage rejection policy (reversed flow)
-    if (approverRole === 'superadmin') {
-      // HR can reject at the first stage (pending)
-      if (!(leave.status === 'pending' || leave.status === 'supervisor_approved')) {
-        return res.status(400).json({ success: false, message: 'HR can only reject pending (or legacy supervisor-approved) leave requests' });
-      }
-      if (approver && approver.employee_id === leave.emp_id) {
-        return res.status(403).json({ success: false, message: 'You cannot reject your own leave request' });
-      }
-
-      const newRemarks = remarks ? `[HR REJECTED] ${remarks}` : '[HR REJECTED]';
-      await db.update('leaves', { status: 'rejected', remarks: newRemarks, updated_by: approverUserId }, 'leave_id = ?', [id]);
-    } else if (approverRole === 'supervisor' || approverRole === 'admin') {
-      return res.status(403).json({ success: false, message: 'Only HR can reject leave requests' });
-    } else {
-      return res.status(403).json({ success: false, message: 'You do not have permission to reject at this stage' });
+    // HR can reject at the first stage (pending)
+    if (!(leave.status === 'pending' || leave.status === 'supervisor_approved')) {
+      return res.status(400).json({ success: false, message: 'HR can only reject pending (or legacy supervisor-approved) leave requests' });
     }
 
-    logger.info(`Leave request rejected: ${id} by ${approverRole}`);
+    if (approver && approver.employee_id === leave.emp_id) {
+      return res.status(403).json({ success: false, message: 'You cannot reject your own leave request' });
+    }
+
+    const newRemarks = remarks ? `[HR REJECTED] ${remarks}` : '[HR REJECTED]';
+    await db.update('leaves', { status: 'rejected', remarks: newRemarks, updated_by: approverUserId }, 'leave_id = ?', [id]);
+
+    logger.info(`Leave request rejected: ${id} by user ${approverUserId}`);
 
     // Create activity log entry
     try {
@@ -573,6 +627,16 @@ export const rejectLeave = async (req, res, next) => {
       logger.error('Failed to create activity log:', logError);
     }
 
+    await notifyEmployeeByEmployeeId({
+      employeeId: leave.emp_id,
+      actorUserId: approverUserId || null,
+      title: 'Leave request rejected',
+      message: `Your leave request ${leave.leave_code} has been rejected.${remarks ? ` Remarks: ${remarks}` : ''}`,
+      category: 'leave_rejected',
+      referenceModule: 'leave',
+      referenceId: id,
+    });
+
     res.json({
       success: true,
       message: 'Leave request rejected',
@@ -586,6 +650,10 @@ export const rejectLeave = async (req, res, next) => {
 export const deleteLeave = async (req, res, next) => {
   try {
     const { id } = req.params;
+    const roleKeys = new Set(req.userRbacRoles || []);
+    const isSuperadmin = req.user?.role === 'superadmin';
+    const isLeaveAttendanceOfficer = roleKeys.has('leave_attendance_officer');
+    const isHrManagerOnly = roleKeys.has('hr_manager') && !isLeaveAttendanceOfficer;
 
     // Check if leave request exists
     const leave = await db.getOne('SELECT * FROM leaves WHERE leave_id = ?', [id]);
@@ -618,7 +686,7 @@ export const deleteLeave = async (req, res, next) => {
           message: 'Only pending leave requests can be cancelled',
         });
       }
-    } else if (!canDeleteAny) {
+    } else if (!canDeleteAny || (isHrManagerOnly && !isSuperadmin)) {
       return res.status(403).json({
         success: false,
         message: 'Insufficient permissions to delete leave requests',
@@ -643,6 +711,28 @@ export const deleteLeave = async (req, res, next) => {
       });
     } catch (logError) {
       logger.error("Failed to create activity log:", logError);
+    }
+
+    if (isEmployee) {
+      await notifyHrUsers({
+        actorUserId: deletedBy || null,
+        excludeUserIds: [deletedBy].filter(Boolean),
+        title: 'Leave request cancelled',
+        message: `Employee ID ${leave.employee_id} cancelled leave request ${leave.leave_code}.`,
+        category: 'leave_cancelled',
+        referenceModule: 'leave',
+        referenceId: id,
+      });
+    } else {
+      await notifyEmployeeByEmployeeId({
+        employeeId: leave.employee_id,
+        actorUserId: deletedBy || null,
+        title: 'Leave request removed',
+        message: `Your leave request ${leave.leave_code} was removed by HR.`,
+        category: 'leave_deleted',
+        referenceModule: 'leave',
+        referenceId: id,
+      });
     }
 
     res.json({

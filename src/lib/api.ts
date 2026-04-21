@@ -1089,13 +1089,21 @@ export const payrollApi = {
     });
   },
 
-  getExpenseRequests: async () => {
-    return apiCall<any[]>('/payroll/expense-requests', {
+  getExpenseRequests: async (params?: { department_id?: number | string }) => {
+    const search = new URLSearchParams();
+    if (params?.department_id != null && String(params.department_id).trim() !== '') {
+      search.append('department_id', String(params.department_id));
+    }
+
+    const url = `/payroll/expense-requests${search.toString() ? `?${search.toString()}` : ''}`;
+
+    return apiCall<any[]>(url, {
       method: 'GET',
     });
   },
 
   createExpenseRequest: async (data: {
+    department_id: number;
     title: string;
     description: string;
     requested_amount: number;
@@ -1103,6 +1111,18 @@ export const payrollApi = {
   }) => {
     return apiCall<any>('/payroll/expense-requests', {
       method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateExpenseRequestStatus: async (
+    id: number | string,
+    data: {
+      status: 'pending' | 'accepted' | 'rejected' | 'cancelled';
+    }
+  ) => {
+    return apiCall<any>(`/payroll/expense-requests/${id}/status`, {
+      method: 'PATCH',
       body: JSON.stringify(data),
     });
   },
@@ -1242,6 +1262,52 @@ export const activityApi = {
       method: 'GET',
     })
   }
+}
+
+// ============ NOTIFICATION API FUNCTIONS ============
+
+export const notificationApi = {
+  getMy: async (params?: { limit?: number; status?: 'read' | 'unread' }) => {
+    const search = new URLSearchParams();
+
+    if (params?.limit != null) {
+      search.append('limit', String(params.limit));
+    }
+
+    if (params?.status) {
+      search.append('status', params.status);
+    }
+
+    const url = `/notifications${search.toString() ? `?${search.toString()}` : ''}`;
+
+    return apiCall<any[]>(url, {
+      method: 'GET',
+    });
+  },
+
+  getUnreadCount: async () => {
+    return apiCall<{ unread_count: number }>('/notifications/unread-count', {
+      method: 'GET',
+    });
+  },
+
+  markRead: async (id: number | string) => {
+    return apiCall<any>(`/notifications/${id}/read`, {
+      method: 'PUT',
+    });
+  },
+
+  markAllRead: async () => {
+    return apiCall<any>('/notifications/read-all', {
+      method: 'PUT',
+    });
+  },
+
+  deleteAllRead: async () => {
+    return apiCall<any>('/notifications/read', {
+      method: 'DELETE',
+    });
+  },
 }
 
 // ============ TICKET API FUNCTIONS ============

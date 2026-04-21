@@ -92,6 +92,12 @@ export default function LoginForm() {
             );
             window.location.href = "/login_hr";
             break;
+          case "Validation Error":
+            setErrorMessage(
+              "Please use your username instead of your email address."
+            );
+
+            break;
           default:
             setErrorMessage("Login failed. Please try again.");
             alert("Login failed. Please try again.");
@@ -171,7 +177,7 @@ export default function LoginForm() {
     }
   };
 
-  /** ✅ Reset modal state **/
+ 
   const closeModal = () => {
     setShowTicketModal(false);
     setTicketTitle("");
@@ -212,7 +218,7 @@ export default function LoginForm() {
 
         <PasswordBox
           label="Password"
-          placeholder="Password"
+          placeholder="Enter your password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
@@ -286,9 +292,10 @@ export default function LoginForm() {
                       id="ticketTitle"
                       value={ticketTitle}
                       onChange={(e) => setTicketTitle(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#073532]"
+                      className="w-full px-3 py-2 border border-gray-300 text-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-[#073532]"
                       placeholder="Briefly describe your issue"
                       maxLength={100}
+                      max={"100"}
                       required
                     />
                   </div>
@@ -306,6 +313,7 @@ export default function LoginForm() {
                   <textarea
                     id="ticketDescription"
                     value={ticketDescription}
+                    maxLength={500}
                     onChange={(e) => setTicketDescription(e.target.value)}
                     rows={4}
                     className="w-full px-3 py-2 border border-gray-300 text-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-[#073532]"

@@ -84,6 +84,7 @@ interface EditEmployeeModalProps {
   isOpen: boolean;
   onClose: () => void;
   id: number | null;
+  onSaved?: () => void;
 }
 
 interface EmployeeDocuments {
@@ -158,6 +159,7 @@ interface RegionData {
 
 interface FinanceBudget {
   budget_id: number;
+  department_budget_id?: number;
   amount: number;
 }
 
@@ -167,6 +169,7 @@ export default function EditEmployeeModal({
   isOpen,
   onClose,
   id,
+  onSaved,
 }: EditEmployeeModalProps) {
   const [employee, setEmployee] = useState<EmployeeData | null>(null);
 
@@ -456,6 +459,7 @@ const [cityCode, setCityCode] = useState("");
         if (res.success && budget) {
           setStaffSalariesBudget({
             budget_id: Number(budget.budget_id),
+            department_budget_id: Number(budget.department_budget_id),
             amount: Number(budget.amount),
           });
         } else {
@@ -1005,7 +1009,7 @@ useEffect(() => {
       if (result.success) {
         toast.success("Employee updated successfully!");
         onClose();
-        setTimeout(() => window.location.reload(), 3000);
+        onSaved?.();
       } else {
         toast.error(result.message || "Failed to update employee");
       }
@@ -1326,16 +1330,18 @@ useEffect(() => {
                           <label className="block text-xs text-[#3b2b1c] mb-1">Salary</label>
                           <input
                             type="text"
-                            value={ep.salary}
+                            value={ep.salary ? String(ep.salary).split('.').map((part, i) => i === 0 ? part.replace(/\B(?=(\d{3})+(?!\d))/g, ",") : part).join('.') : ""}
                             onChange={(e) => {
-                              const val = e.target.value;
-                              if (/^[0-9,]*\.?[0-9]{0,2}$/.test(val) || val === "") {
-                                setExtraPositions((prev) =>
-                                  prev.map((x, i) => (i === idx ? { ...x, salary: val } : x))
-                                );
-                              }
+                              let val = e.target.value.replace(/[^0-9.]/g, "");
+                              const parts = val.split(".");
+                              if (parts.length > 2) val = parts[0] + "." + parts.slice(1).join("");
+                              if (parts[1] && parts[1].length > 2) val = parts[0] + "." + parts[1].substring(0, 2);
+                              if (Number(val) > 1000000) val = "1000000";
+                              setExtraPositions((prev) =>
+                                prev.map((x, i) => (i === idx ? { ...x, salary: val } : x))
+                              );
                             }}
-                            placeholder="e.g. 15000"
+                            placeholder="e.g. 15,000"
                             className="w-full px-2 py-2 text-sm border border-[#e6d2b5] rounded bg-white text-[#3b2b1c]"
                           />
                         </div>
@@ -1377,7 +1383,9 @@ useEffect(() => {
                     <div>
                       <p className="text-xs text-[#6b5344] mb-2">
                         Latest Staff Salaries Budget: {formatCurrency(staffSalariesBudget?.amount)}
-                        {staffSalariesBudget?.budget_id ? ` (budget_id #${staffSalariesBudget.budget_id})` : ""}
+                        {staffSalariesBudget?.department_budget_id
+                          ? ` (department_budget_id #${staffSalariesBudget.department_budget_id}, budget_id #${staffSalariesBudget.budget_id})`
+                          : ""}
                       </p>
                       <FormInput
                         label={workType?.toLowerCase() === 'part-time' ? "Salary (Hourly Rate)" : "Salary (Monthly)"}
