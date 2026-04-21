@@ -50,12 +50,13 @@ const formatMoney = (value: number) =>
     maximumFractionDigits: 2,
   })}`;
 
-export default function PayrollRunDetailModal({
-  isOpen,
-  onClose,
-  payrollId,
-  onUpdated,
-}: ViewPayrollDetailsProps) {
+export default function PayrollRunDetailModal(props: any) {
+  const {
+    isOpen,
+    onClose,
+    payrollId,
+    onUpdated,
+  } = props as ViewPayrollDetailsProps;
   const modalRef = useRef<HTMLDivElement>(null);
 
   const runId = payrollId;

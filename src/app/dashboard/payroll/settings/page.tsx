@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { X, Save } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
 import { payrollApi } from "@/lib/api";
@@ -36,10 +36,11 @@ interface PayrollSettingsModalProps {
   // onSettingsSaved?: () => void;
 }
 
-export default function PayrollSettingsModal({
-  isOpen,
-  onClose,
-}: PayrollSettingsModalProps) {
+export default function PayrollSettingsModal(props: any) {
+  const {
+    isOpen,
+    onClose,
+  } = props as PayrollSettingsModalProps;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -81,7 +82,7 @@ export default function PayrollSettingsModal({
     return "bg-green-100 text-green-700 border border-green-200";
   };
 
-  const fetchSettings = async () => {
+  const fetchSettings = useCallback(async () => {
     if (!isOpen) return;
 
     try {
@@ -155,7 +156,7 @@ export default function PayrollSettingsModal({
 
   useEffect(() => {
     fetchSettings();
-  }, [isOpen]);
+  }, [fetchSettings]);
 
   const addHolidayOverride = () => {
     if (!newHolidayDate || !newHolidayName.trim()) {

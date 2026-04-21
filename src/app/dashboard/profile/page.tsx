@@ -1,9 +1,9 @@
+"use client";
+
 import React, { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { User, Briefcase, Shield, Bell } from "lucide-react";
 import { authApi, notificationApi } from "@/lib/api";
-
-"use client";
 
 const formatNotificationTime = (value: string) => {
     if (!value) return '';

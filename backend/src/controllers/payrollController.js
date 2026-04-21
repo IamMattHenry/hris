@@ -1981,7 +1981,11 @@ export const getExpenseBudgetRequests = async (req, res, next) => {
         };
       })
       .filter((request) => !hasDepartmentFilter || request.department_id === requestedDepartmentId)
-      .map(({ metadata, ...request }) => request);
+      .map((request) => {
+        const responseRequest = { ...request };
+        delete responseRequest.metadata;
+        return responseRequest;
+      });
 
     return res.json({
       success: true,

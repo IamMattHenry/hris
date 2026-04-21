@@ -19,12 +19,13 @@ interface PayrollPayslipModalProps {
   employeeId: string | number | null;
 }
 
-export default function PayrollPayslipModal({
-  isOpen,
-  onClose,
-  runId,
-  employeeId,
-}: PayrollPayslipModalProps) {
+export default function PayrollPayslipModal(props: any) {
+  const {
+    isOpen,
+    onClose,
+    runId,
+    employeeId,
+  } = props as PayrollPayslipModalProps;
   const modalRef = useRef<HTMLDivElement>(null);
 
   const [loading, setLoading] = useState(true);

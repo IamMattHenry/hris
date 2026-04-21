@@ -2,7 +2,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, CheckCircle, Mail, Briefcase, Building, LogsIcon, Headset, DollarSign, MessageSquareWarning, AlertTriangle } from "lucide-react";
+import { LayoutDashboard, Users, CheckCircle, Mail, Briefcase, Building, LogsIcon, Headset, DollarSign, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 
@@ -58,8 +58,8 @@ export default function Sidebar() {
     ].filter((link) => link.show || permissionsLoading);
 
     if (user?.role === "superadmin" || user?.role === "admin") {
-        links.push({ name: "Activity Log", icon: LogsIcon, path: "/dashboard/activity_log" });
-        links.push({ name: "Contact Support", icon: Headset, path: "/dashboard/contact_support" });
+        links.push({ name: "Activity Log", icon: LogsIcon, path: "/dashboard/activity_log", show: true });
+        links.push({ name: "Contact Support", icon: Headset, path: "/dashboard/contact_support", show: true });
     }
 
     return (

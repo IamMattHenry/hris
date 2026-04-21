@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { X, Save } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
@@ -113,12 +112,12 @@ const today = toDateInputString(new Date());
 const defaultReferenceDate = getYesterdayDate();
 const defaultPeriod = derivePayPeriodFromSchedule(defaultReferenceDate, "semi-monthly");
 
-export default function NewPayrollRunModal({
-  isOpen,
-  onClose,
-  onSave,
-}: NewPayrollRunModalProps) {
-  const router = useRouter();
+export default function NewPayrollRunModal(props: any) {
+  const {
+    isOpen,
+    onClose,
+    onSave,
+  } = props as NewPayrollRunModalProps;
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);

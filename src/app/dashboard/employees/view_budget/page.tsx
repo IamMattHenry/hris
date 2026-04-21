@@ -20,13 +20,14 @@ interface BudgetRequestsModalProps {
   formatCurrency: (amount: number) => string;
 }
 
-const BudgetRequestsModal: React.FC<BudgetRequestsModalProps> = ({
-  isOpen,
-  onClose,
-  expenseRequests,
-  expenseRequestsLoading,
-  formatCurrency,
-}) => {
+const BudgetRequestsModal = (props: BudgetRequestsModalProps) => {
+  const {
+    isOpen,
+    onClose,
+    expenseRequests,
+    expenseRequestsLoading,
+    formatCurrency,
+  } = props;
   if (!isOpen) return null;
 
   return (
