@@ -70,7 +70,7 @@ export default function PayrollSettingsModal(props: any) {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(Number(value));
-  };
+  }, [isOpen]);
 
   const getBudgetStatusStyles = (statusCode?: BudgetOverviewSummary["staff_salaries_budget_status_code"] | null) => {
     if (statusCode === "over_budget") {
