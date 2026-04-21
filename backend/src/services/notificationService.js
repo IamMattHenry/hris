@@ -12,6 +12,40 @@ const HR_PORTAL_ROLE_KEYS = [
 
 const inFlightNotificationKeys = new Set();
 
+const formatManilaDateTimeString = (value) => {
+  if (!value) return null;
+
+  const date = value instanceof Date ? value : new Date(String(value).replace(' ', 'T'));
+  if (Number.isNaN(date.getTime())) {
+    return value == null ? null : String(value);
+  }
+
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
+    .formatToParts(date)
+    .reduce((acc, part) => {
+      if (part.type !== 'literal') {
+        acc[part.type] = part.value;
+      }
+      return acc;
+    }, {});
+
+  const { year, month, day, hour, minute, second } = parts;
+  if (!year || !month || !day || !hour || !minute || !second) {
+    return String(value);
+  }
+
+  return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+};
+
 let ensureTablePromise = null;
 
 const ensureNotificationsTable = async () => {
@@ -118,6 +152,7 @@ export const createNotification = async ({
     category: normalizeCategory(category),
     reference_module: referenceModule ? String(referenceModule).trim() : null,
     reference_id: referenceId != null ? String(referenceId) : null,
+    created_at: new Date(),
   });
 
   return notificationId;
@@ -561,7 +596,11 @@ export const getNotificationsForUser = async ({ userId, limit = 20, status }) =>
      ORDER BY created_at DESC
      LIMIT ${normalizedLimit}`,
     params
-  );
+  ).then((rows) => rows.map((row) => ({
+    ...row,
+    created_at: formatManilaDateTimeString(row.created_at),
+    read_at: formatManilaDateTimeString(row.read_at),
+  })));
 };
 
 export const getUnreadNotificationCount = async (userId) => {
@@ -582,9 +621,9 @@ export const markNotificationAsRead = async ({ userId, notificationId }) => {
 
   const result = await db.query(
     `UPDATE user_notifications
-     SET status = 'read', read_at = NOW()
+     SET status = 'read', read_at = ?
      WHERE notification_id = ? AND recipient_user_id = ? AND status = 'unread'`,
-    [Number(notificationId), Number(userId)]
+    [new Date(), Number(notificationId), Number(userId)]
   );
 
   return Number(result?.affectedRows || 0);
@@ -595,9 +634,9 @@ export const markAllNotificationsAsRead = async (userId) => {
 
   const result = await db.query(
     `UPDATE user_notifications
-     SET status = 'read', read_at = NOW()
+     SET status = 'read', read_at = ?
      WHERE recipient_user_id = ? AND status = 'unread'`,
-    [Number(userId)]
+    [new Date(), Number(userId)]
   );
 
   return Number(result?.affectedRows || 0);

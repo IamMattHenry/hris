@@ -1,9 +1,32 @@
-"use client";
-
 import React, { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { User, Briefcase, Shield, Bell } from "lucide-react";
 import { authApi, notificationApi } from "@/lib/api";
+
+"use client";
+
+const formatNotificationTime = (value: string) => {
+    if (!value) return '';
+
+    const normalized = value.includes('T') ? value : value.replace(' ', 'T');
+    const withOffset = /([zZ]|[+-]\d{2}:\d{2})$/.test(normalized) ? normalized : `${normalized}+08:00`;
+    const date = new Date(withOffset);
+
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+
+    return new Intl.DateTimeFormat('en-PH', {
+        timeZone: 'Asia/Manila',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+    }).format(date);
+};
 
 type ContactItem = { id: number; number: string };
 type EmailItem = { id: number; email: string; isPrimary: boolean };
@@ -658,7 +681,7 @@ const Profile = () => {
                                                     <p className="text-sm text-gray-700 mt-1">{notification.message}</p>
                                                     <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
                                                         <span className="capitalize">{notification.category || "general"}</span>
-                                                        <span>{new Date(notification.created_at).toLocaleString()}</span>
+                                                        <span>{formatNotificationTime(notification.created_at)}</span>
                                                         <span
                                                             className={`px-2 py-0.5 rounded-full ${notification.status === "unread"
                                                                 ? "bg-amber-100 text-amber-800"

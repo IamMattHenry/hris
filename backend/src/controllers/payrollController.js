@@ -10,7 +10,7 @@ import {
   getFinanceBudgetsSnapshot,
   getCurrentStaffSalaryMonthlyTotal,
 } from '../services/financeBudgetService.js';
-import { notifyHrUsersBudgetAmountChange, notifyHrUsersBudgetRequestStatusChange, notifyHrUsersBudgetStatus, notifyHrUsersPayrollRunUpdate } from '../services/notificationService.js';
+import { createNotification, notifyHrUsersBudgetAmountChange, notifyHrUsersBudgetRequestStatusChange, notifyHrUsersBudgetStatus, notifyHrUsersPayrollRunUpdate } from '../services/notificationService.js';
 
 const round2 = (value) => Number((Number(value) || 0).toFixed(2));
 
@@ -1830,6 +1830,15 @@ export const updateExpenseBudgetRequestStatus = async (req, res, next) => {
     const resolvedDepartmentName = current.department_name ?? metadata?.requested_department_name ?? null;
     const isPayrollRunRequest = String(current.external_reference_id || '').startsWith('payroll_run:') || metadata?.request_for === 'payroll_run';
     const payrollRunId = Number(metadata?.payroll_run_id || String(current.external_reference_id || '').replace('payroll_run:', ''));
+    const payrollRunRequest = isPayrollRunRequest && Number.isInteger(payrollRunId) && payrollRunId > 0
+      ? await db.getOne(
+        `SELECT id, created_by, pay_period_start, pay_period_end, pay_schedule
+         FROM payroll_runs
+         WHERE id = ?
+         LIMIT 1`,
+        [payrollRunId]
+      )
+      : null;
 
     await db.beginTransaction();
     try {
@@ -1884,6 +1893,18 @@ export const updateExpenseBudgetRequestStatus = async (req, res, next) => {
         grossPay: Number(current.requested_amount) || null,
       });
     }
+
+      if (isPayrollRunRequest && normalizedStatus === 'accepted' && payrollRunRequest?.created_by) {
+        await createNotification({
+          recipientUserId: payrollRunRequest.created_by,
+          actorUserId: req.user?.user_id || null,
+          title: `Payroll run #${payrollRunId} approved by Finance`,
+          message: `Finance approved payroll run #${payrollRunId} for ${resolvedDepartmentName || 'the selected scope'}. It is now ready for finalization.`,
+          category: 'payroll_run_status',
+          referenceModule: 'payroll',
+          referenceId: `payroll_run:${payrollRunId}:finance_approved`,
+        });
+      }
 
     await writeActivityLog({
       userId: req.user?.user_id || null,

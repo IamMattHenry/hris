@@ -340,20 +340,19 @@ export const clockOut = async (req, res, next) => {
     if (!skipAutoStatus) {
       newStatus = 'present';
 
-      if (durationMinutes < 480) {
-        // Worked less than 8 hours
-        if (arrivedLate) {
-          newStatus = 'late'; // Arrived late
-        } else {
-          newStatus = 'early_leave'; // Left early
-        }
+      if (arrivedLate) {
+        // Late arrivals remain late and are not eligible for overtime
+        newStatus = 'late';
+      } else if (durationMinutes < 480) {
+        // Worked less than 8 hours and arrived on time
+        newStatus = 'early_leave';
       } else if (durationMinutes > 480) {
         // Worked more than 8 hours - calculate overtime
         overtimeHours = (durationMinutes - 480) / 60;
         newStatus = 'overtime';
       }
     } else {
-      if (durationMinutes > 480) {
+      if (durationMinutes > 480 && !arrivedLate) {
         overtimeHours = (durationMinutes - 480) / 60;
       }
     }
@@ -556,13 +555,12 @@ async function clockOutEmployee(employee_id) {
   let newStatus = 'present';
   let overtimeHours = 0;
 
-  if (durationMinutes < 480) {
-    // Worked less than 8 hours
-    if (arrivedLate) {
-      newStatus = 'late'; // Arrived late
-    } else {
-      newStatus = 'early_leave'; // Left early
-    }
+  if (arrivedLate) {
+    // Late arrivals remain late and are not eligible for overtime
+    newStatus = 'late';
+  } else if (durationMinutes < 480) {
+    // Worked less than 8 hours and arrived on time
+    newStatus = 'early_leave';
   } else if (durationMinutes > 480) {
     // Worked more than 8 hours - calculate overtime
     overtimeHours = (durationMinutes - 480) / 60;
