@@ -112,6 +112,46 @@ export default function RequestsPage() {
     }));
   };
 
+  useEffect(() => {
+    if (!formData.start_date || !formData.leave_type) return;
+
+    let daysToAdd = 0;
+    switch (formData.leave_type) {
+      case "maternity":
+        if (maternityType === "normal") daysToAdd = 105;
+        else if (maternityType === "solo") daysToAdd = 120;
+        else if (maternityType === "miscarriage") daysToAdd = 60;
+        break;
+      case "paternity":
+      case "solo_parent":
+        daysToAdd = 7;
+        break;
+      case "vawc":
+        daysToAdd = 10;
+        break;
+      case "special_women":
+        daysToAdd = 60;
+        break;
+      case "bereavement":
+        daysToAdd = 3;
+        break;
+      case "half_day":
+        daysToAdd = 1;
+        break;
+      default:
+        break;
+    }
+
+    if (daysToAdd > 0) {
+      const start = new Date(formData.start_date);
+      start.setDate(start.getDate() + (daysToAdd - 1));
+      const newEndDate = start.toISOString().split("T")[0];
+      setFormData((prev) => ({ ...prev, end_date: newEndDate }));
+    } else if (!formData.end_date || new Date(formData.end_date) < new Date(formData.start_date)) {
+      setFormData((prev) => ({ ...prev, end_date: formData.start_date }));
+    }
+  }, [formData.start_date, formData.leave_type, maternityType]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user?.employee_id) return;
@@ -201,6 +241,8 @@ export default function RequestsPage() {
   const handlePageChange = (pageNumber: number) => {
     setCurrentPage(pageNumber);
   };
+
+  const isFixedDuration = ["maternity", "paternity", "solo_parent", "vawc", "special_women", "bereavement", "half_day"].includes(formData.leave_type);
 
   if (loading) {
     return (
@@ -337,8 +379,9 @@ export default function RequestsPage() {
                   onChange={(e) => handleInputChange("end_date", e.target.value)}
                   required
                   disabled={!formData.start_date}
+                  readOnly={isFixedDuration}
                   className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#073532] ${
-                    !formData.start_date ? "bg-gray-100 cursor-not-allowed" : ""
+                    !formData.start_date || isFixedDuration ? "bg-gray-100 cursor-not-allowed" : ""
                   }`}
                 />
               </div>
