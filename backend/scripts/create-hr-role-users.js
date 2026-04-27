@@ -72,8 +72,17 @@ const ROLE_PROFILE = {
 
 const TARGET_HR_ROLE_KEYS = Object.keys(ROLE_PROFILE);
 
+const HR_VIEW_ROLE_KEYS = [
+  'hr_manager',
+  'hr_supervisor',
+  'payroll_officer',
+  'leave_attendance_officer',
+  'recruitment_officer',
+];
+
 const HELP_TEXT = `
 Create HR Manager and HR employee users aligned with current RBAC roles in DB.
+All generated HR RBAC users are intended to work with the shared HR read/view access policy.
 
 Usage:
   node scripts/create-hr-role-users.js --password <defaultPassword> [options]

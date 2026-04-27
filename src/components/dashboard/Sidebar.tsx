@@ -9,7 +9,14 @@ import { usePermissions } from "@/hooks/usePermissions";
 export default function Sidebar() {
     const pathname = usePathname();
     const { user } = useAuth();
-    const { canAny, loading: permissionsLoading } = usePermissions();
+    const { canAny, hasRole, loading: permissionsLoading } = usePermissions();
+    const isHrRbacUser = hasRole(
+        'hr_manager',
+        'hr_supervisor',
+        'payroll_officer',
+        'leave_attendance_officer',
+        'recruitment_officer'
+    );
 
     const links = [
         { name: "Dashboard", icon: LayoutDashboard, path: "/dashboard", show: true },
@@ -17,43 +24,43 @@ export default function Sidebar() {
             name: "Employees",
             icon: Users,
             path: "/dashboard/employees",
-            show: canAny('employees.read', 'employees.read_own', 'employees.create', 'employees.update'),
+            show: isHrRbacUser || canAny('employees.read', 'employees.read_own', 'employees.create', 'employees.update'),
         },
         {
             name: "Attendance",
             icon: CheckCircle,
             path: "/dashboard/attendance",
-            show: canAny('attendance.read', 'attendance.read_own', 'attendance.update', 'attendance.create'),
+            show: isHrRbacUser || canAny('attendance.read', 'attendance.read_own', 'attendance.update', 'attendance.create'),
         },
         {
             name: "Requests",
             icon: Mail,
             path: "/dashboard/requests",
-            show: canAny('leave.read', 'leave.read_own', 'leave.read_department', 'leave.manage_status'),
+            show: isHrRbacUser || canAny('leave.read', 'leave.read_own', 'leave.read_department', 'leave.manage_status'),
         },
         {
             name: "Positions",
             icon: Briefcase,
             path: "/dashboard/positions",
-            show: canAny('positions.read', 'positions.create', 'positions.update', 'positions.delete'),
+            show: isHrRbacUser || canAny('positions.read', 'positions.create', 'positions.update', 'positions.delete'),
         },
         {
             name: "Departments",
             icon: Building,
             path: "/dashboard/departments",
-            show: canAny('departments.read', 'departments.create', 'departments.update', 'departments.delete'),
+            show: isHrRbacUser || canAny('departments.read', 'departments.create', 'departments.update', 'departments.delete'),
         },
         {
             name: "Payroll",
             icon: DollarSign,
             path: "/dashboard/payroll",
-            show: canAny('payroll.read', 'payroll.create', 'payroll.update', 'payroll.finalize', 'payroll.override'),
+            show: isHrRbacUser || canAny('payroll.read', 'payroll.create', 'payroll.update', 'payroll.finalize', 'payroll.override'),
         },
         {
             name: "Penalty",
             icon: AlertTriangle,
             path: "/dashboard/penalty",
-            show: canAny('penalties.read', 'penalties.create', 'penalties.update', 'penalties.approve', 'penalties.settle', 'penalties.cancel', 'penalties.delete'),
+            show: isHrRbacUser || canAny('penalties.read', 'penalties.create', 'penalties.update', 'penalties.approve', 'penalties.settle', 'penalties.cancel', 'penalties.delete'),
         },
     ].filter((link) => link.show || permissionsLoading);
 

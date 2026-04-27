@@ -8,6 +8,29 @@ import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
 import { invalidatePermissionCache, logRbacChange } from '../middleware/rbac.js';
 
+const HR_VIEW_ROLE_KEYS = new Set([
+  'hr_manager',
+  'hr_supervisor',
+  'payroll_officer',
+  'leave_attendance_officer',
+  'recruitment_officer',
+]);
+
+const HR_VIEW_PERMISSION_KEYS = [
+  'employees.read',
+  'attendance.read',
+  'attendance.read_department',
+  'leave.read',
+  'leave.read_department',
+  'positions.read',
+  'departments.read',
+  'payroll.read',
+  'penalties.read',
+  'tickets.read',
+  'activity.read',
+  'dashboard.read_own',
+];
+
 /**
  * GET /api/rbac/my-permissions
  * Returns the current user's permissions and RBAC roles.
@@ -67,6 +90,14 @@ export const getMyPermissions = async (req, res, next) => {
 
     // Employees always get minimal self-service permissions
     const permSet = new Set(permissions.map(p => p.permission_key));
+
+    const hasHrViewRole = roleKeys.some((roleKey) => HR_VIEW_ROLE_KEYS.has(roleKey));
+    if (hasHrViewRole) {
+      for (const permissionKey of HR_VIEW_PERMISSION_KEYS) {
+        permSet.add(permissionKey);
+      }
+    }
+
     if (role === 'employee' || permSet.size === 0) {
       ['employees.read_own', 'employees.update_own', 'leave.apply', 'leave.read_own',
        'attendance.read_own', 'attendance.clock', 'tickets.create', 'tickets.read_own',

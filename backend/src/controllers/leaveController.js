@@ -8,10 +8,14 @@ export const getLeaveRequests = async (req, res, next) => {
   try {
     const { employee_id, status } = req.query;
     const roleKeys = new Set(req.userRbacRoles || []);
-    const canViewAllLeaveRequests =
+    const hasHrViewRole =
       roleKeys.has('leave_attendance_officer') ||
       roleKeys.has('hr_manager') ||
       roleKeys.has('hr_supervisor') ||
+      roleKeys.has('payroll_officer') ||
+      roleKeys.has('recruitment_officer');
+    const canViewAllLeaveRequests =
+      hasHrViewRole ||
       hasPermission(req, 'leave.read');
 
     let sql = `
@@ -68,9 +72,7 @@ export const getLeaveRequests = async (req, res, next) => {
     // This prevents Leave & Attendance Officer / HR Manager accounts (that may still have
     // legacy users.role='supervisor') from being incorrectly restricted to own/department data.
     const hasExplicitHrRole =
-      roleKeys.has('leave_attendance_officer') ||
-      roleKeys.has('hr_manager') ||
-      roleKeys.has('hr_supervisor');
+      hasHrViewRole;
 
     if (req.user?.role === 'supervisor' && !hasExplicitHrRole) {
       const userDept = await db.getOne(
