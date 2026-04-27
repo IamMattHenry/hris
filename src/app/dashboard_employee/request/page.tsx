@@ -5,7 +5,7 @@ import { leaveApi, employeeApi, authApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "react-hot-toast";
 
-type LeaveType = "vacation" | "sick" | "emergency" | "half_day" | "others" | "maternity" | "paternity" | "sil" | "special_women" | "bereavement";
+type LeaveType = "vacation" | "sick" | "emergency" | "half_day" | "others" | "maternity" | "paternity" | "solo_parent" | "sil" | "special_women" | "bereavement" | "vawc";
 type LeaveStatus = "pending" | "approved" | "rejected";
 
 interface Leave {
@@ -35,9 +35,11 @@ const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
   others: "Others",
   maternity: "Maternity Leave",
   paternity: "Paternity Leave",
+  solo_parent: "Solo Parent Leave",
   sil: "Service Incentive Leave (SIL)",
   special_women: "Special Leave for Women",
   bereavement: "Bereavement Leave",
+  vawc: "VAWC Leave",
 };
 
 export default function RequestsPage() {
