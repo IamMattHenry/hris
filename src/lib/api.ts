@@ -985,7 +985,7 @@ export const payrollApi = {
   createRun: async (data: {
     pay_period_start: string;
     pay_period_end: string;
-    pay_schedule?: 'weekly' | 'semi-monthly' | 'monthly';
+    pay_schedule?: 'semi-monthly' | 'monthly';
     employee_ids?: number[];
     department_id?: number;
     employment_type?: string;
@@ -1128,7 +1128,7 @@ export const payrollApi = {
   },
 
   updateSettings: async (data: {
-    pay_schedule: 'weekly' | 'semi-monthly' | 'monthly';
+    pay_schedule: 'semi-monthly' | 'monthly';
     allowances_config?: any;
     holiday_overrides?: any[];
     de_minimis_config?: any;

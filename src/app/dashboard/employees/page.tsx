@@ -238,7 +238,11 @@ export default function EmployeeTable() {
       let valA: string | number = "";
       let valB: string | number = "";
 
-      const normalizeStatus = (value?: string) => String(value || "").toLowerCase().trim();
+      const normalizeStatus = (value?: string) =>
+        String(value || "")
+          .toLowerCase()
+          .trim()
+          .replace(/_/g, "-");
       const statusRank = (value?: string) => {
         const status = normalizeStatus(value);
         if (status === "terminated") return 999;
@@ -269,6 +273,10 @@ export default function EmployeeTable() {
           valA = statusRank(a.status);
           valB = statusRank(b.status);
           break;
+        case "on_leave":
+          valA = normalizeStatus(a.status) === "on-leave" ? 0 : 1;
+          valB = normalizeStatus(b.status) === "on-leave" ? 0 : 1;
+          break;
         default:
           return 0;
       }
@@ -285,6 +293,17 @@ export default function EmployeeTable() {
         if (valA === 999) return 1;
         if (valB === 999) return -1;
 
+        return sortOrder === "asc" ? Number(valA) - Number(valB) : Number(valB) - Number(valA);
+      }
+
+      if (sortBy === "on_leave") {
+        if (valA === valB) {
+          const nameA = `${a.first_name} ${a.last_name}`.toLowerCase();
+          const nameB = `${b.first_name} ${b.last_name}`.toLowerCase();
+          if (nameA < nameB) return -1;
+          if (nameA > nameB) return 1;
+          return 0;
+        }
         return sortOrder === "asc" ? Number(valA) - Number(valB) : Number(valB) - Number(valA);
       }
 
@@ -786,6 +805,13 @@ export default function EmployeeTable() {
                 >
                   Status{" "}
                   {sortBy === "status" && (sortOrder === "asc" ? "↑" : "↓")}
+                </button>
+                <button
+                  onClick={() => handleSortChange("on_leave")}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100"
+                >
+                  On Leave{" "}
+                  {sortBy === "on_leave" && (sortOrder === "asc" ? "↑" : "↓")}
                 </button>
               </div>
             )}

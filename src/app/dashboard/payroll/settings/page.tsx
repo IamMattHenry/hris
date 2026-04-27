@@ -45,7 +45,7 @@ export default function PayrollSettingsModal(props: any) {
   const [saving, setSaving] = useState(false);
 
   const [companyName, setCompanyName] = useState("HRIS Company");
-  const [paySchedule, setPaySchedule] = useState<"weekly" | "semi-monthly" | "monthly">("semi-monthly");
+  const [paySchedule, setPaySchedule] = useState<"semi-monthly" | "monthly">("semi-monthly");
   const [monthlyWorkDays, setMonthlyWorkDays] = useState("22");
 
   const [riceSubsidyMonthly, setRiceSubsidyMonthly] = useState("2000");
@@ -94,7 +94,7 @@ export default function PayrollSettingsModal(props: any) {
 
       const current = response.data.current;
       setCompanyName(current.company_name || "HRIS Company");
-      setPaySchedule(current.pay_schedule || "semi-monthly");
+      setPaySchedule(current.pay_schedule === "monthly" ? "monthly" : "semi-monthly");
       setMonthlyWorkDays(String(current.monthly_work_days || 22));
 
       const allowances = current.allowances_config || {};
@@ -338,10 +338,9 @@ export default function PayrollSettingsModal(props: any) {
                   <span className="text-sm font-medium">Pay Schedule</span>
                   <select
                     value={paySchedule}
-                    onChange={(e) => setPaySchedule(e.target.value as any)}
+                    onChange={(e) => setPaySchedule(e.target.value as "semi-monthly" | "monthly")}
                     className="w-full bg-white border border-[#E8D9C4] rounded-lg px-3 py-2"
                   >
-                    <option value="weekly">Weekly</option>
                     <option value="semi-monthly">Semi-Monthly</option>
                     <option value="monthly">Monthly</option>
                   </select>

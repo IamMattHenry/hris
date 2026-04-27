@@ -56,7 +56,7 @@ const getYesterdayDate = () => {
 
 const derivePayPeriodFromSchedule = (
   referenceDate: string,
-  paySchedule: "weekly" | "semi-monthly" | "monthly"
+  paySchedule: "semi-monthly" | "monthly"
 ) => {
   const date = parseDateInput(referenceDate);
   if (!date) {
@@ -69,21 +69,6 @@ const derivePayPeriodFromSchedule = (
   if (paySchedule === "monthly") {
     const start = new Date(date.getFullYear(), date.getMonth(), 1);
     const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-    return {
-      start: toDateInputString(start),
-      end: toDateInputString(end),
-    };
-  }
-
-  if (paySchedule === "weekly") {
-    const day = date.getDay();
-    const mondayOffset = day === 0 ? -6 : 1 - day;
-    const start = new Date(date);
-    start.setDate(start.getDate() + mondayOffset);
-
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-
     return {
       start: toDateInputString(start),
       end: toDateInputString(end),
@@ -129,7 +114,7 @@ export default function NewPayrollRunModal(props: any) {
   const [referenceDate, setReferenceDate] = useState(defaultReferenceDate);
   const [periodStart, setPeriodStart] = useState(defaultPeriod.start);
   const [periodEnd, setPeriodEnd] = useState(defaultPeriod.end);
-  const [paySchedule, setPaySchedule] = useState<"weekly" | "semi-monthly" | "monthly">("semi-monthly");
+  const [paySchedule, setPaySchedule] = useState<"semi-monthly" | "monthly">("semi-monthly");
   const [departmentId, setDepartmentId] = useState("");
   const [employmentType, setEmploymentType] = useState("");
   const [notes, setNotes] = useState("");
@@ -184,7 +169,9 @@ export default function NewPayrollRunModal(props: any) {
         }
 
         if (settingsRes.success && settingsRes.data?.current?.pay_schedule) {
-          const schedule = settingsRes.data.current.pay_schedule as "weekly" | "semi-monthly" | "monthly";
+          const schedule = settingsRes.data.current.pay_schedule === "monthly"
+            ? "monthly"
+            : "semi-monthly";
           setPaySchedule(schedule);
           const alignedPeriod = derivePayPeriodFromSchedule(defaultReferenceDate, schedule);
           setPeriodStart(alignedPeriod.start);
@@ -391,7 +378,7 @@ export default function NewPayrollRunModal(props: any) {
                   <select
                     value={paySchedule}
                     onChange={(e) => {
-                      const schedule = e.target.value as "weekly" | "semi-monthly" | "monthly";
+                      const schedule = e.target.value as "semi-monthly" | "monthly";
                       setPaySchedule(schedule);
                       const alignedPeriod = derivePayPeriodFromSchedule(referenceDate, schedule);
                       setPeriodStart(alignedPeriod.start);
@@ -399,7 +386,6 @@ export default function NewPayrollRunModal(props: any) {
                     }}
                     className="w-full bg-white border border-[#E8D9C4] rounded-lg px-3 py-2"
                   >
-                    <option value="weekly">Weekly</option>
                     <option value="semi-monthly">Semi-Monthly</option>
                     <option value="monthly">Monthly</option>
                   </select>

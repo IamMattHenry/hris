@@ -98,16 +98,6 @@ const endOfMonth = (value) => {
   return formatDate(date);
 };
 
-const startOfWeekMonday = (value) => {
-  const date = toDate(value);
-  if (!date) return null;
-
-  const day = date.getDay();
-  const offset = day === 0 ? -6 : 1 - day;
-  date.setDate(date.getDate() + offset);
-  return formatDate(date);
-};
-
 const derivePayPeriodFromSchedule = ({ referenceDate, paySchedule }) => {
   const ref = ensureDate(referenceDate);
   if (!ref) return null;
@@ -116,14 +106,6 @@ const derivePayPeriodFromSchedule = ({ referenceDate, paySchedule }) => {
     return {
       start: startOfMonth(ref),
       end: endOfMonth(ref),
-    };
-  }
-
-  if (paySchedule === 'weekly') {
-    const start = startOfWeekMonday(ref);
-    return {
-      start,
-      end: addDays(start, 6),
     };
   }
 
@@ -313,8 +295,13 @@ const getLatestPayrollSettings = async () => {
     };
   }
 
+  const normalizedPaySchedule = ['semi-monthly', 'monthly'].includes(settings.pay_schedule)
+    ? settings.pay_schedule
+    : 'semi-monthly';
+
   return {
     ...settings,
+    pay_schedule: normalizedPaySchedule,
     allowances_config: parseJson(settings.allowances_config, {
       rice_subsidy_monthly: 2000,
       clothing_annual: 6000,
@@ -661,7 +648,7 @@ export const createPayrollRun = async (req, res, next) => {
     }
 
     const settings = await getLatestPayrollSettings();
-    const resolvedPaySchedule = ['weekly', 'semi-monthly', 'monthly'].includes(pay_schedule)
+    const resolvedPaySchedule = ['semi-monthly', 'monthly'].includes(pay_schedule)
       ? pay_schedule
       : settings.pay_schedule || 'semi-monthly';
 
@@ -2010,14 +1997,14 @@ export const updatePayrollSettings = async (req, res, next) => {
       effective_date,
     } = req.body || {};
 
-    const schedule = ['weekly', 'semi-monthly', 'monthly'].includes(pay_schedule)
+    const schedule = ['semi-monthly', 'monthly'].includes(pay_schedule)
       ? pay_schedule
       : null;
 
     if (!schedule) {
       return res.status(400).json({
         success: false,
-        message: 'pay_schedule must be one of weekly, semi-monthly, or monthly',
+        message: 'pay_schedule must be one of semi-monthly or monthly',
       });
     }
 
