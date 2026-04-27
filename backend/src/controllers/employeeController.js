@@ -651,6 +651,9 @@ export const createEmployee = async (req, res, next) => {
     // Start transaction early so validation queries can use it
     await db.beginTransaction();
 
+    let createdUserId = null;
+    let transactionCommitted = false;
+
     try {
       // Validate/normalize work type and schedule inputs
       const allowedWorkTypes = ['full-time', 'part-time'];
@@ -779,21 +782,6 @@ export const createEmployee = async (req, res, next) => {
         }
       }
 
-      // Hash password
-      const hashedPassword = await bcryptjs.hash(password, 10);
-
-      // Create user account
-      const userId = await db.transactionInsert("users", {
-        username,
-        password: hashedPassword,
-        role: userRole,
-        created_by,
-      });
-
-      logger.info(
-        `User account created: ${username} (ID: ${userId}, Role: ${userRole})`
-      );
-
       // Normalize and validate employment type
       const normalizedEmploymentType = (typeof employment_type === 'string' && employment_type.trim()) ? employment_type.trim().toLowerCase() : null;
       const allowedTypes = ['regular', 'probationary'];
@@ -882,9 +870,23 @@ export const createEmployee = async (req, res, next) => {
         }
       }
 
+      // Hash password and create user only after all pre-insert validations pass
+      const hashedPassword = await bcryptjs.hash(password, 10);
+
+      createdUserId = await db.transactionInsert("users", {
+        username,
+        password: hashedPassword,
+        role: userRole,
+        created_by,
+      });
+
+      logger.info(
+        `User account created: ${username} (ID: ${createdUserId}, Role: ${userRole})`
+      );
+
       // Insert employee without code first
       const tempEmployeeId = await db.transactionInsert("employees", {
-        user_id: userId,
+        user_id: createdUserId,
         first_name,
         last_name,
         middle_name,
@@ -1046,6 +1048,7 @@ export const createEmployee = async (req, res, next) => {
 
       // Commit transaction
       await db.commit();
+      transactionCommitted = true;
 
       // Insert initial salary_history row for this new employee (best-effort, non-fatal)
       try {
@@ -1069,11 +1072,11 @@ export const createEmployee = async (req, res, next) => {
       );
 
       // Auto-assign RBAC role based on department + position (non-blocking)
-      await syncHrRbacRoleForUser(userId, department_id, position_id, created_by);
+      await syncHrRbacRoleForUser(createdUserId, department_id, position_id, created_by);
 
       // Create activity log entry (outside transaction)
       try {
-        const activityUserId = created_by || userId; // Use created_by if provided, otherwise use the new user's ID
+        const activityUserId = created_by || createdUserId; // Use created_by if provided, otherwise use the new user's ID
         await db.insert("activity_logs", {
           user_id: activityUserId,
           action: "CREATE",
@@ -1110,7 +1113,7 @@ export const createEmployee = async (req, res, next) => {
       const responseData = {
         employee_id: employeeId,
         employee_code: employeeCode,
-        user_id: userId,
+        user_id: createdUserId,
         username,
         role: userRole,
       };
@@ -1129,6 +1132,17 @@ export const createEmployee = async (req, res, next) => {
     } catch (error) {
       // Rollback transaction on error
       await db.rollback();
+
+      // Defensive cleanup: if user was created but transaction didn't commit, ensure no orphan user remains
+      if (!transactionCommitted && createdUserId) {
+        try {
+          await db.deleteRecord("users", "user_id = ?", [createdUserId]);
+          logger.info(`Cleaned up uncommitted user account ID: ${createdUserId}`);
+        } catch (cleanupError) {
+          logger.error(`Failed to cleanup uncommitted user account ID ${createdUserId}:`, cleanupError);
+        }
+      }
+
       logger.error("Create employee error:", error);
       throw error;
     }

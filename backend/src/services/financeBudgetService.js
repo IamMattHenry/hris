@@ -200,7 +200,7 @@ export const toMonthlyEquivalentCompensation = ({
 
 export const getCurrentStaffSalaryMonthlyTotal = async ({
   excludeEmployeeId = null,
-}) => {
+} = {}) => {
   const params = ['active', 'on-leave'];
   let whereClause = `status IN (?, ?)`;
 
