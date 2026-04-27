@@ -8,6 +8,7 @@ import AddDepartmentModal from "./add_dept/AddModal";
 import ViewDepartmentModal from "./view_dept/ViewModal";
 import EditDepartmentModal from "./edit_dept/EditModal";
 import DepartmentTable from "./dept_table/table";
+import ViewEmployeeModal from "../employees/view_employee/ViewModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { departmentApi } from "@/lib/api";
 import SearchBar from "@/components/forms/FormSearch";
@@ -25,6 +26,7 @@ export default function DepartmentsPage() {
   const [departments, setDepartments] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
+  const [employeeToView, setEmployeeToView] = useState<number | null>(null);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [departmentToDelete, setDepartmentToDelete] = useState<number | null>(null);
 
@@ -55,6 +57,10 @@ export default function DepartmentsPage() {
     console.log("View department:", department);
     setIsViewModalOpen(true);
     setSelectedDepartment(department);
+  };
+
+  const handleViewSupervisorDetails = (employeeId: number) => {
+    setEmployeeToView(employeeId);
   };
 
   const handleEdit = (department: any) => {
@@ -214,6 +220,7 @@ export default function DepartmentsPage() {
           onView={handleView}
           onEdit={!permissionLoading && canUpdateDepartment ? handleEdit : undefined}
           onDelete={!permissionLoading && canDeleteDepartment ? handleDelete : undefined}
+          onViewSupervisor={handleViewSupervisorDetails}
         />
       )}
 
@@ -284,8 +291,18 @@ export default function DepartmentsPage() {
           await fetchDepartments();
         }}
       />
-      <ViewDepartmentModal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} department={selectedDepartment} />
+      <ViewDepartmentModal
+        isOpen={isViewModalOpen}
+        onClose={() => setIsViewModalOpen(false)}
+        department={selectedDepartment}
+        onViewSupervisor={handleViewSupervisorDetails}
+      />
       <EditDepartmentModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} department={selectedDepartment} onSave={handleSave} />
+      <ViewEmployeeModal
+        isOpen={employeeToView !== null}
+        onClose={() => setEmployeeToView(null)}
+        id={employeeToView}
+      />
     </div>
   );
 }

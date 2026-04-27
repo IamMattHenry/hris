@@ -452,6 +452,61 @@ const getPayrollDepartmentStakeholders = async (runId) => {
     const managerEmail = manager?.employee_id ? await getEmployeePrimaryEmail(manager.employee_id) : null;
     const supervisorEmail = supervisor?.employee_id ? await getEmployeePrimaryEmail(supervisor.employee_id) : null;
 
+    const elevatedEmployees = await db.getAll(
+      `SELECT
+         e.employee_id,
+         e.employee_code,
+         e.first_name,
+         e.last_name,
+         jp.position_name,
+         u.role
+       FROM employees e
+       LEFT JOIN users u ON u.user_id = e.user_id
+       LEFT JOIN job_positions jp ON jp.position_id = e.position_id
+       WHERE e.department_id = ?
+         AND e.status IN ('active', 'on-leave')
+         AND (
+           LOWER(COALESCE(jp.position_name, '')) LIKE '%manager%'
+           OR LOWER(COALESCE(jp.position_name, '')) LIKE '%admin%'
+           OR LOWER(COALESCE(u.role, '')) IN ('admin', 'superadmin', 'supervisor')
+         )
+       ORDER BY e.employee_id ASC`,
+      [departmentId]
+    );
+
+    const recipientMap = new Map();
+
+    if (manager?.employee_id && managerEmail) {
+      recipientMap.set(Number(manager.employee_id), {
+        ...manager,
+        email: managerEmail,
+      });
+    }
+
+    if (supervisor?.employee_id && supervisorEmail) {
+      recipientMap.set(Number(supervisor.employee_id), {
+        ...supervisor,
+        email: supervisorEmail,
+      });
+    }
+
+    for (const employee of elevatedEmployees) {
+      const employeeId = Number(employee.employee_id);
+      if (!Number.isInteger(employeeId) || employeeId <= 0 || recipientMap.has(employeeId)) {
+        continue;
+      }
+
+      const email = await getEmployeePrimaryEmail(employeeId);
+      if (!email) {
+        continue;
+      }
+
+      recipientMap.set(employeeId, {
+        ...employee,
+        email,
+      });
+    }
+
     stakeholders.push({
       department_id: departmentId,
       department_name: department.department_name || `Department #${departmentId}`,
@@ -459,10 +514,85 @@ const getPayrollDepartmentStakeholders = async (runId) => {
       managerEmail,
       supervisor,
       supervisorEmail,
+      recipients: Array.from(recipientMap.values()),
     });
   }
 
   return stakeholders;
+};
+
+const getFinanceDepartmentSupervisorRecipient = async () => {
+  const financeDepartment = await db.getOne(
+    `SELECT department_id, department_name, supervisor_id
+     FROM departments
+     WHERE LOWER(COALESCE(department_name, '')) LIKE '%finance%'
+     ORDER BY department_id ASC
+     LIMIT 1`
+  );
+
+  if (!financeDepartment) {
+    return null;
+  }
+
+  if (financeDepartment.supervisor_id) {
+    const supervisor = await db.getOne(
+      `SELECT
+         e.employee_id,
+         e.first_name,
+         e.last_name
+       FROM employees e
+       WHERE e.employee_id = ?
+       LIMIT 1`,
+      [financeDepartment.supervisor_id]
+    );
+
+    const supervisorEmail = supervisor?.employee_id
+      ? await getEmployeePrimaryEmail(supervisor.employee_id)
+      : null;
+
+    if (supervisorEmail) {
+      return {
+        department_name: financeDepartment.department_name || 'Finance Department',
+        recipientLabel: `${supervisor.first_name || ''} ${supervisor.last_name || ''}`.trim() || 'Finance Supervisor',
+        email: supervisorEmail,
+      };
+    }
+  }
+
+  const fallbackFinanceLead = await db.getOne(
+    `SELECT
+       e.employee_id,
+       e.first_name,
+       e.last_name
+     FROM employees e
+     LEFT JOIN users u ON u.user_id = e.user_id
+     LEFT JOIN job_positions jp ON jp.position_id = e.position_id
+     WHERE e.department_id = ?
+       AND e.status IN ('active', 'on-leave')
+       AND (
+         LOWER(COALESCE(u.role, '')) IN ('supervisor', 'admin', 'superadmin')
+         OR LOWER(COALESCE(jp.position_name, '')) LIKE '%supervisor%'
+         OR LOWER(COALESCE(jp.position_name, '')) LIKE '%manager%'
+       )
+     ORDER BY e.employee_id ASC
+     LIMIT 1`,
+    [financeDepartment.department_id]
+  );
+
+  if (!fallbackFinanceLead?.employee_id) {
+    return null;
+  }
+
+  const fallbackEmail = await getEmployeePrimaryEmail(fallbackFinanceLead.employee_id);
+  if (!fallbackEmail) {
+    return null;
+  }
+
+  return {
+    department_name: financeDepartment.department_name || 'Finance Department',
+    recipientLabel: `${fallbackFinanceLead.first_name || ''} ${fallbackFinanceLead.last_name || ''}`.trim() || 'Finance Supervisor',
+    email: fallbackEmail,
+  };
 };
 
 const sendPayrollFinalizationDepartmentEmails = async ({ runId, payrollRun }) => {
@@ -489,6 +619,7 @@ const sendPayrollFinalizationDepartmentEmails = async ({ runId, payrollRun }) =>
   const stakeholderMap = new Map(stakeholderRows.map((row) => [Number(row.department_id), row]));
 
   const recordsByDepartment = new Map();
+  const allEmployeesForSummary = [];
   for (const record of records) {
     const departmentId = Number(record.department_id);
     if (!Number.isInteger(departmentId) || departmentId <= 0) {
@@ -499,13 +630,16 @@ const sendPayrollFinalizationDepartmentEmails = async ({ runId, payrollRun }) =>
       recordsByDepartment.set(departmentId, []);
     }
 
-    recordsByDepartment.get(departmentId).push({
+    const employeeSummary = {
       employee_code: record.employee_code,
       employee_name: `${record.first_name || ''} ${record.last_name || ''}`.trim(),
       gross_pay: Number(record.gross_pay) || 0,
       total_deductions: Number(record.total_deductions) || 0,
       net_pay: Number(record.net_pay) || 0,
-    });
+    };
+
+    recordsByDepartment.get(departmentId).push(employeeSummary);
+    allEmployeesForSummary.push(employeeSummary);
   }
 
   const sentTo = new Set();
@@ -515,14 +649,10 @@ const sendPayrollFinalizationDepartmentEmails = async ({ runId, payrollRun }) =>
       continue;
     }
 
-    const recipientEntries = [
-      stakeholder.managerEmail
-        ? { email: stakeholder.managerEmail, label: stakeholder.manager ? `${stakeholder.manager.first_name || ''} ${stakeholder.manager.last_name || ''}`.trim() : 'Manager' }
-        : null,
-      stakeholder.supervisorEmail
-        ? { email: stakeholder.supervisorEmail, label: stakeholder.supervisor ? `${stakeholder.supervisor.first_name || ''} ${stakeholder.supervisor.last_name || ''}`.trim() : 'Supervisor' }
-        : null,
-    ].filter(Boolean);
+    const recipientEntries = (stakeholder.recipients || []).map((recipient) => ({
+      email: recipient.email,
+      label: `${recipient.first_name || ''} ${recipient.last_name || ''}`.trim() || 'Department Lead',
+    }));
 
     for (const recipient of recipientEntries) {
       const dedupeKey = `${departmentId}:${recipient.email.toLowerCase()}`;
@@ -532,17 +662,44 @@ const sendPayrollFinalizationDepartmentEmails = async ({ runId, payrollRun }) =>
 
       sentTo.add(dedupeKey);
 
-      await emailService.sendPayrollRunFinalizedEmail({
-        to: recipient.email,
-        recipientLabel: recipient.label,
-        departmentName: stakeholder.department_name,
-        runId,
-        payPeriodStart: payrollRun.pay_period_start,
-        payPeriodEnd: payrollRun.pay_period_end,
-        payrollSchedule: payrollRun.pay_schedule,
-        budgetUsed: departmentEmployees.reduce((sum, row) => sum + (Number(row.gross_pay) || 0), 0),
-        employees: departmentEmployees,
-      });
+      try {
+        await emailService.sendPayrollRunFinalizedEmail({
+          to: recipient.email,
+          recipientLabel: recipient.label,
+          departmentName: stakeholder.department_name,
+          runId,
+          payPeriodStart: payrollRun.pay_period_start,
+          payPeriodEnd: payrollRun.pay_period_end,
+          payrollSchedule: payrollRun.pay_schedule,
+          budgetUsed: departmentEmployees.reduce((sum, row) => sum + (Number(row.gross_pay) || 0), 0),
+          employees: departmentEmployees,
+        });
+      } catch (error) {
+        logger.error(`Failed sending payroll finalization email to ${recipient.email} for department ${departmentId}:`, error);
+      }
+    }
+  }
+
+  const financeSupervisor = await getFinanceDepartmentSupervisorRecipient();
+  if (financeSupervisor?.email) {
+    const financeDedupeKey = `finance:${financeSupervisor.email.toLowerCase()}`;
+    if (!sentTo.has(financeDedupeKey)) {
+      sentTo.add(financeDedupeKey);
+      try {
+        await emailService.sendPayrollRunFinalizedEmail({
+          to: financeSupervisor.email,
+          recipientLabel: financeSupervisor.recipientLabel,
+          departmentName: financeSupervisor.department_name,
+          runId,
+          payPeriodStart: payrollRun.pay_period_start,
+          payPeriodEnd: payrollRun.pay_period_end,
+          payrollSchedule: payrollRun.pay_schedule,
+          budgetUsed: allEmployeesForSummary.reduce((sum, row) => sum + (Number(row.gross_pay) || 0), 0),
+          employees: allEmployeesForSummary,
+        });
+      } catch (error) {
+        logger.error(`Failed sending payroll finalization email to finance supervisor ${financeSupervisor.email}:`, error);
+      }
     }
   }
 };

@@ -543,17 +543,29 @@ const [cityCode, setCityCode] = useState("");
 
   const fetchSupervisors = async (deptId: number) => {
     try {
-      const result = await employeeApi.getAll({
-        department_id: deptId,
-        role: "supervisor",
-        status: "active",
-        exclude_employee_id: id || "",
-      });
-      if (result.success && result.data) {
-        setSupervisors(result.data);
+      const departmentResult = await departmentApi.getById(deptId);
+      const departmentSupervisorId = Number(departmentResult.data?.supervisor_id);
+
+      if (!departmentResult.success || !Number.isInteger(departmentSupervisorId) || departmentSupervisorId <= 0) {
+        setSupervisors([]);
+        return;
       }
+
+      if (id && Number(id) === departmentSupervisorId) {
+        setSupervisors([]);
+        return;
+      }
+
+      const supervisorResult = await employeeApi.getById(departmentSupervisorId);
+      if (supervisorResult.success && supervisorResult.data) {
+        setSupervisors([supervisorResult.data]);
+        return;
+      }
+
+      setSupervisors([]);
     } catch (error) {
       console.error("Error fetching supervisors:", error);
+      setSupervisors([]);
     }
   };
 

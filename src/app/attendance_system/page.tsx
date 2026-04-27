@@ -25,23 +25,24 @@ interface HRStaff {
   id: number;
   username: string;
   full_name: string;
+  role?: string;
 }
 
-// Mock HR Staff Database (for development)
-const MOCK_HR_STAFF = [
-  {
-    id: 1,
-    username: "hradmin",
-    password: "hr12345",
-    full_name: "Maria Santos",
-  },
-  {
-    id: 2,
-    username: "hrstaff",
-    password: "hrstaff2026",
-    full_name: "John Dela Cruz",
-  },
-];
+type HrLoginResponse = {
+  success: boolean;
+  message?: string;
+  requires_fingerprint?: boolean;
+  data?: {
+    token?: string;
+    user?: {
+      user_id?: number;
+      username?: string;
+      role?: string;
+      rbac_roles?: string[];
+      employee_id?: number;
+    };
+  };
+};
 
 export default function AttendanceSystemPage() {
   const [activeTab, setActiveTab] = useState<"FINGERPRINT" | "QR">("FINGERPRINT");
@@ -66,6 +67,7 @@ export default function AttendanceSystemPage() {
   const [showClockOutConfirm, setShowClockOutConfirm] = useState(false);
   const [pendingClockOutEmployeeId, setPendingClockOutEmployeeId] = useState<number | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [qrScannerActive, setQrScannerActive] = useState(false);
 
   const currentDate = new Date().toLocaleString("en-US", {
     weekday: "short",
@@ -85,6 +87,11 @@ export default function AttendanceSystemPage() {
     setError(null);
     setSuccessMessage(null);
   }, [activeTab]);
+
+  useEffect(() => {
+    const shouldActivate = activeTab === "QR" && isHRAuthenticated && !showClockOutConfirm;
+    setQrScannerActive(shouldActivate);
+  }, [activeTab, isHRAuthenticated, showClockOutConfirm]);
 
   /** Fingerprint SSE connection */
   useEffect(() => {
@@ -155,35 +162,80 @@ export default function AttendanceSystemPage() {
     }
   }, [qrValue, activeTab, isHRAuthenticated]);
 
-  /** Mock HR Login Handler */
+  const loginHRStaff = async (hrUsername: string, hrPassword: string): Promise<HrLoginResponse> => {
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ username: hrUsername, password: hrPassword }),
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        return {
+          success: false,
+          message:
+            payload?.message ||
+            (response.status === 401 ? "Invalid username or password." : "HR login failed."),
+        };
+      }
+
+      return payload as HrLoginResponse;
+    } catch {
+      return {
+        success: false,
+        message: "Unable to connect to server. Please try again.",
+      };
+    }
+  };
+
+  /** HR Login Handler */
   const handleHRLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthLoading(true);
     setAuthError(null);
 
-    await new Promise(resolve => setTimeout(resolve, 800)); // Simulate delay
+    const loginResult = await loginHRStaff(username.trim(), password);
 
-    const foundStaff = MOCK_HR_STAFF.find(
-      staff => staff.username === username && staff.password === password
-    );
+    if (!loginResult.success) {
+      setAuthError(loginResult.message || "Invalid username or password.");
+      setAuthLoading(false);
+      return;
+    }
 
-    if (foundStaff) {
-      setIsHRAuthenticated(true);
-      setHrStaff({
-        id: foundStaff.id,
-        username: foundStaff.username,
-        full_name: foundStaff.full_name,
-      });
+    if (loginResult.requires_fingerprint) {
+      setAuthError("This account requires fingerprint verification before login.");
+      setAuthLoading(false);
+      return;
+    }
+
+    const user = loginResult.data?.user;
+    if (!user?.user_id || !user.username) {
+      setAuthError("Unable to resolve HR user profile.");
+      setAuthLoading(false);
+      return;
+    }
+
+    setIsHRAuthenticated(true);
+    setHrStaff({
+      id: Number(user.user_id),
+      username: String(user.username),
+      full_name: String(user.username),
+      role: user.role ? String(user.role) : undefined,
+    });
+    setQrScannerActive(true);
       setUsername("");
       setPassword("");
-    } else {
-      setAuthError("Invalid username or password.");
-    }
 
     setAuthLoading(false);
   };
 
   const handleHRLogout = () => {
+    setQrScannerActive(false);
     setIsHRAuthenticated(false);
     setHrStaff(null);
     setQrValue("");
@@ -191,6 +243,8 @@ export default function AttendanceSystemPage() {
     setAttendanceRemarks(null);
     setError(null);
     setSuccessMessage(null);
+    setShowClockOutConfirm(false);
+    setPendingClockOutEmployeeId(null);
   };
 
   /** Save attendance record */
@@ -312,6 +366,7 @@ export default function AttendanceSystemPage() {
             <div className="flex items-center gap-3 bg-green-100 text-green-800 px-4 py-1.5 rounded-lg text-sm">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
               HR: {hrStaff?.full_name}
+              {hrStaff?.role ? ` (${hrStaff.role})` : ""}
               <button
                 onClick={handleHRLogout}
                 className="ml-2 text-red-600 hover:text-red-700"
@@ -405,13 +460,8 @@ export default function AttendanceSystemPage() {
             </button>
           </form>
 
-          {/* Mock Credentials Info */}
           <div className="mt-8 pt-6 border-t text-xs text-gray-500">
-            <p className="font-medium mb-2">Test Credentials:</p>
-            <div className="bg-[#fff7ec] p-3 rounded-lg space-y-1">
-              <p><strong>hradmin</strong> / hr12345</p>
-              <p><strong>hrstaff</strong> / hrstaff2026</p>
-            </div>
+            <p className="font-medium mb-2">Use your HRIS account credentials.</p>
           </div>
         </div>
       )}
@@ -476,7 +526,7 @@ export default function AttendanceSystemPage() {
                 <QRCodeScanner 
                   key="qr-scanner" 
                   onScan={(value) => setQrValue(value)} 
-                  isActive={activeTab === "QR" && !showClockOutConfirm} 
+                  isActive={qrScannerActive} 
                 />
               </div>
 

@@ -15,6 +15,32 @@ export default function QRCodeScanner({ onScan, isActive = true }: QRCodeScanner
   const lastScannedRef = useRef<string>("");
   const isOperatingRef = useRef(false);
 
+  const stopAndClearScanner = async () => {
+    const scanner = html5QrCodeRef.current;
+    if (!scanner) {
+      setIsScanning(false);
+      return;
+    }
+
+    try {
+      const state = scanner.getState();
+      if (state === 2) {
+        await scanner.stop();
+      }
+    } catch (err) {
+      console.warn("Error while stopping QR scanner:", err);
+    }
+
+    try {
+      scanner.clear();
+    } catch (err) {
+      console.warn("Error while clearing QR scanner:", err);
+    }
+
+    setIsScanning(false);
+    lastScannedRef.current = "";
+  };
+
   // Initialize scanner once
   useEffect(() => {
     const readerElement = document.getElementById("reader");
@@ -24,18 +50,9 @@ export default function QRCodeScanner({ onScan, isActive = true }: QRCodeScanner
 
     return () => {
       // Cleanup on unmount
-      const scanner = html5QrCodeRef.current;
-      if (scanner) {
-        const state = scanner.getState();
-        if (state === 2) { // SCANNING state
-          scanner.stop().catch(() => {}).finally(() => {
-            scanner.clear();
-          });
-        } else {
-          scanner.clear();
-        }
+      stopAndClearScanner().finally(() => {
         html5QrCodeRef.current = null;
-      }
+      });
     };
   }, []);
 
@@ -110,10 +127,7 @@ export default function QRCodeScanner({ onScan, isActive = true }: QRCodeScanner
     isOperatingRef.current = true;
 
     try {
-      await scanner.stop();
-      scanner.clear();
-      setIsScanning(false);
-      lastScannedRef.current = "";
+      await stopAndClearScanner();
     } catch (err) {
       console.warn("Error stopping scanner:", err);
       // Force state sync
