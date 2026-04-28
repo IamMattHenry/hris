@@ -1,9 +1,10 @@
 "use client";
 
-import { Loader2, Fingerprint, LogIn, LogOut } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Loader2, Fingerprint, LogIn, LogOut, Router } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
 import QRCodeScanner from "./Scanner/QRCodeScanner";
-import { attendanceApi, employeeApi } from "@/lib/api";
+import { attendanceApi, employeeApi, authApi } from "@/lib/api";
+import { useSearchParams } from "next/navigation";
 import ConfirmModal from "@/components/modals/ConfirmModal";
 
 interface EmployeeQRData {
@@ -27,22 +28,6 @@ interface HRStaff {
   full_name: string;
   role?: string;
 }
-
-type HrLoginResponse = {
-  success: boolean;
-  message?: string;
-  requires_fingerprint?: boolean;
-  data?: {
-    token?: string;
-    user?: {
-      user_id?: number;
-      username?: string;
-      role?: string;
-      rbac_roles?: string[];
-      employee_id?: number;
-    };
-  };
-};
 
 export default function AttendanceSystemPage() {
   const [activeTab, setActiveTab] = useState<"FINGERPRINT" | "QR">("FINGERPRINT");
@@ -68,6 +53,16 @@ export default function AttendanceSystemPage() {
   const [pendingClockOutEmployeeId, setPendingClockOutEmployeeId] = useState<number | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [qrScannerActive, setQrScannerActive] = useState(false);
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "FINGERPRINT") {
+      setActiveTab("FINGERPRINT");
+    } else if (tab === "QR") {
+      setActiveTab("QR");
+    }
+  }, [searchParams]);
 
   const currentDate = new Date().toLocaleString("en-US", {
     weekday: "short",
@@ -79,7 +74,7 @@ export default function AttendanceSystemPage() {
     hour12: true,
   });
 
-  /** Reset QR data when switching tabs */
+  /** Reset data when switching tabs */
   useEffect(() => {
     setQrValue("");
     setEmployeeData(null);
@@ -92,6 +87,41 @@ export default function AttendanceSystemPage() {
     const shouldActivate = activeTab === "QR" && isHRAuthenticated && !showClockOutConfirm;
     setQrScannerActive(shouldActivate);
   }, [activeTab, isHRAuthenticated, showClockOutConfirm]);
+
+  /** * CORE LOGIC: Handle Real Data Fetch & Attendance Execution
+   * Extracted so it can be called by BOTH Fingerprint and QR Scanners
+   */
+  const handleEmployeeScan = useCallback(async (employee_id: number, explicit_schedule_time?: string) => {
+    try {
+      const res = await employeeApi.getById(employee_id);
+      
+      if (!res?.success || !res.data) {
+        setError("Scanned ID is not associated with any employee");
+        setEmployeeData(null);
+        return;
+      }
+
+      // Populate real data from DB
+      const normalized: EmployeeQRData = {
+        employee_id: res.data.employee_id,
+        employee_code: res.data.employee_code,
+        first_name: res.data.first_name,
+        last_name: res.data.last_name,
+        position_name: res.data.position_name,
+        // Use QR schedule time if provided, else fallback to real DB schedule_time, else default
+        schedule_time: explicit_schedule_time || res.data.schedule_time || "08:00",
+      };
+
+      setEmployeeData(normalized);
+      const remarks = calculateAttendanceRemarks(normalized);
+      setAttendanceRemarks(remarks);
+      
+      await saveAttendance(normalized, remarks);
+    } catch (err) {
+      console.error("Employee fetch error:", err);
+      setError("Failed to fetch real employee data.");
+    }
+  }, []);
 
   /** Fingerprint SSE connection */
   useEffect(() => {
@@ -108,9 +138,14 @@ export default function AttendanceSystemPage() {
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
       setStatusLog((prev) => [...prev.slice(-9), data]);
-      if (data.message.includes("ERROR:")) {
+      
+      if (data.message?.includes("ERROR:")) {
         setError(data.message.replace("ERROR:", ""));
         setTimeout(() => setError(null), 5000);
+      } 
+      // REAL DATA HOOK: If the scanner sends a successful match with an employee ID
+      else if (data.status === "success" && data.employee_id) {
+        handleEmployeeScan(data.employee_id);
       }
     };
 
@@ -120,9 +155,9 @@ export default function AttendanceSystemPage() {
     };
 
     return () => eventSource.close();
-  }, [activeTab]);
+  }, [activeTab, handleEmployeeScan]);
 
-  /** Process QR scanning - ONLY when QR tab is active AND HR is authenticated */
+  /** Process QR scanning */
   useEffect(() => {
     if (activeTab !== "QR" || !qrValue || !isHRAuthenticated) return;
 
@@ -134,64 +169,12 @@ export default function AttendanceSystemPage() {
         return;
       }
 
-      (async () => {
-        const res = await employeeApi.getById(data.employee_id);
-        if (!res?.success || !res.data) {
-          setError("QR code is not associated with any employee");
-          setEmployeeData(null);
-          return;
-        }
-
-        const normalized: EmployeeQRData = {
-          employee_id: res.data.employee_id,
-          employee_code: res.data.employee_code,
-          first_name: res.data.first_name,
-          last_name: res.data.last_name,
-          position_name: res.data.position_name,
-          schedule_time: data.schedule_time,
-        };
-
-        setEmployeeData(normalized);
-        const remarks = calculateAttendanceRemarks(normalized);
-        setAttendanceRemarks(remarks);
-        await saveAttendance(normalized, remarks);
-      })();
+      handleEmployeeScan(data.employee_id, data.schedule_time);
     } catch (err) {
       setError("QR code not recognized. Please scan a valid employee QR code.");
       console.error("QR parsing error:", err);
     }
-  }, [qrValue, activeTab, isHRAuthenticated]);
-
-  const loginHRStaff = async (hrUsername: string, hrPassword: string): Promise<HrLoginResponse> => {
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
-
-    try {
-      const response = await fetch(`${apiBaseUrl}/auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ username: hrUsername, password: hrPassword }),
-      });
-
-      const payload = await response.json().catch(() => null);
-      if (!response.ok) {
-        return {
-          success: false,
-          message:
-            payload?.message ||
-            (response.status === 401 ? "Invalid username or password." : "HR login failed."),
-        };
-      }
-
-      return payload as HrLoginResponse;
-    } catch {
-      return {
-        success: false,
-        message: "Unable to connect to server. Please try again.",
-      };
-    }
-  };
+  }, [qrValue, activeTab, isHRAuthenticated, handleEmployeeScan]);
 
   /** HR Login Handler */
   const handleHRLogin = async (e: React.FormEvent) => {
@@ -199,39 +182,42 @@ export default function AttendanceSystemPage() {
     setAuthLoading(true);
     setAuthError(null);
 
-    const loginResult = await loginHRStaff(username.trim(), password);
+    try {
+      const result = await authApi.login(username.trim(), password);
 
-    if (!loginResult.success) {
-      setAuthError(loginResult.message || "Invalid username or password.");
-      setAuthLoading(false);
-      return;
-    }
+      if (!result.success) {
+        setAuthError(result.message || "Invalid username or password.");
+        window.location.href = "/attendance_system?tab=QR";
+        setAuthLoading(false);
+        return;
+      }
 
-    if (loginResult.requires_fingerprint) {
-      setAuthError("This account requires fingerprint verification before login.");
-      setAuthLoading(false);
-      return;
-    }
+      const user = (result as any).data?.user;
 
-    const user = loginResult.data?.user;
-    if (!user?.user_id || !user.username) {
-      setAuthError("Unable to resolve HR user profile.");
-      setAuthLoading(false);
-      return;
-    }
+      if (!user) {
+        setAuthError("Unable to resolve HR user profile.");
+        setAuthLoading(false);
+        return;
+      }
 
-    setIsHRAuthenticated(true);
-    setHrStaff({
-      id: Number(user.user_id),
-      username: String(user.username),
-      full_name: String(user.username),
-      role: user.role ? String(user.role) : undefined,
-    });
-    setQrScannerActive(true);
+      setIsHRAuthenticated(true);
+      setHrStaff({
+        id: Number(user.user_id || user.id),
+        username: String(user.username || username),
+        full_name: user.first_name ? `${user.first_name} ${user.last_name}` : String(user.username || username),
+        role: user.role ? String(user.role) : "HR Staff",
+      });
+      
+      setQrScannerActive(true);
       setUsername("");
       setPassword("");
 
-    setAuthLoading(false);
+    } catch (error) {
+      console.error("HR Kiosk Auth Error:", error);
+      setAuthError("Unable to connect to server. Please try again.");
+    } finally {
+      setAuthLoading(false);
+    }
   };
 
   const handleHRLogout = () => {
@@ -334,45 +320,81 @@ export default function AttendanceSystemPage() {
     }
   };
 
+  // Reusable Component for Employee Data Card
+  const EmployeeDataCard = () => (
+    <div className="flex-1 space-y-5">
+      {employeeData ? (
+        <>
+          <div className="border rounded-xl border-[#e2cfa8] bg-white p-6 mb-5 shadow-sm">
+            <p className="font-bold text-2xl text-[#3b2b1c]">
+              {employeeData.first_name} {employeeData.last_name}
+            </p>
+            <p className="text-lg font-medium text-[#8b7355] mt-1">{employeeData.position_name}</p>
+            <div className="mt-3 inline-block bg-[#f0e1cc] text-[#3b2b1c] px-3 py-1 rounded-md text-sm font-semibold">
+              ID: {employeeData.employee_code}
+            </div>
+          </div>
+          <div className="text-base space-y-3 bg-white p-6 rounded-xl border border-[#e2cfa8] shadow-sm">
+            <div className="flex justify-between border-b pb-3">
+              <strong className="text-gray-600">Schedule:</strong> 
+              <span className="font-medium text-[#3b2b1c]">{formatTime(employeeData.schedule_time)}</span>
+            </div>
+            <div className="flex justify-between pt-1">
+              <strong className="text-gray-600">Status:</strong>{" "}
+              <span className={`px-3 py-1 rounded-md font-bold text-sm shadow-sm ${attendanceRemarks?.color}`}>
+                {attendanceRemarks?.remarks}
+              </span>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="border-2 border-dashed border-[#e2cfa8] bg-[#fdfaf5] rounded-xl p-10 text-center flex flex-col items-center justify-center h-full min-h-[250px]">
+          <Fingerprint className="w-12 h-12 text-[#d4b88a] mb-4 opacity-50" />
+          <p className="text-[#8b7355] font-medium text-lg">Awaiting Scan Data</p>
+          <p className="text-sm text-gray-500 mt-2">Employee information will display here</p>
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    <section className="bg-[#fff7ec] rounded-2xl shadow-2xl w-full font-poppins max-w-4xl px-10 py-8 mx-auto">
+    <section className="bg-[#fff7ec] rounded-2xl shadow-2xl w-full font-poppins max-w-5xl px-10 py-8 mx-auto">
       {/* Tabs Header */}
-      <div className="flex justify-between items-center mb-5">
+      <div className="flex justify-between items-center mb-6 border-b border-[#e2cfa8] pb-4">
         <div>
           <h3 className="text-3xl font-extrabold text-[#3b2b1c]">
             {activeTab === "FINGERPRINT" ? "FINGERPRINT ATTENDANCE" : "QR CODE ATTENDANCE"}
           </h3>
-          <p className="text-[#3b2b1c]/80 text-sm">{currentDate}</p>
+          <p className="text-[#8b7355] font-medium text-sm mt-1">{currentDate}</p>
         </div>
 
         {/* Tab Buttons + HR Status */}
         <div className="flex items-center gap-4">
-          <div className="flex bg-[#f0e1cc] rounded-lg overflow-hidden">
+          <div className="flex bg-[#f0e1cc] rounded-lg overflow-hidden border border-[#d4b88a]">
             <button
               onClick={() => setActiveTab("FINGERPRINT")}
-              className={`px-5 py-2 font-semibold transition ${activeTab === "FINGERPRINT" ? "bg-[#8b7355] text-white" : "text-[#3b2b1c] hover:bg-[#e7d5b9]"}`}
+              className={`px-5 py-2.5 font-bold transition ${activeTab === "FINGERPRINT" ? "bg-[#3b2b1c] text-white" : "text-[#3b2b1c] hover:bg-[#e7d5b9]"}`}
             >
               Fingerprint
             </button>
             <button
               onClick={() => setActiveTab("QR")}
-              className={`px-5 py-2 font-semibold transition ${activeTab === "QR" ? "bg-[#8b7355] text-white" : "text-[#3b2b1c] hover:bg-[#e7d5b9]"}`}
+              className={`px-5 py-2.5 font-bold transition ${activeTab === "QR" ? "bg-[#3b2b1c] text-white" : "text-[#3b2b1c] hover:bg-[#e7d5b9]"}`}
             >
               QR Code
             </button>
           </div>
 
           {activeTab === "QR" && isHRAuthenticated && (
-            <div className="flex items-center gap-3 bg-green-100 text-green-800 px-4 py-1.5 rounded-lg text-sm">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              HR: {hrStaff?.full_name}
-              {hrStaff?.role ? ` (${hrStaff.role})` : ""}
+            <div className="flex items-center gap-3 bg-green-50 border border-green-200 text-green-800 px-4 py-2 rounded-lg text-sm font-semibold shadow-sm">
+              <div className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_5px_rgba(34,197,94,0.8)]" />
+              HR Access: {hrStaff?.full_name}
               <button
                 onClick={handleHRLogout}
-                className="ml-2 text-red-600 hover:text-red-700"
+                className="ml-2 text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 p-1.5 rounded transition"
                 title="Logout"
               >
-                <LogOut size={18} />
+                <LogOut size={16} />
               </button>
             </div>
           )}
@@ -381,23 +403,23 @@ export default function AttendanceSystemPage() {
 
       {/* ==================== HR AUTHENTICATION FORM (QR Tab Only) ==================== */}
       {activeTab === "QR" && !isHRAuthenticated && (
-        <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl p-10 border border-[#e2cfa8]">
+        <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl p-10 border border-[#e2cfa8] my-8">
           <div className="text-center mb-8">
-            <div className="mx-auto w-16 h-16 bg-[#8b7355] rounded-full flex items-center justify-center mb-4">
-              <LogIn className="w-9 h-9 text-white" />
+            <div className="mx-auto w-16 h-16 bg-[#3b2b1c] rounded-full flex items-center justify-center mb-4 shadow-md">
+              <LogIn className="w-8 h-8 text-[#f0e1cc]" />
             </div>
-            <h2 className="text-2xl font-bold text-[#3b2b1c]">HR Authentication</h2>
-            <p className="text-[#8b7355] mt-2">Please contact HR staff to login and use QR Code Attendance</p>
+            <h2 className="text-2xl font-bold text-[#3b2b1c]">HR Authentication Required</h2>
+            <p className="text-[#8b7355] text-sm mt-2 font-medium">Please login as HR to unlock the scanner</p>
           </div>
 
-          <form onSubmit={handleHRLogin} className="space-y-6">
+          <form onSubmit={handleHRLogin} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+              <label className="block text-sm font-semibold text-[#3b2b1c] mb-1.5">Username</label>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-3 border border-[#d4b88a] rounded-xl focus:outline-none focus:border-[#8b7355]"
+                className="w-full px-4 py-3 bg-[#faf7f2] border border-[#d4b88a] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8b7355]"
                 placeholder="hradmin"
                 required
                 autoFocus
@@ -406,13 +428,13 @@ export default function AttendanceSystemPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <label className="block text-sm font-semibold text-[#3b2b1c] mb-1.5">Password</label>
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 border border-[#d4b88a] rounded-xl focus:outline-none focus:border-[#8b7355] pr-12"
+                  className="w-full px-4 py-3 bg-[#faf7f2] border border-[#d4b88a] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8b7355] pr-12"
                   placeholder="Enter password"
                   required
                   maxLength={50}
@@ -439,7 +461,7 @@ export default function AttendanceSystemPage() {
             </div>
 
             {authError && (
-              <p className="text-red-600 text-sm font-medium text-center bg-red-50 p-3 rounded-lg">
+              <p className="text-red-700 text-sm font-semibold text-center bg-red-50 border border-red-100 p-3 rounded-xl">
                 {authError}
               </p>
             )}
@@ -447,7 +469,7 @@ export default function AttendanceSystemPage() {
             <button
               type="submit"
               disabled={authLoading}
-              className="w-full bg-[#8b7355] hover:bg-[#6f5c44] disabled:bg-[#a38a6e] text-white font-semibold py-3.5 rounded-xl transition flex items-center justify-center gap-2"
+              className="w-full bg-[#3b2b1c] hover:bg-[#5C2A15] disabled:bg-[#a38a6e] text-white font-bold py-3.5 mt-2 rounded-xl transition flex items-center justify-center gap-2 shadow-md"
             >
               {authLoading ? (
                 <>
@@ -455,14 +477,10 @@ export default function AttendanceSystemPage() {
                   Authenticating...
                 </>
               ) : (
-                "Login as HR Staff"
+                "Unlock Scanner"
               )}
             </button>
           </form>
-
-          <div className="mt-8 pt-6 border-t text-xs text-gray-500">
-            <p className="font-medium mb-2">Use your HRIS account credentials.</p>
-          </div>
         </div>
       )}
 
@@ -470,96 +488,72 @@ export default function AttendanceSystemPage() {
       {(activeTab === "FINGERPRINT" || isHRAuthenticated) && (
         <>
           {/* Status Line */}
-          <div className="flex items-center gap-2 mb-5 text-[#8b7355] text-lg">
+          <div className="flex items-center gap-3 mb-6 bg-white p-3 rounded-lg border border-[#e2cfa8] shadow-sm">
             {error ? (
-              <span className="text-red-700 font-semibold">❌ {error}</span>
+              <span className="text-red-700 font-bold flex items-center gap-2">❌ {error}</span>
             ) : successMessage ? (
-              <span className="text-green-700 font-semibold">✅ {successMessage}</span>
+              <span className="text-green-700 font-bold flex items-center gap-2">✅ {successMessage}</span>
             ) : activeTab === "FINGERPRINT" && !isConnected ? (
               <>
-                <Loader2 className="w-6 h-6 animate-spin text-[#b97a5b]" />
-                <span>Connecting to fingerprint sensor...</span>
+                <Loader2 className="w-5 h-5 animate-spin text-[#b97a5b]" />
+                <span className="text-[#8b7355] font-semibold">Connecting to Biometric Hardware...</span>
               </>
             ) : (
               <>
-                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                <span>{activeTab === "FINGERPRINT" ? "Ready for fingerprint scan..." : "Ready for QR scan..."}</span>
+                <div className="w-3.5 h-3.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
+                <span className="text-[#3b2b1c] font-bold">
+                  {activeTab === "FINGERPRINT" ? "Scanner Online — Ready for Fingerprint" : "Camera Active — Show QR Code"}
+                </span>
               </>
             )}
           </div>
 
-          {/* Tab Content */}
-          {activeTab === "FINGERPRINT" ? (
-            // Fingerprint Tab (unchanged)
-            <div className="flex gap-8 items-start">
-              <div className="flex-1 bg-gray-900 text-green-400 rounded-xl p-6 h-96 overflow-y-auto font-mono text-sm">
-                <h4 className="text-white border-b border-gray-700 pb-2 mb-4 flex items-center gap-2">
-                  <Fingerprint className="w-5 h-5" /> Live Sensor Log
-                </h4>
-                {statusLog.length === 0 ? (
-                  <p className="text-gray-400 italic text-center py-10">
-                    <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
-                    Waiting for sensor data...
-                  </p>
-                ) : (
-                  statusLog.map((log, i) => (
-                    <div key={i} className="mb-1">
-                      <span className="text-gray-500 text-xs mr-2">
-                        {new Date(log.timestamp).toLocaleTimeString()}
-                      </span>
-                      <span>{log.message}</span>
-                    </div>
-                  ))
-                )}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
+            {/* LEFT COLUMN: Input Device (Sensor Log OR Camera) */}
+            {activeTab === "FINGERPRINT" ? (
+              <div className="flex flex-col gap-4 h-full">
+                {/* Fingerprint Visual UI */}
+                <div className={`flex flex-col items-center justify-center rounded-2xl shadow-inner p-8 text-white text-center transition-all duration-300 border-2 ${employeeData && !error ? "bg-green-600 border-green-500" : isConnected ? "bg-[#3b2b1c] border-[#2a1107]" : "bg-gray-500 border-gray-600"}`}>
+                  <Fingerprint className={`w-24 h-24 mb-4 ${isConnected ? "animate-pulse text-[#D4A056]" : "opacity-50"}`} />
+                  <h4 className="text-xl font-bold tracking-wide">
+                    {employeeData && !error ? "Match Successful" : isConnected ? "Sensor Active" : "Initializing"}
+                  </h4>
+                </div>
+                
+                {/* Hardware Log */}
+                <div className="flex-1 bg-gray-900 text-green-400 rounded-2xl p-5 overflow-y-auto font-mono text-sm border-2 border-gray-800 shadow-md min-h-[200px]">
+                  <h4 className="text-white border-b border-gray-700 pb-2 mb-3 flex items-center gap-2 font-sans font-bold">
+                    <Fingerprint className="w-4 h-4" /> Hardware Output
+                  </h4>
+                  {statusLog.length === 0 ? (
+                    <p className="text-gray-500 italic text-center py-6">
+                      Waiting for sensor data...
+                    </p>
+                  ) : (
+                    statusLog.map((log, i) => (
+                      <div key={i} className="mb-1 flex gap-2">
+                        <span className="text-gray-600">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
+                        <span className={log.message.includes("ERROR") ? "text-red-400" : "text-green-400"}>
+                          {log.message}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
-
-              <div className="w-80 bg-gradient-to-br from-[#8b7355] to-[#b97a5b] rounded-xl shadow-2xl p-8 text-white text-center">
-                <Fingerprint className={`w-32 h-32 mx-auto mb-4 ${isConnected ? "animate-pulse" : "opacity-50"}`} />
-                <h4 className="text-xl font-bold">{isConnected ? "Sensor Ready" : "Connecting..."}</h4>
-                <p className="text-sm opacity-90">{isConnected ? "Place finger on sensor" : "Please wait..."}</p>
-              </div>
-            </div>
-          ) : (
-            // QR Tab (only shown after HR login)
-            <div className="flex gap-8 items-start">
-              <div className="flex flex-col items-center justify-center bg-[#f4eadb] rounded-xl shadow-inner p-4 min-h-[300px]">
+            ) : (
+              <div className="flex flex-col items-center justify-center bg-white rounded-2xl shadow-sm border border-[#e2cfa8] p-4 min-h-[400px]">
                 <QRCodeScanner 
                   key="qr-scanner" 
                   onScan={(value) => setQrValue(value)} 
                   isActive={qrScannerActive} 
                 />
               </div>
+            )}
 
-              <div className="flex-1 space-y-5">
-                {employeeData ? (
-                  <>
-                    <div className="border rounded-xl border-[#e2cfa8] p-4 mb-5">
-                      <p className="font-semibold text-xl text-[#3b2b1c]">
-                        {employeeData.first_name} {employeeData.last_name}
-                      </p>
-                      <p className="text-lg text-[#8b7355]">{employeeData.position_name}</p>
-                      <p className="text-sm text-gray-600 mt-1">Code: {employeeData.employee_code}</p>
-                    </div>
-                    <div className="text-base space-y-4">
-                      <p>
-                        <strong>Schedule:</strong> {formatTime(employeeData.schedule_time)}
-                      </p>
-                      <p>
-                        <strong>Status:</strong>{" "}
-                        <span className={`px-3 py-1 rounded-md font-semibold ${attendanceRemarks?.color}`}>
-                          {attendanceRemarks?.remarks}
-                        </span>
-                      </p>
-                    </div>
-                  </>
-                ) : (
-                  <div className="border rounded-xl border-[#e2cfa8] p-8 text-center">
-                    <p className="text-gray-500">Scan an employee QR code to display information</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+            {/* RIGHT COLUMN: Real DB Employee Data Profile */}
+            <EmployeeDataCard />
+          </div>
         </>
       )}
 
@@ -570,7 +564,7 @@ export default function AttendanceSystemPage() {
         onConfirm={performClockOut}
         title="Confirm Clock Out"
         message={`Detected a prior clock-in today for ${employeeData ? employeeData.first_name + ' ' + employeeData.last_name : 'this employee'}${employeeData?.employee_code ? ` (Code: ${employeeData.employee_code})` : ''}. Proceed to clock out?`}
-        confirmText="Clock Out"
+        confirmText={isSaving ? "Saving..." : "Clock Out"}
         cancelText="Cancel"
       />
     </section>

@@ -2,6 +2,7 @@
 
 import { Html5Qrcode } from "html5-qrcode";
 import { useEffect, useRef, useState } from "react";
+import { Camera, StopCircle, AlertCircle, ScanLine } from "lucide-react";
 
 interface QRCodeScannerProps {
   onScan: (value: string) => void;
@@ -17,55 +18,50 @@ export default function QRCodeScanner({ onScan, isActive = true }: QRCodeScanner
 
   const stopAndClearScanner = async () => {
     const scanner = html5QrCodeRef.current;
-    if (!scanner) {
-      setIsScanning(false);
-      return;
-    }
+    if (!scanner) return;
 
     try {
-      const state = scanner.getState();
-      if (state === 2) {
+      // Force stop regardless of getState() to ensure hardware releases
+      if (scanner.isScanning) { 
         await scanner.stop();
       }
     } catch (err) {
-      console.warn("Error while stopping QR scanner:", err);
+      console.warn("Scanner stop error (safe to ignore):", err);
     }
 
     try {
       scanner.clear();
     } catch (err) {
-      console.warn("Error while clearing QR scanner:", err);
+      console.warn("Scanner clear error:", err);
+    }
+    
+    // Explicitly kill all active video tracks to shut off the webcam light
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream.getTracks().forEach(track => track.stop());
+    } catch (err) {
+      // Ignore errors here if permission isn't granted or no camera exists
     }
 
     setIsScanning(false);
-    lastScannedRef.current = "";
   };
 
-  // Initialize scanner once
   useEffect(() => {
-    const readerElement = document.getElementById("reader");
-    if (readerElement && !html5QrCodeRef.current) {
+    // Only initialize the class instance once
+    if (!html5QrCodeRef.current && document.getElementById("reader")) {
       html5QrCodeRef.current = new Html5Qrcode("reader");
     }
 
     return () => {
-      // Cleanup on unmount
-      stopAndClearScanner().finally(() => {
-        html5QrCodeRef.current = null;
-      });
+      stopAndClearScanner();
     };
   }, []);
 
-  // Start scanner
   const startScanner = async () => {
     const scanner = html5QrCodeRef.current;
-    if (!scanner || isOperatingRef.current) {
-      return;
-    }
+    if (!scanner || isOperatingRef.current) return;
 
-    // Check actual scanner state
-    const state = scanner.getState();
-    if (state === 2) { // Already scanning
+    if (scanner.getState() === 2) {
       setIsScanning(true);
       return;
     }
@@ -74,13 +70,20 @@ export default function QRCodeScanner({ onScan, isActive = true }: QRCodeScanner
     setError("");
 
     try {
+      // Step 1: Check if browser supports mediaDevices
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Your browser blocks camera access on HTTP. Use localhost or HTTPS.");
+      }
+
+      // Step 2: Request devices
       const devices = await Html5Qrcode.getCameras();
       if (!devices || devices.length === 0) {
-        setError("No camera found!");
-        return;
+        throw new Error("No camera hardware found on this device.");
       }
 
       const cameraId = devices[0].id;
+      
+      // Step 3: Start hardware
       await scanner.start(
         cameraId,
         { fps: 10, qrbox: { width: 250, height: 250 } },
@@ -88,98 +91,100 @@ export default function QRCodeScanner({ onScan, isActive = true }: QRCodeScanner
           if (decodedText && decodedText !== lastScannedRef.current) {
             lastScannedRef.current = decodedText;
             onScan(decodedText);
-            
-            // Reset after 2 seconds to allow re-scanning
-            setTimeout(() => {
-              lastScannedRef.current = "";
-            }, 2000);
+            setTimeout(() => { lastScannedRef.current = ""; }, 2000);
           }
         },
-        () => {
-          // Silently ignore decode errors (normal during scanning)
-        }
+        () => {} // Ignore frame errors
       );
 
       setIsScanning(true);
-    } catch (err) {
-      console.error("Failed to start scanner:", err);
-      setError("Failed to start camera. Please check permissions.");
+    } catch (err: any) {
+      console.error("Camera Init Error:", err);
+      
+      // Provide exact, human-readable error reasons
+      if (err.name === "NotAllowedError" || err.message.includes("Permission denied")) {
+        setError("Camera access was denied. Please allow permissions in your URL bar.");
+      } else if (err.name === "NotFoundError") {
+        setError("No camera found or camera is being used by another app.");
+      } else {
+        setError(err.message || "Failed to start camera. Check console for details.");
+      }
+      
       setIsScanning(false);
     } finally {
       isOperatingRef.current = false;
     }
   };
 
-  // Stop scanner safely
   const stopScanner = async () => {
-    const scanner = html5QrCodeRef.current;
-    if (!scanner || isOperatingRef.current) {
-      return;
-    }
-
-    // Check actual scanner state
-    const state = scanner.getState();
-    if (state !== 2) { // Not scanning
-      setIsScanning(false);
-      return;
-    }
-
+    // Removed the early return so it always attempts to stop when clicked
     isOperatingRef.current = true;
-
     try {
       await stopAndClearScanner();
-    } catch (err) {
-      console.warn("Error stopping scanner:", err);
-      // Force state sync
-      setIsScanning(false);
     } finally {
       isOperatingRef.current = false;
     }
   };
 
-  // Auto-start/stop when isActive changes
   useEffect(() => {
+    // Add a slight delay to bypass React 18 Strict Mode double-mount issues
     const timer = setTimeout(() => {
-      if (isActive && !isScanning) {
-        startScanner();
-      } else if (!isActive && isScanning) {
-        stopScanner();
-      }
-    }, 100); // Small delay to prevent race conditions
+      if (isActive && !isScanning) startScanner();
+      else if (!isActive && isScanning) stopScanner();
+    }, 300); 
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, isScanning]);
 
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div className="flex flex-col items-center w-full max-w-sm mx-auto p-6 bg-white rounded-2xl shadow-lg border border-gray-100 font-poppins">
+      <div className="flex items-center gap-2 mb-5 w-full text-[#3D1A0B]">
+        <ScanLine className="w-6 h-6" />
+        <h3 className="text-lg font-semibold tracking-tight">Scan QR Code</h3>
+      </div>
+
       <div 
-        id="reader" 
-        className="w-[300px] border-2 border-gray-300 rounded-lg overflow-hidden"
-        style={{ minHeight: '250px' }}
-      />
+        className={`relative w-full aspect-square rounded-xl overflow-hidden transition-all duration-300 flex items-center justify-center ${
+          isScanning 
+            ? "border-4 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)] bg-black" 
+            : "border-2 border-dashed border-[#E8D9C4] bg-[#FAF6F1]"
+        }`}
+      >
+        <div id="reader" className="w-full h-full object-cover" />
+
+        {!isScanning && !error && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-[#3D1A0B]/50">
+            <Camera className="w-10 h-10 mb-2 opacity-60" />
+            <span className="text-sm font-medium">Camera is inactive</span>
+          </div>
+        )}
+      </div>
 
       {error && (
-        <div className="text-red-600 text-sm font-semibold">
-          {error}
+        <div className="flex items-center gap-2 mt-4 text-red-600 bg-red-50 px-4 py-3 rounded-lg w-full border border-red-100">
+          <AlertCircle className="w-5 h-5 flex-shrink-0" />
+          <span className="text-sm font-medium text-left leading-snug">{error}</span>
         </div>
       )}
 
-      <div className="flex gap-3 mt-2">
+      <div className="w-full mt-6">
         {!isScanning ? (
           <button
             onClick={startScanner}
             disabled={isOperatingRef.current}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center justify-center gap-2 w-full bg-[#3D1A0B] text-white px-6 py-3 rounded-xl font-medium hover:bg-[#5C2A15] transition disabled:opacity-50"
           >
-            Start Camera
+            <Camera className="w-5 h-5" />
+            Retry Camera
           </button>
         ) : (
           <button
             onClick={stopScanner}
             disabled={isOperatingRef.current}
-            className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center justify-center gap-2 w-full bg-red-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-red-700 transition disabled:opacity-50"
           >
+            <StopCircle className="w-5 h-5" />
             Stop Camera
           </button>
         )}
