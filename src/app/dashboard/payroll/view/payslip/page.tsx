@@ -320,6 +320,10 @@ export default function PayrollPayslipModal(props: any) {
                           <span>{formatMoney(content.deductions.lwopDeduction)}</span>
                         </div>
                         <div className="flex justify-between">
+                          <span>Taxable Income</span>
+                          <span>{formatMoney(content.deductions.taxableIncome)}</span>
+                        </div>
+                        <div className="flex justify-between">
                           <span>Withholding Tax</span>
                           <span>{formatMoney(content.deductions.withholding?.withholdingTax)}</span>
                         </div>
@@ -329,6 +333,14 @@ export default function PayrollPayslipModal(props: any) {
                         </div>
                       </div>
                     </div>
+                          <p className="text-gray-700">
+                            Government-mandated deductions: {content.payslip.compliance?.governmentMandatedDeductions ? "Yes" : "No"}
+                          </p>
+                          {Array.isArray(content.payslip.compliance?.warnings) && content.payslip.compliance.warnings.length > 0 ? (
+                            <p className="text-amber-700">
+                              Review: {content.payslip.compliance.warnings.join(" ")}
+                            </p>
+                          ) : null}
                   </div>
 
                   {/* Net Pay + Employer Contributions */}

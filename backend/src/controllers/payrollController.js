@@ -2,6 +2,7 @@ import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
 import emailService from '../utils/emailService.js';
 import { computePayrollRun } from '../utils/payrollEngine.js';
+import { resolvePayrollTaxPeriod } from '../utils/taxComputation.js';
 import { applyPenaltyDeductionsForPayrollRecord } from './penaltyController.js';
 import {
   BUDGET_NAMES,
@@ -127,29 +128,67 @@ const derivePayPeriodFromSchedule = ({ referenceDate, paySchedule }) => {
 };
 
 const validatePayPeriodStructure = ({ payPeriodStart, payPeriodEnd, paySchedule }) => {
-  const expected = derivePayPeriodFromSchedule({
-    referenceDate: payPeriodStart,
+  const validation = resolvePayrollTaxPeriod({
+    payPeriodStart,
+    payPeriodEnd,
     paySchedule,
   });
 
-  if (!expected?.start || !expected?.end) {
+  if (!validation.valid) {
+    return validation;
+  }
+
+  return {
+    valid: true,
+    expected: validation.expected || null,
+    appliesTax: validation.appliesTax,
+    periodType: validation.periodType,
+  };
+};
+
+const normalizePayrollFrequency = (value) => {
+  const frequency = String(value || '').trim().toLowerCase();
+  if (!frequency) return null;
+  if (frequency === 'monthly') return 'monthly';
+  if (frequency === 'semi-monthly' || frequency === 'semi monthly' || frequency === 'semimonthly') {
+    return 'semi-monthly';
+  }
+  return frequency;
+};
+
+const getEmployeePayrollFrequency = (employee = {}) => {
+  return normalizePayrollFrequency(
+    employee.pay_frequency
+    ?? employee.payroll_frequency
+    ?? employee.pay_schedule
+    ?? employee.pay_cycle
+  );
+};
+
+const validateEmployeePayrollFrequencies = ({ employees = [], paySchedule }) => {
+  const taggedFrequencies = employees
+    .map((employee) => getEmployeePayrollFrequency(employee))
+    .filter(Boolean);
+
+  const uniqueTaggedFrequencies = Array.from(new Set(taggedFrequencies));
+
+  if (uniqueTaggedFrequencies.length > 1) {
     return {
       valid: false,
-      message: 'Unable to derive pay period from the provided schedule.',
+      message: `Employees with different pay frequencies cannot be mixed in the same payroll run (${uniqueTaggedFrequencies.join(', ')}).`,
     };
   }
 
-  if (expected.start !== payPeriodStart || expected.end !== payPeriodEnd) {
+  if (uniqueTaggedFrequencies.length === 1 && uniqueTaggedFrequencies[0] !== paySchedule) {
     return {
       valid: false,
-      message: `Invalid pay period for ${paySchedule}. Expected ${expected.start} to ${expected.end}.`,
-      expected,
+      message: `Selected employees are tagged as ${uniqueTaggedFrequencies[0]}, but this payroll run is ${paySchedule}.`,
     };
   }
 
   return {
     valid: true,
-    expected,
+    taggedFrequencies: uniqueTaggedFrequencies,
   };
 };
 
@@ -819,6 +858,14 @@ export const createPayrollRun = async (req, res, next) => {
       employment_type,
     });
 
+    const employeeColumns = await getTableColumns('employees');
+    const payrollFrequencyColumn = findFirstExistingColumn(employeeColumns, [
+      'pay_frequency',
+      'payroll_frequency',
+      'pay_schedule',
+      'pay_cycle',
+    ]);
+
     const structureValidation = validatePayPeriodStructure({
       payPeriodStart: periodStart,
       payPeriodEnd: periodEnd,
@@ -884,7 +931,8 @@ export const createPayrollRun = async (req, res, next) => {
          e.salary_unit,
          e.scheduled_days,
          e.scheduled_start_time,
-         e.scheduled_end_time
+         e.scheduled_end_time${payrollFrequencyColumn ? `,
+         e.${payrollFrequencyColumn} AS pay_frequency` : ''}
        FROM employees e
        WHERE ${employeeWhere.join(' AND ')}
        ORDER BY e.employee_id ASC`,
@@ -895,6 +943,18 @@ export const createPayrollRun = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         message: 'No employees found for the selected payroll scope.',
+      });
+    }
+
+    const employeeFrequencyValidation = validateEmployeePayrollFrequencies({
+      employees,
+      paySchedule: resolvedPaySchedule,
+    });
+
+    if (!employeeFrequencyValidation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: employeeFrequencyValidation.message,
       });
     }
 

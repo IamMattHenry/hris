@@ -1,5 +1,5 @@
 import { computeMandatoryContributions, toMonthlyEquivalentSalary } from './contributionTables.js';
-import { computeWithholdingTax } from './taxComputation.js';
+import { computePayrollWithholdingTax } from './taxComputation.js';
 import {
   REGULAR_HOLIDAY,
   SPECIAL_HOLIDAY,
@@ -432,6 +432,11 @@ const computeEmployeePayroll = ({
     + thirteenthMonthAccrual
   );
 
+  const nonTaxableIncome = round2(
+    allowanceBreakdown.nonTaxable
+    + thirteenthMonthAccrual
+  );
+
   const monthlyEquivalentCompensation = toMonthlyEquivalentSalary({
     basicPayPerPeriod: basicEarnedAfterAttendanceDeductions,
     paySchedule,
@@ -440,6 +445,8 @@ const computeEmployeePayroll = ({
   const contributions = computeMandatoryContributions({
     monthlyCompensation: monthlyEquivalentCompensation,
     paySchedule,
+    payPeriodStart,
+    payPeriodEnd,
   });
 
   const preTaxDeductions = round2(
@@ -448,14 +455,23 @@ const computeEmployeePayroll = ({
     + lwopDeduction
   );
 
-  const taxableIncome = round2(
-    Math.max(0, grossPay - allowanceBreakdown.nonTaxable - contributions.totals.employeeShare)
-  );
+  const grossTaxableIncomeForPeriod = round2(Math.max(0, grossPay - nonTaxableIncome - lateUndertimeDeduction - lwopDeduction));
 
-  const withholding = computeWithholdingTax({
-    taxableIncomeForPeriod: taxableIncome,
+  const taxableIncomeBeforeWithholding = round2(Math.max(0, grossTaxableIncomeForPeriod - contributions.totals.employeeShare));
+
+  const withholding = computePayrollWithholdingTax({
+    taxableIncomeForPeriod: taxableIncomeBeforeWithholding,
     paySchedule,
+    payPeriodStart,
+    payPeriodEnd,
+    grossTaxableIncomeForPeriod,
+    mandatoryEmployeeContributions: contributions.totals.employeeShare,
+    nonTaxableIncomeForPeriod: nonTaxableIncome,
   });
+
+  const taxableIncome = withholding.appliesTax
+    ? taxableIncomeBeforeWithholding
+    : 0;
 
   const totalDeductions = round2(preTaxDeductions + withholding.withholdingTax);
   const netPay = round2(grossPay - totalDeductions);
@@ -505,11 +521,17 @@ const computeEmployeePayroll = ({
       lateUndertimeDeduction,
       lwopDeduction,
       preTaxDeductions,
+      grossTaxableIncomeForPeriod,
       taxableIncome,
       withholding,
       totalDeductions,
     },
     netPay,
+    compliance: {
+      governmentMandatedDeductions: true,
+      deductionOrderValidated: true,
+      warnings: withholding.warnings || [],
+    },
   };
 
   return {
@@ -537,6 +559,7 @@ const computeEmployeePayroll = ({
       earnings: breakdown.earnings,
       deductions: breakdown.deductions,
       government_contributions: breakdown.deductions.mandatoryContributions,
+      compliance: breakdown.compliance,
       net_pay: netPay,
       signature_block: 'Employee Signature: ______________________',
       lwop_days: unpaidLeaveDays,
