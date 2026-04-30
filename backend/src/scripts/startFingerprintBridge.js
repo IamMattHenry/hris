@@ -7,7 +7,8 @@ import sensorModeManager from '../services/sensorModeManager.js';
 
 // Configuration
 const SERIAL_PORT = process.env.FINGERPRINT_PORT || "COM13"; // Change to your Arduino port
-const BAUD_RATE = parseInt(process.env.FINGERPRINT_BAUD || '9600');
+// FIX: Changed default baud rate from 11500 to 115200 to match Arduino
+const BAUD_RATE = parseInt(process.env.FINGERPRINT_BAUD || '115200');
 const BRIDGE_PORT = parseInt(process.env.BRIDGE_PORT || '3001');
 
 console.log('🚀 Starting Fingerprint Bridge Service...');
@@ -91,16 +92,6 @@ app.get('/status/stream', (req, res) => {
     if (index !== -1) {
       sseClients.splice(index, 1);
     }
-  });
-});
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({
-    success: true,
-    status: 'running',
-    service: 'fingerprint-bridge',
-    timestamp: new Date().toISOString()
   });
 });
 
@@ -194,11 +185,13 @@ app.post('/fingerprint/delete', (req, res) => {
   res.json({ success: true, message: `Delete command sent for fingerprint ID ${fingerprint_id}` });
 });
 
-// Health check
+// FIX: Combined duplicate /health endpoints into a single, unified endpoint
 app.get('/health', (req, res) => {
   res.json({ 
     success: true, 
     status: 'running', 
+    service: 'fingerprint-bridge',
+    timestamp: new Date().toISOString(),
     clients: sseClients.length,
     mode: sensorModeManager.getMode()
   });

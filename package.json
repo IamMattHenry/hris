@@ -23,7 +23,8 @@
     "react": "^19.1.2",
     "react-dom": "^19.1.2",
     "react-hot-toast": "^2.6.0",
-    "recharts": "^3.3.0"
+    "recharts": "^3.3.0",
+    "serialport": "^13.0.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
