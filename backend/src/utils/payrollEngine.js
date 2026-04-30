@@ -1,5 +1,7 @@
 import { computeMandatoryContributions, toMonthlyEquivalentSalary } from './contributionTables.js';
-import { computeWithholdingTax } from './taxComputation.js';
+import { computePayrollWithholdingTax } from './taxComputation.js';
+import { formatPayslipSections, formatPayslipForDisplay } from './payslipFormatter.js';
+import { validatePayrollBreakdown } from './payrollValidator.js';
 import {
   REGULAR_HOLIDAY,
   SPECIAL_HOLIDAY,
@@ -246,8 +248,16 @@ const computeAllowances = ({ settings, paySchedule }) => {
   const totalCustom = custom.reduce((sum, item) => sum + item.amount, 0);
   const grossAllowances = round2(rice + clothing + totalCustom);
 
-  const riceCap = Number(deMinimisConfig.rice_subsidy_monthly_cap ?? 2000) * factor;
-  const clothingCap = Number(deMinimisConfig.clothing_annual_cap ?? 6000) / 12 * factor;
+  const riceCapValue = Number(deMinimisConfig?.rice_subsidy_monthly_cap);
+  const clothingCapValue = Number(deMinimisConfig?.clothing_annual_cap);
+
+  const riceCap = Number.isFinite(riceCapValue)
+    ? round2(Math.max(0, riceCapValue) * factor)
+    : 0;
+
+  const clothingCap = Number.isFinite(clothingCapValue)
+    ? round2((Math.max(0, clothingCapValue) / 12) * factor)
+    : 0;
   const customNonTaxable = custom
     .filter((item) => !item.taxable)
     .reduce((sum, item) => sum + item.amount, 0);
@@ -407,7 +417,10 @@ const computeEmployeePayroll = ({
     ? rates.basePayForPeriod
     : round2(expectedScheduledHours * rates.hourlyRate);
 
-  const lateUndertimeDeduction = round2(minutesToHours(lateMinutes + undertimeMinutes) * rates.hourlyRate);
+  // Compute attendance deductions separately
+  const lateDeduction = round2((lateMinutes / 60) * rates.hourlyRate);
+  const undertimeDeduction = round2((undertimeMinutes / 60) * rates.hourlyRate);
+  const lateUndertimeDeduction = round2(lateDeduction + undertimeDeduction);
   const lwopDeduction = round2(lwopHours * rates.hourlyRate);
 
   const restDayPay = round2(restDayRegularHours * rates.hourlyRate * 1.3);
@@ -429,7 +442,10 @@ const computeEmployeePayroll = ({
     + overtimePay
     + nightDifferentialPay
     + allowanceBreakdown.grossAllowances
-    + thirteenthMonthAccrual
+  );
+
+  const nonTaxableIncome = round2(
+    allowanceBreakdown.nonTaxable
   );
 
   const monthlyEquivalentCompensation = toMonthlyEquivalentSalary({
@@ -440,6 +456,8 @@ const computeEmployeePayroll = ({
   const contributions = computeMandatoryContributions({
     monthlyCompensation: monthlyEquivalentCompensation,
     paySchedule,
+    payPeriodStart,
+    payPeriodEnd,
   });
 
   const preTaxDeductions = round2(
@@ -448,14 +466,23 @@ const computeEmployeePayroll = ({
     + lwopDeduction
   );
 
-  const taxableIncome = round2(
-    Math.max(0, grossPay - allowanceBreakdown.nonTaxable - contributions.totals.employeeShare)
-  );
+  const grossTaxableIncomeForPeriod = round2(Math.max(0, grossPay - nonTaxableIncome - lateUndertimeDeduction - lwopDeduction));
 
-  const withholding = computeWithholdingTax({
-    taxableIncomeForPeriod: taxableIncome,
+  const taxableIncomeBeforeWithholding = round2(Math.max(0, grossTaxableIncomeForPeriod - contributions.totals.employeeShare));
+
+  const withholding = computePayrollWithholdingTax({
+    taxableIncomeForPeriod: taxableIncomeBeforeWithholding,
     paySchedule,
+    payPeriodStart,
+    payPeriodEnd,
+    grossTaxableIncomeForPeriod,
+    mandatoryEmployeeContributions: contributions.totals.employeeShare,
+    nonTaxableIncomeForPeriod: nonTaxableIncome,
   });
+
+  const taxableIncome = withholding.appliesTax
+    ? taxableIncomeBeforeWithholding
+    : 0;
 
   const totalDeductions = round2(preTaxDeductions + withholding.withholdingTax);
   const netPay = round2(grossPay - totalDeductions);
@@ -502,15 +529,38 @@ const computeEmployeePayroll = ({
     },
     deductions: {
       mandatoryContributions: contributions,
-      lateUndertimeDeduction,
+      lateMinutes,
+      undertimeMinutes,
+      lateDeduction,
+      undertimeDeduction,
       lwopDeduction,
+      lwopDays: unpaidLeaveDays,
       preTaxDeductions,
+      grossTaxableIncomeForPeriod,
       taxableIncome,
       withholding,
       totalDeductions,
     },
     netPay,
+    compliance: {
+      governmentMandatedDeductions: true,
+      deductionOrderValidated: true,
+      warnings: withholding.warnings || [],
+    },
   };
+
+  // Validate the payroll breakdown
+  const validationResult = validatePayrollBreakdown(breakdown, netPay);
+
+  // Format payslip data
+  const formattedPayslip = formatPayslipSections({
+    breakdown,
+    net_pay: netPay,
+    lwop_days: unpaidLeaveDays,
+    settings,
+  });
+
+  const displayPayslip = formatPayslipForDisplay(formattedPayslip);
 
   return {
     employee_id: employee.employee_id,
@@ -528,18 +578,18 @@ const computeEmployeePayroll = ({
       bir_withholding: withholding.withholdingTax,
     },
     breakdown,
-    payslipData: {
-      company_name: settings?.company_name || 'HRIS Company',
-      employee_name: `${employee.first_name || ''} ${employee.last_name || ''}`.trim(),
-      employee_code: employee.employee_code || null,
-      pay_period_start: payPeriodStart,
-      pay_period_end: payPeriodEnd,
-      earnings: breakdown.earnings,
-      deductions: breakdown.deductions,
-      government_contributions: breakdown.deductions.mandatoryContributions,
-      net_pay: netPay,
-      signature_block: 'Employee Signature: ______________________',
-      lwop_days: unpaidLeaveDays,
+    payslipData: displayPayslip,
+    validation: {
+      errors: validationResult.errors.map(e => ({
+        code: e.code,
+        message: e.message,
+        details: e.details,
+      })),
+      warnings: validationResult.warnings.map(w => ({
+        code: w.code,
+        message: w.message,
+        details: w.details,
+      })),
     },
   };
 };
