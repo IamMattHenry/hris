@@ -1,26 +1,54 @@
-const SSS_CONFIG_2025 = {
+const SSS_CONFIG = {
   minMSC: 5000,
-  maxRegularMSC: 20000,
   maxMSC: 35000,
   step: 500,
-  employeeRate: 0.045,
-  employerRate: 0.095,
-  ecMonthly: 10,
+
+  employeeRate: 0.05,
+  employerRate: 0.10,
+
+  mpfThreshold: 20000,
+
+  ecThreshold: 14750,
+  ecLow: 10,
+  ecHigh: 30,
 };
 
-const PHILHEALTH_CONFIG_2024 = {
-  rate: 0.05,
+const PHILHEALTH_CONFIG = {
+  totalRate: 0.05,
+  employeeRate: 0.025,  
+  employerRate: 0.025,  
   minMonthlySalary: 10000,
   maxMonthlySalary: 100000,
+  minEmployeeContribution: 250,
+  maxEmployeeContribution: 2500,
+  minEmployerContribution: 250,
+  maxEmployerContribution: 2500,
 };
 
+/**
+ * Pag-IBIG (HDMF) Configuration - Circular No. 460
+ * Max fund salary: ₱10,000
+ * Employee/Employer Max Combined: ₱400/month (₱200 each)
+ * 
+ * Salary Brackets:
+ *  - ₱1,500 and below: 1% EE / 2% ER (3% total)
+ *  - Over ₱1,500 to ₱10,000: 2% EE / 2% ER (4% total)
+ *  - Over ₱10,000: 2% (max ₱200) EE / 2% (max ₱200) ER (capped at ₱400 total)
+ */
 const PAGIBIG_CONFIG = {
-  threshold: 1500,
-  lowerRate: 0.01,
-  upperRate: 0.02,
-  maxMonthlyCompensation: 5000,
-  maxEmployeeShare: 100,
-  maxEmployerShare: 100,
+  maxFundSalary: 10000,
+  threshold1: 1500,
+  threshold2: 10000,
+  
+  // Contribution rates by salary bracket
+  rate1: { employee: 0.01, employer: 0.02 },           // ≤ ₱1,500
+  rate2: { employee: 0.02, employer: 0.02 },           // > ₱1,500 to ₱10,000
+  rate3: { employee: 0.02, employer: 0.02 },           // > ₱10,000 (capped)
+  
+  // Maximum contributions
+  maxEmployeeShare: 200,
+  maxEmployerShare: 200,
+  maxCombinedShare: 400,
 };
 
 const PERIOD_DIVISORS = {
@@ -77,9 +105,9 @@ const endOfMonth = (value) => {
 const buildSssContributionTable = () => {
   const rows = [];
 
-  for (let msc = SSS_CONFIG_2025.minMSC; msc <= SSS_CONFIG_2025.maxMSC; msc += SSS_CONFIG_2025.step) {
-    const rangeMin = msc === SSS_CONFIG_2025.minMSC ? 0 : msc - 250;
-    const rangeMax = msc === SSS_CONFIG_2025.maxMSC ? Infinity : msc + 249;
+  for (let msc = SSS_CONFIG.minMSC; msc <= SSS_CONFIG.maxMSC; msc += SSS_CONFIG.step) {
+    const rangeMin = msc === SSS_CONFIG.minMSC ? 0 : msc - 250;
+    const rangeMax = msc === SSS_CONFIG.maxMSC ? Infinity : msc + 249;
 
     rows.push({
       msc,
@@ -96,7 +124,7 @@ const SSS_CONTRIBUTION_TABLE_2025 = buildSssContributionTable();
 
 const findSssBracket = (monthlyCompensation = 0) => {
   const monthly = Number(monthlyCompensation) || 0;
-  const clampedMonthly = clamp(monthly, SSS_CONFIG_2025.minMSC, SSS_CONFIG_2025.maxMSC);
+  const clampedMonthly = clamp(monthly, SSS_CONFIG.minMSC, SSS_CONFIG.maxMSC);
   const bracket = SSS_CONTRIBUTION_TABLE_2025.find((row) => monthly <= row.rangeMax && monthly >= row.rangeMin)
     || SSS_CONTRIBUTION_TABLE_2025[SSS_CONTRIBUTION_TABLE_2025.length - 1];
 
@@ -240,16 +268,25 @@ export const getSssContribution = (monthlyCompensation = 0) => {
   const monthly = Number(monthlyCompensation) || 0;
   const { clampedMonthly, bracket } = findSssBracket(monthly);
   const msc = bracket.msc;
-  const regularMsc = Math.min(msc, SSS_CONFIG_2025.maxRegularMSC);
-  const mpfMsc = Math.max(0, msc - SSS_CONFIG_2025.maxRegularMSC);
+  
+  // EC determination based on MSC
+  const employerCompensationEC = msc >= SSS_CONFIG.ecThreshold
+    ? SSS_CONFIG.ecHigh
+    : SSS_CONFIG.ecLow;
 
-  const employeeRegularShareMonthly = round2(regularMsc * SSS_CONFIG_2025.employeeRate);
-  const employerRegularShareMonthly = round2(regularMsc * SSS_CONFIG_2025.employerRate);
-  const employeeMpfShareMonthly = round2(mpfMsc * SSS_CONFIG_2025.employeeRate);
-  const employerMpfShareMonthly = round2(mpfMsc * SSS_CONFIG_2025.employerRate);
+  // New simplified SSS config uses a single employee/employer rate.
+  // MPF is retained as a compatibility field, but the current config does not
+  // apply a separate MPF rate.
+  const regularMsc = Math.min(msc, SSS_CONFIG.mpfThreshold);
+  const mpfMsc = Math.max(0, msc - SSS_CONFIG.mpfThreshold);
 
-  const employeeShareMonthly = round2(employeeRegularShareMonthly + employeeMpfShareMonthly);
-  const employerShareMonthly = round2(employerRegularShareMonthly + employerMpfShareMonthly + SSS_CONFIG_2025.ecMonthly);
+  const employeeShareMonthly = round2(msc * SSS_CONFIG.employeeRate);
+  const employerShareMonthly = round2(msc * SSS_CONFIG.employerRate);
+
+  const employeeRegularShare = employeeShareMonthly;
+  const employeeMpfShare = 0;
+  const employerRegularShare = employerShareMonthly;
+  const employerMpfShare = 0;
 
   return {
     msc,
@@ -261,55 +298,101 @@ export const getSssContribution = (monthlyCompensation = 0) => {
     },
     regularMsc,
     mpfMsc,
-    employeeRegularShareMonthly,
-    employerRegularShareMonthly,
-    employeeMpfShareMonthly,
-    employerMpfShareMonthly,
-    ecMonthly: SSS_CONFIG_2025.ecMonthly,
+    employeeRegularShare,
+    employeeMpfShare,
     employeeShareMonthly,
-    employerShareMonthly,
-    totalMonthlyPremium: round2(employeeShareMonthly + employerShareMonthly),
+    employerRegularShare,
+    employerMpfShare,
+    employerCompensationEC,
+    employerShareMonthly: round2(employerShareMonthly + employerCompensationEC),
+    totalMonthlyPremium: round2(employeeShareMonthly + employerShareMonthly + employerCompensationEC),
   };
 };
 
 export const getPhilHealthContribution = (monthlyCompensation = 0) => {
   const monthly = Number(monthlyCompensation) || 0;
-  const premiumBase = clamp(
+  
+  // Clamp salary to min/max limits for calculation
+  const salaryBase = clamp(
     monthly,
-    PHILHEALTH_CONFIG_2024.minMonthlySalary,
-    PHILHEALTH_CONFIG_2024.maxMonthlySalary
+    PHILHEALTH_CONFIG.minMonthlySalary,
+    PHILHEALTH_CONFIG.maxMonthlySalary
   );
 
-  const totalMonthlyPremium = round2(premiumBase * PHILHEALTH_CONFIG_2024.rate);
-  const employeeShareMonthly = round2(totalMonthlyPremium / 2);
-  const employerShareMonthly = round2(totalMonthlyPremium / 2);
+  // Calculate individual shares (2.5% each)
+  const employeeShareMonthly = round2(salaryBase * PHILHEALTH_CONFIG.employeeRate);
+  const employerShareMonthly = round2(salaryBase * PHILHEALTH_CONFIG.employerRate);
+
+  // Ensure contributions stay within min/max bounds
+  const employeeShare = clamp(
+    employeeShareMonthly,
+    PHILHEALTH_CONFIG.minEmployeeContribution,
+    PHILHEALTH_CONFIG.maxEmployeeContribution
+  );
+  const employerShare = clamp(
+    employerShareMonthly,
+    PHILHEALTH_CONFIG.minEmployerContribution,
+    PHILHEALTH_CONFIG.maxEmployerContribution
+  );
 
   return {
-    premiumBase,
-    totalMonthlyPremium,
-    employeeShareMonthly,
-    employerShareMonthly,
+    salaryBase,
+    rate: PHILHEALTH_CONFIG.totalRate,
+    employeeRate: PHILHEALTH_CONFIG.employeeRate,
+    employerRate: PHILHEALTH_CONFIG.employerRate,
+    employeeShareMonthly: employeeShare,
+    employerShareMonthly: employerShare,
+    totalMonthlyPremium: round2(employeeShare + employerShare),
   };
 };
 
 export const getPagIbigContribution = (monthlyCompensation = 0) => {
   const monthly = Number(monthlyCompensation) || 0;
-  const rate = monthly <= PAGIBIG_CONFIG.threshold ? PAGIBIG_CONFIG.lowerRate : PAGIBIG_CONFIG.upperRate;
-  const premiumBase = Math.min(monthly, PAGIBIG_CONFIG.maxMonthlyCompensation);
+  
+  // Cap salary at ₱10,000 for Pag-IBIG computation
+  const fundSalary = Math.min(monthly, PAGIBIG_CONFIG.maxFundSalary);
 
-  const employeeShareMonthly = round2(
-    Math.min(premiumBase * rate, PAGIBIG_CONFIG.maxEmployeeShare)
-  );
-  const employerShareMonthly = round2(
-    Math.min(premiumBase * rate, PAGIBIG_CONFIG.maxEmployerShare)
-  );
+  // Determine contribution rates based on salary bracket
+  let employeeRate = PAGIBIG_CONFIG.rate2.employee;
+  let employerRate = PAGIBIG_CONFIG.rate2.employer;
+
+  if (fundSalary <= PAGIBIG_CONFIG.threshold1) {
+    employeeRate = PAGIBIG_CONFIG.rate1.employee;
+    employerRate = PAGIBIG_CONFIG.rate1.employer;
+  } else if (fundSalary > PAGIBIG_CONFIG.threshold2) {
+    employeeRate = PAGIBIG_CONFIG.rate3.employee;
+    employerRate = PAGIBIG_CONFIG.rate3.employer;
+  }
+
+  // Calculate contributions
+  let employeeShare = round2(fundSalary * employeeRate);
+  let employerShare = round2(fundSalary * employerRate);
+
+  // Apply maximum caps
+  employeeShare = Math.min(employeeShare, PAGIBIG_CONFIG.maxEmployeeShare);
+  employerShare = Math.min(employerShare, PAGIBIG_CONFIG.maxEmployerShare);
+
+  // Ensure combined doesn't exceed max
+  const combined = round2(employeeShare + employerShare);
+  if (combined > PAGIBIG_CONFIG.maxCombinedShare) {
+    // Proportional reduction if needed (rare case)
+    const factor = PAGIBIG_CONFIG.maxCombinedShare / combined;
+    employeeShare = round2(employeeShare * factor);
+    employerShare = round2(employerShare * factor);
+  }
 
   return {
-    premiumBase,
-    rate,
-    employeeShareMonthly,
-    employerShareMonthly,
-    totalMonthlyPremium: round2(employeeShareMonthly + employerShareMonthly),
+    fundSalary,
+    employeeSalaryBracket: fundSalary <= PAGIBIG_CONFIG.threshold1 
+      ? 'Up to ₱1,500'
+      : fundSalary <= PAGIBIG_CONFIG.threshold2
+        ? '₱1,500.01 to ₱10,000'
+        : 'Over ₱10,000',
+    employeeRate,
+    employerRate,
+    employeeShareMonthly: employeeShare,
+    employerShareMonthly: employerShare,
+    totalMonthlyPremium: round2(employeeShare + employerShare),
   };
 };
 
@@ -382,11 +465,11 @@ export const computeMandatoryContributions = ({
       salaryRange: sss.salaryRange,
       regularMsc: sss.regularMsc,
       mpfMsc: sss.mpfMsc,
-      employeeRegularShareMonthly: sss.employeeRegularShareMonthly,
-      employerRegularShareMonthly: sss.employerRegularShareMonthly,
-      employeeMpfShareMonthly: sss.employeeMpfShareMonthly,
-      employerMpfShareMonthly: sss.employerMpfShareMonthly,
-      ecMonthly: sss.ecMonthly,
+      employeeRegularShare: sss.employeeRegularShare,
+      employerRegularShare: sss.employerRegularShare,
+      employeeMpfShare: sss.employeeMpfShare,
+      employerMpfShare: sss.employerMpfShare,
+      employerCompensationEC: sss.employerCompensationEC,
       employeeShare: sssEE,
       employerShare: sssER,
       employeeShareMonthly: sss.employeeShareMonthly,
@@ -394,8 +477,10 @@ export const computeMandatoryContributions = ({
       totalMonthlyPremium: sss.totalMonthlyPremium,
     },
     philHealth: {
-      premiumBase: philHealth.premiumBase,
-      rate: PHILHEALTH_CONFIG_2024.rate,
+      salaryBase: philHealth.salaryBase,
+      rate: PHILHEALTH_CONFIG.totalRate,
+      employeeRate: PHILHEALTH_CONFIG.employeeRate,
+      employerRate: PHILHEALTH_CONFIG.employerRate,
       employeeShare: philHealthEE,
       employerShare: philHealthER,
       employeeShareMonthly: philHealth.employeeShareMonthly,
@@ -403,8 +488,10 @@ export const computeMandatoryContributions = ({
       totalMonthlyPremium: philHealth.totalMonthlyPremium,
     },
     pagIbig: {
-      premiumBase: pagIbig.premiumBase,
-      rate: pagIbig.rate,
+      fundSalary: pagIbig.fundSalary,
+      employeeSalaryBracket: pagIbig.employeeSalaryBracket,
+      employeeRate: pagIbig.employeeRate,
+      employerRate: pagIbig.employerRate,
       employeeShare: pagIbigEE,
       employerShare: pagIbigER,
       employeeShareMonthly: pagIbig.employeeShareMonthly,

@@ -320,14 +320,14 @@ const getLatestPayrollSettings = async () => {
     return {
       pay_schedule: 'semi-monthly',
       allowances_config: {
-        rice_subsidy_monthly: 2000,
-        clothing_annual: 6000,
+        rice_subsidy_monthly: 2500,
+        clothing_annual: 0,
         custom: [],
       },
       holiday_overrides: [],
       de_minimis_config: {
-        rice_subsidy_monthly_cap: 2000,
-        clothing_annual_cap: 6000,
+        rice_subsidy_monthly_cap: 2500,
+        clothing_annual_cap: 0,
       },
       company_name: 'HRIS Company',
       monthly_work_days: 22,
@@ -342,14 +342,14 @@ const getLatestPayrollSettings = async () => {
     ...settings,
     pay_schedule: normalizedPaySchedule,
     allowances_config: parseJson(settings.allowances_config, {
-      rice_subsidy_monthly: 2000,
-      clothing_annual: 6000,
+      rice_subsidy_monthly: 2500,
+      clothing_annual: 0,
       custom: [],
     }),
     holiday_overrides: parseJson(settings.holiday_overrides, []),
     de_minimis_config: parseJson(settings.de_minimis_config, {
-      rice_subsidy_monthly_cap: 2000,
-      clothing_annual_cap: 6000,
+      rice_subsidy_monthly_cap: 2500,
+      clothing_annual_cap: 0,
     }),
   };
 };

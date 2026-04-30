@@ -232,31 +232,35 @@ export default function PayrollPayslipModal(props: any) {
                       <div className="p-3 space-y-1.5 text-xs">
                         <div className="flex justify-between">
                           <span>Basic Pay</span>
-                          <span>{formatMoney(content.earnings.basePayForPeriod)}</span>
+                          <span>{formatMoney(content.earnings.basic_pay?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Holiday Premium</span>
-                          <span>{formatMoney(content.earnings.holidayPremiumPay)}</span>
+                          <span>{formatMoney(content.earnings.holiday_pay?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Rest Day Pay</span>
-                          <span>{formatMoney(content.earnings.restDayPay)}</span>
+                          <span>{formatMoney(content.earnings.rest_day_pay?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Overtime Pay</span>
-                          <span>{formatMoney(content.earnings.overtimePay)}</span>
+                          <span>{formatMoney(content.earnings.overtime_pay?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Night Differential</span>
-                          <span>{formatMoney(content.earnings.nightDifferentialPay)}</span>
+                          <span>{formatMoney(content.earnings.night_differential?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span>Allowances</span>
-                          <span>{formatMoney(content.earnings.allowances?.grossAllowances)}</span>
+                          <span>Taxable Allowance</span>
+                          <span>{formatMoney(content.earnings.taxable_allowance?.amount)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>De Minimis</span>
+                          <span>{formatMoney(content.earnings.non_taxable_allowance?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>13th Month Accrual</span>
-                          <span>{formatMoney(content.earnings.thirteenthMonthAccrual)}</span>
+                          <span>{formatMoney(content.earnings.thirteenth_month?.amount)}</span>
                         </div>
                         <div className="border-t border-gray-300 pt-2 flex justify-between font-bold">
                           <span>Gross Pay</span>
@@ -270,31 +274,31 @@ export default function PayrollPayslipModal(props: any) {
                       <div className="p-3 space-y-1.5 text-xs">
                         <div className="flex justify-between">
                           <span>SSS (EE)</span>
-                          <span>{formatMoney(content.deductions.mandatoryContributions?.sss?.employeeShare)}</span>
+                          <span>{formatMoney(content.deductions.sss_ee?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>PhilHealth (EE)</span>
-                          <span>{formatMoney(content.deductions.mandatoryContributions?.philHealth?.employeeShare)}</span>
+                          <span>{formatMoney(content.deductions.philhealth_ee?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Pag-IBIG (EE)</span>
-                          <span>{formatMoney(content.deductions.mandatoryContributions?.pagIbig?.employeeShare)}</span>
+                          <span>{formatMoney(content.deductions.pagibig_ee?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Late / Undertime</span>
-                          <span>{formatMoney(content.deductions.lateUndertimeDeduction)}</span>
+                          <span>{formatMoney(content.deductions.late_undertime?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>LWOP</span>
-                          <span>{formatMoney(content.deductions.lwopDeduction)}</span>
+                          <span>{formatMoney(content.deductions.lwop?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Taxable Income</span>
-                          <span>{formatMoney(content.deductions.taxableIncome)}</span>
+                          <span>{formatMoney(content.deductions.taxable_income?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Withholding Tax</span>
-                          <span>{formatMoney(content.deductions.withholding?.withholdingTax)}</span>
+                          <span>{formatMoney(content.deductions.withholding_tax?.amount)}</span>
                         </div>
                         <div className="border-t border-gray-300 pt-2 flex justify-between font-bold">
                           <span>Total Deductions</span>
@@ -307,9 +311,9 @@ export default function PayrollPayslipModal(props: any) {
                   <div className="grid md:grid-cols-2 gap-4 pt-3 border-t border-gray-300">
                     <div className="space-y-1.5 text-xs">
                       <p className="font-semibold">Employer Contributions</p>
-                      <p>SSS (ER): {formatMoney(content.deductions.mandatoryContributions?.sss?.employerShare)}</p>
-                      <p>PhilHealth (ER): {formatMoney(content.deductions.mandatoryContributions?.philHealth?.employerShare)}</p>
-                      <p>Pag-IBIG (ER): {formatMoney(content.deductions.mandatoryContributions?.pagIbig?.employerShare)}</p>
+                      <p>SSS (ER): {formatMoney(content.payslip.employer_contributions?.sss_er?.amount)}</p>
+                      <p>PhilHealth (ER): {formatMoney(content.payslip.employer_contributions?.philhealth_er?.amount)}</p>
+                      <p>Pag-IBIG (ER): {formatMoney(content.payslip.employer_contributions?.pagibig_er?.amount)}</p>
                     </div>
                     <div className="flex flex-col items-end justify-end">
                       <p className="font-semibold text-base">NET PAY</p>

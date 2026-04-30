@@ -49,9 +49,9 @@ export default function PayrollSettingsModal(props: any) {
   const [monthlyWorkDays, setMonthlyWorkDays] = useState("22");
 
   const [riceSubsidyMonthly, setRiceSubsidyMonthly] = useState("2000");
-  const [clothingAnnual, setClothingAnnual] = useState("6000");
+  const [clothingAnnual, setClothingAnnual] = useState("0");
   const [riceCap, setRiceCap] = useState("2000");
-  const [clothingCap, setClothingCap] = useState("6000");
+  const [clothingCap, setClothingCap] = useState("0");
 
   const [holidayOverrides, setHolidayOverrides] = useState<HolidayOverride[]>([]);
   const [payrollBudget, setPayrollBudget] = useState<FinanceBudget | null>(null);
@@ -99,11 +99,11 @@ export default function PayrollSettingsModal(props: any) {
 
       const allowances = current.allowances_config || {};
       setRiceSubsidyMonthly(String(allowances.rice_subsidy_monthly ?? 2000));
-      setClothingAnnual(String(allowances.clothing_annual ?? 6000));
+      setClothingAnnual(String(allowances.clothing_annual ?? 0));
 
       const deMinimis = current.de_minimis_config || {};
       setRiceCap(String(deMinimis.rice_subsidy_monthly_cap ?? 2000));
-      setClothingCap(String(deMinimis.clothing_annual_cap ?? 6000));
+      setClothingCap(String(deMinimis.clothing_annual_cap ?? 0));
 
       setHolidayOverrides(Array.isArray(current.holiday_overrides) ? current.holiday_overrides : []);
 
