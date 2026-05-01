@@ -243,6 +243,29 @@ export default function AttendanceTable() {
     day: "numeric",
   });
 
+  const sortedSummaryResults = useMemo(() => {
+    const list = [...summaryResults];
+    list.sort((a: any, b: any) => {
+      const av = a?.[summarySortBy];
+      const bv = b?.[summarySortBy];
+
+      // Numeric fields
+      const numericFields = new Set(['present', 'absent', 'leave', 'late', 'overtime_days']);
+      if (numericFields.has(summarySortBy)) {
+        const nA = Number(av) || 0;
+        const nB = Number(bv) || 0;
+        return summarySortOrder === 'asc' ? nA - nB : nB - nA;
+      }
+
+      const sA = String(av || '').toLowerCase();
+      const sB = String(bv || '').toLowerCase();
+      if (sA < sB) return summarySortOrder === 'asc' ? -1 : 1;
+      if (sA > sB) return summarySortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return list;
+  }, [summaryResults, summarySortBy, summarySortOrder]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#fff7ec] flex items-center justify-center">
@@ -266,29 +289,6 @@ export default function AttendanceTable() {
 
     return `${displayHours}:${minutes} ${period}`;
   };
-
-  const sortedSummaryResults = useMemo(() => {
-    const list = [...summaryResults];
-    list.sort((a: any, b: any) => {
-      const av = a?.[summarySortBy];
-      const bv = b?.[summarySortBy];
-
-      // Numeric fields
-      const numericFields = new Set(['present', 'absent', 'leave', 'late', 'overtime_days']);
-      if (numericFields.has(summarySortBy)) {
-        const nA = Number(av) || 0;
-        const nB = Number(bv) || 0;
-        return summarySortOrder === 'asc' ? nA - nB : nB - nA;
-      }
-
-      const sA = String(av || '').toLowerCase();
-      const sB = String(bv || '').toLowerCase();
-      if (sA < sB) return summarySortOrder === 'asc' ? -1 : 1;
-      if (sA > sB) return summarySortOrder === 'asc' ? 1 : -1;
-      return 0;
-    });
-    return list;
-  }, [summaryResults, summarySortBy, summarySortOrder]);
 
   return (
     <div className="min-h-screen bg-[#fff7ec] p-8 space-y-6 text-gray-800 font-poppins z-30">
