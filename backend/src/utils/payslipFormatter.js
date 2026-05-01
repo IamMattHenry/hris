@@ -41,10 +41,46 @@ export const formatPayslipSections = ({
   const thirteenthMonthAccrual = round2(earnings?.thirteenthMonthAccrual || 0);
   const grossPay = round2(earnings?.grossPay || 0);
 
+  // Derive rates and attendance metrics for absent/late/undertime calculations
+  const scheduledDays = attendance?.scheduledWorkDays || 0;
+  const scheduledHoursPerDay = attendance?.scheduledHoursPerDay || 8;
+  const scheduledHours = scheduledDays * scheduledHoursPerDay;
+  const hoursWorked = attendance?.hoursWorked !== undefined ? Number(attendance.hoursWorked) : null;
+  const expectedHours = scheduledHours;
+  const hourlyRate = (() => {
+    if (earnings?.hourlyRate) return round2(earnings.hourlyRate);
+    if (scheduledHours > 0) return round2(basePayForPeriod / scheduledHours);
+    return 0;
+  })();
+  const dailyRate = round2(hourlyRate * scheduledHoursPerDay);
+
+  // Absent hours: Expected - Worked (half day = 4 hrs is naturally covered)
+  const absentHoursComputed = (() => {
+    if (hoursWorked === null) return 0;
+    const diff = expectedHours - Number(hoursWorked || 0);
+    return diff > 0 ? round2(diff) : 0;
+  })();
+
+  // Use provided deduction values if present, otherwise compute
+
   // Validate attendance deductions
   const lateDeductionPeso = round2(deductions?.lateDeduction || 0);
   const undertimeDeductionPeso = round2(deductions?.undertimeDeduction || 0);
   const lwopDeductionPeso = round2(deductions?.lwopDeduction || 0);
+
+  // compute missing items if backend didn't provide them
+  const lateDeductionComputed = round2(hourlyRate * ((attendance?.lateMinutes || 0) / 60));
+  const undertimeDeductionComputed = round2(hourlyRate * ((attendance?.undertimeMinutes || 0) / 60));
+  const lwopDeductionComputed = round2(deductions?.lwopHours ? hourlyRate * deductions.lwopHours : (lwopDeductionPeso || 0));
+
+  const effectiveLateDeduction = lateDeductionPeso || lateDeductionComputed;
+  const effectiveUndertimeDeduction = undertimeDeductionPeso || undertimeDeductionComputed;
+  const effectiveLwopDeduction = lwopDeductionPeso || lwopDeductionComputed;
+
+  // Absent deduction: Hourly Rate × (Expected Hours − Hours Worked)
+  const absentDeductionFromBreakdown = round2(deductions?.absentDeduction || 0);
+  const absentDeductionComputed = round2(hourlyRate * absentHoursComputed);
+  const effectiveAbsentDeduction = absentDeductionFromBreakdown || absentDeductionComputed;
 
   // Earnings Section - Flat structure for easy display
   const earningsSection = {
@@ -55,23 +91,23 @@ export const formatPayslipSections = ({
     },
     late_deduction: {
       label: `Late Deduction (${attendance?.lateMinutes || 0} min)`,
-      amount: -lateDeductionPeso,
-      display: -lateDeductionPeso,
+      amount: -effectiveLateDeduction,
+      display: -effectiveLateDeduction,
     },
     undertime_deduction: {
       label: `Undertime Deduction (${attendance?.undertimeMinutes || 0} min)`,
-      amount: -undertimeDeductionPeso,
-      display: -undertimeDeductionPeso,
+      amount: -effectiveUndertimeDeduction,
+      display: -effectiveUndertimeDeduction,
     },
     lwop_deduction: {
       label: `Leave Without Pay (${lwop_days || 0} days)`,
-      amount: -lwopDeductionPeso,
-      display: -lwopDeductionPeso,
+      amount: -effectiveLwopDeduction,
+      display: -effectiveLwopDeduction,
     },
     adjusted_basic_pay: {
       label: 'Adjusted Basic Pay',
-      amount: round2(basePayForPeriod - lateDeductionPeso - undertimeDeductionPeso - lwopDeductionPeso),
-      display: round2(basePayForPeriod - lateDeductionPeso - undertimeDeductionPeso - lwopDeductionPeso),
+      amount: round2(basePayForPeriod - effectiveLateDeduction - effectiveUndertimeDeduction - effectiveLwopDeduction - (absentDeductionFromBreakdown ? 0 : absentDeductionComputed)),
+      display: round2(basePayForPeriod - effectiveLateDeduction - effectiveUndertimeDeduction - effectiveLwopDeduction - (absentDeductionFromBreakdown ? 0 : absentDeductionComputed)),
     },
     overtime_pay: {
       label: 'Overtime Pay',
@@ -124,6 +160,12 @@ export const formatPayslipSections = ({
   const totalDeductionsAmount = round2(deductions?.totalDeductions || 0);
   const taxableIncomeAmount = round2(deductions?.taxableIncome || 0);
 
+  // If absent deduction wasn't included in backend totals, include it here
+  const totalDeductionsIncludingAbsent = (() => {
+    if (absentDeductionFromBreakdown) return totalDeductionsAmount;
+    return round2(totalDeductionsAmount + (absentDeductionComputed || 0));
+  })();
+
   const deductionsSection = {
     sss_ee: {
       label: 'SSS (EE)',
@@ -142,13 +184,18 @@ export const formatPayslipSections = ({
     },
     late_undertime: {
       label: 'Late / Undertime',
-      amount: -(lateDeductionPeso + undertimeDeductionPeso),
-      display: -(lateDeductionPeso + undertimeDeductionPeso),
+      amount: -(effectiveLateDeduction + effectiveUndertimeDeduction),
+      display: -(effectiveLateDeduction + effectiveUndertimeDeduction),
     },
     lwop: {
       label: 'LWOP',
-      amount: -lwopDeductionPeso,
-      display: -lwopDeductionPeso,
+      amount: -effectiveLwopDeduction,
+      display: -effectiveLwopDeduction,
+    },
+    absent: {
+      label: `Absent Deduction (${absentHoursComputed} hrs)`,
+      amount: -effectiveAbsentDeduction,
+      display: -effectiveAbsentDeduction,
     },
     taxable_income: {
       label: 'Taxable Income',
@@ -162,8 +209,8 @@ export const formatPayslipSections = ({
     },
     total_deductions: {
       label: 'Total Deductions',
-      amount: -totalDeductionsAmount,
-      display: -totalDeductionsAmount,
+      amount: -totalDeductionsIncludingAbsent,
+      display: -totalDeductionsIncludingAbsent,
     },
   };
 
@@ -200,8 +247,13 @@ export const formatPayslipSections = ({
   // Summary Section
   const summarySection = {
     gross_pay: grossPay,
-    total_deductions: totalDeductionsAmount,
-    net_pay: round2(net_pay || 0),
+    total_deductions: totalDeductionsIncludingAbsent,
+    net_pay: (() => {
+      // If backend didn't include absent deduction, subtract it from provided net_pay
+      const incomingNet = round2(net_pay || 0);
+      if (absentDeductionFromBreakdown) return incomingNet;
+      return round2(incomingNet - absentDeductionComputed);
+    })(),
   };
 
 

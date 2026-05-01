@@ -360,7 +360,19 @@ const computeEmployeePayroll = ({
         }
       } else if (!attendance) {
         if (holiday?.type === REGULAR_HOLIDAY) {
-          holidayPremiumPay += rates.dailyRate;
+          // Regular holiday unworked pay requires presence (or paid leave) the day before
+          const prevDateObj = new Date(`${date}T00:00:00`);
+          prevDateObj.setDate(prevDateObj.getDate() - 1);
+          const prevDate = `${prevDateObj.getFullYear()}-${String(prevDateObj.getMonth() + 1).padStart(2, '0')}-${String(prevDateObj.getDate()).padStart(2, '0')}`;
+          const prevAttendance = attendanceByDate.get(prevDate);
+          const prevLeave = leaveByDate.get(prevDate);
+          const prevLeavePaid = prevLeave ? isLeavePaid(prevLeave) : false;
+
+          if (prevAttendance || prevLeavePaid) {
+            holidayPremiumPay += rates.dailyRate;
+          } else {
+            // forfeited due to absence the day before
+          }
         } else if (holiday?.type === SPECIAL_HOLIDAY) {
           specialHolidayNoWorkHours += 8;
         } else {
@@ -411,7 +423,10 @@ const computeEmployeePayroll = ({
   }
 
   const expectedScheduledHours = scheduledWorkDays * 8;
-  const lwopHours = (unpaidLeaveDays * 8) + (absences * 8) + specialHolidayNoWorkHours;
+  // Absent hours computed as expected - worked - paid leave hours
+  const absentHoursComputed = round2(Math.max(0, expectedScheduledHours - workedHours - (paidLeaveDays * 8)));
+
+  const lwopHours = (unpaidLeaveDays * 8) + absentHoursComputed + specialHolidayNoWorkHours;
 
   const basePayForPeriod = rates.basePayForPeriod != null
     ? rates.basePayForPeriod
@@ -512,6 +527,7 @@ const computeEmployeePayroll = ({
       paidLeaveDays,
       unpaidLeaveDays,
       absences,
+      absentHours: absentHoursComputed,
       lateMinutes,
       undertimeMinutes,
       nightDiffHours: round2(nightDiffHours),
@@ -534,6 +550,8 @@ const computeEmployeePayroll = ({
       lateDeduction,
       undertimeDeduction,
       lwopDeduction,
+      absentHours: absentHoursComputed,
+      absentDeduction: round2(absentHoursComputed * rates.hourlyRate),
       lwopDays: unpaidLeaveDays,
       preTaxDeductions,
       grossTaxableIncomeForPeriod,
