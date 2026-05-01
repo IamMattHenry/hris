@@ -780,6 +780,92 @@ export const getAttendanceSummary = async (req, res, next) => {
     next(error);
   }
 };
+
+export const searchMonthlyAttendanceSummary = async (req, res, next) => {
+  try {
+    const { search = '', month, start_date, end_date } = req.query;
+
+    // Determine start/end dates. Priority: explicit start_date/end_date, then month, then current month.
+    let startDate;
+    let endDate;
+
+    if (start_date && end_date) {
+      // Basic validation YYYY-MM-DD
+      const startOk = /^\d{4}-\d{2}-\d{2}$/.test(start_date);
+      const endOk = /^\d{4}-\d{2}-\d{2}$/.test(end_date);
+      if (!startOk || !endOk) {
+        return res.status(400).json({ success: false, message: 'Invalid date format for start_date/end_date. Use YYYY-MM-DD.' });
+      }
+      startDate = start_date;
+      endDate = end_date;
+    } else if (month) {
+      const [y, m] = String(month).split('-').map(Number);
+      if (!y || !m || m < 1 || m > 12) {
+        return res.status(400).json({ success: false, message: 'Invalid month format. Use YYYY-MM.' });
+      }
+      startDate = `${y}-${String(m).padStart(2, '0')}-01`;
+      const lastDay = new Date(y, m, 0).getDate();
+      endDate = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    } else {
+      const now = new Date();
+      const phNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+      const defY = phNow.getFullYear();
+      const defM = phNow.getMonth() + 1;
+      startDate = `${defY}-${String(defM).padStart(2, '0')}-01`;
+      const lastDay = new Date(defY, defM, 0).getDate();
+      endDate = `${defY}-${String(defM).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    }
+
+    // Build search pattern
+    const q = `%${String(search || '').trim()}%`;
+
+    const sql = `
+      SELECT e.employee_id, e.employee_code, e.first_name, e.last_name, d.department_name,
+        COALESCE(SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END), 0) AS present_count,
+        COALESCE(SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END), 0) AS absent_count,
+        COALESCE(SUM(CASE WHEN a.status = 'on_leave' THEN 1 ELSE 0 END), 0) AS leave_count,
+        COALESCE(SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END), 0) AS late_count,
+        COALESCE(SUM(CASE WHEN a.status = 'overtime' THEN 1 ELSE 0 END), 0) AS overtime_count
+      FROM employees e
+      LEFT JOIN departments d ON e.department_id = d.department_id
+      LEFT JOIN attendance a ON a.employee_id = e.employee_id AND a.date BETWEEN ? AND ?
+      WHERE e.status = ?
+        AND (
+          e.employee_code LIKE ? OR
+          e.first_name LIKE ? OR
+          e.last_name LIKE ?
+        )
+      GROUP BY e.employee_id
+      ORDER BY e.employee_code ASC
+      LIMIT 1000
+    `;
+
+    const rows = await db.getAll(sql, [startDate, endDate, 'active', q, q, q]);
+
+    res.json({
+      success: true,
+      data: rows.map(r => ({
+        employee_id: r.employee_id,
+        employee_code: r.employee_code,
+        name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+        department: r.department_name,
+        present: r.present_count || 0,
+        absent: r.absent_count || 0,
+        leave: r.leave_count || 0,
+        late: r.late_count || 0,
+        overtime_days: r.overtime_count || 0,
+        start_date: startDate,
+        end_date: endDate,
+      })),
+      count: rows.length,
+      start_date: startDate,
+      end_date: endDate,
+    });
+  } catch (error) {
+    logger.error('Search monthly attendance summary error:', error);
+    next(error);
+  }
+};
 export const markAbsences = async (req, res, next) => {
   try {
     // Accept single date or range. Default: yesterday (PH time)
