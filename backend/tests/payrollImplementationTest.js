@@ -241,7 +241,7 @@ describe('Payslip Formatting', () => {
       deductions: {
         lateDeduction: 97.73,
         undertimeDeduction: 0,
-        lwopDeduction: 0,
+        leaveWithoutPayDeduction: 0,
         mandatoryContributions: {
           sss: { employeeShare: 950 },
           philHealth: { employeeShare: 750 },
@@ -257,7 +257,7 @@ describe('Payslip Formatting', () => {
     const formatted = formatPayslipSections({
       breakdown,
       net_pay: 14700,
-      lwop_days: 0,
+      leave_without_pay_days: 0,
       settings: { company_name: 'Test Corp' },
     });
 

@@ -150,6 +150,7 @@ export default function PayrollPayslipModal(props: any) {
       run: payload.run,
       record,
       payslip,
+      breakdown: record.breakdown || {},
       earnings,
       deductions,
     };
@@ -262,6 +263,25 @@ export default function PayrollPayslipModal(props: any) {
                           <span>Basic Pay</span>
                           <span>{formatMoney(content.earnings.basic_pay?.amount)}</span>
                         </div>
+                        {/* Attendance deductions from Basic Pay */}
+                        {(content.earnings.lwop?.amount ?? 0) !== 0 && (
+                          <div className="flex justify-between text-red-600">
+                            <span className="pl-2">Less: {content.earnings.lwop?.label || "LWOP"}</span>
+                            <span>{formatMoney(content.earnings.lwop?.amount)}</span>
+                          </div>
+                        )}
+                        {(content.earnings.absences?.amount ?? 0) !== 0 && (
+                          <div className="flex justify-between text-red-600">
+                            <span className="pl-2">Less: {content.earnings.absences?.label || "Absences"}</span>
+                            <span>{formatMoney(content.earnings.absences?.amount)}</span>
+                          </div>
+                        )}
+                        {(content.earnings.late_undertime?.amount ?? 0) !== 0 && (
+                          <div className="flex justify-between text-red-600">
+                            <span className="pl-2">Less: {content.earnings.late_undertime?.label || "Late / Undertime"}</span>
+                            <span>{formatMoney(content.earnings.late_undertime?.amount)}</span>
+                          </div>
+                        )}
                         <div className="flex justify-between">
                           <span>Holiday Premium</span>
                           <span>{formatMoney(content.earnings.holiday_pay?.amount)}</span>
@@ -291,7 +311,14 @@ export default function PayrollPayslipModal(props: any) {
                           <span>{formatMoney(content.earnings.thirteenth_month?.amount)}</span>
                         </div>
                         <div className="border-t border-gray-300 pt-2 flex justify-between font-bold">
-                          <span>Gross Pay</span>
+                          <span className="flex flex-col">
+                            <span>Gross Pay</span>
+                            {content.earnings.gross_pay?.breakdown && (
+                              <span className="text-[10px] font-normal text-gray-500 leading-tight mt-0.5">
+                                {content.earnings.gross_pay.breakdown}
+                              </span>
+                            )}
+                          </span>
                           <span>{formatMoney(content.record.gross_pay)}</span>
                         </div>
                       </div>
@@ -316,12 +343,24 @@ export default function PayrollPayslipModal(props: any) {
                           <span>{formatMoney(content.deductions.pagibig_ee?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span>Late / Undertime</span>
+                          <span>{content.deductions.late_undertime?.label || "Late / Undertime"}</span>
                           <span>{formatMoney(content.deductions.late_undertime?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span>LWOP</span>
-                          <span>{formatMoney(content.deductions.lwop?.amount)}</span>
+                          <span>{content.deductions.lwop?.label || "LWOP"}</span>
+                          <span>
+                            {content.deductions.lwop?.days
+                              ? `${content.deductions.lwop.days} days — ${formatMoney(content.deductions.lwop?.amount)}`
+                              : formatMoney(content.deductions.lwop?.amount)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>{content.deductions.absences?.label || "Absences"}</span>
+                          <span>
+                            {content.deductions.absences?.days
+                              ? `${content.deductions.absences.days} days — ${formatMoney(content.deductions.absences?.amount)}`
+                              : formatMoney(content.deductions.absences?.amount)}
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span>Taxable Income</span>
@@ -380,8 +419,13 @@ export default function PayrollPayslipModal(props: any) {
                       <p className="text-gray-700">
                         Tax bracket: {content.deductions.withholding?.bracketDescription || "N/A"}
                       </p>
+                      {content.payslip.negative_net_pay_note ? (
+                        <p className="text-amber-700">
+                          Note: {content.payslip.negative_net_pay_note}
+                        </p>
+                      ) : null}
                       <p className="text-gray-700">
-                        LWOP Days: {content.payslip.lwop_days || 0}
+                        Leave Without Pay Days: {content.breakdown?.deductions?.unpaidLeaveDays || 0}
                       </p>
                     </div>
                     <div className="text-right">

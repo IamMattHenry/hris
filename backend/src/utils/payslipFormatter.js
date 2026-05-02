@@ -12,7 +12,11 @@ const round2 = (value) => Number((Number(value) || 0).toFixed(2));
 export const formatPayslipSections = ({
   breakdown,
   net_pay,
-  lwop_days,
+  raw_net_pay,
+  carryover_deduction = 0,
+  carryover_balance = 0,
+  negative_net_pay_note = null,
+  leave_without_pay_days,
   settings = {},
 }) => {
   if (!breakdown) {
@@ -40,6 +44,9 @@ export const formatPayslipSections = ({
   const nonTaxableAllowance = round2(earnings?.allowances?.nonTaxable || 0);
   const thirteenthMonthAccrual = round2(earnings?.thirteenthMonthAccrual || 0);
   const grossPay = round2(earnings?.grossPay || 0);
+  const rawNetPay = round2(raw_net_pay != null ? raw_net_pay : net_pay || 0);
+  const carryoverDeduction = round2(carryover_deduction || 0);
+  const carryoverBalance = round2(carryover_balance || 0);
 
   // Derive rates and attendance metrics for absent/late/undertime calculations
   const scheduledDays = attendance?.scheduledWorkDays || 0;
@@ -63,26 +70,39 @@ export const formatPayslipSections = ({
 
   // Use provided deduction values if present, otherwise compute
 
-  // Validate attendance deductions
-  const lateDeductionPeso = round2(deductions?.lateDeduction || 0);
-  const undertimeDeductionPeso = round2(deductions?.undertimeDeduction || 0);
-  const lwopDeductionPeso = round2(deductions?.lwopDeduction || 0);
+  // Validate attendance deductions from the new structure
+  const attendanceDeductions = deductions?.attendance || {};
+  const lateDeductionPeso = round2(attendanceDeductions.lateDeduction || 0);
+  const undertimeDeductionPeso = round2(attendanceDeductions.undertimeDeduction || 0);
+  const absenceDeductionPeso = round2(attendanceDeductions.absenceDeduction || 0);
+  const unpaidLeaveDeductionPeso = round2(attendanceDeductions.unpaidLeaveDeduction || 0);
 
   // compute missing items if backend didn't provide them
   const lateDeductionComputed = round2(hourlyRate * ((attendance?.lateMinutes || 0) / 60));
   const undertimeDeductionComputed = round2(hourlyRate * ((attendance?.undertimeMinutes || 0) / 60));
-  const lwopDeductionComputed = round2(deductions?.lwopHours ? hourlyRate * deductions.lwopHours : (lwopDeductionPeso || 0));
+  const absenceHours = round2(attendanceDeductions.absenceHours || 0);
+  const absenceDeductionComputed = round2(hourlyRate * absenceHours);
+  const unpaidLeaveHours = round2(attendanceDeductions.unpaidLeaveHours || 0);
+  const unpaidLeaveDeductionComputed = round2(hourlyRate * unpaidLeaveHours);
+  const leaveWithoutPayDays = round2(
+    leave_without_pay_days != null
+      ? leave_without_pay_days
+      : unpaidLeaveHours / 8,
+  );
+  const absenceDays = round2(
+    attendance?.absences != null
+      ? attendance.absences
+      : absenceHours / 8,
+  );
 
   const effectiveLateDeduction = lateDeductionPeso || lateDeductionComputed;
   const effectiveUndertimeDeduction = undertimeDeductionPeso || undertimeDeductionComputed;
-  const effectiveLwopDeduction = lwopDeductionPeso || lwopDeductionComputed;
+  const effectiveAbsenceDeduction = absenceDeductionPeso || absenceDeductionComputed;
+  const effectiveUnpaidLeaveDeduction = unpaidLeaveDeductionPeso || unpaidLeaveDeductionComputed;
 
-  // Absent deduction: Hourly Rate × (Expected Hours − Hours Worked)
-  const absentDeductionFromBreakdown = round2(deductions?.absentDeduction || 0);
-  const absentDeductionComputed = round2(hourlyRate * absentHoursComputed);
-  const effectiveAbsentDeduction = absentDeductionFromBreakdown || absentDeductionComputed;
-
-  // Earnings Section - Flat structure for easy display
+  // Earnings Section - Show breakdown to Gross Pay (non-taxable added after deductions)
+  const adjustedBasic = round2(basePayForPeriod - effectiveLateDeduction - effectiveUndertimeDeduction - effectiveAbsenceDeduction - effectiveUnpaidLeaveDeduction);
+  
   const earningsSection = {
     basic_pay: {
       label: `Basic Pay (${attendance?.scheduledWorkDays || 0} days × 8 hrs)`,
@@ -99,15 +119,36 @@ export const formatPayslipSections = ({
       amount: -effectiveUndertimeDeduction,
       display: -effectiveUndertimeDeduction,
     },
-    lwop_deduction: {
-      label: `Leave Without Pay (${lwop_days || 0} days)`,
-      amount: -effectiveLwopDeduction,
-      display: -effectiveLwopDeduction,
+    late_undertime: {
+      label: `Late / Undertime (${(attendance?.lateMinutes || 0) + (attendance?.undertimeMinutes || 0)} min)`,
+      amount: -(effectiveLateDeduction + effectiveUndertimeDeduction),
+      display: -(effectiveLateDeduction + effectiveUndertimeDeduction),
+    },
+    absence_deduction: {
+      label: `Absence Deduction (${absenceHours} hrs)`,
+      amount: -effectiveAbsenceDeduction,
+      display: -effectiveAbsenceDeduction,
+    },
+    unpaid_leave_deduction: {
+      label: `Unpaid Leave Deduction (${leaveWithoutPayDays} days)`,
+      amount: -effectiveUnpaidLeaveDeduction,
+      display: -effectiveUnpaidLeaveDeduction,
+    },
+    lwop: {
+      label: `LWOP (${leaveWithoutPayDays} days)`,
+      amount: -effectiveUnpaidLeaveDeduction,
+      display: -effectiveUnpaidLeaveDeduction,
+    },
+    absences: {
+      label: `Absences (${absenceDays} days)`,
+      amount: -effectiveAbsenceDeduction,
+      days: absenceDays,
+      display: -effectiveAbsenceDeduction,
     },
     adjusted_basic_pay: {
       label: 'Adjusted Basic Pay',
-      amount: round2(basePayForPeriod - effectiveLateDeduction - effectiveUndertimeDeduction - effectiveLwopDeduction - (absentDeductionFromBreakdown ? 0 : absentDeductionComputed)),
-      display: round2(basePayForPeriod - effectiveLateDeduction - effectiveUndertimeDeduction - effectiveLwopDeduction - (absentDeductionFromBreakdown ? 0 : absentDeductionComputed)),
+      amount: adjustedBasic,
+      display: adjustedBasic,
     },
     overtime_pay: {
       label: 'Overtime Pay',
@@ -134,25 +175,42 @@ export const formatPayslipSections = ({
       amount: taxableAllowance,
       display: taxableAllowance,
     },
-    non_taxable_allowance: {
-      label: 'Non-Taxable / De Minimis Allowance',
-      amount: nonTaxableAllowance,
-      display: nonTaxableAllowance,
-    },
     thirteenth_month: {
-      label: '13th Month Pay Accrual',
+      label: '13th Month Pay Accrual (base ÷ 12)',
       amount: thirteenthMonthAccrual,
       display: thirteenthMonthAccrual,
     },
+    // ── De Minimis (Non-Taxable) ──────────────────────────────────────────────
+    // nonTaxableAllowance is added AFTER tax / mandatory deductions for net pay.
+    // The monthly_limit is the configured BIR cap from settings (rice + clothing
+    // caps combined, normalised back to monthly), forwarded for payslip display.
+    non_taxable_allowance: {
+      label: 'De Minimis (Non-Taxable Allowances)',
+      amount: nonTaxableAllowance,
+      monthly_limit: round2(earnings?.deMinimisMonthlyCapTotal || 0) || null,
+      display: nonTaxableAllowance,
+    },
     gross_pay: {
-      label: 'Gross Pay',
+      label: 'Gross Pay (before contributions & tax)',
       amount: grossPay,
       display: grossPay,
+      breakdown: `Basic Pay ₱${basePayForPeriod.toFixed(2)}`
+        + (effectiveUnpaidLeaveDeduction > 0 ? ` − LWOP (${leaveWithoutPayDays} days) ₱${effectiveUnpaidLeaveDeduction.toFixed(2)}` : '')
+        + (effectiveAbsenceDeduction > 0 ? ` − Absences (${absenceDays} days) ₱${effectiveAbsenceDeduction.toFixed(2)}` : '')
+        + (effectiveLateDeduction + effectiveUndertimeDeduction > 0 ? ` − Late/UT ₱${round2(effectiveLateDeduction + effectiveUndertimeDeduction).toFixed(2)}` : '')
+        + ` = Gross Pay ₱${grossPay.toFixed(2)}`,
     },
   };
 
 
-  // Deductions Section - Flat structure for easy display
+  // Deductions Section
+  // ─────────────────────────────────────────────────────────────────────────
+  // All amounts are stored as POSITIVE numbers here.
+  // The payslip UI is responsible for formatting them as deductions (showing
+  // them with a minus sign or in a "Deductions" column).
+  // Previously these were stored as negatives, which caused formatMoney() to
+  // render "₱-250.00" instead of "₱250.00".
+  // ─────────────────────────────────────────────────────────────────────────
   const sssDeduction = round2(deductions?.mandatoryContributions?.sss?.employeeShare || 0);
   const philhealthDeduction = round2(deductions?.mandatoryContributions?.philHealth?.employeeShare || 0);
   const pagibigDeduction = round2(deductions?.mandatoryContributions?.pagIbig?.employeeShare || 0);
@@ -160,57 +218,71 @@ export const formatPayslipSections = ({
   const totalDeductionsAmount = round2(deductions?.totalDeductions || 0);
   const taxableIncomeAmount = round2(deductions?.taxableIncome || 0);
 
-  // If absent deduction wasn't included in backend totals, include it here
-  const totalDeductionsIncludingAbsent = (() => {
-    if (absentDeductionFromBreakdown) return totalDeductionsAmount;
-    return round2(totalDeductionsAmount + (absentDeductionComputed || 0));
-  })();
+  // Tax bracket description — resolved from the withholding computation object
+  const taxBracketDescription =
+    deductions?.withholding?.bracketDescription ||
+    deductions?.withholding?.bracket_description ||
+    null;
 
   const deductionsSection = {
-    sss_ee: {
-      label: 'SSS (EE)',
-      amount: -sssDeduction,
-      display: -sssDeduction,
-    },
-    philhealth_ee: {
-      label: 'PhilHealth (EE)',
-      amount: -philhealthDeduction,
-      display: -philhealthDeduction,
-    },
-    pagibig_ee: {
-      label: 'Pag-IBIG (EE)',
-      amount: -pagibigDeduction,
-      display: -pagibigDeduction,
-    },
+    // ── Attendance-based deductions ─────────────────────────────────────────
+    // These are moved here from earningsSection so the frontend can find them
+    // under payslip.deductions (where it expects all deduction line items).
     late_undertime: {
-      label: 'Late / Undertime',
-      amount: -(effectiveLateDeduction + effectiveUndertimeDeduction),
-      display: -(effectiveLateDeduction + effectiveUndertimeDeduction),
+      label: `Late / Undertime (${(attendance?.lateMinutes || 0) + (attendance?.undertimeMinutes || 0)} min)`,
+      amount: round2(effectiveLateDeduction + effectiveUndertimeDeduction),
+      display: round2(effectiveLateDeduction + effectiveUndertimeDeduction),
     },
     lwop: {
-      label: 'LWOP',
-      amount: -effectiveLwopDeduction,
-      display: -effectiveLwopDeduction,
+      label: `LWOP (${leaveWithoutPayDays} days)`,
+      amount: effectiveUnpaidLeaveDeduction,
+      days: leaveWithoutPayDays,
+      display: effectiveUnpaidLeaveDeduction,
     },
-    absent: {
-      label: `Absent Deduction (${absentHoursComputed} hrs)`,
-      amount: -effectiveAbsentDeduction,
-      display: -effectiveAbsentDeduction,
+    absences: {
+      label: `Absences (${absenceDays} days)`,
+      amount: effectiveAbsenceDeduction,
+      days: absenceDays,
+      display: effectiveAbsenceDeduction,
     },
+    // ── Mandatory government contributions (EE share) ───────────────────────
+    sss_ee: {
+      label: 'SSS (Employee Share)',
+      amount: sssDeduction,
+      display: sssDeduction,
+    },
+    philhealth_ee: {
+      label: 'PhilHealth (Employee Share)',
+      amount: philhealthDeduction,
+      display: philhealthDeduction,
+    },
+    pagibig_ee: {
+      label: 'Pag-IBIG (Employee Share)',
+      amount: pagibigDeduction,
+      display: pagibigDeduction,
+    },
+    // ── Tax ─────────────────────────────────────────────────────────────────
     taxable_income: {
       label: 'Taxable Income',
       amount: taxableIncomeAmount,
       display: taxableIncomeAmount,
     },
     withholding_tax: {
-      label: 'Withholding Tax',
-      amount: -withholdingtax,
-      display: -withholdingtax,
+      label: 'BIR Withholding Tax',
+      amount: withholdingtax,
+      display: withholdingtax,
+      // bracket description forwarded for payslip Notes section
+      bracketDescription: taxBracketDescription,
+    },
+    carryover_deduction: {
+      label: 'Negative Net Pay Carryover',
+      amount: round2(carryoverDeduction || 0),
+      display: round2(carryoverDeduction || 0),
     },
     total_deductions: {
-      label: 'Total Deductions',
-      amount: -totalDeductionsIncludingAbsent,
-      display: -totalDeductionsIncludingAbsent,
+      label: 'Total Deductions (Contributions + Tax)',
+      amount: totalDeductionsAmount,
+      display: totalDeductionsAmount,
     },
   };
 
@@ -247,13 +319,14 @@ export const formatPayslipSections = ({
   // Summary Section
   const summarySection = {
     gross_pay: grossPay,
-    total_deductions: totalDeductionsIncludingAbsent,
-    net_pay: (() => {
-      // If backend didn't include absent deduction, subtract it from provided net_pay
-      const incomingNet = round2(net_pay || 0);
-      if (absentDeductionFromBreakdown) return incomingNet;
-      return round2(incomingNet - absentDeductionComputed);
-    })(),
+    total_deductions: totalDeductionsAmount,
+    deductions_detail: `SSS ₱${sssDeduction.toFixed(2)} + PhilHealth ₱${philhealthDeduction.toFixed(2)} + Pag-IBIG ₱${pagibigDeduction.toFixed(2)} + Tax ₱${withholdingtax.toFixed(2)}`,
+    after_deductions: round2(grossPay - totalDeductionsAmount),
+    non_taxable_allowances: nonTaxableAllowance,
+    raw_net_pay: rawNetPay,
+    carryover_deduction: carryoverDeduction,
+    carryover_balance: carryoverBalance,
+    net_pay: round2(net_pay || 0),
   };
 
 
@@ -277,6 +350,7 @@ export const formatPayslipSections = ({
     
     // Compliance notes
     compliance: compliance || {},
+    negative_net_pay_note: negative_net_pay_note || compliance?.notes?.[0] || null,
     
     // Signature block for printing
     signature_block: 'Employee Signature: ______________________   Date: _______________',

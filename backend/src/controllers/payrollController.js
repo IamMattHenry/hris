@@ -11,6 +11,10 @@ import {
   getFinanceBudgetsSnapshot,
   getCurrentStaffSalaryMonthlyTotal,
 } from '../services/financeBudgetService.js';
+import {
+  getOutstandingNegativeNetPayBalances,
+  syncNegativeNetPayBalancesForRun,
+} from '../services/payrollCarryoverService.js';
 import { createNotification, notifyHrUsersBudgetAmountChange, notifyHrUsersBudgetRequestStatusChange, notifyHrUsersBudgetStatus, notifyHrUsersPayrollRunUpdate } from '../services/notificationService.js';
 
 const round2 = (value) => Number((Number(value) || 0).toFixed(2));
@@ -978,6 +982,8 @@ export const createPayrollRun = async (req, res, next) => {
       [...employeeIds, periodEnd, periodStart]
     );
 
+    const negativeNetPayCarryovers = await getOutstandingNegativeNetPayBalances(employeeIds);
+
     const computed = computePayrollRun({
       employees,
       attendanceRows,
@@ -986,13 +992,23 @@ export const createPayrollRun = async (req, res, next) => {
       payPeriodEnd: periodEnd,
       paySchedule: resolvedPaySchedule,
       settings,
+      negativeNetPayCarryovers: Object.fromEntries(negativeNetPayCarryovers),
     });
 
     let payrollBudgetValidation = null;
     try {
+      const computedGrossPay = Number(computed.summary?.gross_pay) || 0;
+      const budgetGrossPay = Math.max(0, computedGrossPay);
+
+      if (computedGrossPay < 0) {
+        logger.warn(
+          `Computed payroll gross pay is negative (₱${computedGrossPay.toFixed(2)}). Budget validation will use ₱0.00 so payroll run creation can continue.`
+        );
+      }
+
       payrollBudgetValidation = await ensureAmountWithinBudget({
         budgetName: BUDGET_NAMES.PAYROLL,
-        amount: Number(computed.summary?.gross_pay) || 0,
+        amount: budgetGrossPay,
         amountLabel: 'Computed payroll total gross pay',
       });
     } catch (budgetError) {
@@ -1399,6 +1415,23 @@ export const finalizePayrollRun = async (req, res, next) => {
         runId: Number(id),
         status: PAYROLL_RUN_STATUSES.FINALIZED,
         actorUserId: req.user?.user_id || null,
+      });
+
+      const finalizedRecords = await db.transactionQuery(
+        `SELECT id, employee_id, json_breakdown
+         FROM payroll_records
+         WHERE run_id = ?`,
+        [id]
+      );
+
+      const recordsWithCarryover = (finalizedRecords || []).map((record) => ({
+        ...record,
+        breakdown: parseJson(record.json_breakdown, {}),
+      }));
+
+      await syncNegativeNetPayBalancesForRun({
+        runId: Number(id),
+        records: recordsWithCarryover,
       });
 
       await db.commit();
