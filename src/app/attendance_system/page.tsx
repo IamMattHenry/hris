@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, Fingerprint, LogIn, LogOut, Router } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import QRCodeScanner from "./Scanner/QRCodeScanner";
 import { attendanceApi, employeeApi, authApi } from "@/lib/api";
 import { useSearchParams } from "next/navigation";
@@ -55,6 +55,9 @@ export default function AttendanceSystemPage() {
   const [qrScannerActive, setQrScannerActive] = useState(false);
   const searchParams = useSearchParams();
 
+  // Reference for auto-scrolling
+  const logEndRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const tab = searchParams.get("tab");
     if (tab === "FINGERPRINT") {
@@ -73,6 +76,13 @@ export default function AttendanceSystemPage() {
     minute: "2-digit",
     hour12: true,
   });
+
+  /** Auto-scroll to bottom of logs when new logs arrive */
+  useEffect(() => {
+    if (activeTab === "FINGERPRINT" && logEndRef.current) {
+      logEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [statusLog, activeTab]);
 
   /** Reset data when switching tabs */
   useEffect(() => {
@@ -108,7 +118,6 @@ export default function AttendanceSystemPage() {
         first_name: res.data.first_name,
         last_name: res.data.last_name,
         position_name: res.data.position_name,
-        // Use QR schedule time if provided, else fallback to real DB schedule_time, else default
         schedule_time: explicit_schedule_time || res.data.schedule_time || "08:00",
       };
 
@@ -137,13 +146,12 @@ export default function AttendanceSystemPage() {
 
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      setStatusLog((prev) => [...prev.slice(-9), data]);
+      setStatusLog((prev) => [...prev.slice(-19), data]);
       
       if (data.message?.includes("ERROR:")) {
         setError(data.message.replace("ERROR:", ""));
         setTimeout(() => setError(null), 5000);
       } 
-      // REAL DATA HOOK: If the scanner sends a successful match with an employee ID
       else if (data.status === "success" && data.employee_id) {
         handleEmployeeScan(data.employee_id);
       }
@@ -511,34 +519,62 @@ export default function AttendanceSystemPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
             {/* LEFT COLUMN: Input Device (Sensor Log OR Camera) */}
             {activeTab === "FINGERPRINT" ? (
-              <div className="flex flex-col gap-4 h-full">
-                {/* Fingerprint Visual UI */}
-                <div className={`flex flex-col items-center justify-center rounded-2xl shadow-inner p-8 text-white text-center transition-all duration-300 border-2 ${employeeData && !error ? "bg-green-600 border-green-500" : isConnected ? "bg-[#3b2b1c] border-[#2a1107]" : "bg-gray-500 border-gray-600"}`}>
-                  <Fingerprint className={`w-24 h-24 mb-4 ${isConnected ? "animate-pulse text-[#D4A056]" : "opacity-50"}`} />
-                  <h4 className="text-xl font-bold tracking-wide">
-                    {employeeData && !error ? "Match Successful" : isConnected ? "Sensor Active" : "Initializing"}
+              <div className="flex flex-col gap-5 h-full min-h-[450px]">
+                {/* Fingerprint Dashboard UI */}
+                <div className={`flex-1 flex flex-col items-center justify-center rounded-2xl shadow-sm p-8 text-center transition-all duration-300 border bg-white ${
+                  employeeData && !error ? "border-green-500 bg-green-50" : 
+                  isConnected ? "border-[#d4b88a]" : "border-gray-200"
+                }`}>
+                  <Fingerprint className={`w-28 h-28 mb-5 transition-all duration-500 ${
+                    employeeData && !error ? "text-green-500 scale-110" : 
+                    isConnected ? "text-[#3b2b1c] animate-pulse drop-shadow-[0_0_8px_rgba(212,184,138,0.5)]" : 
+                    "text-gray-300"
+                  }`} />
+                  <h4 className={`text-xl font-extrabold tracking-wide ${
+                    employeeData && !error ? "text-green-700" : 
+                    isConnected ? "text-[#3b2b1c]" : "text-gray-400"
+                  }`}>
+                    {employeeData && !error ? "MATCH SUCCESSFUL" : isConnected ? "PLACE FINGER ON SENSOR" : "INITIALIZING HARDWARE..."}
                   </h4>
+                  <p className="text-sm text-gray-500 mt-2 font-medium">
+                    {employeeData && !error ? "Employee identity verified." : isConnected ? "Awaiting biometric scan data." : "Please wait for connection."}
+                  </p>
                 </div>
                 
-                {/* Hardware Log */}
-                <div className="flex-1 bg-gray-900 text-green-400 rounded-2xl p-5 overflow-y-auto font-mono text-sm border-2 border-gray-800 shadow-md min-h-[200px]">
-                  <h4 className="text-white border-b border-gray-700 pb-2 mb-3 flex items-center gap-2 font-sans font-bold">
-                    <Fingerprint className="w-4 h-4" /> Hardware Output
-                  </h4>
-                  {statusLog.length === 0 ? (
-                    <p className="text-gray-500 italic text-center py-6">
-                      Waiting for sensor data...
-                    </p>
-                  ) : (
-                    statusLog.map((log, i) => (
-                      <div key={i} className="mb-1 flex gap-2">
-                        <span className="text-gray-600">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
-                        <span className={log.message.includes("ERROR") ? "text-red-400" : "text-green-400"}>
-                          {log.message}
-                        </span>
-                      </div>
-                    ))
-                  )}
+                {/* Hardware Log Window (Strictly Scrollable) */}
+                <div className="h-56 flex flex-col bg-[#1e1e1e] rounded-xl border border-gray-700 shadow-inner overflow-hidden">
+                  <div className="bg-[#2d2d2d] px-4 py-2.5 border-b border-gray-700 flex items-center justify-between">
+                    <h4 className="text-gray-300 flex items-center gap-2 font-sans text-xs font-bold uppercase tracking-wider">
+                      <Router className="w-4 h-4 text-[#d4b88a]" /> Device Terminal
+                    </h4>
+                    <div className="flex gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full bg-red-500/80"></div>
+                      <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/80"></div>
+                      <div className="w-2.5 h-2.5 rounded-full bg-green-500/80"></div>
+                    </div>
+                  </div>
+                  
+                  {/* Scrollable Container */}
+                  <div className="flex-1 p-4 overflow-y-auto font-mono text-xs space-y-1.5">
+                    {statusLog.length === 0 ? (
+                      <p className="text-gray-500 italic text-center mt-4">
+                        Waiting for sensor data stream...
+                      </p>
+                    ) : (
+                      statusLog.map((log, i) => (
+                        <div key={i} className="flex gap-3 hover:bg-[#2a2a2a] px-2 py-1 rounded transition-colors">
+                          <span className="text-gray-500 shrink-0">
+                            [{new Date(log.timestamp).toLocaleTimeString()}]
+                          </span>
+                          <span className={`${log.message.includes("ERROR") ? "text-red-400 font-semibold" : "text-green-400"}`}>
+                            {log.message}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                    {/* Auto-scroll target dummy element */}
+                    <div ref={logEndRef} />
+                  </div>
                 </div>
               </div>
             ) : (

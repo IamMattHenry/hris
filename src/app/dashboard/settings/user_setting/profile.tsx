@@ -258,8 +258,11 @@ const ProfileSection = () => {
         contact_numbers: contacts.filter((c) => c.trim() !== ""),
       };
 
+     // console.log("Saving profile:", profileData);
+
       // Use 'me' endpoint to update current user's profile
       const result = await employeeApi.update('me' as any, profileData);
+      //console.log(result);
 
       if (result.success) {
         alert("Profile updated successfully!");
