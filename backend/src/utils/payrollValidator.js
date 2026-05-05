@@ -299,9 +299,9 @@ export const validateNetPay = (breakdown, net_pay) => {
   }
 
   if (net_pay < 0) {
-    errors.push(new PayrollValidationError(
+    warnings.push(new PayrollValidationWarning(
       'NEGATIVE_NET_PAY',
-      `Net pay cannot be negative: ₱${net_pay}. Deductions exceed gross pay.`
+      `Net pay is negative: ₱${net_pay}. The outstanding amount should be carried over to the next payroll.`
     ));
   }
 

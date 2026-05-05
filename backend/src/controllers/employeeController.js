@@ -47,6 +47,34 @@ const normalizePositionName = (value) =>
     .replace(/\s+/g, ' ')
     .trim();
 
+let employeeAddressColumnsCache = null;
+
+async function getEmployeeAddressColumns() {
+  if (employeeAddressColumnsCache) {
+    return employeeAddressColumnsCache;
+  }
+
+  const columns = await db.getAll(
+    `SELECT COLUMN_NAME
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'employee_addresses'
+       AND COLUMN_NAME IN ('barangay_name', 'barangay')`
+  );
+
+  const columnNames = new Set(columns.map((row) => row.COLUMN_NAME));
+
+  employeeAddressColumnsCache = {
+    barangay: columnNames.has('barangay_name')
+      ? 'barangay_name'
+      : columnNames.has('barangay')
+        ? 'barangay'
+        : 'barangay_name',
+  };
+
+  return employeeAddressColumnsCache;
+}
+
 /**
  * Auto-assign RBAC role based on department + position.
  * Applies only to the detected HR department with specific position names.
@@ -410,6 +438,8 @@ export const getEmployeeById = async (req, res, next) => {
       }
     }
 
+    const addressColumns = await getEmployeeAddressColumns();
+
     const employee = await db.getOne(
       `
   SELECT
@@ -420,7 +450,7 @@ export const getEmployeeById = async (req, res, next) => {
     u.username,
     u.role,
     ea.home_address,
-    ea.barangay_name AS barangay,
+    ea.${addressColumns.barangay} AS barangay,
     ea.city_name AS city,
     ea.region_name AS region,
     ea.province_name AS province
@@ -465,6 +495,7 @@ export const getEmployeeById = async (req, res, next) => {
         de.email,
         dc.contact_no,
         da.home_address,
+        da.barangay_name AS barangay,
         da.region_name,
         da.province_name,
         da.city_name
@@ -953,10 +984,11 @@ export const createEmployee = async (req, res, next) => {
 
       // Insert address record if provided
       if (home_address || barangay || city || region || province) {
+        const addressColumns = await getEmployeeAddressColumns();
         await db.transactionInsert("employee_addresses", {
           employee_id: employeeId,
           home_address: home_address || null,
-          barangay_name: barangay || null,
+          [addressColumns.barangay]: barangay || null,
           city_name: city || null,
           region_name: region || null,
           province_name: province || null,
@@ -1011,10 +1043,11 @@ export const createEmployee = async (req, res, next) => {
           }
 
           // Insert dependent address if provided
-          if (dependent.homeAddress || dependent.region || dependent.province || dependent.city) {
+          if (dependent.homeAddress || dependent.barangay || dependent.region || dependent.province || dependent.city) {
             await db.transactionInsert("dependant_address", {
               dependant_id: tempDependentId,
               home_address: dependent.homeAddress || null,
+              barangay_name: dependent.barangay || null,
               region_name: dependent.region || null,
               province_name: dependent.province || null,
               city_name: dependent.city || null,
@@ -1496,12 +1529,13 @@ export const updateEmployee = async (req, res, next) => {
       );
 
       if (addressFieldsProvided) {
+        const addressColumns = await getEmployeeAddressColumns();
         const addressData = {};
         if (home_address !== undefined) {
           addressData.home_address = home_address ? home_address : null;
         }
         if (barangay !== undefined) {
-          addressData.barangay_name = barangay ? barangay : null;
+          addressData[addressColumns.barangay] = barangay ? barangay : null;
         }
         if (city !== undefined) {
           addressData.city_name = city ? city : null;
@@ -1639,10 +1673,11 @@ export const updateEmployee = async (req, res, next) => {
           }
 
           // Insert dependent address if provided
-          if (dependent.homeAddress || dependent.region || dependent.province || dependent.city) {
+          if (dependent.homeAddress || dependent.barangay || dependent.region || dependent.province || dependent.city) {
             await db.transactionInsert("dependant_address", {
               dependant_id: tempDependentId,
               home_address: dependent.homeAddress || null,
+              barangay_name: dependent.barangay || null,
               region_name: dependent.region || null,
               province_name: dependent.province || null,
               city_name: dependent.city || null,

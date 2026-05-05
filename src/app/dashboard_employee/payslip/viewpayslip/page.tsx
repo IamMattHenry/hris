@@ -333,7 +333,7 @@ export default function PayrollPayslipModal(props: any) {
                           Review: {content.payslip.compliance.warnings.join(" ")}
                         </p>
                       ) : null}
-                      <p className="text-gray-700">LWOP Days: {content.payslip.lwop_days || 0}</p>
+                      <p className="text-gray-700">Leave Without Pay Days: {content.deductions?.unpaidLeaveDays || 0}</p>
                     </div>
                     <div className="text-right">
                       <p className="font-semibold">Employee Signature</p>

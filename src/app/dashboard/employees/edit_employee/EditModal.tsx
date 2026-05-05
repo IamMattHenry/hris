@@ -265,6 +265,7 @@ export default function EditEmployeeModal({
   // Fingerprint enrollment state
   const [showFingerprintEnrollment, setShowFingerprintEnrollment] = useState(false);
   const [currentFingerprintId, setCurrentFingerprintId] = useState<number | null>(null);
+  const [isDeletingFingerprint, setIsDeletingFingerprint] = useState(false);
 
   // psgc contexts
   const [regionCode, setRegionCode] = useState("");
@@ -378,6 +379,7 @@ const [cityCode, setCityCode] = useState("");
             relationship: d.relationship || "",
             relationshipSpecify: undefined,
             homeAddress: d.home_address || "",
+            barangay: d.barangay || "",
             region: d.region_name || "",
             province: d.province_name || "",
             city: d.city_name || "",
@@ -629,6 +631,33 @@ const [cityCode, setCityCode] = useState("");
       toast.error('Failed to revoke role');
     } finally {
       setIsAssigningRole(false);
+    }
+  };
+
+  const handleDeleteFingerprint = async () => {
+    if (!employee?.employee_id || !currentFingerprintId) return;
+
+    // Confirm deletion
+    if (!window.confirm(
+      `Are you sure you want to delete the fingerprint registration for ${firstName} ${lastName}? This employee will no longer be able to use fingerprint for attendance.`
+    )) {
+      return;
+    }
+
+    setIsDeletingFingerprint(true);
+    try {
+      const res = await fingerprintApi.delete(employee.employee_id, currentFingerprintId);
+      if (res.success) {
+        toast.success(res.message || 'Fingerprint deleted successfully');
+        setCurrentFingerprintId(null);
+      } else {
+        toast.error(res.message || 'Failed to delete fingerprint');
+      }
+    } catch (err) {
+      console.error('Delete fingerprint error:', err);
+      toast.error('Failed to delete fingerprint');
+    } finally {
+      setIsDeletingFingerprint(false);
     }
   };
 
@@ -894,7 +923,6 @@ useEffect(() => {
 
     const roleErrors: ValidationErrors = {};
 
-    // Validate employee form - NOW INCLUDING PROVINCE
     const formErrors = validateEmployeeForm(
       firstName,
       middleName,
@@ -1852,6 +1880,7 @@ useEffect(() => {
                         relationshipSpecify:
                           dependentRelationshipSpecify || undefined,
                         homeAddress: dependentHomeAddress,
+                        barangay: dependentBarangay,
                         region: dependentRegion,
                         province: dependentProvince,
                         city: dependentCity,
@@ -1864,6 +1893,7 @@ useEffect(() => {
                       setDependentRelationship("");
                       setDependentRelationshipSpecify("");
                       setDependentHomeAddress("");
+                      setDependentBarangay("");
                       setDependentRegion("");
                       setDependentProvince("");
                       setDependentCity("");
@@ -1913,10 +1943,10 @@ useEffect(() => {
                         {dependent.homeAddress && (
                           <p className="text-xs text-[#6b5344]">Address: {dependent.homeAddress}</p>
                         )}
-                        {(dependent.city || dependent.province || dependent.region) && (
+                        {(dependent.barangay || dependent.city || dependent.province || dependent.region) && (
                           <p className="text-xs text-[#6b5344]">
                             Location:{" "}
-                            {[dependent.city, dependent.province, dependent.region]
+                            {[dependent.barangay, dependent.city, dependent.province, dependent.region]
                               .filter(Boolean)
                               .join(", ")}
                           </p>
@@ -2125,12 +2155,24 @@ useEffect(() => {
 
                 {currentFingerprintId ? (
                   <div className="bg-[#FFF2E0] p-4 rounded-lg border border-[#e6d2b5]">
-                    <p className="text-sm text-[#3b2b1c]">
-                      <span className="font-semibold">Current Fingerprint ID:</span> {currentFingerprintId}
-                    </p>
-                    <p className="text-xs text-[#6b5344] mt-1">
-                      This employee has a registered fingerprint for attendance tracking.
-                    </p>
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-sm text-[#3b2b1c]">
+                          <span className="font-semibold">Current Fingerprint ID:</span> {currentFingerprintId}
+                        </p>
+                        <p className="text-xs text-[#6b5344] mt-1">
+                          This employee has a registered fingerprint for attendance tracking.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={isDeletingFingerprint}
+                        onClick={() => handleDeleteFingerprint()}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isDeletingFingerprint ? 'Deleting...' : 'Delete Fingerprint'}
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">

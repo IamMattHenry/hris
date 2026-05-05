@@ -150,6 +150,7 @@ export default function PayrollPayslipModal(props: any) {
       run: payload.run,
       record,
       payslip,
+      breakdown: record.breakdown || {},
       earnings,
       deductions,
     };
@@ -316,12 +317,20 @@ export default function PayrollPayslipModal(props: any) {
                           <span>{formatMoney(content.deductions.pagibig_ee?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span>Late / Undertime</span>
+                          <span>{content.deductions.late_undertime?.label || "Late / Undertime"}</span>
                           <span>{formatMoney(content.deductions.late_undertime?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span>LWOP</span>
+                          <span>{content.deductions.lwop?.label || "LWOP"}</span>
                           <span>{formatMoney(content.deductions.lwop?.amount)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>{content.deductions.absences?.label || "Absences"}</span>
+                          <span>{
+                            content.deductions.absences?.days !== undefined
+                              ? `${content.deductions.absences.days} days`
+                              : formatMoney(content.deductions.absences?.amount)
+                          }</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Taxable Income</span>
@@ -380,8 +389,13 @@ export default function PayrollPayslipModal(props: any) {
                       <p className="text-gray-700">
                         Tax bracket: {content.deductions.withholding?.bracketDescription || "N/A"}
                       </p>
+                      {content.payslip.negative_net_pay_note ? (
+                        <p className="text-amber-700">
+                          Note: {content.payslip.negative_net_pay_note}
+                        </p>
+                      ) : null}
                       <p className="text-gray-700">
-                        LWOP Days: {content.payslip.lwop_days || 0}
+                        Leave Without Pay Days: {content.breakdown?.deductions?.unpaidLeaveDays || 0}
                       </p>
                     </div>
                     <div className="text-right">

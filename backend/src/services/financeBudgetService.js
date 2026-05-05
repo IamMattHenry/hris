@@ -65,7 +65,7 @@ const normalizeBudgetRow = (row) => {
   };
 };
 
-const fetchLatestBudgetRow = async (budgetName) => {
+const fetchLatestBudgetRow = async () => {
   try {
     const row = await db.getOne(
       `SELECT
@@ -86,44 +86,35 @@ const fetchLatestBudgetRow = async (budgetName) => {
 
     return normalizeBudgetRow(row);
   } catch (error) {
-    logger.error(`Finance budget query failed for '${budgetName}':`, error);
+    logger.error(`Finance budget query failed for department_id=${HRIS_DEPARTMENT_ID}:`, error);
     throw new BudgetValidationError({
       code: 'BUDGET_QUERY_FAILED',
-      publicMessage: `Unable to validate '${budgetName}' budget right now. Please try again later.`,
-      technicalMessage: `Finance budget query failed for '${budgetName}': ${error.message}`,
+      publicMessage: `Unable to load budget right now. Please try again later.`,
+      technicalMessage: `Finance budget query failed for department_id=${HRIS_DEPARTMENT_ID}: ${error.message}`,
       statusCode: 503,
     });
   }
 };
 
 export const getLatestValidatedBudgetByName = async (budgetName) => {
-  const normalizedName = String(budgetName || '').trim();
-
-  if (!normalizedName) {
-    throw new BudgetValidationError({
-      code: 'BUDGET_NAME_REQUIRED',
-      publicMessage: 'Budget name is required for budget validation.',
-      technicalMessage: 'Missing budgetName argument',
-      statusCode: 500,
-    });
-  }
-
-  const row = await fetchLatestBudgetRow(normalizedName);
+  // budgetName is accepted for backward compatibility but not used
+  // The function returns the latest active budget for the HRIS department
+  const row = await fetchLatestBudgetRow();
 
   if (!row) {
     throw new BudgetValidationError({
       code: 'BUDGET_MISSING',
-      publicMessage: `No active budget record found in budget_department for HRIS (department_id: ${HRIS_DEPARTMENT_ID}). Please ask Finance to configure it.`,
-      technicalMessage: `No active budget_department row found for department_id=${HRIS_DEPARTMENT_ID} while validating '${normalizedName}'`,
+      publicMessage: `No active budget configured for the HRIS department. Please ask Finance to configure it.`,
+      technicalMessage: `No active budget_department row found for department_id=${HRIS_DEPARTMENT_ID}`,
       statusCode: 422,
     });
   }
 
-  if (!Number.isFinite(row.amount) || row.amount < 0) {
+  if (!Number.isFinite(row.amount) || row.amount <= 0) {
     throw new BudgetValidationError({
       code: 'BUDGET_INVALID_AMOUNT',
-      publicMessage: `HRIS budget has an invalid allocated amount. Please ask Finance to correct budget_department.allocated_amount.`,
-      technicalMessage: `Invalid budget amount for '${normalizedName}': ${row.amount}`,
+      publicMessage: `HRIS budget has no available allocation. Please ask Finance to configure a positive budget amount.`,
+      technicalMessage: `Invalid or zero budget amount: ${row.amount}`,
       statusCode: 422,
       data: {
         budget_name: row.budget_name,

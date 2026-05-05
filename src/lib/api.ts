@@ -791,6 +791,21 @@ export const attendanceApi = {
   },
 
   /**
+   * Search employees and get monthly attendance summary
+   * @param search - text to search employee code/name
+   * @param month - YYYY-MM
+   */
+  searchMonthlySummary: async (params?: { search?: string; month?: string; start_date?: string; end_date?: string }) => {
+    const p = new URLSearchParams();
+    if (params?.search) p.append('search', String(params.search));
+    if (params?.month) p.append('month', String(params.month));
+    if (params?.start_date) p.append('start_date', String(params.start_date));
+    if (params?.end_date) p.append('end_date', String(params.end_date));
+    const url = `/attendance/search-summary${p.toString() ? `?${p.toString()}` : ''}`;
+    return apiCall<any>(url, { method: 'GET' });
+  },
+
+  /**
    * Mark absences for a date or range (admin/superadmin)
    * Accepts either a single date or a range payload.
    */
@@ -1504,6 +1519,16 @@ export const fingerprintApi = {
    */
   confirmEnrollment: async (employeeId: number, fingerprintId: number) => {
     return apiCall<any>('/fingerprint/enroll/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ employee_id: employeeId, fingerprint_id: fingerprintId }),
+    });
+  },
+
+  /**
+   * Delete fingerprint enrollment
+   */
+  delete: async (employeeId: number, fingerprintId: number) => {
+    return apiCall<any>('/fingerprint/delete', {
       method: 'POST',
       body: JSON.stringify({ employee_id: employeeId, fingerprint_id: fingerprintId }),
     });
