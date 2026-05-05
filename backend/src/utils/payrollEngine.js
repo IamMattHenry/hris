@@ -330,9 +330,6 @@ const computeEmployeePayroll = ({
 
   const rawDailyInputs = [];
 
-  // A DB row with status='absent' or no time_in counts as "no effective attendance"
-  const isEffectivelyAbsent = (rec) => !rec || String(rec.status || '').toLowerCase() === 'absent' || !rec.time_in;
-
   for (const date of allDates) {
     const dayKey = normalizeDayKey(date);
     const isScheduledDay = scheduledDaySet.has(dayKey);
@@ -373,7 +370,7 @@ const computeEmployeePayroll = ({
         } else {
           unpaidLeaveDays += 1;
         }
-      } else if (isEffectivelyAbsent(attendance)) {
+      } else if (!attendance) {
         if (holiday?.type === REGULAR_HOLIDAY) {
           // Regular holiday unworked pay requires presence (or paid leave) the day before
           const prevDateObj = new Date(`${date}T00:00:00`);
@@ -383,7 +380,7 @@ const computeEmployeePayroll = ({
           const prevLeave = leaveByDate.get(prevDate);
           const prevLeavePaid = prevLeave ? isLeavePaid(prevLeave) : false;
 
-          if (!isEffectivelyAbsent(prevAttendance) || prevLeavePaid) {
+          if (prevAttendance || prevLeavePaid) {
             holidayPremiumPay += rates.dailyRate;
           } else {
             // forfeited due to absence the day before
@@ -632,17 +629,6 @@ const computeEmployeePayroll = ({
       notes: negativeNetPayNote ? [negativeNetPayNote] : [],
     },
   };
-
-  // ── Diagnostic logging for payroll troubleshooting ──────────────────────
-  console.log(
-    `[PayrollEngine] Employee ${employee.employee_id} (${employee.first_name} ${employee.last_name}): ` +
-    `attendanceRecords=${attendanceRecords.length}, leaveRecords=${leaveRecords.length}, ` +
-    `scheduledWorkDays=${scheduledWorkDays}, workedHours=${round2(workedHours)}, ` +
-    `absences=${absences} (${round2(absenceHours)}hrs, deduction=₱${absenceDeduction.toFixed(2)}), ` +
-    `unpaidLeaveDays=${unpaidLeaveDays} (${round2(unpaidLeaveHours)}hrs, deduction=₱${unpaidLeaveDeduction.toFixed(2)}), ` +
-    `paidLeaveDays=${paidLeaveDays}, lateMin=${lateMinutes}, undertimeMin=${undertimeMinutes}, ` +
-    `basePay=₱${basePayForPeriod.toFixed(2)}, grossPay=₱${grossPay.toFixed(2)}, netPay=₱${netPay.toFixed(2)}`
-  );
 
   // Validate the payroll breakdown
   const validationResult = validatePayrollBreakdown(breakdown, netPay);

@@ -194,11 +194,6 @@ export const formatPayslipSections = ({
       label: 'Gross Pay (before contributions & tax)',
       amount: grossPay,
       display: grossPay,
-      breakdown: `Basic Pay ₱${basePayForPeriod.toFixed(2)}`
-        + (effectiveUnpaidLeaveDeduction > 0 ? ` − LWOP (${leaveWithoutPayDays} days) ₱${effectiveUnpaidLeaveDeduction.toFixed(2)}` : '')
-        + (effectiveAbsenceDeduction > 0 ? ` − Absences (${absenceDays} days) ₱${effectiveAbsenceDeduction.toFixed(2)}` : '')
-        + (effectiveLateDeduction + effectiveUndertimeDeduction > 0 ? ` − Late/UT ₱${round2(effectiveLateDeduction + effectiveUndertimeDeduction).toFixed(2)}` : '')
-        + ` = Gross Pay ₱${grossPay.toFixed(2)}`,
     },
   };
 
