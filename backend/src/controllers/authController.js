@@ -396,6 +396,7 @@ export const getCurrentUser = async (req, res, next) => {
           de.email,
           dc.contact_no,
           da.home_address,
+          da.barangay_name AS barangay,
           da.region_name,
           da.province_name,
           da.city_name

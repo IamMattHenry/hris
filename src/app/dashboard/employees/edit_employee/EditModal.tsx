@@ -379,6 +379,7 @@ const [cityCode, setCityCode] = useState("");
             relationship: d.relationship || "",
             relationshipSpecify: undefined,
             homeAddress: d.home_address || "",
+            barangay: d.barangay || "",
             region: d.region_name || "",
             province: d.province_name || "",
             city: d.city_name || "",
@@ -922,7 +923,6 @@ useEffect(() => {
 
     const roleErrors: ValidationErrors = {};
 
-    // Validate employee form - NOW INCLUDING PROVINCE
     const formErrors = validateEmployeeForm(
       firstName,
       middleName,
@@ -1880,6 +1880,7 @@ useEffect(() => {
                         relationshipSpecify:
                           dependentRelationshipSpecify || undefined,
                         homeAddress: dependentHomeAddress,
+                        barangay: dependentBarangay,
                         region: dependentRegion,
                         province: dependentProvince,
                         city: dependentCity,
@@ -1892,6 +1893,7 @@ useEffect(() => {
                       setDependentRelationship("");
                       setDependentRelationshipSpecify("");
                       setDependentHomeAddress("");
+                      setDependentBarangay("");
                       setDependentRegion("");
                       setDependentProvince("");
                       setDependentCity("");
@@ -1941,10 +1943,10 @@ useEffect(() => {
                         {dependent.homeAddress && (
                           <p className="text-xs text-[#6b5344]">Address: {dependent.homeAddress}</p>
                         )}
-                        {(dependent.city || dependent.province || dependent.region) && (
+                        {(dependent.barangay || dependent.city || dependent.province || dependent.region) && (
                           <p className="text-xs text-[#6b5344]">
                             Location:{" "}
-                            {[dependent.city, dependent.province, dependent.region]
+                            {[dependent.barangay, dependent.city, dependent.province, dependent.region]
                               .filter(Boolean)
                               .join(", ")}
                           </p>
