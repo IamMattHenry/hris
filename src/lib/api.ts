@@ -1523,4 +1523,14 @@ export const fingerprintApi = {
       body: JSON.stringify({ employee_id: employeeId, fingerprint_id: fingerprintId }),
     });
   },
+
+  /**
+   * Delete fingerprint enrollment
+   */
+  delete: async (employeeId: number, fingerprintId: number) => {
+    return apiCall<any>('/fingerprint/delete', {
+      method: 'POST',
+      body: JSON.stringify({ employee_id: employeeId, fingerprint_id: fingerprintId }),
+    });
+  },
 };

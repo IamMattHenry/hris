@@ -8,6 +8,7 @@ import {
   getNextFingerprintId,
   checkFingerprintId,
   startFingerprintScan,
+  deleteFingerprintById,
 } from '../controllers/fingerprintController.js';
 
 const router = express.Router();
@@ -42,6 +43,18 @@ router.post(
   ],
   handleValidationErrors,
   confirmEnrollment
+);
+
+// Delete fingerprint enrollment (protected)
+router.post(
+  '/delete',
+  verifyToken,
+  [
+    body('employee_id').isInt().withMessage('Employee ID must be an integer'),
+    body('fingerprint_id').isInt().withMessage('Fingerprint ID must be an integer'),
+  ],
+  handleValidationErrors,
+  deleteFingerprintById
 );
 
 export default router;

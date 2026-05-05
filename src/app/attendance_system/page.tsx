@@ -193,11 +193,17 @@ export default function AttendanceSystemPage() {
       }
 
       const user = (result as any).data?.user;
+      const token = (result as any).data?.token;
 
       if (!user) {
         setAuthError("Unable to resolve HR user profile.");
         setAuthLoading(false);
         return;
+      }
+
+      // Save token to localStorage for subsequent API calls
+      if (token) {
+        localStorage.setItem("token", token);
       }
 
       setIsHRAuthenticated(true);
@@ -221,6 +227,9 @@ export default function AttendanceSystemPage() {
   };
 
   const handleHRLogout = () => {
+    // Clear the token from localStorage
+    localStorage.removeItem('token');
+    
     setQrScannerActive(false);
     setIsHRAuthenticated(false);
     setHrStaff(null);
