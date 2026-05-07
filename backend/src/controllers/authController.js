@@ -2,6 +2,7 @@ import bcryptjs from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
+import { getDependantAddressColumns } from '../utils/addressColumns.js';
 
 const handleLogin = async (req, res, next, { allowedRoles, allowedRoleKeys = [], deniedMessage }) => {
   try {
@@ -384,6 +385,8 @@ export const getCurrentUser = async (req, res, next) => {
       );
       user.contact_numbers = contactNumbers.map(c => c.contact_number);
 
+      const dependantAddressColumns = await getDependantAddressColumns();
+
       // Fetch dependents
       const dependents = await db.getAll(
         `SELECT
@@ -396,7 +399,7 @@ export const getCurrentUser = async (req, res, next) => {
           de.email,
           dc.contact_no,
           da.home_address,
-          da.barangay_name AS barangay,
+          da.${dependantAddressColumns.barangay} AS barangay,
           da.region_name,
           da.province_name,
           da.city_name

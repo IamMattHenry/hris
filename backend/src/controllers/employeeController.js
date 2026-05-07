@@ -10,6 +10,10 @@ import emailService from "../utils/emailService.js";
 import { hasPermission } from "../middleware/rbac.js";
 import { invalidatePermissionCache } from "../middleware/rbac.js";
 import {
+  getEmployeeAddressColumns,
+  getDependantAddressColumns,
+} from "../utils/addressColumns.js";
+import {
   BUDGET_NAMES,
   BudgetValidationError,
   ensureAmountWithinBudget,
@@ -46,34 +50,6 @@ const normalizePositionName = (value) =>
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-
-let employeeAddressColumnsCache = null;
-
-async function getEmployeeAddressColumns() {
-  if (employeeAddressColumnsCache) {
-    return employeeAddressColumnsCache;
-  }
-
-  const columns = await db.getAll(
-    `SELECT COLUMN_NAME
-     FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA = DATABASE()
-       AND TABLE_NAME = 'employee_addresses'
-       AND COLUMN_NAME IN ('barangay_name', 'barangay')`
-  );
-
-  const columnNames = new Set(columns.map((row) => row.COLUMN_NAME));
-
-  employeeAddressColumnsCache = {
-    barangay: columnNames.has('barangay_name')
-      ? 'barangay_name'
-      : columnNames.has('barangay')
-        ? 'barangay'
-        : 'barangay_name',
-  };
-
-  return employeeAddressColumnsCache;
-}
 
 /**
  * Auto-assign RBAC role based on department + position.
@@ -439,6 +415,7 @@ export const getEmployeeById = async (req, res, next) => {
     }
 
     const addressColumns = await getEmployeeAddressColumns();
+    const dependantAddressColumns = await getDependantAddressColumns();
 
     const employee = await db.getOne(
       `
@@ -495,7 +472,7 @@ export const getEmployeeById = async (req, res, next) => {
         de.email,
         dc.contact_no,
         da.home_address,
-        da.barangay_name AS barangay,
+        da.${dependantAddressColumns.barangay} AS barangay,
         da.region_name,
         da.province_name,
         da.city_name
@@ -999,6 +976,7 @@ export const createEmployee = async (req, res, next) => {
 
       // Handle dependents if provided
       if (dependents && Array.isArray(dependents) && dependents.length > 0) {
+        const dependantAddressColumns = await getDependantAddressColumns();
         for (const dependent of dependents) {
           // Insert dependent without code first
           const tempDependentId = await db.transactionInsert("dependants", {
@@ -1047,7 +1025,7 @@ export const createEmployee = async (req, res, next) => {
             await db.transactionInsert("dependant_address", {
               dependant_id: tempDependentId,
               home_address: dependent.homeAddress || null,
-              barangay_name: dependent.barangay || null,
+              [dependantAddressColumns.barangay]: dependent.barangay || null,
               region_name: dependent.region || null,
               province_name: dependent.province || null,
               city_name: dependent.city || null,
@@ -1625,6 +1603,7 @@ export const updateEmployee = async (req, res, next) => {
 
       // Handle dependents if provided
       if (dependents && Array.isArray(dependents)) {
+        const dependantAddressColumns = await getDependantAddressColumns();
         // Delete all existing dependents and their related data (cascade will handle related tables)
         await db.transactionQuery(
           "DELETE FROM dependants WHERE employee_id = ?",
@@ -1677,7 +1656,7 @@ export const updateEmployee = async (req, res, next) => {
             await db.transactionInsert("dependant_address", {
               dependant_id: tempDependentId,
               home_address: dependent.homeAddress || null,
-              barangay_name: dependent.barangay || null,
+              [dependantAddressColumns.barangay]: dependent.barangay || null,
               region_name: dependent.region || null,
               province_name: dependent.province || null,
               city_name: dependent.city || null,
