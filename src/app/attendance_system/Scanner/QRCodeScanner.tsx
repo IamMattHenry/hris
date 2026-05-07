@@ -86,7 +86,11 @@ export default function QRCodeScanner({ onScan, isActive = true }: QRCodeScanner
       // Step 3: Start hardware
       await scanner.start(
         cameraId,
-        { fps: 10, qrbox: { width: 250, height: 250 } },
+        { 
+          fps: 10, 
+          qrbox: { width: 250, height: 250 },
+          aspectRatio: 1.0 // <-- ADDED: Forces the library to expect a square feed
+        },
         (decodedText) => {
           if (decodedText && decodedText !== lastScannedRef.current) {
             lastScannedRef.current = decodedText;
@@ -151,7 +155,11 @@ export default function QRCodeScanner({ onScan, isActive = true }: QRCodeScanner
             : "border-2 border-dashed border-[#E8D9C4] bg-[#FAF6F1]"
         }`}
       >
-        <div id="reader" className="w-full h-full object-cover" />
+        {/* 👇 UPDATED: Added Tailwind arbitrary variants to force video to cover the area */}
+        <div 
+          id="reader" 
+          className="w-full h-full [&_video]:!object-cover [&_video]:!w-full [&_video]:!h-full [&_video]:!min-h-full" 
+        />
 
         {!isScanning && !error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-[#3D1A0B]/50">
@@ -169,25 +177,7 @@ export default function QRCodeScanner({ onScan, isActive = true }: QRCodeScanner
       )}
 
       <div className="w-full mt-6">
-        {!isScanning ? (
-          <button
-            onClick={startScanner}
-            disabled={isOperatingRef.current}
-            className="flex items-center justify-center gap-2 w-full bg-[#3D1A0B] text-white px-6 py-3 rounded-xl font-medium hover:bg-[#5C2A15] transition disabled:opacity-50"
-          >
-            <Camera className="w-5 h-5" />
-            Retry Camera
-          </button>
-        ) : (
-          <button
-            onClick={stopScanner}
-            disabled={isOperatingRef.current}
-            className="flex items-center justify-center gap-2 w-full bg-red-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-red-700 transition disabled:opacity-50"
-          >
-            <StopCircle className="w-5 h-5" />
-            Stop Camera
-          </button>
-        )}
+        
       </div>
     </div>
   );
