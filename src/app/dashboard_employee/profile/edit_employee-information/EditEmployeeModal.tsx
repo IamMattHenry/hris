@@ -28,6 +28,15 @@ interface EmployeeData {
   user_id?: number;
 }
 
+interface EditSnapshot {
+  firstName: string;
+  lastName: string;
+  middleName: string;
+  extensionName: string;
+  gender: string;
+  birthdate: string;
+}
+
 /* ---------- Component ---------- */
 export default function EditEmployeeModal({
   isOpen,
@@ -49,6 +58,18 @@ export default function EditEmployeeModal({
 
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [initialSnapshot, setInitialSnapshot] = useState<EditSnapshot | null>(null);
+
+  const normalizeText = (value?: string | null) => (value ?? "").trim();
+  const normalizeOptionalText = (value?: string | null) => (value && value.trim() ? value.trim() : "");
+  const getSnapshot = (): EditSnapshot => ({
+    firstName: normalizeText(firstName),
+    lastName: normalizeText(lastName),
+    middleName: normalizeOptionalText(middleName),
+    extensionName: normalizeOptionalText(extensionName),
+    gender: normalizeOptionalText(gender).toLowerCase(),
+    birthdate: normalizeOptionalText(birthdate),
+  });
 
   /* ---------- Fetch employee details ---------- */
   useEffect(() => {
@@ -66,6 +87,14 @@ export default function EditEmployeeModal({
         setExtensionName(res.data.extension_name || "");
         setGender(res.data.gender || "");
         setBirthdate(res.data.birthdate || "");
+        setInitialSnapshot({
+          firstName: normalizeText(res.data.first_name),
+          lastName: normalizeText(res.data.last_name),
+          middleName: normalizeOptionalText(res.data.middle_name),
+          extensionName: normalizeOptionalText(res.data.extension_name),
+          gender: normalizeOptionalText(res.data.gender).toLowerCase(),
+          birthdate: normalizeOptionalText(res.data.birthdate),
+        });
       }
     } catch (error) {
       console.error("Error fetching employee:", error);
@@ -76,35 +105,46 @@ export default function EditEmployeeModal({
   const handleSubmit = async () => {
     console.log("Save Changes clicked");
 
+    if (!employee) return;
+
+    const snapshot = getSnapshot();
+    const prev = initialSnapshot;
+
+    const updatedData: any = {};
+    if (!prev || snapshot.firstName !== prev.firstName) updatedData.first_name = firstName.trim();
+    if (!prev || snapshot.lastName !== prev.lastName) updatedData.last_name = lastName.trim();
+    if (!prev || snapshot.middleName !== prev.middleName) updatedData.middle_name = middleName.trim() || null;
+    if (!prev || snapshot.extensionName !== prev.extensionName) updatedData.extension_name = extensionName.trim() || null;
+    if (!prev || snapshot.gender !== prev.gender) updatedData.gender = gender.toLowerCase();
+    if (!prev || snapshot.birthdate !== prev.birthdate) updatedData.birthdate = birthdate;
+
     // Simple validation for required fields
     const formErrors: ValidationErrors = {};
     if (!firstName.trim()) formErrors.firstName = "First name is required.";
     if (!lastName.trim()) formErrors.lastName = "Last name is required.";
     if (!gender) formErrors.gender = "Gender is required.";
 
-    if (Object.keys(formErrors).length > 0 || !employee) {
+    if (Object.keys(formErrors).length > 0) {
       setErrors(formErrors);
       console.log("Validation failed or no employee");
       return;
     }
 
+    if (Object.keys(updatedData).length === 0) {
+      toast.success("No changes to save.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      const updatedData: any = {
-        first_name: firstName,
-        last_name: lastName,
-        middle_name: middleName,
-        extension_name: extensionName,
-        gender: gender.toLowerCase(),
-        birthdate: birthdate,
-      };
-
       console.log("Submitting update:", updatedData);
       const result = await employeeApi.update(employee.employee_id, updatedData);
       console.log("Update result:", result);
 
       if (result.success) {
         toast.success("Profile updated successfully!");
+        setErrors({});
+        setInitialSnapshot(getSnapshot());
         onClose();
         onSaved?.();
       } else {
