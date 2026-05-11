@@ -392,3 +392,89 @@ export interface ActivityLog {
   created_by?: number;
 }
 
+export interface AttendanceViolation {
+  id: number;
+  employee_id: number;
+  employee_code?: string;
+  first_name?: string;
+  last_name?: string;
+  attendance_id?: number | null;
+  violation_type: 'late' | 'absence' | 'undertime' | 'missing_log' | 'unauthorized_ot';
+  violation_minutes?: number | null;
+  violation_date: string;
+  policy_rule_triggered?: string | null;
+  status: 'pending' | 'escalated' | 'resolved' | 'dismissed';
+  auto_generated?: number | boolean;
+  remarks?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface DisciplinaryCase {
+  id: number;
+  employee_id: number;
+  employee_code?: string;
+  first_name?: string;
+  last_name?: string;
+  case_number: string;
+  case_type: string;
+  status: string;
+  severity?: string | null;
+  assigned_hr_id?: number | null;
+  assigned_manager_id?: number | null;
+  opened_at?: string | null;
+  closed_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CaseNotice {
+  id: number;
+  case_id: number;
+  notice_type: 'NTE' | 'hearing_notice' | 'decision_notice';
+  recipient_employee_id: number;
+  subject: string;
+  content: string;
+  sent_via: 'email' | 'internal' | 'both';
+  status: 'draft' | 'sent' | 'acknowledged';
+  sent_at?: string | null;
+  acknowledged_at?: string | null;
+  due_date?: string | null;
+  created_by?: number | null;
+  auto_generated?: number | boolean;
+  created_at?: string;
+  case_number?: string;
+}
+
+export interface CaseExplanation {
+  id: number;
+  case_id: number;
+  employee_id: number;
+  explanation_text: string;
+  attachment_url?: string | null;
+  submitted_at: string;
+}
+
+export interface CaseHearing {
+  id: number;
+  case_id: number;
+  hearing_datetime: string;
+  hearing_type: 'virtual' | 'face_to_face';
+  location_or_link?: string | null;
+  investigator_id?: number | null;
+  notes?: string | null;
+  outcome_summary?: string | null;
+  created_at?: string;
+}
+
+export interface CaseDecision {
+  id: number;
+  case_id: number;
+  decision_type: 'dismissed' | 'verbal_warning' | 'written_warning' | 'suspension' | 'termination' | 'policy_coaching' | 'no_violation';
+  penalty_days?: number | null;
+  effective_date?: string | null;
+  decision_summary?: string | null;
+  approved_by?: number | null;
+  issued_at?: string;
+}
+

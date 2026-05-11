@@ -2,7 +2,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, CheckCircle, Mail, Briefcase, Building, LogsIcon, Headset, DollarSign, AlertTriangle } from "lucide-react";
+import { LayoutDashboard, Users, CheckCircle, Mail, Briefcase, Building, LogsIcon, Headset, DollarSign, AlertTriangle, FileText } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 
@@ -55,6 +55,12 @@ export default function Sidebar() {
             icon: DollarSign,
             path: "/dashboard/payroll",
             show: isHrRbacUser || canAny('payroll.read', 'payroll.create', 'payroll.update', 'payroll.finalize', 'payroll.override'),
+        },
+        {
+            name: "Due Process",
+            icon: FileText,
+            path: "/dashboard/due_process",
+            show: isHrRbacUser || canAny('due_process.read', 'due_process.manage', 'due_process.policy_manage'),
         },
         {
             name: "Penalty",

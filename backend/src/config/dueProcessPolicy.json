@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "timezone": "Asia/Manila",
+  "schedules": {
+    "default": {
+      "start_time": "08:00",
+      "end_time": "17:00",
+      "grace_period_minutes": 15,
+      "required_minutes": 480
+    }
+  },
+  "violation_rules": {
+    "late": {
+      "threshold": 3,
+      "period_days": 30,
+      "action": "NTE",
+      "severity": "minor"
+    },
+    "absence": {
+      "threshold": 3,
+      "period_days": 60,
+      "action": "NTE",
+      "severity": "major"
+    },
+    "undertime": {
+      "threshold": 3,
+      "period_days": 30,
+      "action": "NTE",
+      "severity": "minor"
+    },
+    "missing_log": {
+      "threshold": 2,
+      "period_days": 30,
+      "action": "NTE",
+      "severity": "minor"
+    },
+    "unauthorized_ot": {
+      "threshold": 2,
+      "period_days": 30,
+      "action": "NTE",
+      "severity": "minor"
+    }
+  },
+  "progressive_discipline": {
+    "late": [
+      { "level": 1, "label": "verbal_warning" },
+      { "level": 2, "label": "written_warning" },
+      { "level": 3, "label": "suspension" }
+    ],
+    "absence": [
+      { "level": 1, "label": "written_warning" },
+      { "level": 2, "label": "suspension" },
+      { "level": 3, "label": "termination_review" }
+    ]
+  },
+  "notice_templates": {
+    "NTE": {
+      "subject": "Notice to Explain - {{case_number}}",
+      "content": "Dear {{employee_name}},\n\nThis is a Notice to Explain regarding the following attendance violations: {{violation_dates}}.\n\nPolicy reference: {{policy_rule}}.\nPlease submit your written explanation on or before {{due_date}}.\n\nCase Reference: {{case_number}}\n\nRegards,\nHR Department"
+    },
+    "hearing_notice": {
+      "subject": "Notice of Hearing - {{case_number}}",
+      "content": "Dear {{employee_name}},\n\nYou are requested to attend a hearing regarding case {{case_number}} on {{hearing_datetime}} at {{hearing_location}}.\n\nRegards,\nHR Department"
+    },
+    "decision_notice": {
+      "subject": "Notice of Decision - {{case_number}}",
+      "content": "Dear {{employee_name}},\n\nAfter evaluation, the decision for case {{case_number}} is: {{decision_type}}.\n\nSummary: {{decision_summary}}\nEffective date: {{effective_date}}\n\nRegards,\nHR Department"
+    }
+  },
+  "overtime_rules": {
+    "allow_overtime_if_late": false
+  }
+}

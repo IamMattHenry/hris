@@ -1,6 +1,7 @@
 import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
 import { generateAttendanceCode } from '../utils/codeGenerator.js';
+import { evaluateAttendanceForViolations } from '../services/attendanceViolationService.js';
 
 export const getAttendanceRecords = async (req, res, next) => {
   try {
@@ -374,6 +375,16 @@ export const clockOut = async (req, res, next) => {
 
     await db.update('attendance', updateData, 'attendance_id = ?', [attendance.attendance_id]);
 
+    await evaluateAttendanceForViolations({
+      attendance: {
+        ...attendance,
+        time_out: timeOutFull,
+        status: newStatus,
+        overtime_hours: overtimeHours,
+      },
+      createdBy: updatedBy,
+    });
+
     logger.info(`Clock out recorded for employee ${employee_id} with duration ${durationHours.toFixed(2)} hours`);
 
     // Create activity log entry
@@ -580,6 +591,16 @@ async function clockOutEmployee(employee_id) {
 
   await db.update('attendance', updateData, 'attendance_id = ?', [attendance.attendance_id]);
 
+  await evaluateAttendanceForViolations({
+    attendance: {
+      ...attendance,
+      time_out: timeOutFull,
+      status: newStatus,
+      overtime_hours: overtimeHours,
+    },
+    createdBy: employee_id,
+  });
+
   logger.info(`Fingerprint clock out for employee ${employee_id}`);
 
   return {
@@ -717,6 +738,18 @@ export const updateAttendanceStatus = async (req, res, next) => {
       status,
       updated_by: updatedBy,
     }, 'attendance_id = ?', [id]);
+
+    const updatedAttendance = await db.getOne(
+      'SELECT * FROM attendance WHERE attendance_id = ?',
+      [id]
+    );
+
+    if (updatedAttendance) {
+      await evaluateAttendanceForViolations({
+        attendance: updatedAttendance,
+        createdBy: updatedBy,
+      });
+    }
 
     logger.info(`Attendance status updated for attendance ${id} to ${status}`);
 
@@ -963,6 +996,16 @@ export const markAbsences = async (req, res, next) => {
         const code = generateAttendanceCode(attendanceId);
         await db.update('attendance', { attendance_code: code }, 'attendance_id = ?', [attendanceId]);
         inserted += 1;
+
+        await evaluateAttendanceForViolations({
+          attendance: {
+            attendance_id: attendanceId,
+            employee_id: emp.employee_id,
+            date: targetDate,
+            status: 'absent',
+          },
+          createdBy: actingUserId,
+        });
       }
       perDateCounts.push({ date: targetDate, inserted });
       totalInserted += inserted;

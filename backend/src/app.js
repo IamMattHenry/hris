@@ -22,6 +22,7 @@ import rbacRoutes from './routes/rbac.js';
 import payrollRoutes from './routes/payroll.js';
 import penaltyRoutes from './routes/penalties.js';
 import notificationRoutes from './routes/notifications.js';
+import dueProcessRoutes from './routes/dueProcess.js';
 
 dotenv.config();
 
@@ -77,6 +78,7 @@ app.use('/api/rbac', rbacRoutes);
 app.use('/api/payroll', payrollRoutes);
 app.use('/api/penalties', penaltyRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/due-process', dueProcessRoutes);
 
 app.use(notFoundHandler);
 

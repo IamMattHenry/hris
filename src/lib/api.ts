@@ -1325,6 +1325,184 @@ export const notificationApi = {
   },
 }
 
+// ============ DUE PROCESS API FUNCTIONS ============
+
+export const dueProcessApi = {
+  getPolicy: async () => {
+    return apiCall<any>('/due-process/policy', {
+      method: 'GET',
+    });
+  },
+
+  updatePolicy: async (data: any) => {
+    return apiCall<any>('/due-process/policy', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  getViolations: async (params?: {
+    employee_id?: number | string;
+    status?: string;
+    violation_type?: string;
+    start_date?: string;
+    end_date?: string;
+    limit?: number;
+    page?: number;
+  }) => {
+    const search = new URLSearchParams();
+    if (params?.employee_id != null) search.append('employee_id', String(params.employee_id));
+    if (params?.status) search.append('status', params.status);
+    if (params?.violation_type) search.append('violation_type', params.violation_type);
+    if (params?.start_date) search.append('start_date', params.start_date);
+    if (params?.end_date) search.append('end_date', params.end_date);
+    if (params?.limit != null) search.append('limit', String(params.limit));
+    if (params?.page != null) search.append('page', String(params.page));
+
+    const url = `/due-process/violations${search.toString() ? `?${search.toString()}` : ''}`;
+    return apiCall<any[]>(url, { method: 'GET' });
+  },
+
+  createViolation: async (data: {
+    employee_id: number;
+    attendance_id?: number | null;
+    violation_type: string;
+    violation_minutes?: number | null;
+    violation_date: string;
+    remarks?: string | null;
+  }) => {
+    return apiCall<any>('/due-process/violations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateViolationStatus: async (id: number | string, data: { status: string; remarks?: string }) => {
+    return apiCall<any>(`/due-process/violations/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  scanViolations: async (data: { start_date: string; end_date: string }) => {
+    return apiCall<any>('/due-process/violations/scan', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  getCases: async (params?: { status?: string; employee_id?: number | string; limit?: number; page?: number }) => {
+    const search = new URLSearchParams();
+    if (params?.status) search.append('status', params.status);
+    if (params?.employee_id != null) search.append('employee_id', String(params.employee_id));
+    if (params?.limit != null) search.append('limit', String(params.limit));
+    if (params?.page != null) search.append('page', String(params.page));
+
+    const url = `/due-process/cases${search.toString() ? `?${search.toString()}` : ''}`;
+    return apiCall<any[]>(url, { method: 'GET' });
+  },
+
+  getCaseById: async (id: number | string) => {
+    return apiCall<any>(`/due-process/cases/${id}`, { method: 'GET' });
+  },
+
+  createCase: async (data: {
+    employee_id: number;
+    case_type?: string;
+    severity?: string | null;
+    assigned_hr_id?: number | null;
+    assigned_manager_id?: number | null;
+  }) => {
+    return apiCall<any>('/due-process/cases', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateCase: async (id: number | string, data: {
+    status?: string;
+    severity?: string | null;
+    assigned_hr_id?: number | null;
+    assigned_manager_id?: number | null;
+  }) => {
+    return apiCall<any>(`/due-process/cases/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  createNotice: async (caseId: number | string, data: {
+    notice_type: string;
+    subject: string;
+    content: string;
+    sent_via?: 'email' | 'internal' | 'both';
+    due_date?: string | null;
+    send_now?: boolean;
+  }) => {
+    return apiCall<any>(`/due-process/cases/${caseId}/notices`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  sendNotice: async (noticeId: number | string) => {
+    return apiCall<any>(`/due-process/notices/${noticeId}/send`, {
+      method: 'POST',
+    });
+  },
+
+  acknowledgeNotice: async (noticeId: number | string) => {
+    return apiCall<any>(`/due-process/notices/${noticeId}/acknowledge`, {
+      method: 'POST',
+    });
+  },
+
+  submitExplanation: async (caseId: number | string, data: {
+    explanation_text: string;
+    attachment_url?: string | null;
+  }) => {
+    return apiCall<any>(`/due-process/cases/${caseId}/explanations`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  scheduleHearing: async (caseId: number | string, data: {
+    hearing_datetime: string;
+    hearing_type: 'virtual' | 'face_to_face';
+    location_or_link?: string | null;
+    investigator_id?: number | null;
+    notes?: string | null;
+    send_notice?: boolean;
+  }) => {
+    return apiCall<any>(`/due-process/cases/${caseId}/hearings`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  issueDecision: async (caseId: number | string, data: {
+    decision_type: string;
+    penalty_days?: number | null;
+    effective_date?: string | null;
+    decision_summary?: string | null;
+    send_notice?: boolean;
+  }) => {
+    return apiCall<any>(`/due-process/cases/${caseId}/decision`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  getMyNotices: async () => {
+    return apiCall<any[]>('/due-process/my/notices', { method: 'GET' });
+  },
+
+  getMyCases: async () => {
+    return apiCall<any[]>('/due-process/my/cases', { method: 'GET' });
+  },
+};
+
 // ============ TICKET API FUNCTIONS ============
 
 export const ticketApi = {

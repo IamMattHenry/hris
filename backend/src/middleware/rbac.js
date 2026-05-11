@@ -52,6 +52,7 @@ const HR_VIEW_PERMISSION_KEYS = [
   'departments.read',
   'payroll.read',
   'penalties.read',
+  'due_process.read',
   'tickets.read',
   'activity.read',
   'dashboard.read_own',

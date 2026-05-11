@@ -271,9 +271,39 @@ export const sendPayrollRunFinalizedEmail = async ({
   }
 };
 
+export const sendGenericEmail = async ({ to, subject, text, html }) => {
+  if (!to || !subject) {
+    return;
+  }
+
+  const mailOptions = {
+    from: SMTP_FROM || SMTP_USER || 'no-reply@example.com',
+    to,
+    subject,
+    text: text || '',
+    html: html || undefined,
+  };
+
+  const activeTransporter = ensureTransporter();
+
+  if (!activeTransporter) {
+    logger.info('Email not sent (no SMTP config). Payload:', { to, subject });
+    return;
+  }
+
+  try {
+    await activeTransporter.sendMail(mailOptions);
+    logger.info(`Generic email sent to ${to}`);
+  } catch (error) {
+    logger.error('Failed to send generic email', error);
+    throw error;
+  }
+};
+
 export default {
   sendOtpEmail,
   sendTicketResolutionEmail,
   sendAccountCreatedEmail,
   sendPayrollRunFinalizedEmail,
+  sendGenericEmail,
 };

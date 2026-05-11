@@ -256,7 +256,7 @@ export const notifyHrUsers = async ({
   }
 };
 
-const notifyHrPortalUsers = async ({
+export const notifyHrPortalUsers = async ({
   actorUserId = null,
   excludeUserIds = [],
   title,
