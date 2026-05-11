@@ -7,8 +7,9 @@ import FormInput from "@/components/forms/FormInput";
 import FormSelect from "@/components/forms/FormSelect";
 import { departmentApi, positionApi, employeeApi, fingerprintApi, rbacApi, payrollApi } from "@/lib/api";
 import {
-  validateEmployeeForm,
   validateDependent,
+  validateEmails,
+  validateContactNumbers,
   formatPhoneNumber,
   generateClientId,
   type ContactEmail,
@@ -163,6 +164,54 @@ interface FinanceBudget {
   amount: number;
 }
 
+interface EditSnapshot {
+  personal: {
+    firstName: string;
+    middleName: string;
+    lastName: string;
+    extensionName: string;
+    civilStatus: string;
+  };
+  job: {
+    departmentId: number | null;
+    positionId: number | null;
+    supervisorId: number | null;
+    employmentStatus: string;
+    employmentType: string;
+    workType: string;
+    salary: number | null;
+    scheduledDays: string[];
+    scheduledStartTime: string;
+    scheduledEndTime: string;
+    extraPositions: Array<{ position_id: number; salary: number | null; salary_unit: string }>;
+  };
+  address: {
+    homeAddress: string;
+    barangay: string;
+    city: string;
+    region: string;
+    province: string;
+  };
+  contact: {
+    emails: string[];
+    contactNumbers: string[];
+  };
+  dependents: Array<{
+    firstName: string;
+    lastName: string;
+    email: string;
+    contactInfo: string;
+    relationship: string;
+    relationshipSpecify: string;
+    homeAddress: string;
+    barangay: string;
+    region: string;
+    province: string;
+    city: string;
+  }>;
+  documents: Record<string, boolean>;
+}
+
 
 /* ---------- Component ---------- */
 export default function EditEmployeeModal({
@@ -274,6 +323,89 @@ const [cityCode, setCityCode] = useState("");
 
   //active tab
   const [activeTab, setActiveTab] = useState("personal");
+  const [initialSnapshot, setInitialSnapshot] = useState<EditSnapshot | null>(null);
+
+  const normalizeText = (value?: string | null) => (value ?? "").trim();
+  const normalizeOptionalText = (value?: string | null) => (value && value.trim() ? value.trim() : "");
+  const normalizeEmailList = (items: ContactEmail[]) =>
+    items
+      .map((e) => e.email.trim().toLowerCase())
+      .filter((e) => e.length > 0);
+  const normalizeContactList = (items: ContactNumber[]) =>
+    items
+      .map((c) => c.contact_number.replace(/\s/g, ""))
+      .filter((c) => c.length > 0);
+  const normalizeScheduledDays = (days: string[]) =>
+    Array.from(new Set(days.map((d) => d.toLowerCase()))).sort();
+  const normalizeSalaryValue = (value: string) => {
+    if (!value || !value.trim()) return null;
+    const parsed = Number(String(value).replace(/,/g, ""));
+    return Number.isNaN(parsed) ? null : parsed;
+  };
+  const normalizeExtraPositions = (
+    items: { position_id: number; salary: string; salary_unit: string }[]
+  ) =>
+    items
+      .filter((ep) => ep.position_id)
+      .map((ep) => ({
+        position_id: ep.position_id,
+        salary: ep.salary !== "" && ep.salary != null ? Number(String(ep.salary).replace(/,/g, "")) : null,
+        salary_unit: ep.salary_unit || "monthly",
+      }))
+      .sort((a, b) => a.position_id - b.position_id);
+  const normalizeDependents = (items: Dependent[]) =>
+    items.map((d) => ({
+      firstName: normalizeText(d.firstName),
+      lastName: normalizeText(d.lastName),
+      email: normalizeText(d.email).toLowerCase(),
+      contactInfo: normalizeText(d.contactInfo).replace(/\s/g, ""),
+      relationship: normalizeText(d.relationship),
+      relationshipSpecify: normalizeOptionalText(d.relationshipSpecify),
+      homeAddress: normalizeText(d.homeAddress),
+      barangay: normalizeText(d.barangay),
+      region: normalizeText(d.region),
+      province: normalizeText(d.province),
+      city: normalizeText(d.city),
+    }));
+
+  const getPersonalSnapshot = () => ({
+    firstName: normalizeText(firstName),
+    middleName: normalizeOptionalText(middleName),
+    lastName: normalizeText(lastName),
+    extensionName: normalizeOptionalText(extensionName),
+    civilStatus: normalizeOptionalText(civilStatus),
+  });
+
+  const getJobSnapshot = () => ({
+    departmentId,
+    positionId,
+    supervisorId,
+    employmentStatus: normalizeOptionalText(normalizeStatusForPayload(employmentStatus) || ""),
+    employmentType: normalizeOptionalText(employmentType || "").toLowerCase(),
+    workType: normalizeOptionalText(workType || "").toLowerCase(),
+    salary: normalizeSalaryValue(salary),
+    scheduledDays: normalizeScheduledDays(scheduledDays),
+    scheduledStartTime: normalizeOptionalText(scheduledStartTime),
+    scheduledEndTime: normalizeOptionalText(scheduledEndTime),
+    extraPositions: normalizeExtraPositions(extraPositions),
+  });
+
+  const getAddressSnapshot = () => ({
+    homeAddress: normalizeText(homeAddress),
+    barangay: normalizeText(barangay),
+    city: normalizeText(city),
+    region: normalizeText(region),
+    province: normalizeText(province),
+  });
+
+  const getContactSnapshot = () => ({
+    emails: normalizeEmailList(emails),
+    contactNumbers: normalizeContactList(contactNumbers),
+  });
+
+  const getDependentSnapshot = () => normalizeDependents(dependents);
+
+  const getDocumentsSnapshot = () => ({ ...documents });
 
   const formatCurrency = (value?: number | null) => {
     if (value == null || Number.isNaN(Number(value))) return "₱0.00";
@@ -438,6 +570,94 @@ const [cityCode, setCityCode] = useState("");
         } else {
           setExtraPositions([]);
         }
+
+        const initialWorkType = (res.data.work_type || "full-time").toLowerCase() === "part-time" ? "part-time" : "full-time";
+        let initialScheduledDays: string[] = [];
+        try {
+          let days: any = res.data.scheduled_days;
+          if (typeof days === "string") {
+            days = JSON.parse(days);
+          }
+          initialScheduledDays = Array.isArray(days) ? days.map((d: any) => String(d).toLowerCase()) : [];
+        } catch {
+          initialScheduledDays = [];
+        }
+        const initialSalary = res.data.current_salary ?? res.data.monthly_salary ?? res.data.hourly_rate ?? res.data.salary;
+        const initialExtraPositions = Array.isArray(res.data.positions)
+          ? res.data.positions
+              .filter((p: any) => !p.is_primary)
+              .map((p: any) => ({
+                position_id: p.position_id,
+                salary: p.salary != null ? String(p.salary) : "",
+                salary_unit: p.salary_unit || "monthly",
+              }))
+          : [];
+
+        setInitialSnapshot({
+          personal: {
+            firstName: normalizeText(res.data.first_name),
+            middleName: normalizeOptionalText(res.data.middle_name),
+            lastName: normalizeText(res.data.last_name),
+            extensionName: normalizeOptionalText(res.data.extension_name),
+            civilStatus: normalizeOptionalText(formatCivilStatusForDisplay(res.data.civil_status)),
+          },
+          job: {
+            departmentId: res.data.department_id ?? null,
+            positionId: res.data.position_id ?? null,
+            supervisorId: res.data.supervisor_id || null,
+            employmentStatus: normalizeOptionalText(normalizeStatusForPayload(res.data.status || "") || ""),
+            employmentType: normalizeOptionalText(res.data.employment_type || "").toLowerCase(),
+            workType: normalizeOptionalText(initialWorkType),
+            salary: initialSalary != null && !Number.isNaN(Number(initialSalary)) ? Number(initialSalary) : null,
+            scheduledDays: normalizeScheduledDays(initialScheduledDays),
+            scheduledStartTime: normalizeOptionalText(res.data.scheduled_start_time),
+            scheduledEndTime: normalizeOptionalText(res.data.scheduled_end_time),
+            extraPositions: normalizeExtraPositions(initialExtraPositions),
+          },
+          address: {
+            homeAddress: normalizeText(res.data.home_address),
+            barangay: normalizeText(res.data.barangay),
+            city: normalizeText(res.data.city),
+            region: normalizeText(res.data.region),
+            province: normalizeText(res.data.province),
+          },
+          contact: {
+            emails: (res.data.emails || []).map((e: any) => String(e.email || "").trim().toLowerCase()).filter((e: string) => e.length > 0),
+            contactNumbers: (res.data.contact_numbers || []).map((c: any) => String(c.contact_number || "").replace(/\s/g, "")).filter((c: string) => c.length > 0),
+          },
+          dependents: normalizeDependents(
+            Array.isArray(res.data.dependents)
+              ? res.data.dependents.map((d: any) => ({
+                  id: d.dependant_id ? `d-${d.dependant_id}` : generateClientId(),
+                  firstName: d.firstname || "",
+                  lastName: d.lastname || "",
+                  email: d.email || "",
+                  contactInfo: d.contact_no || "",
+                  relationship: d.relationship || "",
+                  relationshipSpecify: undefined,
+                  homeAddress: d.home_address || "",
+                  barangay: d.barangay || "",
+                  region: d.region_name || "",
+                  province: d.province_name || "",
+                  city: d.city_name || "",
+                }))
+              : []
+          ),
+          documents: res.data.documents
+            ? {
+                sss: !!res.data.documents.sss,
+                pagIbig: !!res.data.documents.pagIbig,
+                tin: !!res.data.documents.tin,
+                philhealth: !!res.data.documents.philhealth,
+                cedula: !!res.data.documents.cedula,
+                birthCert: !!res.data.documents.birthCert,
+                policeClearance: !!res.data.documents.policeClearance,
+                barangayClearance: !!res.data.documents.barangayClearance,
+                medicalCert: !!res.data.documents.medicalCert,
+                others: !!res.data.documents.others,
+              }
+            : Object.fromEntries(DOCUMENTS.map((doc) => [doc.key, false])),
+        });
       }
     } catch (error) {
       console.error("Error fetching employee:", error);
@@ -917,45 +1137,221 @@ useEffect(() => {
     setContactNumbers(updated);
   };
 
+  const validatePersonalTab = (): ValidationErrors => {
+    const errors: ValidationErrors = {};
+    if (!firstName.trim()) errors.firstName = "First name is required";
+    if (!lastName.trim()) errors.lastName = "Last name is required";
+    if (!civilStatus) errors.civilStatus = "Civil status is required";
+    return errors;
+  };
+
+  const validateJobTab = (): ValidationErrors => {
+    const errors: ValidationErrors = {};
+    if (!departmentId) errors.department = "Department is required";
+    if (!positionId) errors.position = "Position is required";
+    if (!employmentStatus) errors.employmentStatus = "Employment status is required";
+
+    const allowedDays = [
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+      "friday",
+      "saturday",
+      "sunday",
+    ];
+    if (!scheduledDays || !Array.isArray(scheduledDays) || scheduledDays.length === 0) {
+      errors.scheduledDays = "Please select at least one scheduled day";
+    } else {
+      const allValid = scheduledDays.every(
+        (d) => typeof d === "string" && allowedDays.includes(d.toLowerCase())
+      );
+      if (!allValid) {
+        errors.scheduledDays = "scheduled_days must be valid weekdays";
+      }
+    }
+
+    const timeRe = /^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/;
+    const toSec = (ts: string) => {
+      const [h, m, s] = ts.split(":");
+      return parseInt(h || "0") * 3600 + parseInt(m || "0") * 60 + parseInt(s || "0");
+    };
+    if (!scheduledStartTime || !timeRe.test(scheduledStartTime)) {
+      errors.scheduledStartTime =
+        !scheduledStartTime ? "Start time is required" : "Invalid start time (HH:MM or HH:MM:SS)";
+    }
+    if (!scheduledEndTime || !timeRe.test(scheduledEndTime)) {
+      errors.scheduledEndTime =
+        !scheduledEndTime ? "End time is required" : "Invalid end time (HH:MM or HH:MM:SS)";
+    }
+    if (
+      scheduledStartTime &&
+      scheduledEndTime &&
+      timeRe.test(scheduledStartTime) &&
+      timeRe.test(scheduledEndTime)
+    ) {
+      if (toSec(scheduledEndTime) <= toSec(scheduledStartTime)) {
+        errors.scheduledEndTime = "End time must be after start time";
+      }
+    }
+
+    return errors;
+  };
+
+  const validateAddressTab = (): ValidationErrors => {
+    const errors: ValidationErrors = {};
+    const hasAnyAddress = [homeAddress, barangay, region, province, city].some((value) =>
+      Boolean(value && value.trim())
+    );
+    if (hasAnyAddress) {
+      if (!homeAddress.trim()) errors.homeAddress = "Home address is required";
+      if (!barangay.trim()) errors.barangay = "Barangay is required";
+      if (!region) errors.region = "Region is required";
+      if (!province) errors.province = "Province is required";
+      if (!city) errors.city = "City is required";
+    }
+    return errors;
+  };
+
+  const validateContactTab = (): ValidationErrors => {
+    const errors: ValidationErrors = {};
+    const emailError = validateEmails(emails);
+    if (emailError) errors.emails = emailError;
+    const contactError = validateContactNumbers(contactNumbers);
+    if (contactError) errors.contactNumbers = contactError;
+    return errors;
+  };
+
+  const validateDependentTab = (): ValidationErrors => {
+    const errors: ValidationErrors = {};
+    if (dependents.length === 0) errors.dependents = "At least one dependent is required";
+    return errors;
+  };
+
+  const buildUpdatePayload = () => {
+    const payload: any = {};
+    const errors: ValidationErrors = {};
+    const snapshot = initialSnapshot;
+
+    if (activeTab === "personal") {
+      Object.assign(errors, validatePersonalTab());
+      const current = getPersonalSnapshot();
+      const prev = snapshot?.personal;
+      if (!prev || current.firstName !== prev.firstName) payload.first_name = firstName.trim();
+      if (!prev || current.middleName !== prev.middleName) payload.middle_name = middleName.trim() || null;
+      if (!prev || current.lastName !== prev.lastName) payload.last_name = lastName.trim();
+      if (!prev || current.extensionName !== prev.extensionName) payload.extension_name = extensionName.trim() || null;
+      if (!prev || current.civilStatus !== prev.civilStatus) {
+        payload.civil_status = civilStatus ? civilStatus.toLowerCase() : null;
+      }
+    }
+
+    if (activeTab === "job") {
+      Object.assign(errors, validateJobTab());
+      const current = getJobSnapshot();
+      const prev = snapshot?.job;
+      if (!prev || current.departmentId !== prev.departmentId) payload.department_id = departmentId;
+      if (!prev || current.positionId !== prev.positionId) payload.position_id = positionId;
+      if (!prev || current.supervisorId !== prev.supervisorId) payload.supervisor_id = supervisorId || null;
+      if (!prev || current.employmentType !== prev.employmentType) {
+        payload.employment_type = employmentType ? employmentType.toLowerCase() : undefined;
+      }
+      if (!prev || current.workType !== prev.workType) {
+        payload.work_type = workType ? workType.toLowerCase() : undefined;
+      }
+
+      if (!prev || JSON.stringify(current.scheduledDays) !== JSON.stringify(prev.scheduledDays)) {
+        payload.scheduled_days = current.scheduledDays;
+      }
+      if (!prev || current.scheduledStartTime !== prev.scheduledStartTime) {
+        payload.scheduled_start_time = scheduledStartTime || null;
+      }
+      if (!prev || current.scheduledEndTime !== prev.scheduledEndTime) {
+        payload.scheduled_end_time = scheduledEndTime || null;
+      }
+
+      const normalizedStatus = normalizeStatusForPayload(employmentStatus);
+      if (!prev || current.employmentStatus !== prev.employmentStatus) {
+        if (normalizedStatus) payload.status = normalizedStatus;
+      }
+
+      const salaryChanged = !prev || current.salary !== prev.salary;
+      if (salaryChanged && current.salary != null) {
+        payload.current_salary = current.salary;
+        if (current.workType === "part-time") {
+          payload.hourly_rate = current.salary;
+          payload.salary_unit = "hourly";
+        } else {
+          payload.monthly_salary = current.salary;
+          payload.salary_unit = "monthly";
+        }
+      }
+
+      const extraChanged =
+        !prev || JSON.stringify(current.extraPositions) !== JSON.stringify(prev.extraPositions);
+      if (extraChanged) {
+        payload.extra_positions = current.extraPositions;
+      }
+    }
+
+    if (activeTab === "address") {
+      Object.assign(errors, validateAddressTab());
+      const current = getAddressSnapshot();
+      const prev = snapshot?.address;
+      if (!prev || current.homeAddress !== prev.homeAddress) payload.home_address = homeAddress;
+      if (!prev || current.barangay !== prev.barangay) payload.barangay = barangay;
+      if (!prev || current.city !== prev.city) payload.city = city;
+      if (!prev || current.region !== prev.region) payload.region = region;
+      if (!prev || current.province !== prev.province) payload.province = province;
+    }
+
+    if (activeTab === "contact") {
+      Object.assign(errors, validateContactTab());
+      const current = getContactSnapshot();
+      const prev = snapshot?.contact;
+      if (!prev || JSON.stringify(current.emails) !== JSON.stringify(prev.emails)) {
+        payload.emails = current.emails;
+      }
+      if (!prev || JSON.stringify(current.contactNumbers) !== JSON.stringify(prev.contactNumbers)) {
+        payload.contact_numbers = current.contactNumbers;
+      }
+    }
+
+    if (activeTab === "dependent") {
+      Object.assign(errors, validateDependentTab());
+      const current = getDependentSnapshot();
+      const prev = snapshot?.dependents || [];
+      if (!snapshot || JSON.stringify(current) !== JSON.stringify(prev)) {
+        payload.dependents = dependents;
+      }
+    }
+
+    if (activeTab === "documents") {
+      const current = getDocumentsSnapshot();
+      const prev = snapshot?.documents || {};
+      if (!snapshot || JSON.stringify(current) !== JSON.stringify(prev)) {
+        payload.documents = documents;
+      }
+    }
+
+    return { payload, errors };
+  };
+
   /* ---------- Submit ---------- */
   const handleSubmit = async () => {
     console.log("Save Changes clicked");
 
-    const roleErrors: ValidationErrors = {};
+    if (!employee) return;
 
-    const formErrors = validateEmployeeForm(
-      firstName,
-      middleName,
-      lastName,
-      extensionName,
-      departmentId,
-      positionId,
-      employmentStatus,
-      homeAddress,
-      barangay,
-      city,
-      region,
-      province,
-      civilStatus,
-      emails,
-      contactNumbers,
-      dependents,
-      workType,
-      scheduledDays,
-      scheduledStartTime,
-      scheduledEndTime
-    );
+    const { payload, errors } = buildUpdatePayload();
+    console.log("Validation result:", Object.keys(errors).length === 0);
+    console.log("Current errors:", errors);
 
-    console.log("Validation result:", Object.keys(formErrors).length === 0);
-    console.log("Current errors:", formErrors);
-
-    const allErrors = { ...roleErrors, ...formErrors };
-
-    if (Object.keys(allErrors).length > 0 || !employee) {
-      setErrors(allErrors);
+    if (Object.keys(errors).length > 0) {
+      setErrors(errors);
       console.log("Validation failed or no employee");
 
-      const uniqueErrors = Array.from(new Set(Object.values(allErrors)));
+      const uniqueErrors = Array.from(new Set(Object.values(errors)));
       toast.error(
         <div>
           <p className="font-bold">Employee Form Errors:</p>
@@ -970,84 +1366,31 @@ useEffect(() => {
       return;
     }
 
+    if (Object.keys(payload).length === 0) {
+      toast.success("No changes to save for this tab.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      const updatedData: any = {
-        first_name: firstName,
-        middle_name: middleName.trim() || null,
-        last_name: lastName,
-        extension_name: extensionName.trim() || null,
-        department_id: departmentId,
-        position_id: positionId,
-        supervisor_id: supervisorId || null,
-        home_address: homeAddress,
-        barangay: barangay,
-        city: city,
-        region: region,
-        province: province,
-        civil_status: civilStatus ? civilStatus.toLowerCase() : null,
-        emails: emails.map((e) => e.email).filter((e) => e && e.trim()),
-        contact_numbers: contactNumbers
-          .map((c) => c.contact_number.replace(/\s/g, ""))
-          .filter((c) => c && c.trim()),
-        dependents: dependents,
-        documents: documents,
-        // Work & schedule
-        work_type: workType ? workType.toLowerCase() : undefined,
-        scheduled_days: scheduledDays,
-        scheduled_start_time: scheduledStartTime || undefined,
-        scheduled_end_time: scheduledEndTime || undefined,
-      };
+      console.log("Submitting update:", payload);
 
-      // Include salary and employment type if provided
-      let numericSalary: number | null = null;
-      if (salary !== undefined && salary !== null && String(salary).trim() !== "") {
-        numericSalary = Number(String(salary).replace(/,/g, ""));
-        if (!Number.isNaN(numericSalary)) {
-          updatedData.current_salary = numericSalary;
-        } else {
-          numericSalary = null;
-        }
-      }
-
-      if (employmentType) {
-        updatedData.employment_type = employmentType.toLowerCase();
-      }
-
-      // Align salary fields to work_type
-      if (numericSalary != null) {
-        if ((workType || '').toLowerCase() === 'part-time') {
-          updatedData.hourly_rate = numericSalary;
-          updatedData.salary_unit = 'hourly';
-        } else {
-          updatedData.monthly_salary = numericSalary;
-          updatedData.salary_unit = 'monthly';
-        }
-      }
-
-      const normalizedStatus = normalizeStatusForPayload(employmentStatus);
-      if (normalizedStatus) {
-        updatedData.status = normalizedStatus;
-      }
-
-      // Legacy role field — no longer editable from this tab.
-      // The backend auto-assigns RBAC roles based on department/position.
-
-      console.log("Submitting update:", updatedData);
-      // Include extra positions in update payload
-      updatedData.extra_positions = extraPositions
-        .filter((ep) => ep.position_id)
-        .map((ep) => ({
-          position_id: ep.position_id,
-          salary: ep.salary !== "" && ep.salary != null ? Number(String(ep.salary).replace(/,/g, "")) : null,
-          salary_unit: ep.salary_unit || "monthly",
-        }));
-
-      const result = await employeeApi.update(employee.employee_id, updatedData);
+      const result = await employeeApi.update(employee.employee_id, payload);
       console.log("Update result:", result);
 
       if (result.success) {
         toast.success("Employee updated successfully!");
+        setErrors({});
+        setInitialSnapshot((prev) => {
+          if (!prev) return prev;
+          if (activeTab === "personal") return { ...prev, personal: getPersonalSnapshot() };
+          if (activeTab === "job") return { ...prev, job: getJobSnapshot() };
+          if (activeTab === "address") return { ...prev, address: getAddressSnapshot() };
+          if (activeTab === "contact") return { ...prev, contact: getContactSnapshot() };
+          if (activeTab === "dependent") return { ...prev, dependents: getDependentSnapshot() };
+          if (activeTab === "documents") return { ...prev, documents: getDocumentsSnapshot() };
+          return prev;
+        });
         onClose();
         onSaved?.();
       } else {
