@@ -584,25 +584,11 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
 
   // handle birth date change with age validation
   const handleBirthDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawValue = e.target.value.replace(/[^0-9]/g, "");
-    let formattedValue = rawValue;
+    const value = e.target.value;
+    setBirthDate(value);
 
-    if (rawValue.length > 4) {
-      formattedValue = `${rawValue.slice(0, 4)}/${rawValue.slice(4)}`;
-    }
-    if (rawValue.length > 6) {
-      formattedValue = `${rawValue.slice(0, 4)}/${rawValue.slice(4, 6)}/${rawValue.slice(6, 8)}`;
-    }
-
-    // Limit to yyyy/mm/dd format
-    if (formattedValue.length > 10) {
-      formattedValue = formattedValue.slice(0, 10);
-    }
-
-    setBirthDate(formattedValue);
-
-    const error = validateBirthDate(formattedValue);
-    if (error && formattedValue.length === 10) {
+    const error = validateBirthDate(value);
+    if (error) {
       setErrors((prev) => ({ ...prev, birthDate: error }));
     } else {
       setErrors((prev) => ({ ...prev, birthDate: "" }));
@@ -1005,8 +991,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                         <span className="text-xs text-gray-500 ml-2">(must be 21 or older)</span>
                       </div>
                     }
-                    type="text"
-                    placeholder="YYYY/MM/DD"
+                    type="date"
                     value={birthDate}
                     onChange={handleBirthDateChange}
                     error={errors.birthDate}
@@ -1403,7 +1388,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                           error={dependentErrors.email}
                         />
                         <FormInput
-                          label="Contact Info:"
+                          label="Contact Number (Mobile No.):"
                           type="text"
                           value={dependentContactInfo}
                           onChange={(e) => {
@@ -1448,7 +1433,40 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
                       </div>
 
                       {/* Home Address Section with Y-axis padding */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm py-4">
+                      <div className="flex items-center w-100 space-x-2 pt-4 pb-2">
+                        <input
+                          type="checkbox"
+                          id="sameAsEmployee"
+                          className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setDependentHomeAddress(homeAddress);
+                              setDependentRegion(region);
+                              setDependentProvince(province);
+                              setDependentCity(city);
+                              setDependentBarangay(barangay);
+                              setDependentErrors((prev) => ({
+                                ...prev,
+                                homeAddress: "",
+                                region: "",
+                                province: "",
+                                city: "",
+                                barangay: ""
+                              }));
+                            } else {
+                              setDependentHomeAddress("");
+                              setDependentRegion("");
+                              setDependentProvince("");
+                              setDependentCity("");
+                              setDependentBarangay("");
+                            }
+                          }}
+                        />
+                        <label htmlFor="sameAsEmployee" className="text-sm text-gray-700 font-small cursor-pointer">
+                          Same as Employee
+                        </label>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm pb-4">
                         <div className="md:col-span-2">
                           <FormInput
                             label="Home Address:"
