@@ -2531,7 +2531,7 @@ useEffect(() => {
                       <button
                         type="button"
                         onClick={() => setShowFingerprintEnrollment(true)}
-                        className="px-4 py-2 bg-[#8b7355] text-white rounded-lg hover:bg-[#6d5a43] transition-colors font-medium text-sm whitespace-nowrap"
+                        className="px-4 py-2 bg-[#4b0b14] text-white rounded-lg hover:bg-[#6d5a43] transition-colors font-medium text-sm whitespace-nowrap"
                       >
                         Register Fingerprint
                       </button>

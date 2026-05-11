@@ -692,8 +692,8 @@ export default function EmployeeTable() {
       return;
     }
 
-    if (amount > 1000000) {
-      toast.error("Requested amount cannot exceed 1,000,000.");
+    if (amount > 3000000) {
+      toast.error("Requested amount cannot exceed 3,000,000.");
       return;
     }
 
@@ -1212,7 +1212,7 @@ export default function EmployeeTable() {
                         const parts = val.split(".");
                         if (parts.length > 2) val = parts[0] + "." + parts.slice(1).join("");
                         if (parts[1] && parts[1].length > 2) val = parts[0] + "." + parts[1].substring(0, 2);
-                        if (Number(val) > 1000000) val = "1000000";
+                        if (Number(val) > 3000000) val = "3000000";
                         setBudgetRequestForm((prev) => ({ ...prev, requested_amount: val }));
                       }}
                       className="w-full rounded-md border border-[#d9c3a4] pl-7 pr-3 py-2 text-sm focus:outline-none"

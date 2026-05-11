@@ -266,12 +266,22 @@ export const confirmEnrollment = async (req, res, next) => {
  */
 export const getNextFingerprintId = async (req, res, next) => {
   try {
-    // Get the last registered fingerprint_id (most recently updated employee with fingerprint)
-    const result = await db.getOne(
-      'SELECT fingerprint_id FROM employees WHERE fingerprint_id IS NOT NULL ORDER BY updated_at DESC LIMIT 1'
+    const rows = await db.getAll(
+      'SELECT fingerprint_id FROM employees WHERE fingerprint_id IS NOT NULL ORDER BY fingerprint_id ASC'
     );
 
-    const nextId = (result?.fingerprint_id || 0) + 1;
+    const usedIds = rows
+      .map((row) => Number(row.fingerprint_id))
+      .filter((id) => Number.isInteger(id) && id > 0);
+
+    let nextId = 1;
+    for (const id of usedIds) {
+      if (id === nextId) {
+        nextId += 1;
+        continue;
+      }
+      if (id > nextId) break;
+    }
 
     res.json({
       success: true,
