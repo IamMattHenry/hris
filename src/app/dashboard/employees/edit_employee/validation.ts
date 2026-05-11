@@ -183,26 +183,30 @@ export const validateRoleManagement = (
   return errors;
 };
 
-/**
- * Validates employee form data
- */
-export const validateEmployeeForm = (
+export const validatePersonalInformation = (
   firstName: string,
-  middleName: string,
   lastName: string,
-  extensionName: string,
+  civilStatus: string
+): ValidationErrors => {
+  const errors: ValidationErrors = {};
+
+  if (!firstName.trim()) {
+    errors.firstName = "First name is required";
+  }
+  if (!lastName.trim()) {
+    errors.lastName = "Last name is required";
+  }
+  if (!civilStatus) {
+    errors.civilStatus = "Civil status is required";
+  }
+
+  return errors;
+};
+
+export const validateJobInformation = (
   departmentId: number | null,
   positionId: number | null,
   employmentStatus: string,
-  homeAddress: string,
-  barangay: string,
-  city: string,
-  region: string,
-  province: string,
-  civilStatus: string,
-  emails: ContactEmail[],
-  contactNumbers: ContactNumber[],
-  dependents: Dependent[],
   workType: string,
   scheduledDays: string[],
   scheduledStartTime: string,
@@ -210,75 +214,16 @@ export const validateEmployeeForm = (
 ): ValidationErrors => {
   const errors: ValidationErrors = {};
 
-  // Basic fields validation
-  if (!firstName.trim()) {
-    errors.firstName = "First name is required";
-  }
-
-  if (!lastName.trim()) {
-    errors.lastName = "Last name is required";
-  }
-  
   if (!departmentId) {
     errors.department = "Department is required";
   }
-
   if (!positionId) {
     errors.position = "Position is required";
   }
-
-  
-
   if (!employmentStatus) {
     errors.employmentStatus = "Employment status is required";
   }
 
-  const hasAnyAddress = [homeAddress, barangay, region, province, city]
-    .some((value) => Boolean(value && value.trim()));
-  if (hasAnyAddress) {
-    if (!homeAddress.trim()) {
-      errors.homeAddress = "Home address is required";
-    }
-
-    if (!barangay.trim()) {
-      errors.barangay = "Barangay is required";
-    }
-
-    if (!region) {
-      errors.region = "Region is required";
-    }
-
-    if (!province) {
-      errors.province = "Province is required";
-    }
-
-    if (!city) {
-      errors.city = "City is required";
-    }
-  }
-
-  if (!civilStatus) {
-    errors.civilStatus = "Civil status is required";
-  }
-
-  // Email validation
-  const emailError = validateEmails(emails);
-  if (emailError) {
-    errors.emails = emailError;
-  }
-
-  // Contact number validation
-  const contactError = validateContactNumbers(contactNumbers);
-  if (contactError) {
-    errors.contactNumbers = contactError;
-  }
-
-  // Dependents validation
-  if (dependents.length === 0) {
-    errors.dependents = "At least one dependent is required";
-  }
-
-  // Work schedule required
   const allowedDays = [
     'monday','tuesday','wednesday','thursday','friday','saturday','sunday'
   ];
@@ -306,6 +251,60 @@ export const validateEmployeeForm = (
     if (toSec(scheduledEndTime) <= toSec(scheduledStartTime)) {
       errors.scheduledEndTime = 'End time must be after start time';
     }
+  }
+
+  return errors;
+};
+
+export const validateAddressInformation = (
+  homeAddress: string,
+  barangay: string,
+  city: string,
+  region: string,
+  province: string
+): ValidationErrors => {
+  const errors: ValidationErrors = {};
+  
+  const hasAnyAddress = [homeAddress, barangay, region, province, city]
+    .some((value) => Boolean(value && value.trim()));
+
+  if (hasAnyAddress) {
+    if (!homeAddress.trim()) errors.homeAddress = "Home address is required";
+    if (!barangay.trim()) errors.barangay = "Barangay is required";
+    if (!region) errors.region = "Region is required";
+    if (!province) errors.province = "Province is required";
+    if (!city) errors.city = "City is required";
+  }
+
+  return errors;
+};
+
+export const validateContactInformation = (
+  emails: ContactEmail[],
+  contactNumbers: ContactNumber[]
+): ValidationErrors => {
+  const errors: ValidationErrors = {};
+
+  const emailError = validateEmails(emails);
+  if (emailError) {
+    errors.emails = emailError;
+  }
+
+  const contactError = validateContactNumbers(contactNumbers);
+  if (contactError) {
+    errors.contactNumbers = contactError;
+  }
+
+  return errors;
+};
+
+export const validateDependentInformation = (
+  dependents: Dependent[]
+): ValidationErrors => {
+  const errors: ValidationErrors = {};
+
+  if (dependents.length === 0) {
+    errors.dependents = "At least one dependent is required";
   }
 
   return errors;

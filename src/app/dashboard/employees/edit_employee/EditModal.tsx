@@ -7,7 +7,11 @@ import FormInput from "@/components/forms/FormInput";
 import FormSelect from "@/components/forms/FormSelect";
 import { departmentApi, positionApi, employeeApi, fingerprintApi, rbacApi, payrollApi } from "@/lib/api";
 import {
-  validateEmployeeForm,
+  validatePersonalInformation,
+  validateJobInformation,
+  validateAddressInformation,
+  validateContactInformation,
+  validateDependentInformation,
   validateDependent,
   formatPhoneNumber,
   generateClientId,
@@ -921,44 +925,58 @@ useEffect(() => {
   const handleSubmit = async () => {
     console.log("Save Changes clicked");
 
-    const roleErrors: ValidationErrors = {};
+    let formErrors: ValidationErrors = {};
 
-    const formErrors = validateEmployeeForm(
-      firstName,
-      middleName,
-      lastName,
-      extensionName,
-      departmentId,
-      positionId,
-      employmentStatus,
-      homeAddress,
-      barangay,
-      city,
-      region,
-      province,
-      civilStatus,
-      emails,
-      contactNumbers,
-      dependents,
-      workType,
-      scheduledDays,
-      scheduledStartTime,
-      scheduledEndTime
-    );
+    switch (activeTab) {
+      case "personal":
+        formErrors = validatePersonalInformation(firstName, lastName, civilStatus);
+        break;
+      case "job":
+        formErrors = validateJobInformation(
+          departmentId,
+          positionId,
+          employmentStatus,
+          workType,
+          scheduledDays,
+          scheduledStartTime,
+          scheduledEndTime
+        );
+        break;
+      case "address":
+        formErrors = validateAddressInformation(
+          homeAddress,
+          barangay,
+          city,
+          region,
+          province
+        );
+        break;
+      case "contact":
+        formErrors = validateContactInformation(emails, contactNumbers);
+        break;
+      case "dependent":
+        formErrors = validateDependentInformation(dependents);
+        break;
+      case "documents":
+      case "roles":
+      case "fingerprint":
+        // No custom validation needed for these tabs before saving
+        break;
+      default:
+        break;
+    }
 
     console.log("Validation result:", Object.keys(formErrors).length === 0);
     console.log("Current errors:", formErrors);
 
-    const allErrors = { ...roleErrors, ...formErrors };
-
-    if (Object.keys(allErrors).length > 0 || !employee) {
-      setErrors(allErrors);
+    if (Object.keys(formErrors).length > 0 || !employee) {
+      setErrors(formErrors);
       console.log("Validation failed or no employee");
 
-      const uniqueErrors = Array.from(new Set(Object.values(allErrors)));
+      const uniqueErrors = Array.from(new Set(Object.values(formErrors)));
       toast.error(
         <div>
-          <p className="font-bold">Employee Form Errors:</p>
+          <p className="font-bold">Errors in the current tab:</p>
           <ul className="list-disc pl-4 mt-1 text-sm">
             {uniqueErrors.map((err: any, i) => (
               <li key={i}>{err}</li>
@@ -970,6 +988,7 @@ useEffect(() => {
       return;
     }
 
+    setErrors({});
     setIsSubmitting(true);
     try {
       const updatedData: any = {
@@ -1087,6 +1106,18 @@ useEffect(() => {
 
   if (!isOpen) return null;
 
+  const renderSaveButton = () => (
+    <div className="flex justify-end mt-10">
+      <button
+        onClick={handleSubmit}
+        disabled={isSubmitting}
+        className="bg-[#4b0b14] text-white px-6 py-2 rounded-lg shadow-md hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {isSubmitting ? "Saving..." : "Save Changes"}
+      </button>
+    </div>
+  );
+
   /* ---------- JSX ---------- */
   return (
     <div
@@ -1191,6 +1222,7 @@ useEffect(() => {
                       error={errors.civilStatus}
                     />
                   </div>
+                  {renderSaveButton()}
                 </section>
               )}
 
@@ -1483,6 +1515,7 @@ useEffect(() => {
                           disabled={(workType || '').toLowerCase() === 'full-time'}
                     />
                   </div>
+                  {renderSaveButton()}
                 </section>
               )}
 
@@ -1546,6 +1579,7 @@ useEffect(() => {
 
 
                   </div>
+                  {renderSaveButton()}
                 </section>
               )}
             </div>
@@ -1659,6 +1693,7 @@ useEffect(() => {
                     + Add Another Contact Number
                   </button>
                 </div>
+                {renderSaveButton()}
               </div>
             )}
 
@@ -1955,6 +1990,7 @@ useEffect(() => {
                     ))}
                   </div>
                 )}
+                {renderSaveButton()}
               </div>
             )}
 
@@ -2009,6 +2045,7 @@ useEffect(() => {
                     <span className="font-semibold">Note:</span> These checkboxes indicate which documents have been submitted by the employee.
                   </p>
                 </div>
+                {renderSaveButton()}
               </div>
             )}
 
@@ -2145,6 +2182,7 @@ useEffect(() => {
                     </p>
                   </div>
                 )}
+                {renderSaveButton()}
               </div>
             )}
 
@@ -2195,6 +2233,7 @@ useEffect(() => {
                     </div>
                   </div>
                 )}
+                {renderSaveButton()}
               </div>
             )}
 
@@ -2202,16 +2241,6 @@ useEffect(() => {
         ) : (
           <p className="text-center text-gray-600">Loading employee details...</p>
         )}
-
-        <div className="flex justify-end mt-10">
-          <button
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="bg-[#4b0b14] text-white px-6 py-2 rounded-lg shadow-md hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? "Saving..." : "Save Changes"}
-          </button>
-        </div>
 
         {/* Fingerprint Enrollment Overlay */}
 
