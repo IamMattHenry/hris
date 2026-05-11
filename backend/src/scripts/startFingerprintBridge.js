@@ -23,6 +23,17 @@ const bridge = new FingerprintBridge(SERIAL_PORT, BAUD_RATE);
 const app = express();
 app.use(express.json());
 
+// Allow browser clients (frontend) to call bridge endpoints directly.
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+});
+
 // Store SSE clients
 const sseClients = [];
 

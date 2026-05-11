@@ -2,10 +2,6 @@ import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
 import axios from 'axios';
 
-/**
- * Start fingerprint enrollment mode
- * This endpoint signals the Arduino to enter enrollment mode
- */
 export const startEnrollment = async (req, res, next) => {
   try {
     const { employee_id, fingerprint_id } = req.body;
