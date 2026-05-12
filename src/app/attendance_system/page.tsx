@@ -343,10 +343,10 @@ export default function AttendanceSystemPage() {
 
   // Reusable Component for Employee Data Card
   const EmployeeDataCard = () => (
-    <div className="flex-1 space-y-5">
-      {employeeData ? (
-        <>
-          <div className="border rounded-xl border-[#e2cfa8] bg-white p-6 mb-5 shadow-sm">
+    <div className="flex-1 flex flex-col gap-5 h-[450px]">
+      {employeeData && (
+        <div className="space-y-5 shrink-0">
+          <div className="border rounded-xl border-[#e2cfa8] bg-white p-6 shadow-sm">
             <p className="font-bold text-2xl text-[#3b2b1c]">
               {employeeData.first_name} {employeeData.last_name}
             </p>
@@ -367,14 +367,44 @@ export default function AttendanceSystemPage() {
               </span>
             </div>
           </div>
-        </>
-      ) : (
-        <div className="border-2 border-dashed border-[#e2cfa8] bg-[#fdfaf5] rounded-xl p-10 text-center flex flex-col items-center justify-center h-full min-h-[250px]">
-          <Fingerprint className="w-12 h-12 text-[#d4b88a] mb-4 opacity-50" />
-          <p className="text-[#8b7355] font-medium text-lg">Awaiting Scan Data</p>
-          <p className="text-sm text-gray-500 mt-2">Employee information will display here</p>
         </div>
       )}
+
+      {/* Hardware Log Window (Strictly Scrollable) */}
+      <div className="flex-1 min-h-0 flex flex-col bg-[#1e1e1e] rounded-xl border border-gray-700 shadow-inner overflow-hidden">
+        <div className="bg-[#2d2d2d] px-4 py-2.5 border-b border-gray-700 flex items-center justify-between shrink-0">
+          <h4 className="text-gray-300 flex items-center gap-2 font-sans text-xs font-bold uppercase tracking-wider">
+            <Router className="w-4 h-4 text-[#d4b88a]" /> Device Terminal
+          </h4>
+          <div className="flex gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-red-500/80"></div>
+            <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/80"></div>
+            <div className="w-2.5 h-2.5 rounded-full bg-green-500/80"></div>
+          </div>
+        </div>
+        
+        {/* Scrollable Container */}
+        <div className="flex-1 min-h-0 p-4 overflow-y-auto font-mono text-xs space-y-1.5 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-[#1e1e1e] [&::-webkit-scrollbar-thumb]:bg-gray-600 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
+          {statusLog.length === 0 ? (
+            <p className="text-gray-500 italic text-center mt-4">
+              Waiting for sensor data stream...
+            </p>
+          ) : (
+            statusLog.map((log, i) => (
+              <div key={i} className="flex gap-3 hover:bg-[#2a2a2a] px-2 py-1 rounded transition-colors">
+                <span className="text-gray-500 shrink-0">
+                  [{new Date(log.timestamp).toLocaleTimeString()}]
+                </span>
+                <span className={`${log.message.includes("ERROR") ? "text-red-400 font-semibold" : "text-green-400"}`}>
+                  {log.message}
+                </span>
+              </div>
+            ))
+          )}
+          {/* Auto-scroll target dummy element */}
+          <div ref={logEndRef} />
+        </div>
+      </div>
     </div>
   );
 
@@ -556,42 +586,6 @@ export default function AttendanceSystemPage() {
                   <p className="text-sm text-gray-500 mt-2 font-medium">
                     {employeeData && !error ? "Employee identity verified." : isConnected ? "Awaiting biometric scan data." : "Please wait for connection."}
                   </p>
-                </div>
-                
-                {/* Hardware Log Window (Strictly Scrollable) */}
-                <div className="h-56 flex flex-col bg-[#1e1e1e] rounded-xl border border-gray-700 shadow-inner overflow-hidden">
-                  <div className="bg-[#2d2d2d] px-4 py-2.5 border-b border-gray-700 flex items-center justify-between">
-                    <h4 className="text-gray-300 flex items-center gap-2 font-sans text-xs font-bold uppercase tracking-wider">
-                      <Router className="w-4 h-4 text-[#d4b88a]" /> Device Terminal
-                    </h4>
-                    <div className="flex gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-full bg-red-500/80"></div>
-                      <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/80"></div>
-                      <div className="w-2.5 h-2.5 rounded-full bg-green-500/80"></div>
-                    </div>
-                  </div>
-                  
-                  {/* Scrollable Container */}
-                  <div className="flex-1 p-4 overflow-y-auto font-mono text-xs space-y-1.5">
-                    {statusLog.length === 0 ? (
-                      <p className="text-gray-500 italic text-center mt-4">
-                        Waiting for sensor data stream...
-                      </p>
-                    ) : (
-                      statusLog.map((log, i) => (
-                        <div key={i} className="flex gap-3 hover:bg-[#2a2a2a] px-2 py-1 rounded transition-colors">
-                          <span className="text-gray-500 shrink-0">
-                            [{new Date(log.timestamp).toLocaleTimeString()}]
-                          </span>
-                          <span className={`${log.message.includes("ERROR") ? "text-red-400 font-semibold" : "text-green-400"}`}>
-                            {log.message}
-                          </span>
-                        </div>
-                      ))
-                    )}
-                    {/* Auto-scroll target dummy element */}
-                    <div ref={logEndRef} />
-                  </div>
                 </div>
               </div>
             ) : (
