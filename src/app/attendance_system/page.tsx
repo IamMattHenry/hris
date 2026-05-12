@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, Fingerprint, LogIn, LogOut, Router } from "lucide-react";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import QRCodeScanner from "./Scanner/QRCodeScanner";
 import { attendanceApi, employeeApi, authApi } from "@/lib/api";
 import { useSearchParams } from "next/navigation";
@@ -29,6 +29,18 @@ interface HRStaff {
   role?: string;
 }
 
+/** Reads ?tab= and syncs state. Must be inside <Suspense> because it calls useSearchParams(). */
+function SearchParamsSync({ onTab }: { onTab: (tab: "FINGERPRINT" | "QR") => void }) {
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "FINGERPRINT" || tab === "QR") {
+      onTab(tab);
+    }
+  }, [searchParams, onTab]);
+  return null;
+}
+
 export default function AttendanceSystemPage() {
   const [activeTab, setActiveTab] = useState<"FINGERPRINT" | "QR">("FINGERPRINT");
 
@@ -53,19 +65,11 @@ export default function AttendanceSystemPage() {
   const [pendingClockOutEmployeeId, setPendingClockOutEmployeeId] = useState<number | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [qrScannerActive, setQrScannerActive] = useState(false);
-  const searchParams = useSearchParams();
+  // searchParams is now read by SearchParamsSync inside Suspense
 
   // Reference for auto-scrolling
   const logEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const tab = searchParams.get("tab");
-    if (tab === "FINGERPRINT") {
-      setActiveTab("FINGERPRINT");
-    } else if (tab === "QR") {
-      setActiveTab("QR");
-    }
-  }, [searchParams]);
 
   const currentDate = new Date().toLocaleString("en-US", {
     weekday: "short",
@@ -376,6 +380,10 @@ export default function AttendanceSystemPage() {
 
   return (
     <section className="bg-[#fff7ec] rounded-2xl shadow-2xl w-full font-poppins max-w-5xl px-10 py-8 mx-auto">
+      {/* Sync ?tab= query param — wrapped in Suspense to satisfy Next.js App Router */}
+      <Suspense fallback={null}>
+        <SearchParamsSync onTab={setActiveTab} />
+      </Suspense>
       {/* Tabs Header */}
       <div className="flex justify-between items-center mb-6 border-b border-[#e2cfa8] pb-4">
         <div>

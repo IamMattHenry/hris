@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, ChangeEvent } from "react";
 import { Search, Calendar, RotateCw } from "lucide-react";
 import toast from "react-hot-toast";
 import ActionButton from "@/components/buttons/ActionButton";
@@ -8,7 +8,7 @@ import SearchBar from "@/components/forms/FormSearch";
 import ViewAttendanceModal from "./view_attendance/ViewModal";
 import { attendanceApi, departmentApi } from "@/lib/api";
 
-type AttendanceStatus = "present" | "absent" | "late" | "early_leave" | "half_day" | "on_leave" | "work_from_home" | "others" | "offline";
+type AttendanceStatus = "present" | "absent" | "late" | "early_leave" | "half_day" | "on_leave" | "work_from_home" | "others" | "offline" | "holiday" | "rest_day" | "overtime";
 
 interface Attendance {
   attendance_id: number | null;
@@ -26,6 +26,26 @@ interface Attendance {
   remarks?: string;
 }
 
+interface AttendanceSummaryResult {
+  employee_id: number;
+  employee_code: string;
+  name: string;
+  department?: string | null;
+  position_name?: string | null;
+  work_type?: string | null;
+  scheduled_days?: string[] | string | null;
+  scheduled_start_time?: string | null;
+  scheduled_end_time?: string | null;
+  present: number;
+  absent: number;
+  leave: number;
+  late: number;
+  overtime_days: number;
+  start_date?: string;
+  end_date?: string;
+  month?: string;
+}
+
 const STATUS_LABELS: Record<AttendanceStatus, string> = {
   present: "Present",
   absent: "Absent",
@@ -36,6 +56,9 @@ const STATUS_LABELS: Record<AttendanceStatus, string> = {
   work_from_home: "Work From Home",
   others: "Others",
   offline: "Offline",
+  holiday: "Holiday",
+  rest_day: "Rest Day",
+  overtime: "Overtime",
 };
 
 const getCurrentPHDate = () => {
@@ -61,7 +84,7 @@ export default function AttendanceTable() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
-  const [summaryResults, setSummaryResults] = useState<any[]>([]);
+  const [summaryResults, setSummaryResults] = useState<AttendanceSummaryResult[]>([]);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
   const [summaryMode, setSummaryMode] = useState<'month' | 'range'>('month');
@@ -290,6 +313,37 @@ export default function AttendanceTable() {
     return `${displayHours}:${minutes} ${period}`;
   };
 
+  const formatScheduledDays = (value?: string[] | string | null) => {
+    if (!value) return '-';
+    if (Array.isArray(value)) {
+      return value.length > 0 ? value.join(', ') : '-';
+    }
+
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.length > 0 ? parsed.join(', ') : '-';
+      }
+    } catch {
+      // keep raw value
+    }
+
+    return String(value);
+  };
+
+  const formatWorkDetails = (row: AttendanceSummaryResult) => {
+    const parts = [
+      row.position_name,
+      row.work_type ? row.work_type.replace(/-/g, ' ') : null,
+      row.scheduled_start_time && row.scheduled_end_time
+        ? `${row.scheduled_start_time.slice(0, 5)} - ${row.scheduled_end_time.slice(0, 5)}`
+        : null,
+      formatScheduledDays(row.scheduled_days),
+    ].filter((part): part is string => Boolean(part && part.trim()));
+
+    return parts.length > 0 ? parts.join(' • ') : '-';
+  };
+
   return (
     <div className="min-h-screen bg-[#fff7ec] p-8 space-y-6 text-gray-800 font-poppins z-30">
       {/* Header */}
@@ -318,7 +372,11 @@ export default function AttendanceTable() {
 
                 <div className="flex items-center gap-2">
                   <label className="text-sm">Mode:</label>
-                  <select className="border rounded px-2 py-1" onChange={(e) => setSummaryMode(e.target.value)} value={summaryMode}>
+                  <select
+                    className="border rounded px-2 py-1"
+                    onChange={(e: ChangeEvent<HTMLSelectElement>) => setSummaryMode(e.target.value as 'month' | 'range')}
+                    value={summaryMode}
+                  >
                     <option value="month">Month</option>
                     <option value="range">Custom Range</option>
                   </select>
@@ -393,8 +451,24 @@ export default function AttendanceTable() {
                         return;
                       }
                       // Build CSV
-                      const headers = ['Employee Code','Name','Department','Present','Absent','Leave','Late','Overtime Days','Start Date','End Date'];
-                      const rows = sortedSummaryResults.map((r:any) => [r.employee_code, r.name, r.department || '', r.present, r.absent, r.leave, r.late, r.overtime_days, r.start_date || r.month || '', r.end_date || '']);
+                      const headers = ['Employee Code','Name','Department','Position','Work Type','Scheduled Days','Start Time','End Time','Present','Absent','Leave','Late','Overtime Days','Start Date','End Date'];
+                      const rows = sortedSummaryResults.map((r: AttendanceSummaryResult) => [
+                        r.employee_code,
+                        r.name,
+                        r.department || '',
+                        r.position_name || '',
+                        r.work_type || '',
+                        formatScheduledDays(r.scheduled_days),
+                        r.scheduled_start_time || '',
+                        r.scheduled_end_time || '',
+                        r.present,
+                        r.absent,
+                        r.leave,
+                        r.late,
+                        r.overtime_days,
+                        r.start_date || r.month || '',
+                        r.end_date || '',
+                      ]);
                       const csv = [headers.join(','), ...rows.map(r => r.map((c:any) => `"${String(c).replace(/"/g,'""')}"`).join(','))].join('\n');
                       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
                       const url = URL.createObjectURL(blob);
@@ -423,6 +497,7 @@ export default function AttendanceTable() {
                         <th className="py-2 px-3 text-left">Code</th>
                         <th className="py-2 px-3 text-left">Name</th>
                         <th className="py-2 px-3 text-left">Department</th>
+                        <th className="py-2 px-3 text-left">Work Details</th>
                         <th className="py-2 px-3">Present</th>
                         <th className="py-2 px-3">Absent</th>
                         <th className="py-2 px-3">Leave</th>
@@ -431,11 +506,12 @@ export default function AttendanceTable() {
                       </tr>
                     </thead>
                     <tbody>
-                      {sortedSummaryResults.map((r:any) => (
+                      {sortedSummaryResults.map((r: AttendanceSummaryResult) => (
                         <tr key={r.employee_id} className="border-t">
                           <td className="py-2 px-3">{r.employee_code}</td>
                           <td className="py-2 px-3">{r.name}</td>
                           <td className="py-2 px-3">{r.department || '-'}</td>
+                          <td className="py-2 px-3 text-gray-600">{formatWorkDetails(r)}</td>
                           <td className="py-2 px-3 text-center">{r.present}</td>
                           <td className="py-2 px-3 text-center">{r.absent}</td>
                           <td className="py-2 px-3 text-center">{r.leave}</td>
@@ -633,7 +709,10 @@ export default function AttendanceTable() {
                               record.status === "on_leave" ? "bg-blue-100 text-blue-800" :
                                 record.status === "work_from_home" ? "bg-purple-100 text-purple-800" :
                                   record.status === "offline" ? "bg-gray-200 text-gray-600" :
-                                    "bg-gray-100 text-gray-800"
+                                    record.status === "holiday" ? "bg-pink-100 text-pink-800" :
+                                      record.status === "rest_day" ? "bg-indigo-100 text-indigo-800" :
+                                        record.status === "overtime" ? "bg-rose-100 text-rose-800" :
+                                          "bg-gray-100 text-gray-800"
                       }`}>
                       {STATUS_LABELS[record.status]}
                     </span>

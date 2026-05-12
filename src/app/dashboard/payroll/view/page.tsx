@@ -7,7 +7,8 @@ import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
 import { payrollApi } from "@/lib/api";
 import { showToast } from "@/utils/toast";
-import PayrollPayslipModal from "./payslip/page"; // ← adjust path as needed
+import PayrollPayslipModal from "./payslip/page";
+import Payroll2FAModal, { type TwoFAMethod } from "@/components/payroll/Payroll2FAModal";
 
 interface PayrollRecord {
   employee_id: number;
@@ -71,6 +72,9 @@ export default function PayrollRunDetailModal(props: any) {
   const [showOverrideModal, setShowOverrideModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<PayrollRecord | null>(null);
 
+  // 2FA for finalize
+  const [show2FAFinalize, setShow2FAFinalize] = useState(false);
+
   const [overrideGross, setOverrideGross] = useState("");
   const [overrideDeductions, setOverrideDeductions] = useState("");
   const [overrideTax, setOverrideTax] = useState("");
@@ -109,7 +113,9 @@ export default function PayrollRunDetailModal(props: any) {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || !isOpen) return;
 
-      if (showOverrideModal) {
+      if (show2FAFinalize) {
+        setShow2FAFinalize(false);
+      } else if (showOverrideModal) {
         setShowOverrideModal(false);
       } else if (showFinalizeModal) {
         setShowFinalizeModal(false);
@@ -124,7 +130,7 @@ export default function PayrollRunDetailModal(props: any) {
 
     window.addEventListener("keydown", handleEsc);
     return () => window.removeEventListener("keydown", handleEsc);
-  }, [isOpen, onClose, showOverrideModal, showFinalizeModal, showDeleteModal, selectedPayslip]);
+  }, [isOpen, onClose, show2FAFinalize, showOverrideModal, showFinalizeModal, showDeleteModal, selectedPayslip]);
 
   const filteredRecords = useMemo(() => {
     if (!run) return [];
@@ -153,14 +159,20 @@ export default function PayrollRunDetailModal(props: any) {
     });
   };
 
-  const handleFinalize = async () => {
+  /** Opens 2FA modal first; actual finalize happens after verification */
+  const handleFinalizeClick = () => {
+    setShow2FAFinalize(true);
+  };
+
+  const handleFinalize = async (twoFASessionId: number, _method: TwoFAMethod) => {
     if (!run) return;
     try {
       setFinalizing(true);
-      const res = await payrollApi.finalizeRun(run.id);
+      const res = await payrollApi.finalizeRun(run.id, { twofa_session_id: twoFASessionId });
       if (!res.success) throw new Error(res.message || "Failed to finalize");
       showToast.success("Payroll run finalized");
       setShowFinalizeModal(false);
+      setShow2FAFinalize(false);
       await fetchRun();
       onUpdated?.();
     } catch (err: any) {
@@ -379,7 +391,7 @@ export default function PayrollRunDetailModal(props: any) {
                     <>
                       <ActionButton
                         label={finalizing ? "Finalizing..." : "Finalize Run"}
-                        onClick={() => setShowFinalizeModal(true)}
+                        onClick={handleFinalizeClick}
                         icon={Lock}
                         disabled={finalizing || deleting}
                       />
@@ -429,7 +441,10 @@ export default function PayrollRunDetailModal(props: any) {
             confirmText="Confirm Finalize"
             confirmColor="bg-[#3D1A0B]"
             isLoading={finalizing}
-            onConfirm={handleFinalize}
+            onConfirm={() => {
+              setShowFinalizeModal(false);
+              setShow2FAFinalize(true);
+            }}
             onCancel={() => setShowFinalizeModal(false)}
           />
         )}
@@ -462,6 +477,18 @@ export default function PayrollRunDetailModal(props: any) {
           />
         )}
       </AnimatePresence>
+
+      {/* 2FA Modal for finalization — rendered outside AnimatePresence to avoid z-index clash */}
+      <Payroll2FAModal
+        isOpen={show2FAFinalize}
+        onClose={() => setShow2FAFinalize(false)}
+        actionType="payroll_finalize"
+        actionReferenceId={run?.id ?? null}
+        onVerified={(sessionId, method) => {
+          setShow2FAFinalize(false);
+          handleFinalize(sessionId, method);
+        }}
+      />
     </>
   );
 }

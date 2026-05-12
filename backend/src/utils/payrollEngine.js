@@ -186,8 +186,13 @@ const getPayPeriodsPerMonth = (paySchedule = 'semi-monthly') => {
 };
 
 const getBaseRates = ({ employee, settings, paySchedule }) => {
-  const salaryUnit = String(employee.salary_unit || '').toLowerCase() === 'hourly' ? 'hourly' : 'monthly';
-  const currentSalary = Number(employee.current_salary) || 0;
+  const currentSalaryRaw = Number(employee.current_salary);
+  const useFallback = !currentSalaryRaw;
+  const currentSalary = useFallback ? (Number(employee.default_salary) || 0) : currentSalaryRaw;
+
+  const rawUnit = useFallback ? (employee.position_salary_unit || 'monthly') : (employee.salary_unit || 'monthly');
+  const salaryUnit = String(rawUnit).toLowerCase() === 'hourly' ? 'hourly' : 'monthly';
+
   const monthlyWorkDays = Number(settings?.monthly_work_days) > 0
     ? Number(settings.monthly_work_days)
     : 22;
@@ -568,8 +573,8 @@ const computeEmployeePayroll = ({
       last_name: employee.last_name,
       employment_type: employee.employment_type,
       position_id: employee.position_id,
-      salary_unit: employee.salary_unit,
-      current_salary: Number(employee.current_salary) || 0,
+      salary_unit: (!Number(employee.current_salary) ? employee.position_salary_unit : employee.salary_unit) || 'monthly',
+      current_salary: !Number(employee.current_salary) ? (Number(employee.default_salary) || 0) : (Number(employee.current_salary) || 0),
       hire_date: employee.hire_date,
       civil_status: employee.civil_status,
     },

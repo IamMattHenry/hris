@@ -1025,9 +1025,16 @@ export const payrollApi = {
     });
   },
 
-  finalizeRun: async (id: number | string) => {
+  permanentlyDeleteAbortedRun: async (id: number | string) => {
+    return apiCall<any>(`/payroll/runs/${id}/permanent`, {
+      method: 'DELETE',
+    });
+  },
+
+  finalizeRun: async (id: number | string, body?: { twofa_session_id?: number | null }) => {
     return apiCall<any>(`/payroll/runs/${id}/finalize`, {
       method: 'PATCH',
+      ...(body ? { body: JSON.stringify(body) } : {}),
     });
   },
 
@@ -1154,6 +1161,43 @@ export const payrollApi = {
     return apiCall<any>('/payroll/settings', {
       method: 'PUT',
       body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Initiate a 2FA session before a sensitive payroll action
+   */
+  initiate2FA: async (data: {
+    actionType: 'payroll_create' | 'payroll_finalize';
+    preferredMethod?: 'fingerprint' | 'qr' | 'password';
+    actionReferenceId?: number | null;
+  }) => {
+    return apiCall<{ sessionId: number; method: string; expiresIn: number }>('/payroll/2fa/initiate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Verify a 2FA session with the provided code
+   */
+  verify2FA: async (data: {
+    sessionId: number;
+    verificationCode: string;
+    method?: 'fingerprint' | 'qr' | 'password';
+  }) => {
+    return apiCall<{ sessionId: number; userId: number; actionType: string }>('/payroll/2fa/verify', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Get the operator audit trail for a payroll run
+   */
+  getAuditTrail: async (runId: number | string) => {
+    return apiCall<any>(`/payroll/runs/${runId}/audit-trail`, {
+      method: 'GET',
     });
   },
 };

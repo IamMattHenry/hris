@@ -403,6 +403,55 @@ export default function PayrollPayslipModal(props: any) {
                       <div className="mt-8 border-t border-black w-56 ml-auto"></div>
                     </div>
                   </div>
+
+                  {/* Operator Audit Trail — shown only when audit data is present */}
+                  {(content.run.creator || content.run.finalizer) && (
+                    <div className="pt-5 border-t border-gray-200">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                        Payroll Operator Audit
+                      </p>
+                      <div className="grid md:grid-cols-2 gap-4 text-xs">
+                        {content.run.creator && (
+                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-1">
+                            <p className="font-semibold text-gray-700">Created by</p>
+                            <p>
+                              <span className="font-medium">{content.run.creator.name || content.run.creator.username}</span>
+                              {content.run.creator.username && content.run.creator.name && (
+                                <span className="text-gray-500 ml-1">(@{content.run.creator.username})</span>
+                              )}
+                            </p>
+                            {content.run.creator.method && (
+                              <p className="text-gray-500">
+                                Verified via <span className="capitalize font-medium">{content.run.creator.method}</span>
+                                {content.run.creator.verified_at && (
+                                  <> on {new Date(content.run.creator.verified_at).toLocaleString("en-PH")}</>
+                                )}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                        {content.run.finalizer && (
+                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-1">
+                            <p className="font-semibold text-gray-700">Finalized by</p>
+                            <p>
+                              <span className="font-medium">{content.run.finalizer.name || content.run.finalizer.username}</span>
+                              {content.run.finalizer.username && content.run.finalizer.name && (
+                                <span className="text-gray-500 ml-1">(@{content.run.finalizer.username})</span>
+                              )}
+                            </p>
+                            {content.run.finalizer.method && (
+                              <p className="text-gray-500">
+                                Verified via <span className="capitalize font-medium">{content.run.finalizer.method}</span>
+                                {content.run.finalizer.verified_at && (
+                                  <> on {new Date(content.run.finalizer.verified_at).toLocaleString("en-PH")}</>
+                                )}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
