@@ -269,26 +269,30 @@ export const computeAnnualTaxTRAIN = (annualTaxableIncome = 0) => {
 export const computeMonthlyTaxTRAIN = (monthlyTaxableIncome = 0) => {
   const taxable = Math.max(0, Number(monthlyTaxableIncome) || 0);
 
-  // Annualize
-  const annualTaxable = taxable * 12;
-
-  const { annualTax, bracket } = computeAnnualTaxTRAIN(annualTaxable);
-
-  // FIX: always Math.max(0, ...) — monthly tax can never be negative
-  const monthlyTax = Math.max(0, round2(annualTax / 12));
-
-  // Resolve the monthly bracket description for payslip display only
+  // Use BIR's published monthly withholding tax table (RR 11-2018) directly.
+  // This matches official payroll calculators (threshold ₱20,833 instead of
+  // ₱20,833.33 from the annualized 250,000 ÷ 12).
   const monthlyBracket = TRAIN_MONTHLY_BRACKETS.find(
     (b) => taxable > b.min && taxable <= b.max,
   ) || TRAIN_MONTHLY_BRACKETS[0];
+
+  const monthlyTax = Math.max(
+    0,
+    round2(monthlyBracket.baseTax + ((taxable - monthlyBracket.min) * monthlyBracket.rate)),
+  );
+
+  // Annualized figures retained for reporting / payslip display.
+  const annualTaxable = round2(taxable * 12);
+  const { bracket } = computeAnnualTaxTRAIN(annualTaxable);
+  const annualTax = round2(monthlyTax * 12);
 
   return {
     monthlyTax,
     annualTax,
     annualTaxable,
-    // Annual bracket used for computation
+    // Annual bracket retained for reference
     bracket,
-    // Monthly bracket used for payslip display label only
+    // Monthly bracket used for the actual computation
     monthlyBracketDescription: monthlyBracket.description,
   };
 };

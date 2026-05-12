@@ -347,9 +347,7 @@ const computeEmployeePayroll = ({
 
     const dailyWorkedHours = computeWorkedHours(attendance);
     const regularHoursForDay = Math.min(8, dailyWorkedHours);
-    const overtimeHoursByClock = Math.max(0, dailyWorkedHours - 8);
-    const overtimeHoursByField = Number(attendance?.overtime_hours) || 0;
-    const overtimeHours = round2(Math.max(overtimeHoursByClock, overtimeHoursByField));
+    const overtimeHours = Number(attendance?.overtime_hours) || 0;
 
     const shiftLateMinutes = (() => {
       if (!isScheduledDay || !attendance?.time_in || !employee?.scheduled_start_time) return 0;
@@ -440,11 +438,13 @@ const computeEmployeePayroll = ({
   }
 
   const expectedScheduledHours = scheduledWorkDays * 8;
-  
+
   // Track leaves and absences separately for clarity
   const unpaidLeaveHours = unpaidLeaveDays * 8;
-  // Absences: Expected hours - Worked hours - (Paid Leave + Unpaid Leave hours) - Special Holiday no work
-  const absenceHours = round2(Math.max(0, expectedScheduledHours - workedHours - (paidLeaveDays * 8) - unpaidLeaveHours - specialHolidayNoWorkHours));
+  // Absences are full days missed (no attendance record, no leave, not a holiday).
+  // Partial-day shortfalls are captured via late/undertime minutes; we should
+  // not double-deduct by also computing absenceHours from expected vs. worked.
+  const absenceHours = round2(absences * 8);
 
   const basePayForPeriod = rates.basePayForPeriod != null
     ? rates.basePayForPeriod
