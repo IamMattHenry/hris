@@ -2,10 +2,6 @@ import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
 import axios from 'axios';
 
-/**
- * Start fingerprint enrollment mode
- * This endpoint signals the Arduino to enter enrollment mode
- */
 export const startEnrollment = async (req, res, next) => {
   try {
     const { employee_id, fingerprint_id } = req.body;
@@ -94,12 +90,32 @@ export const startEnrollment = async (req, res, next) => {
 
 export const deleteFingerprintById = async (req, res, next) => {
   try {
-    const { fingerprint_id } = req.body;
+    const { employee_id, fingerprint_id } = req.body;
 
-    if (!fingerprint_id || Number.isNaN(Number(fingerprint_id))) {
+    if (!employee_id || !fingerprint_id || Number.isNaN(Number(fingerprint_id))) {
       return res.status(400).json({
         success: false,
-        message: 'Valid fingerprint ID is required',
+        message: 'Valid employee ID and fingerprint ID are required',
+      });
+    }
+
+    // Check if employee exists and has this fingerprint assigned
+    const employee = await db.getOne(
+      'SELECT employee_id, first_name, last_name, fingerprint_id FROM employees WHERE employee_id = ?',
+      [employee_id]
+    );
+
+    if (!employee) {
+      return res.status(404).json({
+        success: false,
+        message: 'Employee not found',
+      });
+    }
+
+    if (employee.fingerprint_id !== fingerprint_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Fingerprint ID does not match employee record',
       });
     }
 
@@ -117,9 +133,37 @@ export const deleteFingerprintById = async (req, res, next) => {
       });
     }
 
+    // Clear the fingerprint_id from the employee record
+    const updatedBy = req.user?.user_id || employee_id;
+    await db.update(
+      'employees',
+      { fingerprint_id: null, updated_by: updatedBy },
+      'employee_id = ?',
+      [employee_id]
+    );
+
+    logger.info(`Fingerprint deleted for employee ${employee_id} (Fingerprint ID: ${fingerprint_id})`);
+
+    // Create activity log
+    try {
+      await db.insert('activity_logs', {
+        user_id: updatedBy,
+        action: 'DELETE',
+        module: 'fingerprints',
+        description: `Fingerprint deleted for employee ${employee.first_name} ${employee.last_name} (ID: ${employee_id}, Fingerprint ID: ${fingerprint_id})`,
+        created_by: updatedBy,
+      });
+    } catch (logError) {
+      logger.error('Failed to create activity log:', logError);
+    }
+
     res.json({
       success: true,
-      message: `Delete command sent for fingerprint ID ${fingerprint_id}`,
+      message: `Fingerprint successfully deleted for ${employee.first_name} ${employee.last_name}`,
+      data: {
+        employee_id,
+        fingerprint_id,
+      },
     });
   } catch (error) {
     logger.error('Delete fingerprint error:', error);
@@ -222,12 +266,22 @@ export const confirmEnrollment = async (req, res, next) => {
  */
 export const getNextFingerprintId = async (req, res, next) => {
   try {
-    // Get the last registered fingerprint_id (most recently updated employee with fingerprint)
-    const result = await db.getOne(
-      'SELECT fingerprint_id FROM employees WHERE fingerprint_id IS NOT NULL ORDER BY updated_at DESC LIMIT 1'
+    const rows = await db.getAll(
+      'SELECT fingerprint_id FROM employees WHERE fingerprint_id IS NOT NULL ORDER BY fingerprint_id ASC'
     );
 
-    const nextId = (result?.fingerprint_id || 0) + 1;
+    const usedIds = rows
+      .map((row) => Number(row.fingerprint_id))
+      .filter((id) => Number.isInteger(id) && id > 0);
+
+    let nextId = 1;
+    for (const id of usedIds) {
+      if (id === nextId) {
+        nextId += 1;
+        continue;
+      }
+      if (id > nextId) break;
+    }
 
     res.json({
       success: true,

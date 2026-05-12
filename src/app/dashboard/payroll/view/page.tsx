@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Eye, Lock, Pencil, Trash2, X } from "lucide-react";
+import { Eye, Lock, Mail, Pencil, Trash2, X } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
 import { payrollApi } from "@/lib/api";
 import { showToast } from "@/utils/toast";
-import PayrollPayslipModal from "./payslip/page"; // ← adjust path as needed
+import PayrollPayslipModal from "./payslip/page";
+import Payroll2FAModal, { type TwoFAMethod } from "@/components/payroll/Payroll2FAModal";
 
 interface PayrollRecord {
   employee_id: number;
@@ -66,10 +67,14 @@ export default function PayrollRunDetailModal(props: any) {
 
   const [finalizing, setFinalizing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [sendingEmails, setSendingEmails] = useState(false);
   const [showFinalizeModal, setShowFinalizeModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showOverrideModal, setShowOverrideModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<PayrollRecord | null>(null);
+
+  // 2FA for finalize
+  const [show2FAFinalize, setShow2FAFinalize] = useState(false);
 
   const [overrideGross, setOverrideGross] = useState("");
   const [overrideDeductions, setOverrideDeductions] = useState("");
@@ -109,7 +114,9 @@ export default function PayrollRunDetailModal(props: any) {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || !isOpen) return;
 
-      if (showOverrideModal) {
+      if (show2FAFinalize) {
+        setShow2FAFinalize(false);
+      } else if (showOverrideModal) {
         setShowOverrideModal(false);
       } else if (showFinalizeModal) {
         setShowFinalizeModal(false);
@@ -124,7 +131,7 @@ export default function PayrollRunDetailModal(props: any) {
 
     window.addEventListener("keydown", handleEsc);
     return () => window.removeEventListener("keydown", handleEsc);
-  }, [isOpen, onClose, showOverrideModal, showFinalizeModal, showDeleteModal, selectedPayslip]);
+  }, [isOpen, onClose, show2FAFinalize, showOverrideModal, showFinalizeModal, showDeleteModal, selectedPayslip]);
 
   const filteredRecords = useMemo(() => {
     if (!run) return [];
@@ -153,20 +160,40 @@ export default function PayrollRunDetailModal(props: any) {
     });
   };
 
-  const handleFinalize = async () => {
+  /** Opens 2FA modal first; actual finalize happens after verification */
+  const handleFinalizeClick = () => {
+    setShow2FAFinalize(true);
+  };
+
+  const handleFinalize = async (twoFASessionId: number, _method: TwoFAMethod) => {
     if (!run) return;
     try {
       setFinalizing(true);
-      const res = await payrollApi.finalizeRun(run.id);
+      const res = await payrollApi.finalizeRun(run.id, { twofa_session_id: twoFASessionId });
       if (!res.success) throw new Error(res.message || "Failed to finalize");
       showToast.success("Payroll run finalized");
       setShowFinalizeModal(false);
+      setShow2FAFinalize(false);
       await fetchRun();
       onUpdated?.();
     } catch (err: any) {
       showToast.error(err.message || "Failed to finalize payroll run");
     } finally {
       setFinalizing(false);
+    }
+  };
+
+  const handleSendPayslipEmails = async () => {
+    if (!run) return;
+    try {
+      setSendingEmails(true);
+      const res = await payrollApi.sendPayslipEmails(run.id);
+      if (!res.success) throw new Error(res.message || "Failed to send payslip emails");
+      showToast.success(res.message || "Payslip emails dispatched");
+    } catch (err: any) {
+      showToast.error(err.message || "Failed to send payslip emails");
+    } finally {
+      setSendingEmails(false);
     }
   };
 
@@ -379,15 +406,25 @@ export default function PayrollRunDetailModal(props: any) {
                     <>
                       <ActionButton
                         label={finalizing ? "Finalizing..." : "Finalize Run"}
-                        onClick={() => setShowFinalizeModal(true)}
+                        onClick={handleFinalizeClick}
                         icon={Lock}
                         disabled={finalizing || deleting}
                       />
                     </>
                   ) : run.status === "finalized" ? (
-                    <span className="px-5 py-2 rounded-lg bg-green-100 text-green-800 border border-green-300 font-semibold">
-                      FINALIZED
-                    </span>
+                    <>
+                      <button
+                        onClick={handleSendPayslipEmails}
+                        disabled={sendingEmails}
+                        className="px-5 py-2 rounded-lg bg-[#3D1A0B] text-white hover:opacity-90 disabled:opacity-60 transition inline-flex items-center gap-2"
+                      >
+                        <Mail size={16} />
+                        {sendingEmails ? "Sending..." : "Send Payslip Emails"}
+                      </button>
+                      <span className="px-5 py-2 rounded-lg bg-green-100 text-green-800 border border-green-300 font-semibold">
+                        FINALIZED
+                      </span>
+                    </>
                   ) : run.status === "aborted" ? (
                     <span className="px-5 py-2 rounded-lg bg-gray-100 text-gray-700 border border-gray-300 font-semibold">
                       ABORTED
@@ -429,7 +466,10 @@ export default function PayrollRunDetailModal(props: any) {
             confirmText="Confirm Finalize"
             confirmColor="bg-[#3D1A0B]"
             isLoading={finalizing}
-            onConfirm={handleFinalize}
+            onConfirm={() => {
+              setShowFinalizeModal(false);
+              setShow2FAFinalize(true);
+            }}
             onCancel={() => setShowFinalizeModal(false)}
           />
         )}
@@ -462,6 +502,18 @@ export default function PayrollRunDetailModal(props: any) {
           />
         )}
       </AnimatePresence>
+
+      {/* 2FA Modal for finalization — rendered outside AnimatePresence to avoid z-index clash */}
+      <Payroll2FAModal
+        isOpen={show2FAFinalize}
+        onClose={() => setShow2FAFinalize(false)}
+        actionType="payroll_finalize"
+        actionReferenceId={run?.id ?? null}
+        onVerified={(sessionId, method) => {
+          setShow2FAFinalize(false);
+          handleFinalize(sessionId, method);
+        }}
+      />
     </>
   );
 }

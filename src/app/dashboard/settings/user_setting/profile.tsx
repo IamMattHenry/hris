@@ -1,6 +1,6 @@
 "use client";
 
-import React, { use, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import ActionButton from "@/components/buttons/ActionButton";
 import FormInput from "@/components/forms/FormInput";
 import FormSelect from "@/components/forms/FormSelect";
@@ -191,34 +191,46 @@ const ProfileSection = () => {
     if (!hasEmail && !hasContact)
       newErrors.emailContact = "At least one email or contact number is required.";
 
+    const invalidEmail = emails.some((email) => {
+      const value = email.trim();
+      if (!value) return false;
+      return !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+    });
+
+    if (invalidEmail) {
+      newErrors.emailContact = "Please enter a valid email address.";
+    }
+
+    const invalidContact = contacts.some((contact) => {
+      const value = contact.trim();
+      if (!value) return false;
+      return !isValidPHNumber(value);
+    });
+
+    if (invalidContact) {
+      newErrors.emailContact = "Please enter a valid PH mobile number (09XXXXXXXXX).";
+    }
+
     return newErrors;
   };
 
 
-  const isValidPHNumber = (value: string) => {
-    return /^09\d{2} \d{3} \d{4}$/.test(value);
+  const normalizePHNumber = (value: string) => {
+    let digits = value.replace(/\D/g, "");
+
+    if (digits.startsWith("63")) {
+      digits = "0" + digits.slice(2);
+    } else if (digits.startsWith("9")) {
+      digits = "0" + digits;
+    }
+
+    return digits.slice(0, 11);
   };
 
 
-
-  const hasInvalidContact = contacts.some(
-    (c) => c && !isValidPHNumber(c)
-  );
-
-
-  useEffect(() => {
-    if (hasInvalidContact) {
-      setErrors((prev) => ({
-        ...prev,
-        emailContact: "Please enter a valid PH mobile number",
-      }));
-    } else {
-      setErrors((prev) => ({
-        ...prev,
-        emailContact: "",
-      }));
-    }
-  }, [contacts]);
+  const isValidPHNumber = (value: string) => {
+    return /^09\d{9}$/.test(normalizePHNumber(value));
+  };
 
 
 
@@ -255,11 +267,16 @@ const ProfileSection = () => {
         city: city,
         barangay: barangay,
         emails: emails.filter((e) => e.trim() !== ""),
-        contact_numbers: contacts.filter((c) => c.trim() !== ""),
+        contact_numbers: contacts
+          .filter((c) => c.trim() !== "")
+          .map((c) => normalizePHNumber(c)),
       };
+
+     // console.log("Saving profile:", profileData);
 
       // Use 'me' endpoint to update current user's profile
       const result = await employeeApi.update('me' as any, profileData);
+      //console.log(result);
 
       if (result.success) {
         alert("Profile updated successfully!");

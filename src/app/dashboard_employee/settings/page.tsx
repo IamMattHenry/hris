@@ -38,18 +38,9 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-orange-50 p-8 font-poppins">
       <div className="max-w-7xl mx-auto">
-        {/* Single Tab Header */}
-        <div className="mb-8 shadow-lg bg-[#073532]">
-          <div className="flex border-b border-[#7a2a2f]/30">
-            <div className="flex-1 px-6 py-4 text-center font-semibold text-[#FFF2E0] relative">
-              Authentication
-              <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#FFF2E0] rounded-t-md"></div>
-            </div>
-          </div>
-        </div>
-
+    
         {/* Content */}
-        <div className="bg-[#fff7ec] rounded-lg shadow-lg border border-gray-300 p-8 max-h-[100vh]">
+        <div className="p-8 max-h-[100vh]">
           <AuthenticationTab />
         </div>
       </div>

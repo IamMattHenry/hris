@@ -10,6 +10,10 @@ import emailService from "../utils/emailService.js";
 import { hasPermission } from "../middleware/rbac.js";
 import { invalidatePermissionCache } from "../middleware/rbac.js";
 import {
+  getEmployeeAddressColumns,
+  getDependantAddressColumns,
+} from "../utils/addressColumns.js";
+import {
   BUDGET_NAMES,
   BudgetValidationError,
   ensureAmountWithinBudget,
@@ -410,6 +414,9 @@ export const getEmployeeById = async (req, res, next) => {
       }
     }
 
+    const addressColumns = await getEmployeeAddressColumns();
+    const dependantAddressColumns = await getDependantAddressColumns();
+
     const employee = await db.getOne(
       `
   SELECT
@@ -420,7 +427,7 @@ export const getEmployeeById = async (req, res, next) => {
     u.username,
     u.role,
     ea.home_address,
-    ea.barangay_name AS barangay,
+    ea.${addressColumns.barangay} AS barangay,
     ea.city_name AS city,
     ea.region_name AS region,
     ea.province_name AS province
@@ -465,6 +472,7 @@ export const getEmployeeById = async (req, res, next) => {
         de.email,
         dc.contact_no,
         da.home_address,
+        da.${dependantAddressColumns.barangay} AS barangay,
         da.region_name,
         da.province_name,
         da.city_name
@@ -651,6 +659,9 @@ export const createEmployee = async (req, res, next) => {
     // Start transaction early so validation queries can use it
     await db.beginTransaction();
 
+    let createdUserId = null;
+    let transactionCommitted = false;
+
     try {
       // Validate/normalize work type and schedule inputs
       const allowedWorkTypes = ['full-time', 'part-time'];
@@ -779,21 +790,6 @@ export const createEmployee = async (req, res, next) => {
         }
       }
 
-      // Hash password
-      const hashedPassword = await bcryptjs.hash(password, 10);
-
-      // Create user account
-      const userId = await db.transactionInsert("users", {
-        username,
-        password: hashedPassword,
-        role: userRole,
-        created_by,
-      });
-
-      logger.info(
-        `User account created: ${username} (ID: ${userId}, Role: ${userRole})`
-      );
-
       // Normalize and validate employment type
       const normalizedEmploymentType = (typeof employment_type === 'string' && employment_type.trim()) ? employment_type.trim().toLowerCase() : null;
       const allowedTypes = ['regular', 'probationary'];
@@ -882,9 +878,23 @@ export const createEmployee = async (req, res, next) => {
         }
       }
 
+      // Hash password and create user only after all pre-insert validations pass
+      const hashedPassword = await bcryptjs.hash(password, 10);
+
+      createdUserId = await db.transactionInsert("users", {
+        username,
+        password: hashedPassword,
+        role: userRole,
+        created_by,
+      });
+
+      logger.info(
+        `User account created: ${username} (ID: ${createdUserId}, Role: ${userRole})`
+      );
+
       // Insert employee without code first
       const tempEmployeeId = await db.transactionInsert("employees", {
-        user_id: userId,
+        user_id: createdUserId,
         first_name,
         last_name,
         middle_name,
@@ -951,10 +961,11 @@ export const createEmployee = async (req, res, next) => {
 
       // Insert address record if provided
       if (home_address || barangay || city || region || province) {
+        const addressColumns = await getEmployeeAddressColumns();
         await db.transactionInsert("employee_addresses", {
           employee_id: employeeId,
           home_address: home_address || null,
-          barangay_name: barangay || null,
+          [addressColumns.barangay]: barangay || null,
           city_name: city || null,
           region_name: region || null,
           province_name: province || null,
@@ -965,6 +976,7 @@ export const createEmployee = async (req, res, next) => {
 
       // Handle dependents if provided
       if (dependents && Array.isArray(dependents) && dependents.length > 0) {
+        const dependantAddressColumns = await getDependantAddressColumns();
         for (const dependent of dependents) {
           // Insert dependent without code first
           const tempDependentId = await db.transactionInsert("dependants", {
@@ -1009,10 +1021,11 @@ export const createEmployee = async (req, res, next) => {
           }
 
           // Insert dependent address if provided
-          if (dependent.homeAddress || dependent.region || dependent.province || dependent.city) {
+          if (dependent.homeAddress || dependent.barangay || dependent.region || dependent.province || dependent.city) {
             await db.transactionInsert("dependant_address", {
               dependant_id: tempDependentId,
               home_address: dependent.homeAddress || null,
+              [dependantAddressColumns.barangay]: dependent.barangay || null,
               region_name: dependent.region || null,
               province_name: dependent.province || null,
               city_name: dependent.city || null,
@@ -1046,6 +1059,7 @@ export const createEmployee = async (req, res, next) => {
 
       // Commit transaction
       await db.commit();
+      transactionCommitted = true;
 
       // Insert initial salary_history row for this new employee (best-effort, non-fatal)
       try {
@@ -1069,11 +1083,11 @@ export const createEmployee = async (req, res, next) => {
       );
 
       // Auto-assign RBAC role based on department + position (non-blocking)
-      await syncHrRbacRoleForUser(userId, department_id, position_id, created_by);
+      await syncHrRbacRoleForUser(createdUserId, department_id, position_id, created_by);
 
       // Create activity log entry (outside transaction)
       try {
-        const activityUserId = created_by || userId; // Use created_by if provided, otherwise use the new user's ID
+        const activityUserId = created_by || createdUserId; // Use created_by if provided, otherwise use the new user's ID
         await db.insert("activity_logs", {
           user_id: activityUserId,
           action: "CREATE",
@@ -1110,7 +1124,7 @@ export const createEmployee = async (req, res, next) => {
       const responseData = {
         employee_id: employeeId,
         employee_code: employeeCode,
-        user_id: userId,
+        user_id: createdUserId,
         username,
         role: userRole,
       };
@@ -1129,6 +1143,17 @@ export const createEmployee = async (req, res, next) => {
     } catch (error) {
       // Rollback transaction on error
       await db.rollback();
+
+      // Defensive cleanup: if user was created but transaction didn't commit, ensure no orphan user remains
+      if (!transactionCommitted && createdUserId) {
+        try {
+          await db.deleteRecord("users", "user_id = ?", [createdUserId]);
+          logger.info(`Cleaned up uncommitted user account ID: ${createdUserId}`);
+        } catch (cleanupError) {
+          logger.error(`Failed to cleanup uncommitted user account ID ${createdUserId}:`, cleanupError);
+        }
+      }
+
       logger.error("Create employee error:", error);
       throw error;
     }
@@ -1474,6 +1499,29 @@ export const updateEmployee = async (req, res, next) => {
           "employee_id = ?",
           [id]
         );
+
+        // Ensure current_salary updates are synced to the primary position
+        if (
+          Object.prototype.hasOwnProperty.call(updatesWithAudit, 'current_salary') ||
+          Object.prototype.hasOwnProperty.call(updatesWithAudit, 'salary_unit')
+        ) {
+          const syncUpdates = {};
+          if (Object.prototype.hasOwnProperty.call(updatesWithAudit, 'current_salary')) {
+            syncUpdates.salary = updatesWithAudit.current_salary;
+          }
+          if (Object.prototype.hasOwnProperty.call(updatesWithAudit, 'salary_unit')) {
+            syncUpdates.salary_unit = updatesWithAudit.salary_unit;
+          }
+
+          if (Object.keys(syncUpdates).length > 0) {
+            const setClauses = Object.keys(syncUpdates).map(k => `${k} = ?`).join(', ');
+            const setValues = Object.values(syncUpdates);
+            await db.transactionQuery(
+              `UPDATE employee_positions SET ${setClauses} WHERE employee_id = ? AND is_primary = 1`,
+              [...setValues, id]
+            );
+          }
+        }
       }
 
       // Handle address updates
@@ -1482,12 +1530,13 @@ export const updateEmployee = async (req, res, next) => {
       );
 
       if (addressFieldsProvided) {
+        const addressColumns = await getEmployeeAddressColumns();
         const addressData = {};
         if (home_address !== undefined) {
           addressData.home_address = home_address ? home_address : null;
         }
         if (barangay !== undefined) {
-          addressData.barangay_name = barangay ? barangay : null;
+          addressData[addressColumns.barangay] = barangay ? barangay : null;
         }
         if (city !== undefined) {
           addressData.city_name = city ? city : null;
@@ -1577,6 +1626,7 @@ export const updateEmployee = async (req, res, next) => {
 
       // Handle dependents if provided
       if (dependents && Array.isArray(dependents)) {
+        const dependantAddressColumns = await getDependantAddressColumns();
         // Delete all existing dependents and their related data (cascade will handle related tables)
         await db.transactionQuery(
           "DELETE FROM dependants WHERE employee_id = ?",
@@ -1625,10 +1675,11 @@ export const updateEmployee = async (req, res, next) => {
           }
 
           // Insert dependent address if provided
-          if (dependent.homeAddress || dependent.region || dependent.province || dependent.city) {
+          if (dependent.homeAddress || dependent.barangay || dependent.region || dependent.province || dependent.city) {
             await db.transactionInsert("dependant_address", {
               dependant_id: tempDependentId,
               home_address: dependent.homeAddress || null,
+              [dependantAddressColumns.barangay]: dependent.barangay || null,
               region_name: dependent.region || null,
               province_name: dependent.province || null,
               city_name: dependent.city || null,

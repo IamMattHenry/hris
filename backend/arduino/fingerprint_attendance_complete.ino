@@ -1,13 +1,6 @@
 /*
  * Complete Fingerprint Attendance System for HRIS
  * Hardware: DY50 Fingerprint Sensor + Arduino Uno
- * Library: Adafruit Fingerprint Sensor Library
- * 
- * Wiring:
- * DY50 VCC → Arduino 5V
- * DY50 GND → Arduino GND
- * DY50 TX  → Arduino Pin 2 (RX via SoftwareSerial)
- * DY50 RX  → Arduino Pin 3 (TX via SoftwareSerial)
  */
 
 #include <Adafruit_Fingerprint.h>
@@ -20,353 +13,208 @@ SoftwareSerial mySerial(2, 3);
 
 Adafruit_Fingerprint finger = Adafruit_Fingerprint(&mySerial);
 
-// Mode control
 enum Mode { ATTENDANCE, ENROLLMENT };
 Mode currentMode = ATTENDANCE;
 int enrollmentId = 0;
 
-// LED and Buzzer pins (optional)
-const int LED_SUCCESS = 13;
-const int LED_ERROR = 12;
+const int LED_SUCCESS = 13; // Green
+const int LED_ERROR = 12;   // Red
+const int LED_WAITING = 10; // Yellow
 const int BUZZER = 11;
 
 void setup() {
-  // USB Serial for Node.js bridge communication
-  Serial.begin(9600);
+  Serial.begin(115200);
+  while (!Serial);  
   
-  // Setup optional feedback pins
   pinMode(LED_SUCCESS, OUTPUT);
   pinMode(LED_ERROR, OUTPUT);
+  pinMode(LED_WAITING, OUTPUT);
   pinMode(BUZZER, OUTPUT);
   
+  // Start with everything OFF
   digitalWrite(LED_SUCCESS, LOW);
   digitalWrite(LED_ERROR, LOW);
+  digitalWrite(LED_WAITING, LOW);
   digitalWrite(BUZZER, LOW);
+
+  // --- NEW: Hardware Self-Test ---
+  testHardware();
   
-  delay(1000);
-  Serial.println("SYSTEM:INITIALIZING");
+  Serial.println(F("\n--- SYSTEM INITIALIZING ---")); 
   
-  // Try to find sensor at different baud rates
   mySerial.begin(57600);
-  delay(100);
-  
   if (finger.verifyPassword()) {
-    Serial.println("SYSTEM:READY");
-    Serial.println("✓ Sensor found at 57600 baud");
+    printSensorInfo(57600);
   } else {
-    Serial.println("Trying 9600 baud...");
-    mySerial.begin(9600);
-    delay(100);
+    Serial.println(F("Sensor not found at 57600. Trying 115200..."));
+    mySerial.begin(115200);
     
     if (finger.verifyPassword()) {
-      Serial.println("SYSTEM:READY");
-      Serial.println("✓ Sensor found at 9600 baud");
+      printSensorInfo(115200);
     } else {
-      Serial.println("SYSTEM:ERROR");
-      Serial.println("✗ Sensor not found!");
-      while (1) {
-        blinkLED(LED_ERROR, 1);
-        delay(1000);
-      }
+      Serial.println(F("SYSTEM:ERROR"));
+      Serial.println(F("SENSOR:NOT_FOUND"));
+      while (1) { blinkLED(LED_ERROR, 1); delay(1000); }
     }
   }
-  
-  Serial.println("Fingerprint Attendance System Ready");
-  Serial.println("Waiting for commands or fingerprint scan...");
+
+  Serial.println(F("SYSTEM:READY"));
+  Serial.println(F("---------------------------"));
 }
 
+// ========== HARDWARE TEST FUNCTION ==========
+
+void testHardware() {
+  Serial.println(F("SYSTEM:TESTING_PERIPHERALS..."));
+  
+  // 1. Success LED (Green)
+  digitalWrite(LED_SUCCESS, HIGH);
+  delay(750);
+  digitalWrite(LED_SUCCESS, LOW);
+  
+  // 2. Waiting LED (Yellow)
+  digitalWrite(LED_WAITING, HIGH);
+  delay(750);
+  digitalWrite(LED_WAITING, LOW);
+  
+  // 3. Error LED (Red)
+  digitalWrite(LED_ERROR, HIGH);
+  delay(750);
+  digitalWrite(LED_ERROR, LOW);
+  
+  // 4. Buzzer (Short beep)
+  digitalWrite(BUZZER, HIGH);
+  delay(500);
+  digitalWrite(BUZZER, LOW);
+  
+  Serial.println(F("SYSTEM:TEST_COMPLETE"));
+}
+
+// ========== SENSOR INFO HELPERS ==========
+
+void printSensorInfo(long baud) {
+  Serial.println(F("SENSOR:FOUND"));
+  Serial.print(F("Baud Rate: ")); Serial.println(baud);
+  finger.getParameters();
+  Serial.print(F("Sensor Capacity: ")); Serial.println(finger.capacity);
+  Serial.print(F("Security Level: ")); Serial.println(finger.security_level);
+}
+
+// ========== MAIN LOOP & LOGIC ==========
+
 void loop() {
-  // Check for commands from Node.js bridge
   if (Serial.available()) {
     String command = Serial.readStringUntil('\n');
     handleCommand(command);
   }
   
-  // Process based on current mode
   if (currentMode == ATTENDANCE) {
     checkFingerprint();
-  } else if (currentMode == ENROLLMENT) {
-    // Enrollment is handled by command
   }
-  
   delay(50);
 }
 
-// ========== ATTENDANCE MODE ==========
-
 void checkFingerprint() {
   uint8_t p = finger.getImage();
-  
-  if (p == FINGERPRINT_NOFINGER) {
-    return; // No finger detected
-  }
-  
-  if (p != FINGERPRINT_OK) {
-    return; // Error getting image
-  }
-  
-  // Convert image to template
+  if (p == FINGERPRINT_NOFINGER) return;
+  if (p != FINGERPRINT_OK) return;
+
+  digitalWrite(LED_WAITING, HIGH);
   p = finger.image2Tz();
-  if (p != FINGERPRINT_OK) {
-    return;
-  }
-  
-  // Search for match
+  if (p != FINGERPRINT_OK) { digitalWrite(LED_WAITING, LOW); return; }
+
   p = finger.fingerFastSearch();
-  
+  digitalWrite(LED_WAITING, LOW);
+
   if (p == FINGERPRINT_OK) {
-    // Match found!
-    int fingerprintId = finger.fingerID;
-    int confidence = finger.confidence;
-    
     Serial.print("FINGERPRINT:");
-    Serial.println(fingerprintId);
-    
-    Serial.print("Matched ID #");
-    Serial.print(fingerprintId);
-    Serial.print(" with confidence ");
-    Serial.println(confidence);
-    
+    Serial.println(finger.fingerID);
     blinkLED(LED_SUCCESS, 2);
     beep(1, 100);
-    
-    delay(2000); // Prevent duplicate scans
-    
-  } else if (p == FINGERPRINT_NOTFOUND) {
+    delay(2000); 
+  } else {
     Serial.println("ERROR:No match found");
     blinkLED(LED_ERROR, 2);
     beep(1, 300);
-    delay(1000);
   }
 }
 
-// ========== ENROLLMENT MODE ==========
-
 void handleCommand(String command) {
   command.trim();
-  
   if (command.startsWith("ENROLL:")) {
-    // Format: ENROLL:5
     enrollmentId = command.substring(7).toInt();
-    
     if (enrollmentId > 0 && enrollmentId <= 127) {
-      // Check if this ID already exists in the sensor
-      uint8_t p = finger.loadModel(enrollmentId);
-      if (p == FINGERPRINT_OK) {
-        // Fingerprint already exists in sensor
-        Serial.print("ENROLL:ERROR:ID ");
-        Serial.print(enrollmentId);
-        Serial.println(" already exists in sensor");
-        Serial.println("ERROR:Fingerprint ID already registered in sensor");
-        blinkLED(LED_ERROR, 3);
-        beep(3, 200);
-        return;
-      }
-      
       currentMode = ENROLLMENT;
-      Serial.print("ENROLL:STARTED:");
-      Serial.println(enrollmentId);
-      Serial.print("Ready to enroll ID #");
-      Serial.println(enrollmentId);
-      
       enrollFingerprint();
-    } else {
-      Serial.println("ENROLL:ERROR:Invalid ID");
     }
-    
-  } else if (command == "ENROLL:CANCEL") {
-    currentMode = ATTENDANCE;
-    Serial.println("ENROLL:CANCELLED");
-    
-  } else if (command.startsWith("OK:CLOCK_IN:")) {
-    String name = command.substring(12);
-    Serial.print("✓ Clock in: ");
-    Serial.println(name);
-    blinkLED(LED_SUCCESS, 2);
-    beep(1, 100);
-    
-  } else if (command.startsWith("OK:CLOCK_OUT:")) {
-    String name = command.substring(13);
-    Serial.print("✓ Clock out: ");
-    Serial.println(name);
-    blinkLED(LED_SUCCESS, 3);
-    beep(2, 100);
-    
   } else if (command.startsWith("DELETE:")) {
-    int deleteId = command.substring(7).toInt();
-
-    if (deleteId > 0 && deleteId <= 127) {
-      uint8_t result = deleteFingerprint(deleteId);
-
-      if (result == FINGERPRINT_OK) {
-        Serial.print("DELETE:SUCCESS:");
-        Serial.println(deleteId);
-        blinkLED(LED_SUCCESS, 2);
-        beep(1, 150);
-      } else {
-        Serial.print("DELETE:ERROR:");
-        Serial.print(deleteId);
-        Serial.print(":");
-        Serial.println(result, HEX);
-        blinkLED(LED_ERROR, 2);
-        beep(2, 150);
-      }
-    } else {
-      Serial.println("DELETE:ERROR:INVALID_ID");
-      blinkLED(LED_ERROR, 3);
-    }
-
+    deleteFingerprint(command.substring(7).toInt());
+  } else if (command.startsWith("OK:")) {
+    digitalWrite(LED_WAITING, LOW);
+    blinkLED(LED_SUCCESS, 2);
   } else if (command.startsWith("ERROR:")) {
-    String error = command.substring(6);
-    Serial.print("✗ Error: ");
-    Serial.println(error);
+    digitalWrite(LED_WAITING, LOW);
     blinkLED(LED_ERROR, 3);
-    beep(1, 500);
   }
 }
 
 void enrollFingerprint() {
-  Serial.println("Place finger on sensor...");
-  
-  // Step 1: Get first image
+  Serial.println("Place finger...");
   int p = -1;
   while (p != FINGERPRINT_OK) {
+    digitalWrite(LED_WAITING, HIGH); delay(100); digitalWrite(LED_WAITING, LOW); delay(100);
     p = finger.getImage();
-    if (p == FINGERPRINT_NOFINGER) {
-      // Still waiting
-    } else if (p == FINGERPRINT_OK) {
-      Serial.println("Image captured!");
-    } else {
-      Serial.println("ENROLL:ERROR:Image capture failed");
-      currentMode = ATTENDANCE;
-      return;
-    }
   }
-  
-  // Convert image 1
+  digitalWrite(LED_WAITING, HIGH);
   p = finger.image2Tz(1);
-  if (p != FINGERPRINT_OK) {
-    Serial.println("ENROLL:ERROR:Image conversion failed");
-    currentMode = ATTENDANCE;
-    return;
-  }
   
   Serial.println("Remove finger...");
-  blinkLED(LED_SUCCESS, 1);
   delay(2000);
-  
-  // Wait for finger removal
   p = 0;
-  while (p != FINGERPRINT_NOFINGER) {
-    p = finger.getImage();
-  }
+  while (p != FINGERPRINT_NOFINGER) { p = finger.getImage(); }
   
-  Serial.println("Place SAME finger again...");
-  
-  // Step 2: Get second image
+  Serial.println("Place SAME finger...");
   p = -1;
   while (p != FINGERPRINT_OK) {
+    digitalWrite(LED_WAITING, HIGH); delay(100); digitalWrite(LED_WAITING, LOW); delay(100);
     p = finger.getImage();
-    if (p == FINGERPRINT_NOFINGER) {
-      // Still waiting
-    } else if (p == FINGERPRINT_OK) {
-      Serial.println("Image captured!");
-    } else {
-      Serial.println("ENROLL:ERROR:Second image failed");
-      currentMode = ATTENDANCE;
-      return;
+  }
+  
+  digitalWrite(LED_WAITING, HIGH);
+  finger.image2Tz(2);
+  if (finger.createModel() == FINGERPRINT_OK) {
+    if (finger.storeModel(enrollmentId) == FINGERPRINT_OK) {
+      Serial.print("ENROLL:SUCCESS:");
+      Serial.println(enrollmentId);
+      blinkLED(LED_SUCCESS, 5);
     }
-  }
-  
-  // Convert image 2
-  p = finger.image2Tz(2);
-  if (p != FINGERPRINT_OK) {
-    Serial.println("ENROLL:ERROR:Second conversion failed");
-    currentMode = ATTENDANCE;
-    return;
-  }
-  
-  // Create model
-  Serial.println("Creating model...");
-  p = finger.createModel();
-  
-  if (p == FINGERPRINT_OK) {
-    Serial.println("Prints matched!");
-  } else if (p == FINGERPRINT_ENROLLMISMATCH) {
-    Serial.println("ENROLL:ERROR:Fingerprints did not match");
-    currentMode = ATTENDANCE;
-    return;
   } else {
-    Serial.println("ENROLL:ERROR:Model creation failed");
-    currentMode = ATTENDANCE;
-    return;
+    Serial.println("ENROLL:ERROR:MISMATCH");
+    blinkLED(LED_ERROR, 3);
   }
-  
-  // Store model
-  Serial.print("Storing model at ID #");
-  Serial.println(enrollmentId);
-  
-  p = finger.storeModel(enrollmentId);
-  
-  if (p == FINGERPRINT_OK) {
-    Serial.print("ENROLL:SUCCESS:");
-    Serial.println(enrollmentId);
-    Serial.println("✓ Enrollment successful!");
-    
-    blinkLED(LED_SUCCESS, 5);
-    beep(3, 100);
-    
-  } else {
-    Serial.println("ENROLL:ERROR:Storage failed");
-  }
-  
-  // Return to attendance mode
+  digitalWrite(LED_WAITING, LOW);
   currentMode = ATTENDANCE;
-  Serial.println("Returned to attendance mode");
 }
-
-// ========== HELPER FUNCTIONS ==========
 
 void blinkLED(int pin, int times) {
   for (int i = 0; i < times; i++) {
-    digitalWrite(pin, HIGH);
-    delay(200);
-    digitalWrite(pin, LOW);
-    delay(200);
+    digitalWrite(pin, HIGH); delay(200); digitalWrite(pin, LOW); delay(200);
   }
 }
 
 void beep(int times, int duration) {
   for (int i = 0; i < times; i++) {
-    digitalWrite(BUZZER, HIGH);
-    delay(duration);
-    digitalWrite(BUZZER, LOW);
-    delay(100);
+    digitalWrite(BUZZER, HIGH); delay(duration); digitalWrite(BUZZER, LOW); delay(100);
   }
 }
 
-// ========== DELETE FUNCTION ==========
-
 uint8_t deleteFingerprint(uint8_t id) {
   uint8_t p = finger.deleteModel(id);
-
   if (p == FINGERPRINT_OK) {
-    Serial.println("✓ Fingerprint deleted");
-  } else if (p == FINGERPRINT_PACKETRECIEVEERR) {
-    Serial.println("DELETE:ERROR:COMMUNICATION");
-  } else if (p == FINGERPRINT_BADLOCATION) {
-    Serial.println("DELETE:ERROR:BAD_LOCATION");
-  } else if (p == FINGERPRINT_FLASHERR) {
-    Serial.println("DELETE:ERROR:FLASH");
-  } else if (p == FINGERPRINT_NOTFOUND) {
-    Serial.println("DELETE:ERROR:NOT_FOUND");
+    Serial.print("DELETE:SUCCESS:");
+    Serial.println(id);
   } else {
-    Serial.print("DELETE:ERROR:UNKNOWN:0x");
-    Serial.println(p, HEX);
+    Serial.println("DELETE:ERROR");
   }
-
-  // Ensure we stay in attendance mode after deletion attempts
-  currentMode = ATTENDANCE;
-
   return p;
 }

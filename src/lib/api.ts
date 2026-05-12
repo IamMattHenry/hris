@@ -791,6 +791,21 @@ export const attendanceApi = {
   },
 
   /**
+   * Search employees and get monthly attendance summary
+   * @param search - text to search employee code/name
+   * @param month - YYYY-MM
+   */
+  searchMonthlySummary: async (params?: { search?: string; month?: string; start_date?: string; end_date?: string }) => {
+    const p = new URLSearchParams();
+    if (params?.search) p.append('search', String(params.search));
+    if (params?.month) p.append('month', String(params.month));
+    if (params?.start_date) p.append('start_date', String(params.start_date));
+    if (params?.end_date) p.append('end_date', String(params.end_date));
+    const url = `/attendance/search-summary${p.toString() ? `?${p.toString()}` : ''}`;
+    return apiCall<any>(url, { method: 'GET' });
+  },
+
+  /**
    * Mark absences for a date or range (admin/superadmin)
    * Accepts either a single date or a range payload.
    */
@@ -985,7 +1000,7 @@ export const payrollApi = {
   createRun: async (data: {
     pay_period_start: string;
     pay_period_end: string;
-    pay_schedule?: 'weekly' | 'semi-monthly' | 'monthly';
+    pay_schedule?: 'semi-monthly' | 'monthly';
     employee_ids?: number[];
     department_id?: number;
     employment_type?: string;
@@ -1010,10 +1025,27 @@ export const payrollApi = {
     });
   },
 
-  finalizeRun: async (id: number | string) => {
+  permanentlyDeleteAbortedRun: async (id: number | string) => {
+    return apiCall<any>(`/payroll/runs/${id}/permanent`, {
+      method: 'DELETE',
+    });
+  },
+
+  finalizeRun: async (id: number | string, body?: { twofa_session_id?: number | null }) => {
     return apiCall<any>(`/payroll/runs/${id}/finalize`, {
       method: 'PATCH',
+      ...(body ? { body: JSON.stringify(body) } : {}),
     });
+  },
+
+  sendPayslipEmails: async (id: number | string) => {
+    return apiCall<{ sent: number; skipped: number; failed: number; total: number }>(
+      `/payroll/runs/${id}/send-payslip-emails`,
+      {
+        method: 'POST',
+        timeoutMs: 120000,
+      }
+    );
   },
 
   overrideRecord: async (
@@ -1128,7 +1160,7 @@ export const payrollApi = {
   },
 
   updateSettings: async (data: {
-    pay_schedule: 'weekly' | 'semi-monthly' | 'monthly';
+    pay_schedule: 'semi-monthly' | 'monthly';
     allowances_config?: any;
     holiday_overrides?: any[];
     de_minimis_config?: any;
@@ -1139,6 +1171,43 @@ export const payrollApi = {
     return apiCall<any>('/payroll/settings', {
       method: 'PUT',
       body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Initiate a 2FA session before a sensitive payroll action
+   */
+  initiate2FA: async (data: {
+    actionType: 'payroll_create' | 'payroll_finalize';
+    preferredMethod?: 'fingerprint' | 'qr' | 'password';
+    actionReferenceId?: number | null;
+  }) => {
+    return apiCall<{ sessionId: number; method: string; expiresIn: number }>('/payroll/2fa/initiate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Verify a 2FA session with the provided code
+   */
+  verify2FA: async (data: {
+    sessionId: number;
+    verificationCode: string;
+    method?: 'fingerprint' | 'qr' | 'password';
+  }) => {
+    return apiCall<{ sessionId: number; userId: number; actionType: string }>('/payroll/2fa/verify', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Get the operator audit trail for a payroll run
+   */
+  getAuditTrail: async (runId: number | string) => {
+    return apiCall<any>(`/payroll/runs/${runId}/audit-trail`, {
+      method: 'GET',
     });
   },
 };
@@ -1504,6 +1573,16 @@ export const fingerprintApi = {
    */
   confirmEnrollment: async (employeeId: number, fingerprintId: number) => {
     return apiCall<any>('/fingerprint/enroll/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ employee_id: employeeId, fingerprint_id: fingerprintId }),
+    });
+  },
+
+  /**
+   * Delete fingerprint enrollment
+   */
+  delete: async (employeeId: number, fingerprintId: number) => {
+    return apiCall<any>('/fingerprint/delete', {
       method: 'POST',
       body: JSON.stringify({ employee_id: employeeId, fingerprint_id: fingerprintId }),
     });

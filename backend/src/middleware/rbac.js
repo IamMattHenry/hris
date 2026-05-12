@@ -34,6 +34,29 @@ const EMPLOYEE_DEFAULT_PERMISSIONS = [
   'dashboard.read_own',
 ];
 
+const HR_VIEW_ROLE_KEYS = new Set([
+  'hr_manager',
+  'hr_supervisor',
+  'payroll_officer',
+  'leave_attendance_officer',
+  'recruitment_officer',
+]);
+
+const HR_VIEW_PERMISSION_KEYS = [
+  'employees.read',
+  'attendance.read',
+  'attendance.read_department',
+  'leave.read',
+  'leave.read_department',
+  'positions.read',
+  'departments.read',
+  'payroll.read',
+  'penalties.read',
+  'tickets.read',
+  'activity.read',
+  'dashboard.read_own',
+];
+
 /**
  * Load all role→permission mappings into cache
  */
@@ -105,6 +128,13 @@ async function getUserPermissions(userId, legacyRole) {
       for (const perm of rolePerms) {
         permissions.add(perm);
       }
+    }
+  }
+
+  const hasHrViewRole = roleKeys.some((roleKey) => HR_VIEW_ROLE_KEYS.has(roleKey));
+  if (hasHrViewRole) {
+    for (const permissionKey of HR_VIEW_PERMISSION_KEYS) {
+      permissions.add(permissionKey);
     }
   }
 

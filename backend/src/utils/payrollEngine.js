@@ -1,5 +1,7 @@
 import { computeMandatoryContributions, toMonthlyEquivalentSalary } from './contributionTables.js';
-import { computeWithholdingTax } from './taxComputation.js';
+import { computePayrollWithholdingTax } from './taxComputation.js';
+import { formatPayslipSections, formatPayslipForDisplay } from './payslipFormatter.js';
+import { validatePayrollBreakdown } from './payrollValidator.js';
 import {
   REGULAR_HOLIDAY,
   SPECIAL_HOLIDAY,
@@ -184,8 +186,13 @@ const getPayPeriodsPerMonth = (paySchedule = 'semi-monthly') => {
 };
 
 const getBaseRates = ({ employee, settings, paySchedule }) => {
-  const salaryUnit = String(employee.salary_unit || '').toLowerCase() === 'hourly' ? 'hourly' : 'monthly';
-  const currentSalary = Number(employee.current_salary) || 0;
+  const currentSalaryRaw = Number(employee.current_salary);
+  const useFallback = !currentSalaryRaw;
+  const currentSalary = useFallback ? (Number(employee.default_salary) || 0) : currentSalaryRaw;
+
+  const rawUnit = useFallback ? (employee.position_salary_unit || 'monthly') : (employee.salary_unit || 'monthly');
+  const salaryUnit = String(rawUnit).toLowerCase() === 'hourly' ? 'hourly' : 'monthly';
+
   const monthlyWorkDays = Number(settings?.monthly_work_days) > 0
     ? Number(settings.monthly_work_days)
     : 22;
@@ -246,8 +253,16 @@ const computeAllowances = ({ settings, paySchedule }) => {
   const totalCustom = custom.reduce((sum, item) => sum + item.amount, 0);
   const grossAllowances = round2(rice + clothing + totalCustom);
 
-  const riceCap = Number(deMinimisConfig.rice_subsidy_monthly_cap ?? 2000) * factor;
-  const clothingCap = Number(deMinimisConfig.clothing_annual_cap ?? 6000) / 12 * factor;
+  const riceCapValue = Number(deMinimisConfig?.rice_subsidy_monthly_cap);
+  const clothingCapValue = Number(deMinimisConfig?.clothing_annual_cap);
+
+  const riceCap = Number.isFinite(riceCapValue)
+    ? round2(Math.max(0, riceCapValue) * factor)
+    : 0;
+
+  const clothingCap = Number.isFinite(clothingCapValue)
+    ? round2((Math.max(0, clothingCapValue) / 12) * factor)
+    : 0;
   const customNonTaxable = custom
     .filter((item) => !item.taxable)
     .reduce((sum, item) => sum + item.amount, 0);
@@ -258,6 +273,13 @@ const computeAllowances = ({ settings, paySchedule }) => {
     + customNonTaxable
   );
 
+  // Monthly-equivalent de minimis cap for payslip display.
+  // Normalise back from the period factor so the payslip always shows
+  // the monthly cap regardless of pay schedule.
+  const deMinimisMonthlyCapTotal = factor > 0
+    ? round2((riceCap + clothingCap) / factor)
+    : 0;
+
   return {
     rice,
     clothing,
@@ -265,6 +287,10 @@ const computeAllowances = ({ settings, paySchedule }) => {
     grossAllowances,
     nonTaxable,
     taxable: round2(grossAllowances - nonTaxable),
+    // caps forwarded for payslip display
+    deMinimisMonthlyCapTotal,
+    riceCap,
+    clothingCap,
   };
 };
 
@@ -277,6 +303,7 @@ const computeEmployeePayroll = ({
   paySchedule,
   settings,
   holidayLookup,
+  negativeNetPayCarryover = 0,
 }) => {
   const attendanceByDate = buildAttendanceDateMap(attendanceRecords);
   const leaveByDate = buildLeaveDateMap(leaveRecords, payPeriodStart, payPeriodEnd);
@@ -320,9 +347,7 @@ const computeEmployeePayroll = ({
 
     const dailyWorkedHours = computeWorkedHours(attendance);
     const regularHoursForDay = Math.min(8, dailyWorkedHours);
-    const overtimeHoursByClock = Math.max(0, dailyWorkedHours - 8);
-    const overtimeHoursByField = Number(attendance?.overtime_hours) || 0;
-    const overtimeHours = round2(Math.max(overtimeHoursByClock, overtimeHoursByField));
+    const overtimeHours = Number(attendance?.overtime_hours) || 0;
 
     const shiftLateMinutes = (() => {
       if (!isScheduledDay || !attendance?.time_in || !employee?.scheduled_start_time) return 0;
@@ -350,7 +375,19 @@ const computeEmployeePayroll = ({
         }
       } else if (!attendance) {
         if (holiday?.type === REGULAR_HOLIDAY) {
-          holidayPremiumPay += rates.dailyRate;
+          // Regular holiday unworked pay requires presence (or paid leave) the day before
+          const prevDateObj = new Date(`${date}T00:00:00`);
+          prevDateObj.setDate(prevDateObj.getDate() - 1);
+          const prevDate = `${prevDateObj.getFullYear()}-${String(prevDateObj.getMonth() + 1).padStart(2, '0')}-${String(prevDateObj.getDate()).padStart(2, '0')}`;
+          const prevAttendance = attendanceByDate.get(prevDate);
+          const prevLeave = leaveByDate.get(prevDate);
+          const prevLeavePaid = prevLeave ? isLeavePaid(prevLeave) : false;
+
+          if (prevAttendance || prevLeavePaid) {
+            holidayPremiumPay += rates.dailyRate;
+          } else {
+            // forfeited due to absence the day before
+          }
         } else if (holiday?.type === SPECIAL_HOLIDAY) {
           specialHolidayNoWorkHours += 8;
         } else {
@@ -401,14 +438,24 @@ const computeEmployeePayroll = ({
   }
 
   const expectedScheduledHours = scheduledWorkDays * 8;
-  const lwopHours = (unpaidLeaveDays * 8) + (absences * 8) + specialHolidayNoWorkHours;
+
+  // Track leaves and absences separately for clarity
+  const unpaidLeaveHours = unpaidLeaveDays * 8;
+  // Absences are full days missed (no attendance record, no leave, not a holiday).
+  // Partial-day shortfalls are captured via late/undertime minutes; we should
+  // not double-deduct by also computing absenceHours from expected vs. worked.
+  const absenceHours = round2(absences * 8);
 
   const basePayForPeriod = rates.basePayForPeriod != null
     ? rates.basePayForPeriod
     : round2(expectedScheduledHours * rates.hourlyRate);
 
-  const lateUndertimeDeduction = round2(minutesToHours(lateMinutes + undertimeMinutes) * rates.hourlyRate);
-  const lwopDeduction = round2(lwopHours * rates.hourlyRate);
+  // Compute attendance deductions separately
+  const lateDeduction = round2((lateMinutes / 60) * rates.hourlyRate);
+  const undertimeDeduction = round2((undertimeMinutes / 60) * rates.hourlyRate);
+  const lateUndertimeDeduction = round2(lateDeduction + undertimeDeduction);
+  const absenceDeduction = round2(absenceHours * rates.hourlyRate);
+  const unpaidLeaveDeduction = round2(unpaidLeaveHours * rates.hourlyRate);
 
   const restDayPay = round2(restDayRegularHours * rates.hourlyRate * 1.3);
   const overtimePay = round2(
@@ -417,19 +464,34 @@ const computeEmployeePayroll = ({
     + (specialHolidayOtHours * rates.hourlyRate * 1.69)
     + (regularHolidayOtHours * rates.hourlyRate * 2.6)
   );
+  // Night Differential: 10% for private company employees (Labor Code Art. 87(b))
   const nightDifferentialPay = round2(nightDiffHours * rates.hourlyRate * 0.1);
 
-  const basicEarnedAfterAttendanceDeductions = round2(Math.max(0, basePayForPeriod - lateUndertimeDeduction - lwopDeduction));
-  const thirteenthMonthAccrual = round2(basicEarnedAfterAttendanceDeductions / 12);
+  const basicEarnedAfterAttendanceDeductions = round2(Math.max(0, basePayForPeriod - lateUndertimeDeduction - absenceDeduction - unpaidLeaveDeduction));
 
+  // 13th month accrual is computed on the contracted base pay for the period
+  // (not the post-deduction amount). LWOP and absences reduce take-home pay
+  // directly via deductions; the 13th month is reconciled at year-end based
+  // on total days/months actually worked. Using post-deduction here caused
+  // near-zero accruals whenever attendance records were missing for the period.
+  const thirteenthMonthAccrual = round2(basePayForPeriod / 12);
+
+  // Gross Pay: Basic (after attendance deductions) + Premium pays + Taxable allowances
+  //           (Non-taxable allowances are added AFTER tax for net pay)
   const grossPay = round2(
     basePayForPeriod
+    - lateUndertimeDeduction
+    - absenceDeduction
+    - unpaidLeaveDeduction
     + holidayPremiumPay
     + restDayPay
     + overtimePay
     + nightDifferentialPay
-    + allowanceBreakdown.grossAllowances
-    + thirteenthMonthAccrual
+    + allowanceBreakdown.taxable  // Only taxable allowances in gross
+  );
+
+  const nonTaxableIncome = round2(
+    allowanceBreakdown.nonTaxable
   );
 
   const monthlyEquivalentCompensation = toMonthlyEquivalentSalary({
@@ -440,25 +502,63 @@ const computeEmployeePayroll = ({
   const contributions = computeMandatoryContributions({
     monthlyCompensation: monthlyEquivalentCompensation,
     paySchedule,
+    payPeriodStart,
+    payPeriodEnd,
   });
 
+  // Only contributions in pre-tax deductions (attendance deductions already in grossPay)
   const preTaxDeductions = round2(
     contributions.totals.employeeShare
-    + lateUndertimeDeduction
-    + lwopDeduction
   );
 
-  const taxableIncome = round2(
-    Math.max(0, grossPay - allowanceBreakdown.nonTaxable - contributions.totals.employeeShare)
+  const grossTaxableIncomeForPeriod = round2(
+    basePayForPeriod
+    - lateUndertimeDeduction
+    - absenceDeduction
+    - unpaidLeaveDeduction
+    + holidayPremiumPay
+    + restDayPay
+    + overtimePay
+    + nightDifferentialPay
+    + allowanceBreakdown.taxable
   );
 
-  const withholding = computeWithholdingTax({
-    taxableIncomeForPeriod: taxableIncome,
+  const taxableIncomeBeforeWithholding = round2(Math.max(0, grossTaxableIncomeForPeriod - contributions.totals.employeeShare));
+
+  const withholding = computePayrollWithholdingTax({
+    taxableIncomeForPeriod: taxableIncomeBeforeWithholding,
     paySchedule,
+    payPeriodStart,
+    payPeriodEnd,
+    grossTaxableIncomeForPeriod,
+    mandatoryEmployeeContributions: contributions.totals.employeeShare,
+    nonTaxableIncomeForPeriod: nonTaxableIncome,
   });
 
-  const totalDeductions = round2(preTaxDeductions + withholding.withholdingTax);
-  const netPay = round2(grossPay - totalDeductions);
+  const taxableIncome = withholding.appliesTax
+    ? taxableIncomeBeforeWithholding
+    : 0;
+
+  const totalDeductionsBeforeCarryover = round2(preTaxDeductions + withholding.withholdingTax);
+  // Net Pay = Gross Pay (already includes attendance deductions subtracted)
+  //           - Contributions and Withholding Tax
+  //           + Non-taxable allowances (de minimis)
+  const rawNetPay = round2(grossPay - totalDeductionsBeforeCarryover + nonTaxableIncome);
+  const carryoverBalance = round2(Math.max(0, Number(negativeNetPayCarryover) || 0));
+  const carryoverDeduction = round2(Math.min(carryoverBalance, Math.max(0, rawNetPay)));
+  const netPay = round2(rawNetPay - carryoverDeduction);
+  const totalDeductions = round2(totalDeductionsBeforeCarryover + carryoverDeduction);
+  const remainingCarryover = round2(
+    Math.max(0, carryoverBalance - Math.max(0, rawNetPay))
+    + Math.max(0, -rawNetPay)
+  );
+  const negativeNetPayNote = rawNetPay < 0 || carryoverBalance > 0
+    ? (netPay < 0
+      ? `Net pay is negative by ₱${Math.abs(netPay).toFixed(2)}. This balance will be deducted in the next payroll.`
+      : carryoverBalance > 0
+        ? `A carryover deduction of ₱${carryoverDeduction.toFixed(2)} was applied from a previous negative net pay balance.`
+        : null)
+    : null;
 
   const breakdown = {
     payPeriod: {
@@ -473,8 +573,8 @@ const computeEmployeePayroll = ({
       last_name: employee.last_name,
       employment_type: employee.employment_type,
       position_id: employee.position_id,
-      salary_unit: employee.salary_unit,
-      current_salary: Number(employee.current_salary) || 0,
+      salary_unit: (!Number(employee.current_salary) ? employee.position_salary_unit : employee.salary_unit) || 'monthly',
+      current_salary: !Number(employee.current_salary) ? (Number(employee.default_salary) || 0) : (Number(employee.current_salary) || 0),
       hire_date: employee.hire_date,
       civil_status: employee.civil_status,
     },
@@ -485,6 +585,7 @@ const computeEmployeePayroll = ({
       paidLeaveDays,
       unpaidLeaveDays,
       absences,
+      absenceHours: round2(absenceHours),
       lateMinutes,
       undertimeMinutes,
       nightDiffHours: round2(nightDiffHours),
@@ -499,24 +600,66 @@ const computeEmployeePayroll = ({
       allowances: allowanceBreakdown,
       thirteenthMonthAccrual,
       grossPay,
+      // de minimis cap for payslip display (monthly equivalent)
+      deMinimisMonthlyCapTotal: allowanceBreakdown.deMinimisMonthlyCapTotal,
     },
     deductions: {
       mandatoryContributions: contributions,
-      lateUndertimeDeduction,
-      lwopDeduction,
+      carryoverDeduction,
+      attendance: {
+        lateMinutes,
+        undertimeMinutes,
+        lateDeduction,
+        undertimeDeduction,
+        absenceHours: round2(absenceHours),
+        absenceDeduction,
+        unpaidLeaveHours: round2(unpaidLeaveHours),
+        unpaidLeaveDeduction,
+      },
       preTaxDeductions,
+      grossTaxableIncomeForPeriod,
       taxableIncome,
       withholding,
       totalDeductions,
     },
+    rawNetPay,
+    carryoverBalance,
+    carryoverDeduction,
+    remainingCarryover,
     netPay,
+    compliance: {
+      governmentMandatedDeductions: true,
+      deductionOrderValidated: true,
+      warnings: withholding.warnings || [],
+      notes: negativeNetPayNote ? [negativeNetPayNote] : [],
+    },
   };
+
+  // Validate the payroll breakdown
+  const validationResult = validatePayrollBreakdown(breakdown, netPay);
+
+  // Format payslip data
+  const formattedPayslip = formatPayslipSections({
+    breakdown,
+    net_pay: netPay,
+    raw_net_pay: rawNetPay,
+    carryover_deduction: carryoverDeduction,
+    carryover_balance: remainingCarryover,
+    negative_net_pay_note: negativeNetPayNote,
+    leave_without_pay_days: unpaidLeaveDays,
+    settings,
+  });
+
+  const displayPayslip = formatPayslipForDisplay(formattedPayslip);
 
   return {
     employee_id: employee.employee_id,
     gross_pay: grossPay,
     total_deductions: totalDeductions,
     withholding_tax: withholding.withholdingTax,
+    raw_net_pay: rawNetPay,
+    carryover_deduction: carryoverDeduction,
+    carryover_balance: remainingCarryover,
     net_pay: netPay,
     contributions: {
       sss_ee: contributions.sss.employeeShare,
@@ -528,18 +671,18 @@ const computeEmployeePayroll = ({
       bir_withholding: withholding.withholdingTax,
     },
     breakdown,
-    payslipData: {
-      company_name: settings?.company_name || 'HRIS Company',
-      employee_name: `${employee.first_name || ''} ${employee.last_name || ''}`.trim(),
-      employee_code: employee.employee_code || null,
-      pay_period_start: payPeriodStart,
-      pay_period_end: payPeriodEnd,
-      earnings: breakdown.earnings,
-      deductions: breakdown.deductions,
-      government_contributions: breakdown.deductions.mandatoryContributions,
-      net_pay: netPay,
-      signature_block: 'Employee Signature: ______________________',
-      lwop_days: unpaidLeaveDays,
+    payslipData: displayPayslip,
+    validation: {
+      errors: validationResult.errors.map(e => ({
+        code: e.code,
+        message: e.message,
+        details: e.details,
+      })),
+      warnings: validationResult.warnings.map(w => ({
+        code: w.code,
+        message: w.message,
+        details: w.details,
+      })),
     },
   };
 };
@@ -552,6 +695,7 @@ export const computePayrollRun = ({
   payPeriodEnd,
   paySchedule = 'semi-monthly',
   settings = {},
+  negativeNetPayCarryovers = {},
 }) => {
   const attendanceByEmployee = attendanceRows.reduce((acc, row) => {
     const key = Number(row.employee_id);
@@ -577,6 +721,7 @@ export const computePayrollRun = ({
   const records = employees.map((employee) => {
     const employeeAttendance = attendanceByEmployee.get(Number(employee.employee_id)) || [];
     const employeeLeaves = leaveByEmployee.get(Number(employee.employee_id)) || [];
+    const carryoverBalance = Number(negativeNetPayCarryovers?.[Number(employee.employee_id)]) || 0;
 
     return computeEmployeePayroll({
       employee,
@@ -587,6 +732,7 @@ export const computePayrollRun = ({
       paySchedule,
       settings,
       holidayLookup,
+      negativeNetPayCarryover: carryoverBalance,
     });
   });
 

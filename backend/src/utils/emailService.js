@@ -271,9 +271,90 @@ export const sendPayrollRunFinalizedEmail = async ({
   }
 };
 
+export const sendEmployeePayslipEmail = async ({
+  to,
+  employeeName,
+  employeeCode,
+  runId,
+  payPeriodStart,
+  payPeriodEnd,
+  payrollSchedule,
+  grossPay,
+  totalDeductions,
+  withholdingTax,
+  netPay,
+}) => {
+  const periodText = payPeriodStart && payPeriodEnd
+    ? `${payPeriodStart} to ${payPeriodEnd}`
+    : 'this pay period';
+
+  const subject = `Payslip available — ${periodText}`;
+
+  const text = [
+    `Hi ${employeeName || 'there'},`,
+    '',
+    `Your payslip for the pay period ${periodText} is now available.`,
+    '',
+    `Pay schedule: ${payrollSchedule || 'N/A'}`,
+    `Gross Pay: ${formatCurrency(grossPay)}`,
+    `Total Deductions: ${formatCurrency(totalDeductions)}`,
+    `Withholding Tax: ${formatCurrency(withholdingTax)}`,
+    `Net Pay: ${formatCurrency(netPay)}`,
+    '',
+    'You can view the full breakdown in the HRIS employee dashboard under "Payslips".',
+    '',
+    'Regards,',
+    'HRIS Payroll System',
+  ].join('\n');
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;color:#111827;line-height:1.6;">
+      <p>Hi <strong>${escapeHtml(employeeName || 'there')}</strong>,</p>
+      <p>Your payslip for the pay period <strong>${escapeHtml(periodText)}</strong> is now available.</p>
+      <table style="border-collapse:collapse;font-size:14px;margin:12px 0;">
+        <tbody>
+          <tr><td style="padding:6px 12px;border:1px solid #e5e7eb;">Employee Code</td><td style="padding:6px 12px;border:1px solid #e5e7eb;">${escapeHtml(employeeCode || '')}</td></tr>
+          <tr><td style="padding:6px 12px;border:1px solid #e5e7eb;">Payroll Run</td><td style="padding:6px 12px;border:1px solid #e5e7eb;">#${escapeHtml(runId)}</td></tr>
+          <tr><td style="padding:6px 12px;border:1px solid #e5e7eb;">Pay Schedule</td><td style="padding:6px 12px;border:1px solid #e5e7eb;">${escapeHtml(payrollSchedule || 'N/A')}</td></tr>
+          <tr><td style="padding:6px 12px;border:1px solid #e5e7eb;">Gross Pay</td><td style="padding:6px 12px;border:1px solid #e5e7eb;text-align:right;">${formatCurrency(grossPay)}</td></tr>
+          <tr><td style="padding:6px 12px;border:1px solid #e5e7eb;">Total Deductions</td><td style="padding:6px 12px;border:1px solid #e5e7eb;text-align:right;">${formatCurrency(totalDeductions)}</td></tr>
+          <tr><td style="padding:6px 12px;border:1px solid #e5e7eb;">Withholding Tax</td><td style="padding:6px 12px;border:1px solid #e5e7eb;text-align:right;">${formatCurrency(withholdingTax)}</td></tr>
+          <tr style="background:#f3f4f6;"><td style="padding:6px 12px;border:1px solid #e5e7eb;"><strong>Net Pay</strong></td><td style="padding:6px 12px;border:1px solid #e5e7eb;text-align:right;"><strong>${formatCurrency(netPay)}</strong></td></tr>
+        </tbody>
+      </table>
+      <p>You can view the full breakdown in the HRIS employee dashboard under <strong>Payslips</strong>.</p>
+      <p>Regards,<br/>HRIS Payroll System</p>
+    </div>
+  `;
+
+  const mailOptions = {
+    from: SMTP_FROM || SMTP_USER || 'no-reply@example.com',
+    to,
+    subject,
+    text,
+    html,
+  };
+
+  const activeTransporter = ensureTransporter();
+
+  if (!activeTransporter) {
+    logger.info('Email not sent (no SMTP config). Payload:', { to, subject, runId });
+    return;
+  }
+
+  try {
+    await activeTransporter.sendMail(mailOptions);
+    logger.info(`Employee payslip email sent to ${to} for run ${runId}`);
+  } catch (error) {
+    logger.error('Failed to send employee payslip email', error);
+    throw error;
+  }
+};
+
 export default {
   sendOtpEmail,
   sendTicketResolutionEmail,
   sendAccountCreatedEmail,
   sendPayrollRunFinalizedEmail,
+  sendEmployeePayslipEmail,
 };

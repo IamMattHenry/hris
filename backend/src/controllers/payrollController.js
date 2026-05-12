@@ -2,6 +2,7 @@ import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
 import emailService from '../utils/emailService.js';
 import { computePayrollRun } from '../utils/payrollEngine.js';
+import { resolvePayrollTaxPeriod } from '../utils/taxComputation.js';
 import { applyPenaltyDeductionsForPayrollRecord } from './penaltyController.js';
 import {
   BUDGET_NAMES,
@@ -10,7 +11,17 @@ import {
   getFinanceBudgetsSnapshot,
   getCurrentStaffSalaryMonthlyTotal,
 } from '../services/financeBudgetService.js';
+import {
+  getOutstandingNegativeNetPayBalances,
+  syncNegativeNetPayBalancesForRun,
+} from '../services/payrollCarryoverService.js';
 import { createNotification, notifyHrUsersBudgetAmountChange, notifyHrUsersBudgetRequestStatusChange, notifyHrUsersBudgetStatus, notifyHrUsersPayrollRunUpdate } from '../services/notificationService.js';
+import {
+  initiate2FASession,
+  verify2FASession,
+  logPayrollOperatorAction,
+  getPayrollOperatorAuditTrail,
+} from '../services/payroll2FAService.js';
 
 const round2 = (value) => Number((Number(value) || 0).toFixed(2));
 
@@ -22,6 +33,8 @@ const PAYROLL_RUN_STATUSES = Object.freeze({
   FINALIZED: 'finalized',
   ABORTED: 'aborted',
 });
+
+const HRIS_DEPARTMENT_ID = 1;
 
 let lastStaffSalariesBudgetAmountNotified = null;
 
@@ -98,16 +111,6 @@ const endOfMonth = (value) => {
   return formatDate(date);
 };
 
-const startOfWeekMonday = (value) => {
-  const date = toDate(value);
-  if (!date) return null;
-
-  const day = date.getDay();
-  const offset = day === 0 ? -6 : 1 - day;
-  date.setDate(date.getDate() + offset);
-  return formatDate(date);
-};
-
 const derivePayPeriodFromSchedule = ({ referenceDate, paySchedule }) => {
   const ref = ensureDate(referenceDate);
   if (!ref) return null;
@@ -116,14 +119,6 @@ const derivePayPeriodFromSchedule = ({ referenceDate, paySchedule }) => {
     return {
       start: startOfMonth(ref),
       end: endOfMonth(ref),
-    };
-  }
-
-  if (paySchedule === 'weekly') {
-    const start = startOfWeekMonday(ref);
-    return {
-      start,
-      end: addDays(start, 6),
     };
   }
 
@@ -145,29 +140,67 @@ const derivePayPeriodFromSchedule = ({ referenceDate, paySchedule }) => {
 };
 
 const validatePayPeriodStructure = ({ payPeriodStart, payPeriodEnd, paySchedule }) => {
-  const expected = derivePayPeriodFromSchedule({
-    referenceDate: payPeriodStart,
+  const validation = resolvePayrollTaxPeriod({
+    payPeriodStart,
+    payPeriodEnd,
     paySchedule,
   });
 
-  if (!expected?.start || !expected?.end) {
+  if (!validation.valid) {
+    return validation;
+  }
+
+  return {
+    valid: true,
+    expected: validation.expected || null,
+    appliesTax: validation.appliesTax,
+    periodType: validation.periodType,
+  };
+};
+
+const normalizePayrollFrequency = (value) => {
+  const frequency = String(value || '').trim().toLowerCase();
+  if (!frequency) return null;
+  if (frequency === 'monthly') return 'monthly';
+  if (frequency === 'semi-monthly' || frequency === 'semi monthly' || frequency === 'semimonthly') {
+    return 'semi-monthly';
+  }
+  return frequency;
+};
+
+const getEmployeePayrollFrequency = (employee = {}) => {
+  return normalizePayrollFrequency(
+    employee.pay_frequency
+    ?? employee.payroll_frequency
+    ?? employee.pay_schedule
+    ?? employee.pay_cycle
+  );
+};
+
+const validateEmployeePayrollFrequencies = ({ employees = [], paySchedule }) => {
+  const taggedFrequencies = employees
+    .map((employee) => getEmployeePayrollFrequency(employee))
+    .filter(Boolean);
+
+  const uniqueTaggedFrequencies = Array.from(new Set(taggedFrequencies));
+
+  if (uniqueTaggedFrequencies.length > 1) {
     return {
       valid: false,
-      message: 'Unable to derive pay period from the provided schedule.',
+      message: `Employees with different pay frequencies cannot be mixed in the same payroll run (${uniqueTaggedFrequencies.join(', ')}).`,
     };
   }
 
-  if (expected.start !== payPeriodStart || expected.end !== payPeriodEnd) {
+  if (uniqueTaggedFrequencies.length === 1 && uniqueTaggedFrequencies[0] !== paySchedule) {
     return {
       valid: false,
-      message: `Invalid pay period for ${paySchedule}. Expected ${expected.start} to ${expected.end}.`,
-      expected,
+      message: `Selected employees are tagged as ${uniqueTaggedFrequencies[0]}, but this payroll run is ${paySchedule}.`,
     };
   }
 
   return {
     valid: true,
-    expected,
+    taggedFrequencies: uniqueTaggedFrequencies,
   };
 };
 
@@ -299,31 +332,36 @@ const getLatestPayrollSettings = async () => {
     return {
       pay_schedule: 'semi-monthly',
       allowances_config: {
-        rice_subsidy_monthly: 2000,
-        clothing_annual: 6000,
+        rice_subsidy_monthly: 2500,
+        clothing_annual: 0,
         custom: [],
       },
       holiday_overrides: [],
       de_minimis_config: {
-        rice_subsidy_monthly_cap: 2000,
-        clothing_annual_cap: 6000,
+        rice_subsidy_monthly_cap: 2500,
+        clothing_annual_cap: 0,
       },
       company_name: 'HRIS Company',
       monthly_work_days: 22,
     };
   }
 
+  const normalizedPaySchedule = ['semi-monthly', 'monthly'].includes(settings.pay_schedule)
+    ? settings.pay_schedule
+    : 'semi-monthly';
+
   return {
     ...settings,
+    pay_schedule: normalizedPaySchedule,
     allowances_config: parseJson(settings.allowances_config, {
-      rice_subsidy_monthly: 2000,
-      clothing_annual: 6000,
+      rice_subsidy_monthly: 2500,
+      clothing_annual: 0,
       custom: [],
     }),
     holiday_overrides: parseJson(settings.holiday_overrides, []),
     de_minimis_config: parseJson(settings.de_minimis_config, {
-      rice_subsidy_monthly_cap: 2000,
-      clothing_annual_cap: 6000,
+      rice_subsidy_monthly_cap: 2500,
+      clothing_annual_cap: 0,
     }),
   };
 };
@@ -359,7 +397,7 @@ const findFirstExistingColumn = (columns, candidates = []) => {
   return candidates.find((column) => columns.has(column)) || null;
 };
 
-const syncPayrollRunStatuses = async ({ runId, status, actorUserId = null }) => {
+const syncPayrollRunStatuses = async ({ runId, status, actorUserId = null, twoFAMethod = null, twoFAVerifiedAt = null }) => {
   const normalizedStatus = String(status || '').trim().toLowerCase();
   const now = new Date();
   const runUpdate = {
@@ -374,7 +412,10 @@ const syncPayrollRunStatuses = async ({ runId, status, actorUserId = null }) => 
 
   if (normalizedStatus === PAYROLL_RUN_STATUSES.FINALIZED) {
     runUpdate.finalized_by = actorUserId ? Number(actorUserId) : null;
+    runUpdate.finalized_by_user_id = actorUserId ? Number(actorUserId) : null;
     runUpdate.finalized_at = now;
+    runUpdate.finalizer_2fa_method = twoFAMethod;
+    runUpdate.finalizer_2fa_verified_at = twoFAVerifiedAt || now;
   }
 
   if (normalizedStatus === PAYROLL_RUN_STATUSES.ABORTED) {
@@ -465,6 +506,61 @@ const getPayrollDepartmentStakeholders = async (runId) => {
     const managerEmail = manager?.employee_id ? await getEmployeePrimaryEmail(manager.employee_id) : null;
     const supervisorEmail = supervisor?.employee_id ? await getEmployeePrimaryEmail(supervisor.employee_id) : null;
 
+    const elevatedEmployees = await db.getAll(
+      `SELECT
+         e.employee_id,
+         e.employee_code,
+         e.first_name,
+         e.last_name,
+         jp.position_name,
+         u.role
+       FROM employees e
+       LEFT JOIN users u ON u.user_id = e.user_id
+       LEFT JOIN job_positions jp ON jp.position_id = e.position_id
+       WHERE e.department_id = ?
+         AND e.status IN ('active', 'on-leave')
+         AND (
+           LOWER(COALESCE(jp.position_name, '')) LIKE '%manager%'
+           OR LOWER(COALESCE(jp.position_name, '')) LIKE '%admin%'
+           OR LOWER(COALESCE(u.role, '')) IN ('admin', 'superadmin', 'supervisor')
+         )
+       ORDER BY e.employee_id ASC`,
+      [departmentId]
+    );
+
+    const recipientMap = new Map();
+
+    if (manager?.employee_id && managerEmail) {
+      recipientMap.set(Number(manager.employee_id), {
+        ...manager,
+        email: managerEmail,
+      });
+    }
+
+    if (supervisor?.employee_id && supervisorEmail) {
+      recipientMap.set(Number(supervisor.employee_id), {
+        ...supervisor,
+        email: supervisorEmail,
+      });
+    }
+
+    for (const employee of elevatedEmployees) {
+      const employeeId = Number(employee.employee_id);
+      if (!Number.isInteger(employeeId) || employeeId <= 0 || recipientMap.has(employeeId)) {
+        continue;
+      }
+
+      const email = await getEmployeePrimaryEmail(employeeId);
+      if (!email) {
+        continue;
+      }
+
+      recipientMap.set(employeeId, {
+        ...employee,
+        email,
+      });
+    }
+
     stakeholders.push({
       department_id: departmentId,
       department_name: department.department_name || `Department #${departmentId}`,
@@ -472,10 +568,85 @@ const getPayrollDepartmentStakeholders = async (runId) => {
       managerEmail,
       supervisor,
       supervisorEmail,
+      recipients: Array.from(recipientMap.values()),
     });
   }
 
   return stakeholders;
+};
+
+const getFinanceDepartmentSupervisorRecipient = async () => {
+  const financeDepartment = await db.getOne(
+    `SELECT department_id, department_name, supervisor_id
+     FROM departments
+     WHERE LOWER(COALESCE(department_name, '')) LIKE '%finance%'
+     ORDER BY department_id ASC
+     LIMIT 1`
+  );
+
+  if (!financeDepartment) {
+    return null;
+  }
+
+  if (financeDepartment.supervisor_id) {
+    const supervisor = await db.getOne(
+      `SELECT
+         e.employee_id,
+         e.first_name,
+         e.last_name
+       FROM employees e
+       WHERE e.employee_id = ?
+       LIMIT 1`,
+      [financeDepartment.supervisor_id]
+    );
+
+    const supervisorEmail = supervisor?.employee_id
+      ? await getEmployeePrimaryEmail(supervisor.employee_id)
+      : null;
+
+    if (supervisorEmail) {
+      return {
+        department_name: financeDepartment.department_name || 'Finance Department',
+        recipientLabel: `${supervisor.first_name || ''} ${supervisor.last_name || ''}`.trim() || 'Finance Supervisor',
+        email: supervisorEmail,
+      };
+    }
+  }
+
+  const fallbackFinanceLead = await db.getOne(
+    `SELECT
+       e.employee_id,
+       e.first_name,
+       e.last_name
+     FROM employees e
+     LEFT JOIN users u ON u.user_id = e.user_id
+     LEFT JOIN job_positions jp ON jp.position_id = e.position_id
+     WHERE e.department_id = ?
+       AND e.status IN ('active', 'on-leave')
+       AND (
+         LOWER(COALESCE(u.role, '')) IN ('supervisor', 'admin', 'superadmin')
+         OR LOWER(COALESCE(jp.position_name, '')) LIKE '%supervisor%'
+         OR LOWER(COALESCE(jp.position_name, '')) LIKE '%manager%'
+       )
+     ORDER BY e.employee_id ASC
+     LIMIT 1`,
+    [financeDepartment.department_id]
+  );
+
+  if (!fallbackFinanceLead?.employee_id) {
+    return null;
+  }
+
+  const fallbackEmail = await getEmployeePrimaryEmail(fallbackFinanceLead.employee_id);
+  if (!fallbackEmail) {
+    return null;
+  }
+
+  return {
+    department_name: financeDepartment.department_name || 'Finance Department',
+    recipientLabel: `${fallbackFinanceLead.first_name || ''} ${fallbackFinanceLead.last_name || ''}`.trim() || 'Finance Supervisor',
+    email: fallbackEmail,
+  };
 };
 
 const sendPayrollFinalizationDepartmentEmails = async ({ runId, payrollRun }) => {
@@ -502,6 +673,7 @@ const sendPayrollFinalizationDepartmentEmails = async ({ runId, payrollRun }) =>
   const stakeholderMap = new Map(stakeholderRows.map((row) => [Number(row.department_id), row]));
 
   const recordsByDepartment = new Map();
+  const allEmployeesForSummary = [];
   for (const record of records) {
     const departmentId = Number(record.department_id);
     if (!Number.isInteger(departmentId) || departmentId <= 0) {
@@ -512,13 +684,16 @@ const sendPayrollFinalizationDepartmentEmails = async ({ runId, payrollRun }) =>
       recordsByDepartment.set(departmentId, []);
     }
 
-    recordsByDepartment.get(departmentId).push({
+    const employeeSummary = {
       employee_code: record.employee_code,
       employee_name: `${record.first_name || ''} ${record.last_name || ''}`.trim(),
       gross_pay: Number(record.gross_pay) || 0,
       total_deductions: Number(record.total_deductions) || 0,
       net_pay: Number(record.net_pay) || 0,
-    });
+    };
+
+    recordsByDepartment.get(departmentId).push(employeeSummary);
+    allEmployeesForSummary.push(employeeSummary);
   }
 
   const sentTo = new Set();
@@ -528,14 +703,10 @@ const sendPayrollFinalizationDepartmentEmails = async ({ runId, payrollRun }) =>
       continue;
     }
 
-    const recipientEntries = [
-      stakeholder.managerEmail
-        ? { email: stakeholder.managerEmail, label: stakeholder.manager ? `${stakeholder.manager.first_name || ''} ${stakeholder.manager.last_name || ''}`.trim() : 'Manager' }
-        : null,
-      stakeholder.supervisorEmail
-        ? { email: stakeholder.supervisorEmail, label: stakeholder.supervisor ? `${stakeholder.supervisor.first_name || ''} ${stakeholder.supervisor.last_name || ''}`.trim() : 'Supervisor' }
-        : null,
-    ].filter(Boolean);
+    const recipientEntries = (stakeholder.recipients || []).map((recipient) => ({
+      email: recipient.email,
+      label: `${recipient.first_name || ''} ${recipient.last_name || ''}`.trim() || 'Department Lead',
+    }));
 
     for (const recipient of recipientEntries) {
       const dedupeKey = `${departmentId}:${recipient.email.toLowerCase()}`;
@@ -545,19 +716,99 @@ const sendPayrollFinalizationDepartmentEmails = async ({ runId, payrollRun }) =>
 
       sentTo.add(dedupeKey);
 
-      await emailService.sendPayrollRunFinalizedEmail({
-        to: recipient.email,
-        recipientLabel: recipient.label,
-        departmentName: stakeholder.department_name,
+      try {
+        await emailService.sendPayrollRunFinalizedEmail({
+          to: recipient.email,
+          recipientLabel: recipient.label,
+          departmentName: stakeholder.department_name,
+          runId,
+          payPeriodStart: payrollRun.pay_period_start,
+          payPeriodEnd: payrollRun.pay_period_end,
+          payrollSchedule: payrollRun.pay_schedule,
+          budgetUsed: departmentEmployees.reduce((sum, row) => sum + (Number(row.gross_pay) || 0), 0),
+          employees: departmentEmployees,
+        });
+      } catch (error) {
+        logger.error(`Failed sending payroll finalization email to ${recipient.email} for department ${departmentId}:`, error);
+      }
+    }
+  }
+
+  const financeSupervisor = await getFinanceDepartmentSupervisorRecipient();
+  if (financeSupervisor?.email) {
+    const financeDedupeKey = `finance:${financeSupervisor.email.toLowerCase()}`;
+    if (!sentTo.has(financeDedupeKey)) {
+      sentTo.add(financeDedupeKey);
+      try {
+        await emailService.sendPayrollRunFinalizedEmail({
+          to: financeSupervisor.email,
+          recipientLabel: financeSupervisor.recipientLabel,
+          departmentName: financeSupervisor.department_name,
+          runId,
+          payPeriodStart: payrollRun.pay_period_start,
+          payPeriodEnd: payrollRun.pay_period_end,
+          payrollSchedule: payrollRun.pay_schedule,
+          budgetUsed: allEmployeesForSummary.reduce((sum, row) => sum + (Number(row.gross_pay) || 0), 0),
+          employees: allEmployeesForSummary,
+        });
+      } catch (error) {
+        logger.error(`Failed sending payroll finalization email to finance supervisor ${financeSupervisor.email}:`, error);
+      }
+    }
+  }
+};
+
+const sendPayrollRunEmployeePayslipEmails = async ({ runId, payrollRun }) => {
+  const records = await db.getAll(
+    `SELECT
+       rec.employee_id,
+       rec.gross_pay,
+       rec.total_deductions,
+       rec.withholding_tax,
+       rec.net_pay,
+       e.employee_code,
+       e.first_name,
+       e.last_name
+     FROM payroll_records rec
+     JOIN employees e ON e.employee_id = rec.employee_id
+     WHERE rec.run_id = ?
+     ORDER BY e.last_name ASC, e.first_name ASC`,
+    [runId]
+  );
+
+  let sent = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const record of records) {
+    const email = await getEmployeePrimaryEmail(record.employee_id);
+    if (!email) {
+      skipped += 1;
+      continue;
+    }
+
+    try {
+      await emailService.sendEmployeePayslipEmail({
+        to: email,
+        employeeName: `${record.first_name || ''} ${record.last_name || ''}`.trim(),
+        employeeCode: record.employee_code || '',
         runId,
         payPeriodStart: payrollRun.pay_period_start,
         payPeriodEnd: payrollRun.pay_period_end,
         payrollSchedule: payrollRun.pay_schedule,
-        budgetUsed: departmentEmployees.reduce((sum, row) => sum + (Number(row.gross_pay) || 0), 0),
-        employees: departmentEmployees,
+        grossPay: Number(record.gross_pay) || 0,
+        totalDeductions: Number(record.total_deductions) || 0,
+        withholdingTax: Number(record.withholding_tax) || 0,
+        netPay: Number(record.net_pay) || 0,
       });
+      sent += 1;
+    } catch (error) {
+      failed += 1;
+      logger.error(`Failed sending payslip email to employee ${record.employee_id} for run ${runId}:`, error);
     }
   }
+
+  return { sent, skipped, failed, total: records.length };
 };
 
 export const getPayrollRuns = async (req, res, next) => {
@@ -582,6 +833,7 @@ export const getPayrollRuns = async (req, res, next) => {
          COUNT(rec.id) AS employee_count
        FROM payroll_runs pr
        LEFT JOIN payroll_records rec ON rec.run_id = pr.id
+       WHERE LOWER(COALESCE(pr.status, 'draft')) <> 'aborted'
        GROUP BY pr.id
        ORDER BY pr.created_at DESC`
     );
@@ -633,6 +885,7 @@ export const createPayrollRun = async (req, res, next) => {
       department_id,
       employment_type,
       notes,
+      twofa_session_id,
     } = req.body || {};
 
     const periodStart = ensureDate(pay_period_start);
@@ -660,8 +913,28 @@ export const createPayrollRun = async (req, res, next) => {
       });
     }
 
+    // Validate 2FA session if provided
+    if (twofa_session_id) {
+      const session = await db.getOne(
+        `SELECT * FROM payroll_2fa_sessions 
+         WHERE id = ? 
+         AND user_id = ? 
+         AND action_type = 'payroll_create' 
+         AND is_verified = 1 
+         AND expires_at > NOW()`,
+        [twofa_session_id, req.user?.user_id]
+      );
+
+      if (!session) {
+        return res.status(401).json({
+          success: false,
+          message: '2FA verification required or session expired for payroll creation',
+        });
+      }
+    }
+
     const settings = await getLatestPayrollSettings();
-    const resolvedPaySchedule = ['weekly', 'semi-monthly', 'monthly'].includes(pay_schedule)
+    const resolvedPaySchedule = ['semi-monthly', 'monthly'].includes(pay_schedule)
       ? pay_schedule
       : settings.pay_schedule || 'semi-monthly';
 
@@ -674,6 +947,14 @@ export const createPayrollRun = async (req, res, next) => {
       department_id,
       employment_type,
     });
+
+    const employeeColumns = await getTableColumns('employees');
+    const payrollFrequencyColumn = findFirstExistingColumn(employeeColumns, [
+      'pay_frequency',
+      'payroll_frequency',
+      'pay_schedule',
+      'pay_cycle',
+    ]);
 
     const structureValidation = validatePayPeriodStructure({
       payPeriodStart: periodStart,
@@ -740,8 +1021,12 @@ export const createPayrollRun = async (req, res, next) => {
          e.salary_unit,
          e.scheduled_days,
          e.scheduled_start_time,
-         e.scheduled_end_time
+         e.scheduled_end_time${payrollFrequencyColumn ? `,
+         e.${payrollFrequencyColumn} AS pay_frequency` : ''},
+         jp.default_salary,
+         jp.salary_unit AS position_salary_unit
        FROM employees e
+       LEFT JOIN job_positions jp ON e.position_id = jp.position_id
        WHERE ${employeeWhere.join(' AND ')}
        ORDER BY e.employee_id ASC`,
       employeeParams
@@ -751,6 +1036,18 @@ export const createPayrollRun = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         message: 'No employees found for the selected payroll scope.',
+      });
+    }
+
+    const employeeFrequencyValidation = validateEmployeePayrollFrequencies({
+      employees,
+      paySchedule: resolvedPaySchedule,
+    });
+
+    if (!employeeFrequencyValidation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: employeeFrequencyValidation.message,
       });
     }
 
@@ -774,6 +1071,8 @@ export const createPayrollRun = async (req, res, next) => {
       [...employeeIds, periodEnd, periodStart]
     );
 
+    const negativeNetPayCarryovers = await getOutstandingNegativeNetPayBalances(employeeIds);
+
     const computed = computePayrollRun({
       employees,
       attendanceRows,
@@ -782,13 +1081,23 @@ export const createPayrollRun = async (req, res, next) => {
       payPeriodEnd: periodEnd,
       paySchedule: resolvedPaySchedule,
       settings,
+      negativeNetPayCarryovers: Object.fromEntries(negativeNetPayCarryovers),
     });
 
     let payrollBudgetValidation = null;
     try {
+      const computedGrossPay = Number(computed.summary?.gross_pay) || 0;
+      const budgetGrossPay = Math.max(0, computedGrossPay);
+
+      if (computedGrossPay < 0) {
+        logger.warn(
+          `Computed payroll gross pay is negative (₱${computedGrossPay.toFixed(2)}). Budget validation will use ₱0.00 so payroll run creation can continue.`
+        );
+      }
+
       payrollBudgetValidation = await ensureAmountWithinBudget({
         budgetName: BUDGET_NAMES.PAYROLL,
-        amount: Number(computed.summary?.gross_pay) || 0,
+        amount: budgetGrossPay,
         amountLabel: 'Computed payroll total gross pay',
       });
     } catch (budgetError) {
@@ -809,6 +1118,16 @@ export const createPayrollRun = async (req, res, next) => {
 
     await db.beginTransaction();
     try {
+      // Get 2FA method from session
+      let twoFAMethod = null;
+      if (twofa_session_id) {
+        const session = await db.transactionQuery(
+          `SELECT verification_method FROM payroll_2fa_sessions WHERE id = ?`,
+          [twofa_session_id]
+        );
+        twoFAMethod = session?.[0]?.verification_method || null;
+      }
+
       const runId = await db.transactionInsert('payroll_runs', {
         pay_period_start: periodStart,
         pay_period_end: periodEnd,
@@ -817,6 +1136,9 @@ export const createPayrollRun = async (req, res, next) => {
         employee_scope: serializeJson(scopeFilters),
         notes: notes || null,
         created_by: req.user?.user_id || null,
+        created_by_user_id: req.user?.user_id || null,
+        creator_2fa_method: twoFAMethod,
+        creator_2fa_verified_at: twofa_session_id ? new Date() : null,
       });
 
       for (const item of computed.records) {
@@ -906,16 +1228,18 @@ export const createPayrollRun = async (req, res, next) => {
       }
 
       const requestTitle = `Payroll run #${runId} approval request`;
+      const netPayTotal = round2(Number(computed.summary?.net_pay) || 0);
+      const grossPayTotal = round2(Number(computed.summary?.gross_pay) || 0);
       const requestDescription = [
         `Draft payroll run #${runId} for ${periodStart} to ${periodEnd} requires Finance approval.`,
-        `Gross pay total: ₱${round2(Number(computed.summary?.gross_pay) || 0).toFixed(2)}.`,
+        `Net pay total: ₱${netPayTotal.toFixed(2)}.`,
         `Scope: ${scopeDesc.length ? scopeDesc.join(', ') : 'All employees'}.`,
       ].join(' ');
 
       const payload = {
         [titleColumn]: requestTitle,
         [descriptionColumn]: requestDescription,
-        [amountColumn]: round2(Number(computed.summary?.gross_pay) || 0),
+        [amountColumn]: netPayTotal,
       };
 
       const requestTypeColumn = findFirstExistingColumn(columns, ['request_type', 'notification_type', 'type']);
@@ -942,6 +1266,16 @@ export const createPayrollRun = async (req, res, next) => {
         payload[departmentColumn] = 'Finance Department';
       }
 
+      const departmentIdColumn = findFirstExistingColumn(columns, ['department_id', 'request_department_id', 'dept_id']);
+      if (departmentIdColumn) {
+        payload[departmentIdColumn] = HRIS_DEPARTMENT_ID;
+      }
+
+      const departmentNameColumn = findFirstExistingColumn(columns, ['department_name', 'request_department_name']);
+      if (departmentNameColumn) {
+        payload[departmentNameColumn] = 'HRIS';
+      }
+
       const requestedByColumn = findFirstExistingColumn(columns, ['requested_by', 'created_by', 'user_id']);
       if (requestedByColumn) {
         payload[requestedByColumn] = req.user?.username || String(req.user?.user_id || '');
@@ -959,10 +1293,13 @@ export const createPayrollRun = async (req, res, next) => {
         payload.metadata = serializeJson({
           request_for: 'payroll_run',
           source_module: 'payroll',
+          requested_department_id: HRIS_DEPARTMENT_ID,
+          requested_department_name: 'HRIS',
           payroll_run_id: Number(runId),
           pay_period_start: periodStart,
           pay_period_end: periodEnd,
-          gross_pay: round2(Number(computed.summary?.gross_pay) || 0),
+          net_pay: netPayTotal,
+          gross_pay: grossPayTotal,
           scope_filters: scopeFilters,
         });
       }
@@ -979,6 +1316,22 @@ export const createPayrollRun = async (req, res, next) => {
 
       await db.commit();
 
+      // Log the creation action with 2FA info
+      if (twofa_session_id) {
+        const session = await db.getOne(
+          `SELECT verification_method FROM payroll_2fa_sessions WHERE id = ?`,
+          [twofa_session_id]
+        );
+        await logPayrollOperatorAction(
+          runId,
+          req.user?.user_id,
+          'create',
+          session?.verification_method,
+          req.ip || req.connection.remoteAddress,
+          req.get('user-agent')
+        );
+      }
+
       const scopeStr = scopeDesc.length ? ` [${scopeDesc.join(', ')}]` : '';
 
       await writeActivityLog({
@@ -993,7 +1346,8 @@ export const createPayrollRun = async (req, res, next) => {
         status: 'draft',
         payPeriodStart: periodStart,
         payPeriodEnd: periodEnd,
-        grossPay: round2(Number(computed.summary?.gross_pay) || 0),
+        netPay: netPayTotal,
+        grossPay: grossPayTotal,
       });
 
       return res.status(201).json({
@@ -1163,9 +1517,86 @@ export const deletePayrollRun = async (req, res, next) => {
   }
 };
 
+export const permanentlyDeleteAbortedPayrollRun = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const run = await db.getOne('SELECT id, pay_period_start, pay_period_end, status FROM payroll_runs WHERE id = ?', [id]);
+    if (!run) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payroll run not found',
+      });
+    }
+
+    if (String(run.status || '').toLowerCase() !== PAYROLL_RUN_STATUSES.ABORTED) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only aborted payroll runs can be permanently deleted',
+      });
+    }
+
+    await db.beginTransaction();
+    try {
+      // Delete related payroll contributions first (foreign key constraint)
+      await db.transactionQuery(
+        `DELETE FROM payroll_contributions
+         WHERE record_id IN (
+           SELECT id FROM payroll_records WHERE run_id = ?
+         )`,
+        [id]
+      );
+
+      // Delete payroll records
+      await db.transactionQuery(
+        `DELETE FROM payroll_records WHERE run_id = ?`,
+        [id]
+      );
+
+      // Delete the payroll run itself
+      await db.transactionQuery(
+        `DELETE FROM payroll_runs WHERE id = ?`,
+        [id]
+      );
+
+      // Cancel any related expense notifications
+      await db.transactionQuery(
+        `UPDATE expense_notifications
+         SET status = 'cancelled', updated_at = NOW()
+         WHERE external_reference_id = ?`,
+        [`payroll_run:${id}`]
+      );
+
+      await db.commit();
+    } catch (error) {
+      await db.rollback();
+      throw error;
+    }
+
+    await writeActivityLog({
+      userId: req.user?.user_id || null,
+      action: 'DELETE',
+      description: `Permanently deleted aborted payroll run #${id} (${run.pay_period_start} to ${run.pay_period_end})`,
+    });
+
+    res.json({
+      success: true,
+      message: 'Payroll run permanently deleted successfully',
+      data: {
+        id: Number(id),
+        message: 'Aborted payroll run and all associated records have been permanently removed',
+      },
+    });
+  } catch (error) {
+    logger.error('Permanently delete payroll run error:', error);
+    next(error);
+  }
+};
+
 export const finalizePayrollRun = async (req, res, next) => {
   try {
     const { id } = req.params;
+    const { twofa_session_id } = req.body || {};
 
     const run = await db.getOne('SELECT * FROM payroll_runs WHERE id = ?', [id]);
     if (!run) {
@@ -1189,12 +1620,63 @@ export const finalizePayrollRun = async (req, res, next) => {
       });
     }
 
+    // Validate 2FA session if provided
+    if (twofa_session_id) {
+      const session = await db.getOne(
+        `SELECT * FROM payroll_2fa_sessions 
+         WHERE id = ? 
+         AND user_id = ? 
+         AND action_type = 'payroll_finalize' 
+         AND is_verified = 1 
+         AND expires_at > NOW()`,
+        [twofa_session_id, req.user?.user_id]
+      );
+
+      if (!session) {
+        return res.status(401).json({
+          success: false,
+          message: '2FA verification required or session expired for payroll finalization',
+        });
+      }
+    }
+
     await db.beginTransaction();
     try {
+      // Get 2FA method from session
+      let twoFAMethod = null;
+      let twoFAVerifiedAt = null;
+      if (twofa_session_id) {
+        const session = await db.transactionQuery(
+          `SELECT verification_method, verified_at FROM payroll_2fa_sessions WHERE id = ?`,
+          [twofa_session_id]
+        );
+        twoFAMethod = session?.[0]?.verification_method || null;
+        twoFAVerifiedAt = session?.[0]?.verified_at || null;
+      }
+
       await syncPayrollRunStatuses({
         runId: Number(id),
         status: PAYROLL_RUN_STATUSES.FINALIZED,
         actorUserId: req.user?.user_id || null,
+        twoFAMethod,
+        twoFAVerifiedAt,
+      });
+
+      const finalizedRecords = await db.transactionQuery(
+        `SELECT id, employee_id, json_breakdown
+         FROM payroll_records
+         WHERE run_id = ?`,
+        [id]
+      );
+
+      const recordsWithCarryover = (finalizedRecords || []).map((record) => ({
+        ...record,
+        breakdown: parseJson(record.json_breakdown, {}),
+      }));
+
+      await syncNegativeNetPayBalancesForRun({
+        runId: Number(id),
+        records: recordsWithCarryover,
       });
 
       await db.commit();
@@ -1203,14 +1685,31 @@ export const finalizePayrollRun = async (req, res, next) => {
       throw error;
     }
 
+    // Log the finalization action with 2FA info
+    if (twofa_session_id) {
+      const session = await db.getOne(
+        `SELECT verification_method FROM payroll_2fa_sessions WHERE id = ?`,
+        [twofa_session_id]
+      );
+      await logPayrollOperatorAction(
+        Number(id),
+        req.user?.user_id,
+        'finalize',
+        session?.verification_method,
+        req.ip || req.connection.remoteAddress,
+        req.get('user-agent')
+      );
+    }
+
     await writeActivityLog({
       userId: req.user?.user_id || null,
       action: 'UPDATE',
       description: `Finalized payroll run #${id}`,
     });
 
-    const runGross = await db.getOne(
-      `SELECT COALESCE(SUM(gross_pay), 0) AS gross_pay
+    const runTotals = await db.getOne(
+      `SELECT COALESCE(SUM(gross_pay), 0) AS gross_pay,
+              COALESCE(SUM(net_pay), 0)   AS net_pay
        FROM payroll_records
        WHERE run_id = ?`,
       [id]
@@ -1222,7 +1721,8 @@ export const finalizePayrollRun = async (req, res, next) => {
       status: PAYROLL_RUN_STATUSES.FINALIZED,
       payPeriodStart: run.pay_period_start,
       payPeriodEnd: run.pay_period_end,
-      grossPay: Number(runGross?.gross_pay) || null,
+      netPay: Number(runTotals?.net_pay) || null,
+      grossPay: Number(runTotals?.gross_pay) || null,
     });
 
     try {
@@ -1232,6 +1732,15 @@ export const finalizePayrollRun = async (req, res, next) => {
       });
     } catch (emailError) {
       logger.error('Payroll finalization department email notification failed:', emailError);
+    }
+
+    try {
+      await sendPayrollRunEmployeePayslipEmails({
+        runId: Number(id),
+        payrollRun: run,
+      });
+    } catch (emailError) {
+      logger.error('Payroll finalization employee payslip email notification failed:', emailError);
     }
 
     res.json({
@@ -1248,6 +1757,47 @@ export const finalizePayrollRun = async (req, res, next) => {
   }
 };
 
+export const sendPayrollRunPayslipEmails = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const run = await db.getOne('SELECT * FROM payroll_runs WHERE id = ?', [id]);
+    if (!run) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payroll run not found',
+      });
+    }
+
+    if (String(run.status || '').toLowerCase() !== PAYROLL_RUN_STATUSES.FINALIZED) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payslip emails can only be sent for finalized payroll runs.',
+      });
+    }
+
+    const result = await sendPayrollRunEmployeePayslipEmails({
+      runId: Number(id),
+      payrollRun: run,
+    });
+
+    await writeActivityLog({
+      userId: req.user?.user_id || null,
+      action: 'UPDATE',
+      description: `Resent payslip emails for payroll run #${id} (sent: ${result.sent}, skipped: ${result.skipped}, failed: ${result.failed})`,
+    });
+
+    res.json({
+      success: true,
+      message: `Payslip emails dispatched: ${result.sent} sent, ${result.skipped} skipped (no email), ${result.failed} failed.`,
+      data: result,
+    });
+  } catch (error) {
+    logger.error('Send payroll payslip emails error:', error);
+    next(error);
+  }
+};
+
 export const getPayrollPayslip = async (req, res, next) => {
   try {
     const { id, employeeId } = req.params;
@@ -1255,6 +1805,14 @@ export const getPayrollPayslip = async (req, res, next) => {
     const run = await db.getOne('SELECT * FROM payroll_runs WHERE id = ?', [id]);
     if (!run) {
       return res.status(404).json({ success: false, message: 'Payroll run not found' });
+    }
+
+    // Prevent access to payslips from aborted runs
+    if (String(run.status || '').toLowerCase() === PAYROLL_RUN_STATUSES.ABORTED) {
+      return res.status(404).json({
+        success: false,
+        message: 'This payroll run has been aborted and is no longer available',
+      });
     }
 
     const record = await db.getOne(
@@ -1290,6 +1848,41 @@ export const getPayrollPayslip = async (req, res, next) => {
     const payslipData = parseJson(record.payslip_data, {});
     const breakdown = parseJson(record.json_breakdown, {});
 
+    // Get creator and finalizer information with usernames
+    let creatorInfo = null;
+    if (run.created_by_user_id) {
+      const creator = await db.getOne(
+        'SELECT u.user_id, u.username, e.first_name, e.last_name FROM users u LEFT JOIN employees e ON u.user_id = e.user_id WHERE u.user_id = ? LIMIT 1',
+        [run.created_by_user_id]
+      );
+      if (creator) {
+        creatorInfo = {
+          user_id: creator.user_id,
+          username: creator.username,
+          name: `${creator.first_name || ''} ${creator.last_name || ''}`.trim(),
+          method: run.creator_2fa_method,
+          verified_at: run.creator_2fa_verified_at,
+        };
+      }
+    }
+
+    let finalizerInfo = null;
+    if (run.finalized_by_user_id) {
+      const finalizer = await db.getOne(
+        'SELECT u.user_id, u.username, e.first_name, e.last_name FROM users u LEFT JOIN employees e ON u.user_id = e.user_id WHERE u.user_id = ? LIMIT 1',
+        [run.finalized_by_user_id]
+      );
+      if (finalizer) {
+        finalizerInfo = {
+          user_id: finalizer.user_id,
+          username: finalizer.username,
+          name: `${finalizer.first_name || ''} ${finalizer.last_name || ''}`.trim(),
+          method: run.finalizer_2fa_method,
+          verified_at: run.finalizer_2fa_verified_at,
+        };
+      }
+    }
+
     res.json({
       success: true,
       message: 'Payslip fetched successfully',
@@ -1300,6 +1893,8 @@ export const getPayrollPayslip = async (req, res, next) => {
           pay_period_end: run.pay_period_end,
           pay_schedule: run.pay_schedule,
           status: run.status,
+          creator: creatorInfo,
+          finalizer: finalizerInfo,
         },
         record: {
           id: record.id,
@@ -1890,7 +2485,7 @@ export const updateExpenseBudgetRequestStatus = async (req, res, next) => {
           : normalizedStatus === 'rejected'
             ? PAYROLL_RUN_STATUSES.FINANCE_REJECTED
             : PAYROLL_RUN_STATUSES.ABORTED,
-        grossPay: Number(current.requested_amount) || null,
+        netPay: Number(current.requested_amount) || null,
       });
     }
 
@@ -2010,14 +2605,14 @@ export const updatePayrollSettings = async (req, res, next) => {
       effective_date,
     } = req.body || {};
 
-    const schedule = ['weekly', 'semi-monthly', 'monthly'].includes(pay_schedule)
+    const schedule = ['semi-monthly', 'monthly'].includes(pay_schedule)
       ? pay_schedule
       : null;
 
     if (!schedule) {
       return res.status(400).json({
         success: false,
-        message: 'pay_schedule must be one of weekly, semi-monthly, or monthly',
+        message: 'pay_schedule must be one of semi-monthly or monthly',
       });
     }
 
@@ -2202,6 +2797,116 @@ export const overridePayrollRecord = async (req, res, next) => {
     }
   } catch (error) {
     logger.error('Override payroll record error:', error);
+    next(error);
+  }
+};
+
+export const initiate2FA = async (req, res, next) => {
+  try {
+    const { actionType, preferredMethod = 'fingerprint', actionReferenceId } = req.body;
+    const userId = req.user?.user_id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+      });
+    }
+
+    const result = await initiate2FASession(
+      userId,
+      actionType,
+      actionReferenceId,
+      preferredMethod,
+      req.ip || req.connection.remoteAddress
+    );
+
+    res.json({
+      success: true,
+      message: result.userMessage,
+      data: {
+        sessionId: result.sessionId,
+        method: result.method,
+        expiresIn: result.expiresIn,
+      },
+    });
+  } catch (error) {
+    logger.error('Initiate 2FA error:', error);
+    next(error);
+  }
+};
+
+export const verify2FA = async (req, res, next) => {
+  try {
+    const { sessionId, verificationCode, method = 'fingerprint' } = req.body;
+    const userId = req.user?.user_id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+      });
+    }
+
+    const result = await verify2FASession(sessionId, verificationCode, method);
+
+    if (!result.success) {
+      return res.status(result.locked ? 429 : 400).json({
+        success: false,
+        message: result.message,
+        locked: result.locked || false,
+        attemptsRemaining: result.attemptsRemaining,
+      });
+    }
+
+    res.json({
+      success: true,
+      message: result.message,
+      data: {
+        sessionId: result.sessionId,
+        userId: result.userId,
+        actionType: result.actionType,
+        actionReferenceId: result.actionReferenceId,
+      },
+    });
+  } catch (error) {
+    logger.error('Verify 2FA error:', error);
+    next(error);
+  }
+};
+
+export const getPayrollAuditTrail = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const run = await db.getOne('SELECT * FROM payroll_runs WHERE id = ?', [id]);
+    if (!run) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payroll run not found',
+      });
+    }
+
+    const auditTrail = await getPayrollOperatorAuditTrail(id);
+
+    res.json({
+      success: true,
+      message: 'Audit trail retrieved successfully',
+      data: {
+        payroll_run_id: Number(id),
+        pay_period_start: run.pay_period_start,
+        pay_period_end: run.pay_period_end,
+        created_by: run.created_by_user_id,
+        creator_2fa_method: run.creator_2fa_method,
+        creator_2fa_verified_at: run.creator_2fa_verified_at,
+        finalized_by: run.finalized_by_user_id,
+        finalizer_2fa_method: run.finalizer_2fa_method,
+        finalizer_2fa_verified_at: run.finalizer_2fa_verified_at,
+        audit_trail: auditTrail || [],
+      },
+    });
+  } catch (error) {
+    logger.error('Get payroll audit trail error:', error);
     next(error);
   }
 };

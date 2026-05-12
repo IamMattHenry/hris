@@ -8,7 +8,9 @@ import {
   createPayrollRun,
   getPayrollRunDetail,
   deletePayrollRun,
+  permanentlyDeleteAbortedPayrollRun,
   finalizePayrollRun,
+  sendPayrollRunPayslipEmails,
   getPayrollPayslip,
   getPayrollContributions,
   exportPayrollContributions,
@@ -18,6 +20,9 @@ import {
   updateExpenseBudgetRequestStatus,
   updatePayrollSettings,
   overridePayrollRecord,
+  initiate2FA,
+  verify2FA,
+  getPayrollAuditTrail,
 } from '../controllers/payrollController.js';
 
 const router = express.Router();
@@ -32,7 +37,7 @@ router.post(
   [
     body('pay_period_start').isISO8601().withMessage('pay_period_start must be a valid date'),
     body('pay_period_end').isISO8601().withMessage('pay_period_end must be a valid date'),
-    body('pay_schedule').optional().isIn(['weekly', 'semi-monthly', 'monthly']).withMessage('Invalid pay_schedule'),
+    body('pay_schedule').optional().isIn(['semi-monthly', 'monthly']).withMessage('Invalid pay_schedule'),
     body('employee_ids').optional().isArray().withMessage('employee_ids must be an array'),
     body('department_id').optional().isInt({ min: 1 }).withMessage('department_id must be a positive integer'),
     body('employment_type').optional().isString().trim().isLength({ min: 1, max: 50 }).withMessage('employment_type must be a non-empty string (max 50 chars)'),
@@ -45,7 +50,11 @@ router.get('/runs/:id', verifyToken, requirePermission('payroll.read'), getPayro
 
 router.delete('/runs/:id', verifyToken, requirePermission('payroll.update'), deletePayrollRun);
 
+router.delete('/runs/:id/permanent', verifyToken, requirePermission('payroll.update'), permanentlyDeleteAbortedPayrollRun);
+
 router.patch('/runs/:id/finalize', verifyToken, requirePermission('payroll.finalize'), finalizePayrollRun);
+
+router.post('/runs/:id/send-payslip-emails', verifyToken, requirePermission('payroll.finalize'), sendPayrollRunPayslipEmails);
 
 router.patch(
   '/runs/:id/records/:employeeId',
@@ -108,10 +117,44 @@ router.put(
   verifyToken,
   requirePermission('payroll.update'),
   [
-    body('pay_schedule').isIn(['weekly', 'semi-monthly', 'monthly']).withMessage('Invalid pay_schedule'),
+    body('pay_schedule').isIn(['semi-monthly', 'monthly']).withMessage('Invalid pay_schedule'),
   ],
   handleValidationErrors,
   updatePayrollSettings
+);
+
+// 2FA endpoints for payroll operations
+router.post(
+  '/2fa/initiate',
+  verifyToken,
+  requireRole('payroll_officer'),
+  [
+    body('actionType').isIn(['payroll_create', 'payroll_finalize']).withMessage('Invalid actionType'),
+    body('preferredMethod').optional().isIn(['fingerprint', 'qr', 'password']).withMessage('Invalid preferred 2FA method'),
+    body('actionReferenceId').optional({ nullable: true }).isInt().withMessage('actionReferenceId must be an integer'),
+  ],
+  handleValidationErrors,
+  initiate2FA
+);
+
+router.post(
+  '/2fa/verify',
+  verifyToken,
+  requireRole('payroll_officer'),
+  [
+    body('sessionId').isInt().withMessage('sessionId must be an integer'),
+    body('verificationCode').trim().notEmpty().withMessage('verificationCode is required'),
+    body('method').optional().isIn(['fingerprint', 'qr', 'password']).withMessage('Invalid verification method'),
+  ],
+  handleValidationErrors,
+  verify2FA
+);
+
+router.get(
+  '/runs/:id/audit-trail',
+  verifyToken,
+  requirePermission('payroll.read'),
+  getPayrollAuditTrail
 );
 
 export default router;

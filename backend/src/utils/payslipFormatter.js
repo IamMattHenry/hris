@@ -1,0 +1,404 @@
+/**
+ * Payslip Formatter
+ * Formats payroll computation results into payslip display structure
+ * with full agency names and required validations
+ */
+
+const round2 = (value) => Number((Number(value) || 0).toFixed(2));
+
+/**
+ * Generate formatted payslip sections with proper labels and validations
+ */
+export const formatPayslipSections = ({
+  breakdown,
+  net_pay,
+  raw_net_pay,
+  carryover_deduction = 0,
+  carryover_balance = 0,
+  negative_net_pay_note = null,
+  leave_without_pay_days,
+  settings = {},
+}) => {
+  if (!breakdown) {
+    throw new Error('Breakdown data is required for payslip formatting.');
+  }
+
+  const {
+    payPeriod,
+    employee,
+    attendance,
+    earnings,
+    deductions,
+    compliance,
+  } = breakdown;
+
+  const companyName = settings?.company_name || 'HRIS Company';
+
+  // Safely extract all values with defaults
+  const basePayForPeriod = round2(earnings?.basePayForPeriod || 0);
+  const holidayPremiumPay = round2(earnings?.holidayPremiumPay || 0);
+  const restDayPay = round2(earnings?.restDayPay || 0);
+  const overtimePay = round2(earnings?.overtimePay || 0);
+  const nightDifferentialPay = round2(earnings?.nightDifferentialPay || 0);
+  const taxableAllowance = round2(earnings?.allowances?.taxable || 0);
+  const nonTaxableAllowance = round2(earnings?.allowances?.nonTaxable || 0);
+  const thirteenthMonthAccrual = round2(earnings?.thirteenthMonthAccrual || 0);
+  const grossPay = round2(earnings?.grossPay || 0);
+  const rawNetPay = round2(raw_net_pay != null ? raw_net_pay : net_pay || 0);
+  const carryoverDeduction = round2(carryover_deduction || 0);
+  const carryoverBalance = round2(carryover_balance || 0);
+
+  // Derive rates and attendance metrics for absent/late/undertime calculations
+  const scheduledDays = attendance?.scheduledWorkDays || 0;
+  const scheduledHoursPerDay = attendance?.scheduledHoursPerDay || 8;
+  const scheduledHours = scheduledDays * scheduledHoursPerDay;
+  const hoursWorked = attendance?.hoursWorked !== undefined ? Number(attendance.hoursWorked) : null;
+  const expectedHours = scheduledHours;
+  const hourlyRate = (() => {
+    if (earnings?.hourlyRate) return round2(earnings.hourlyRate);
+    if (scheduledHours > 0) return round2(basePayForPeriod / scheduledHours);
+    return 0;
+  })();
+  const dailyRate = round2(hourlyRate * scheduledHoursPerDay);
+
+  // Absent hours: Expected - Worked (half day = 4 hrs is naturally covered)
+  const absentHoursComputed = (() => {
+    if (hoursWorked === null) return 0;
+    const diff = expectedHours - Number(hoursWorked || 0);
+    return diff > 0 ? round2(diff) : 0;
+  })();
+
+  // Use provided deduction values if present, otherwise compute
+
+  // Validate attendance deductions from the new structure
+  const attendanceDeductions = deductions?.attendance || {};
+  const lateDeductionPeso = round2(attendanceDeductions.lateDeduction || 0);
+  const undertimeDeductionPeso = round2(attendanceDeductions.undertimeDeduction || 0);
+  const absenceDeductionPeso = round2(attendanceDeductions.absenceDeduction || 0);
+  const unpaidLeaveDeductionPeso = round2(attendanceDeductions.unpaidLeaveDeduction || 0);
+
+  // compute missing items if backend didn't provide them
+  const lateDeductionComputed = round2(hourlyRate * ((attendance?.lateMinutes || 0) / 60));
+  const undertimeDeductionComputed = round2(hourlyRate * ((attendance?.undertimeMinutes || 0) / 60));
+  const absenceHours = round2(attendanceDeductions.absenceHours || 0);
+  const absenceDeductionComputed = round2(hourlyRate * absenceHours);
+  const unpaidLeaveHours = round2(attendanceDeductions.unpaidLeaveHours || 0);
+  const unpaidLeaveDeductionComputed = round2(hourlyRate * unpaidLeaveHours);
+  const leaveWithoutPayDays = round2(
+    leave_without_pay_days != null
+      ? leave_without_pay_days
+      : unpaidLeaveHours / 8,
+  );
+  const absenceDays = round2(
+    attendance?.absences != null
+      ? attendance.absences
+      : absenceHours / 8,
+  );
+
+  const effectiveLateDeduction = lateDeductionPeso || lateDeductionComputed;
+  const effectiveUndertimeDeduction = undertimeDeductionPeso || undertimeDeductionComputed;
+  const effectiveAbsenceDeduction = absenceDeductionPeso || absenceDeductionComputed;
+  const effectiveUnpaidLeaveDeduction = unpaidLeaveDeductionPeso || unpaidLeaveDeductionComputed;
+
+  // Earnings Section - Show breakdown to Gross Pay (non-taxable added after deductions)
+  const adjustedBasic = round2(basePayForPeriod - effectiveLateDeduction - effectiveUndertimeDeduction - effectiveAbsenceDeduction - effectiveUnpaidLeaveDeduction);
+  
+  const earningsSection = {
+    basic_pay: {
+      label: `Basic Pay (${attendance?.scheduledWorkDays || 0} days × 8 hrs)`,
+      amount: basePayForPeriod,
+      display: basePayForPeriod,
+    },
+    late_deduction: {
+      label: `Late Deduction (${attendance?.lateMinutes || 0} min)`,
+      amount: -effectiveLateDeduction,
+      display: -effectiveLateDeduction,
+    },
+    undertime_deduction: {
+      label: `Undertime Deduction (${attendance?.undertimeMinutes || 0} min)`,
+      amount: -effectiveUndertimeDeduction,
+      display: -effectiveUndertimeDeduction,
+    },
+    late_undertime: {
+      label: `Late / Undertime (${(attendance?.lateMinutes || 0) + (attendance?.undertimeMinutes || 0)} min)`,
+      amount: -(effectiveLateDeduction + effectiveUndertimeDeduction),
+      display: -(effectiveLateDeduction + effectiveUndertimeDeduction),
+    },
+    absence_deduction: {
+      label: `Absence Deduction (${absenceHours} hrs)`,
+      amount: -effectiveAbsenceDeduction,
+      display: -effectiveAbsenceDeduction,
+    },
+    unpaid_leave_deduction: {
+      label: `Unpaid Leave Deduction (${leaveWithoutPayDays} days)`,
+      amount: -effectiveUnpaidLeaveDeduction,
+      display: -effectiveUnpaidLeaveDeduction,
+    },
+    lwop: {
+      label: `LWOP (${leaveWithoutPayDays} days)`,
+      amount: -effectiveUnpaidLeaveDeduction,
+      display: -effectiveUnpaidLeaveDeduction,
+    },
+    absences: {
+      label: `Absences (${absenceDays} days)`,
+      amount: -effectiveAbsenceDeduction,
+      days: absenceDays,
+      display: -effectiveAbsenceDeduction,
+    },
+    adjusted_basic_pay: {
+      label: 'Adjusted Basic Pay',
+      amount: adjustedBasic,
+      display: adjustedBasic,
+    },
+    overtime_pay: {
+      label: 'Overtime Pay',
+      amount: overtimePay,
+      display: overtimePay,
+    },
+    rest_day_pay: {
+      label: 'Rest Day Pay',
+      amount: restDayPay,
+      display: restDayPay,
+    },
+    holiday_pay: {
+      label: 'Holiday Premium Pay',
+      amount: holidayPremiumPay,
+      display: holidayPremiumPay,
+    },
+    night_differential: {
+      label: 'Night Differential Pay',
+      amount: nightDifferentialPay,
+      display: nightDifferentialPay,
+    },
+    taxable_allowance: {
+      label: 'Taxable Allowance',
+      amount: taxableAllowance,
+      display: taxableAllowance,
+    },
+    thirteenth_month: {
+      label: '13th Month Pay Accrual (base ÷ 12)',
+      amount: thirteenthMonthAccrual,
+      display: thirteenthMonthAccrual,
+    },
+    // ── De Minimis (Non-Taxable) ──────────────────────────────────────────────
+    // nonTaxableAllowance is added AFTER tax / mandatory deductions for net pay.
+    // The monthly_limit is the configured BIR cap from settings (rice + clothing
+    // caps combined, normalised back to monthly), forwarded for payslip display.
+    non_taxable_allowance: {
+      label: 'De Minimis (Non-Taxable Allowances)',
+      amount: nonTaxableAllowance,
+      monthly_limit: round2(earnings?.deMinimisMonthlyCapTotal || 0) || null,
+      display: nonTaxableAllowance,
+    },
+    gross_pay: {
+      label: 'Gross Pay (before contributions & tax)',
+      amount: grossPay,
+      display: grossPay,
+    },
+  };
+
+
+  // Deductions Section
+  // ─────────────────────────────────────────────────────────────────────────
+  // All amounts are stored as POSITIVE numbers here.
+  // The payslip UI is responsible for formatting them as deductions (showing
+  // them with a minus sign or in a "Deductions" column).
+  // Previously these were stored as negatives, which caused formatMoney() to
+  // render "₱-250.00" instead of "₱250.00".
+  // ─────────────────────────────────────────────────────────────────────────
+  const sssDeduction = round2(deductions?.mandatoryContributions?.sss?.employeeShare || 0);
+  const philhealthDeduction = round2(deductions?.mandatoryContributions?.philHealth?.employeeShare || 0);
+  const pagibigDeduction = round2(deductions?.mandatoryContributions?.pagIbig?.employeeShare || 0);
+  const withholdingtax = round2(deductions?.withholding?.withholdingTax || 0);
+  const totalDeductionsAmount = round2(deductions?.totalDeductions || 0);
+  const taxableIncomeAmount = round2(deductions?.taxableIncome || 0);
+
+  // Tax bracket description — resolved from the withholding computation object
+  const taxBracketDescription =
+    deductions?.withholding?.bracketDescription ||
+    deductions?.withholding?.bracket_description ||
+    null;
+
+  const deductionsSection = {
+    // ── Attendance-based deductions ─────────────────────────────────────────
+    // These are moved here from earningsSection so the frontend can find them
+    // under payslip.deductions (where it expects all deduction line items).
+    late_undertime: {
+      label: `Late / Undertime (${(attendance?.lateMinutes || 0) + (attendance?.undertimeMinutes || 0)} min)`,
+      amount: round2(effectiveLateDeduction + effectiveUndertimeDeduction),
+      display: round2(effectiveLateDeduction + effectiveUndertimeDeduction),
+    },
+    lwop: {
+      label: `LWOP (${leaveWithoutPayDays} days)`,
+      amount: effectiveUnpaidLeaveDeduction,
+      days: leaveWithoutPayDays,
+      display: effectiveUnpaidLeaveDeduction,
+    },
+    absences: {
+      label: `Absences (${absenceDays} days)`,
+      amount: effectiveAbsenceDeduction,
+      days: absenceDays,
+      display: effectiveAbsenceDeduction,
+    },
+    // ── Mandatory government contributions (EE share) ───────────────────────
+    sss_ee: {
+      label: 'SSS (Employee Share)',
+      amount: sssDeduction,
+      display: sssDeduction,
+    },
+    philhealth_ee: {
+      label: 'PhilHealth (Employee Share)',
+      amount: philhealthDeduction,
+      display: philhealthDeduction,
+    },
+    pagibig_ee: {
+      label: 'Pag-IBIG (Employee Share)',
+      amount: pagibigDeduction,
+      display: pagibigDeduction,
+    },
+    // ── Tax ─────────────────────────────────────────────────────────────────
+    taxable_income: {
+      label: 'Taxable Income',
+      amount: taxableIncomeAmount,
+      display: taxableIncomeAmount,
+    },
+    withholding_tax: {
+      label: 'BIR Withholding Tax',
+      amount: withholdingtax,
+      display: withholdingtax,
+      // bracket description forwarded for payslip Notes section
+      bracketDescription: taxBracketDescription,
+    },
+    carryover_deduction: {
+      label: 'Negative Net Pay Carryover',
+      amount: round2(carryoverDeduction || 0),
+      display: round2(carryoverDeduction || 0),
+    },
+    total_deductions: {
+      label: 'Total Deductions (Contributions + Tax)',
+      amount: totalDeductionsAmount,
+      display: totalDeductionsAmount,
+    },
+  };
+
+  // Employer Contributions Section - Flat structure
+  const sssEmployerShare = round2(deductions?.mandatoryContributions?.sss?.employerShare || 0);
+  const philhealthEmployerShare = round2(deductions?.mandatoryContributions?.philHealth?.employerShare || 0);
+  const pagibigEmployerShare = round2(deductions?.mandatoryContributions?.pagIbig?.employerShare || 0);
+  const sssEc = round2(deductions?.mandatoryContributions?.sss?.employerCompensationEC || 0);
+
+  const employerContributionsSection = {
+    sss_er: {
+      label: 'SSS (ER)',
+      amount: sssEmployerShare,
+      display: sssEmployerShare,
+      ec: sssEc,
+    },
+    philhealth_er: {
+      label: 'PhilHealth (ER)',
+      amount: philhealthEmployerShare,
+      display: philhealthEmployerShare,
+    },
+    pagibig_er: {
+      label: 'Pag-IBIG (ER)',
+      amount: pagibigEmployerShare,
+      display: pagibigEmployerShare,
+    },
+    total_employer: {
+      label: 'Total Employer Cost',
+      amount: round2(sssEmployerShare + philhealthEmployerShare + pagibigEmployerShare),
+      display: round2(sssEmployerShare + philhealthEmployerShare + pagibigEmployerShare),
+    },
+  };
+
+  // Summary Section
+  const summarySection = {
+    gross_pay: grossPay,
+    total_deductions: totalDeductionsAmount,
+    deductions_detail: `SSS ₱${sssDeduction.toFixed(2)} + PhilHealth ₱${philhealthDeduction.toFixed(2)} + Pag-IBIG ₱${pagibigDeduction.toFixed(2)} + Tax ₱${withholdingtax.toFixed(2)}`,
+    after_deductions: round2(grossPay - totalDeductionsAmount),
+    non_taxable_allowances: nonTaxableAllowance,
+    raw_net_pay: rawNetPay,
+    carryover_deduction: carryoverDeduction,
+    carryover_balance: carryoverBalance,
+    net_pay: round2(net_pay || 0),
+  };
+
+
+  return {
+    company_name: companyName,
+    pay_period_start: payPeriod?.start,
+    pay_period_end: payPeriod?.end,
+    pay_schedule: payPeriod?.paySchedule,
+    employee_name: `${employee?.first_name || ''} ${employee?.last_name || ''}`.trim(),
+    employee_code: employee?.employee_code,
+    position_id: employee?.position_id,
+    employment_type: employee?.employment_type,
+    current_salary: employee?.current_salary,
+    hire_date: employee?.hire_date,
+    
+    // Payslip sections
+    earnings: earningsSection,
+    deductions: deductionsSection,
+    employer_contributions: employerContributionsSection,
+    summary: summarySection,
+    
+    // Compliance notes
+    compliance: compliance || {},
+    negative_net_pay_note: negative_net_pay_note || compliance?.notes?.[0] || null,
+    
+    // Signature block for printing
+    signature_block: 'Employee Signature: ______________________   Date: _______________',
+  };
+};
+
+/**
+ * Format payslip for display/printing with currency formatting
+ */
+export const formatPayslipForDisplay = (payslipData) => {
+  if (!payslipData) return null;
+
+  const formatted = JSON.parse(JSON.stringify(payslipData)); // Deep clone
+
+  // Format amounts with currency
+  const formatCurrency = (amount) => {
+    if (amount === null || amount === undefined) return '₱0.00';
+    const num = round2(amount);
+    return `₱${Math.abs(num).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  // Format all sections - add display_amount for each item
+  ['earnings', 'deductions', 'employer_contributions'].forEach((section) => {
+    if (formatted[section] && typeof formatted[section] === 'object') {
+      Object.keys(formatted[section]).forEach((key) => {
+        const item = formatted[section][key];
+        if (item && typeof item === 'object') {
+          // Add display amount for main amount field
+          if (item.amount !== undefined) {
+            item.display_amount = formatCurrency(item.amount);
+          }
+          // Format any other amount-like fields
+          ['display', 'total', 'monthlyTotal', 'regularShare', 'mpfShare', 'ecAmount', 'ec', 'monthlyAmount'].forEach((field) => {
+            if (item[field] !== undefined && field !== 'display') {
+              item[`display_${field}`] = formatCurrency(item[field]);
+            }
+          });
+        }
+      });
+    }
+  });
+
+  // Format summary section
+  if (formatted.summary) {
+    formatted.summary.display_gross_pay = formatCurrency(formatted.summary.gross_pay);
+    formatted.summary.display_total_deductions = formatCurrency(formatted.summary.total_deductions);
+    formatted.summary.display_net_pay = formatCurrency(formatted.summary.net_pay);
+  }
+
+  return formatted;
+};
+
+export default {
+  formatPayslipSections,
+  formatPayslipForDisplay,
+};

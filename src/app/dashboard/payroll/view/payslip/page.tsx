@@ -150,6 +150,7 @@ export default function PayrollPayslipModal(props: any) {
       run: payload.run,
       record,
       payslip,
+      breakdown: record.breakdown || {},
       earnings,
       deductions,
     };
@@ -260,31 +261,35 @@ export default function PayrollPayslipModal(props: any) {
                       <div className="p-3 space-y-1.5 text-xs">
                         <div className="flex justify-between">
                           <span>Basic Pay</span>
-                          <span>{formatMoney(content.earnings.basePayForPeriod)}</span>
+                          <span>{formatMoney(content.earnings.basic_pay?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Holiday Premium</span>
-                          <span>{formatMoney(content.earnings.holidayPremiumPay)}</span>
+                          <span>{formatMoney(content.earnings.holiday_pay?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Rest Day Pay</span>
-                          <span>{formatMoney(content.earnings.restDayPay)}</span>
+                          <span>{formatMoney(content.earnings.rest_day_pay?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Overtime Pay</span>
-                          <span>{formatMoney(content.earnings.overtimePay)}</span>
+                          <span>{formatMoney(content.earnings.overtime_pay?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Night Differential</span>
-                          <span>{formatMoney(content.earnings.nightDifferentialPay)}</span>
+                          <span>{formatMoney(content.earnings.night_differential?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span>Allowances</span>
-                          <span>{formatMoney(content.earnings.allowances?.grossAllowances)}</span>
+                          <span>Taxable Allowance</span>
+                          <span>{formatMoney(content.earnings.taxable_allowance?.amount)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>De Minimis</span>
+                          <span>{formatMoney(content.earnings.non_taxable_allowance?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>13th Month Accrual</span>
-                          <span>{formatMoney(content.earnings.thirteenthMonthAccrual)}</span>
+                          <span>{formatMoney(content.earnings.thirteenth_month?.amount)}</span>
                         </div>
                         <div className="border-t border-gray-300 pt-2 flex justify-between font-bold">
                           <span>Gross Pay</span>
@@ -301,27 +306,39 @@ export default function PayrollPayslipModal(props: any) {
                       <div className="p-3 space-y-1.5 text-xs">
                         <div className="flex justify-between">
                           <span>SSS (EE)</span>
-                          <span>{formatMoney(content.deductions.mandatoryContributions?.sss?.employeeShare)}</span>
+                          <span>{formatMoney(content.deductions.sss_ee?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>PhilHealth (EE)</span>
-                          <span>{formatMoney(content.deductions.mandatoryContributions?.philHealth?.employeeShare)}</span>
+                          <span>{formatMoney(content.deductions.philhealth_ee?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Pag-IBIG (EE)</span>
-                          <span>{formatMoney(content.deductions.mandatoryContributions?.pagIbig?.employeeShare)}</span>
+                          <span>{formatMoney(content.deductions.pagibig_ee?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span>Late / Undertime</span>
-                          <span>{formatMoney(content.deductions.lateUndertimeDeduction)}</span>
+                          <span>{content.deductions.late_undertime?.label || "Late / Undertime"}</span>
+                          <span>{formatMoney(content.deductions.late_undertime?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span>LWOP</span>
-                          <span>{formatMoney(content.deductions.lwopDeduction)}</span>
+                          <span>{content.deductions.lwop?.label || "LWOP"}</span>
+                          <span>{formatMoney(content.deductions.lwop?.amount)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>{content.deductions.absences?.label || "Absences"}</span>
+                          <span>{
+                            content.deductions.absences?.days !== undefined
+                              ? `${content.deductions.absences.days} days`
+                              : formatMoney(content.deductions.absences?.amount)
+                          }</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Taxable Income</span>
+                          <span>{formatMoney(content.deductions.taxable_income?.amount)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Withholding Tax</span>
-                          <span>{formatMoney(content.deductions.withholding?.withholdingTax)}</span>
+                          <span>{formatMoney(content.deductions.withholding_tax?.amount)}</span>
                         </div>
                         <div className="border-t border-gray-300 pt-2 flex justify-between font-bold">
                           <span>Total Deductions</span>
@@ -329,6 +346,14 @@ export default function PayrollPayslipModal(props: any) {
                         </div>
                       </div>
                     </div>
+                          <p className="text-gray-700">
+                            Government-mandated deductions: {content.payslip.compliance?.governmentMandatedDeductions ? "Yes" : "No"}
+                          </p>
+                          {Array.isArray(content.payslip.compliance?.warnings) && content.payslip.compliance.warnings.length > 0 ? (
+                            <p className="text-amber-700">
+                              Review: {content.payslip.compliance.warnings.join(" ")}
+                            </p>
+                          ) : null}
                   </div>
 
                   {/* Net Pay + Employer Contributions */}
@@ -337,15 +362,15 @@ export default function PayrollPayslipModal(props: any) {
                       <p className="font-semibold">Employer Contributions</p>
                       <p>
                         SSS (ER):{" "}
-                        {formatMoney(content.deductions.mandatoryContributions?.sss?.employerShare)}
+                        {formatMoney(content.payslip.employer_contributions?.sss_er?.amount)}
                       </p>
                       <p>
                         PhilHealth (ER):{" "}
-                        {formatMoney(content.deductions.mandatoryContributions?.philHealth?.employerShare)}
+                        {formatMoney(content.payslip.employer_contributions?.philhealth_er?.amount)}
                       </p>
                       <p>
                         Pag-IBIG (ER):{" "}
-                        {formatMoney(content.deductions.mandatoryContributions?.pagIbig?.employerShare)}
+                        {formatMoney(content.payslip.employer_contributions?.pagibig_er?.amount)}
                       </p>
                     </div>
 
@@ -364,8 +389,13 @@ export default function PayrollPayslipModal(props: any) {
                       <p className="text-gray-700">
                         Tax bracket: {content.deductions.withholding?.bracketDescription || "N/A"}
                       </p>
+                      {content.payslip.negative_net_pay_note ? (
+                        <p className="text-amber-700">
+                          Note: {content.payslip.negative_net_pay_note}
+                        </p>
+                      ) : null}
                       <p className="text-gray-700">
-                        LWOP Days: {content.payslip.lwop_days || 0}
+                        Leave Without Pay Days: {content.breakdown?.deductions?.unpaidLeaveDays || 0}
                       </p>
                     </div>
                     <div className="text-right">
@@ -373,6 +403,55 @@ export default function PayrollPayslipModal(props: any) {
                       <div className="mt-8 border-t border-black w-56 ml-auto"></div>
                     </div>
                   </div>
+
+                  {/* Operator Audit Trail — shown only when audit data is present */}
+                  {(content.run.creator || content.run.finalizer) && (
+                    <div className="pt-5 border-t border-gray-200">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                        Payroll Operator Audit
+                      </p>
+                      <div className="grid md:grid-cols-2 gap-4 text-xs">
+                        {content.run.creator && (
+                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-1">
+                            <p className="font-semibold text-gray-700">Created by</p>
+                            <p>
+                              <span className="font-medium">{content.run.creator.name || content.run.creator.username}</span>
+                              {content.run.creator.username && content.run.creator.name && (
+                                <span className="text-gray-500 ml-1">(@{content.run.creator.username})</span>
+                              )}
+                            </p>
+                            {content.run.creator.method && (
+                              <p className="text-gray-500">
+                                Verified via <span className="capitalize font-medium">{content.run.creator.method}</span>
+                                {content.run.creator.verified_at && (
+                                  <> on {new Date(content.run.creator.verified_at).toLocaleString("en-PH")}</>
+                                )}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                        {content.run.finalizer && (
+                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-1">
+                            <p className="font-semibold text-gray-700">Finalized by</p>
+                            <p>
+                              <span className="font-medium">{content.run.finalizer.name || content.run.finalizer.username}</span>
+                              {content.run.finalizer.username && content.run.finalizer.name && (
+                                <span className="text-gray-500 ml-1">(@{content.run.finalizer.username})</span>
+                              )}
+                            </p>
+                            {content.run.finalizer.method && (
+                              <p className="text-gray-500">
+                                Verified via <span className="capitalize font-medium">{content.run.finalizer.method}</span>
+                                {content.run.finalizer.verified_at && (
+                                  <> on {new Date(content.run.finalizer.verified_at).toLocaleString("en-PH")}</>
+                                )}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

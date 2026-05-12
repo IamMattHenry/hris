@@ -22,6 +22,7 @@ export interface Dependent {
   relationship: string;
   relationshipSpecify?: string;
   homeAddress: string;
+  barangay: string;
   region: string;
   province: string;
   city: string;
@@ -113,13 +114,13 @@ export const validateDependent = (
  */
 export const validateEmails = (emails: ContactEmail[] | null | undefined): string | null => {
   if (!Array.isArray(emails)) {
-    return "At least one email is required";
+    return null;
   }
 
   const validEmails = emails.filter((e) => e?.email && e.email.trim());
 
   if (validEmails.length === 0) {
-    return "At least one email is required";
+    return null;
   }
 
   for (const emailItem of validEmails) {
@@ -142,7 +143,7 @@ export const validateContactNumbers = (
   );
 
   if (validContacts.length === 0) {
-    return "At least one contact number is required";
+    return null;
   }
 
   for (const contactItem of validContacts) {
@@ -232,24 +233,28 @@ export const validateEmployeeForm = (
     errors.employmentStatus = "Employment status is required";
   }
 
-  if (!homeAddress.trim()) {
-    errors.homeAddress = "Home address is required";
-  }
+  const hasAnyAddress = [homeAddress, barangay, region, province, city]
+    .some((value) => Boolean(value && value.trim()));
+  if (hasAnyAddress) {
+    if (!homeAddress.trim()) {
+      errors.homeAddress = "Home address is required";
+    }
 
-  if (!barangay.trim()) {
-    errors.barangay = "Barangay is required";
-  }
+    if (!barangay.trim()) {
+      errors.barangay = "Barangay is required";
+    }
 
-  if (!region) {
-    errors.region = "Region is required";
-  }
+    if (!region) {
+      errors.region = "Region is required";
+    }
 
-  if (!province) {
-    errors.province = "Province is required";
-  }
+    if (!province) {
+      errors.province = "Province is required";
+    }
 
-  if (!city) {
-    errors.city = "City is required";
+    if (!city) {
+      errors.city = "City is required";
+    }
   }
 
   if (!civilStatus) {

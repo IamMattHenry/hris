@@ -2,6 +2,54 @@ import * as db from '../config/db.js';
 import logger from '../utils/logger.js';
 import { generateAttendanceCode } from '../utils/codeGenerator.js';
 
+const WEEKDAY_MAP = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+const normalizeScheduledDays = (scheduledDays) => {
+  const fallback = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+  if (!scheduledDays) return fallback;
+
+  if (Array.isArray(scheduledDays)) {
+    const normalized = scheduledDays
+      .map((day) => String(day).trim().toLowerCase())
+      .filter(Boolean);
+    return normalized.length ? normalized : fallback;
+  }
+
+  if (typeof scheduledDays === 'string') {
+    const trimmed = scheduledDays.trim();
+    if (!trimmed) return fallback;
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        const normalized = parsed
+          .map((day) => String(day).trim().toLowerCase())
+          .filter(Boolean);
+        return normalized.length ? normalized : fallback;
+      }
+    } catch {
+      // fall through to comma-separated parsing
+    }
+
+    const normalized = trimmed
+      .split(',')
+      .map((day) => day.trim().toLowerCase())
+      .filter(Boolean);
+
+    return normalized.length ? normalized : fallback;
+  }
+
+  return fallback;
+};
+
+const isScheduledOnDate = (scheduledDays, dateStr) => {
+  const date = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return false;
+  const weekday = WEEKDAY_MAP[date.getDay()];
+  const days = normalizeScheduledDays(scheduledDays);
+  return days.includes(weekday);
+};
+
 export const getAttendanceRecords = async (req, res, next) => {
   try {
     const { employee_id, start_date, end_date, include_offline } = req.query;
@@ -12,6 +60,7 @@ export const getAttendanceRecords = async (req, res, next) => {
       LEFT JOIN employees e ON a.employee_id = e.employee_id
       LEFT JOIN departments d ON e.department_id = d.department_id
       WHERE 1=1
+        AND (e.employee_id IS NULL OR e.status IN ('active', 'on-leave'))
     `;
     const params = [];
 
@@ -40,7 +89,7 @@ export const getAttendanceRecords = async (req, res, next) => {
 
       // Get all active employees
       let employeeSql = `
-        SELECT e.employee_id, e.employee_code, e.first_name, e.last_name, d.department_name
+        SELECT e.employee_id, e.employee_code, e.first_name, e.last_name, d.department_name, e.scheduled_days
         FROM employees e
         LEFT JOIN departments d ON e.department_id = d.department_id
         WHERE e.status = ?
@@ -69,7 +118,7 @@ export const getAttendanceRecords = async (req, res, next) => {
           date: targetDate,
           time_in: null,
           time_out: null,
-          status: 'offline',
+          status: isScheduledOnDate(emp.scheduled_days, targetDate) ? 'offline' : 'rest_day',
           overtime_hours: 0,
           created_at: null,
           updated_at: null,
@@ -180,13 +229,13 @@ export const clockIn = async (req, res, next) => {
 
     // Verify employee exists to avoid foreign key errors (e.g., invalid QR)
     const employee = await db.getOne(
-      'SELECT employee_id FROM employees WHERE employee_id = ?',
-      [employee_id]
+      'SELECT employee_id FROM employees WHERE employee_id = ? AND status = ?',
+      [employee_id, 'active']
     );
     if (!employee) {
       return res.status(404).json({
         success: false,
-        message: 'QR code is not associated with any employee',
+        message: 'QR code is not associated with any active employee',
       });
     }
 
@@ -203,7 +252,7 @@ export const clockIn = async (req, res, next) => {
       });
     }
 
-    const validStatuses = ['present', 'absent', 'late', 'early_leave', 'half_day', 'on_leave', 'work_from_home', 'others'];
+    const validStatuses = ['present', 'absent', 'late', 'early_leave', 'half_day', 'on_leave', 'work_from_home', 'rest_day', 'holiday', 'others'];
     const finalStatus = validStatuses.includes(status) ? status : 'present';
 
     // Get user ID from JWT token for audit trail
@@ -421,8 +470,8 @@ export const fingerprintAttendance = async (req, res, next) => {
 
     // Find employee by fingerprint_id
     const employee = await db.getOne(
-      'SELECT employee_id, first_name, last_name FROM employees WHERE fingerprint_id = ?',
-      [fingerprint_id]
+      'SELECT employee_id, first_name, last_name FROM employees WHERE fingerprint_id = ? AND status = ?',
+      [fingerprint_id, 'active']
     );
 
     if (!employee) {
@@ -689,7 +738,7 @@ export const updateAttendanceStatus = async (req, res, next) => {
       });
     }
 
-    const validStatuses = ['present', 'absent', 'late', 'early_leave', 'half_day', 'on_leave', 'work_from_home', 'overtime', 'others'];
+    const validStatuses = ['present', 'absent', 'late', 'early_leave', 'half_day', 'on_leave', 'work_from_home', 'overtime', 'rest_day', 'holiday', 'others'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
@@ -780,6 +829,103 @@ export const getAttendanceSummary = async (req, res, next) => {
     next(error);
   }
 };
+
+export const searchMonthlyAttendanceSummary = async (req, res, next) => {
+  try {
+    const { search = '', month, start_date, end_date } = req.query;
+
+    // Determine start/end dates. Priority: explicit start_date/end_date, then month, then current month.
+    let startDate;
+    let endDate;
+
+    if (start_date && end_date) {
+      // Basic validation YYYY-MM-DD
+      const startOk = /^\d{4}-\d{2}-\d{2}$/.test(start_date);
+      const endOk = /^\d{4}-\d{2}-\d{2}$/.test(end_date);
+      if (!startOk || !endOk) {
+        return res.status(400).json({ success: false, message: 'Invalid date format for start_date/end_date. Use YYYY-MM-DD.' });
+      }
+      startDate = start_date;
+      endDate = end_date;
+    } else if (month) {
+      const [y, m] = String(month).split('-').map(Number);
+      if (!y || !m || m < 1 || m > 12) {
+        return res.status(400).json({ success: false, message: 'Invalid month format. Use YYYY-MM.' });
+      }
+      startDate = `${y}-${String(m).padStart(2, '0')}-01`;
+      const lastDay = new Date(y, m, 0).getDate();
+      endDate = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    } else {
+      const now = new Date();
+      const phNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+      const defY = phNow.getFullYear();
+      const defM = phNow.getMonth() + 1;
+      startDate = `${defY}-${String(defM).padStart(2, '0')}-01`;
+      const lastDay = new Date(defY, defM, 0).getDate();
+      endDate = `${defY}-${String(defM).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    }
+
+    // Build search pattern
+    const q = `%${String(search || '').trim()}%`;
+
+    const sql = `
+      SELECT e.employee_id, e.employee_code, e.first_name, e.last_name, d.department_name,
+        jp.position_name,
+        e.work_type,
+        e.scheduled_days,
+        e.scheduled_start_time,
+        e.scheduled_end_time,
+        COALESCE(SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END), 0) AS present_count,
+        COALESCE(SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END), 0) AS absent_count,
+        COALESCE(SUM(CASE WHEN a.status = 'on_leave' THEN 1 ELSE 0 END), 0) AS leave_count,
+        COALESCE(SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END), 0) AS late_count,
+        COALESCE(SUM(CASE WHEN a.status = 'overtime' THEN 1 ELSE 0 END), 0) AS overtime_count
+      FROM employees e
+      LEFT JOIN departments d ON e.department_id = d.department_id
+      LEFT JOIN job_positions jp ON e.position_id = jp.position_id
+      LEFT JOIN attendance a ON a.employee_id = e.employee_id AND a.date BETWEEN ? AND ?
+      WHERE e.status = ?
+        AND (
+          e.employee_code LIKE ? OR
+          e.first_name LIKE ? OR
+          e.last_name LIKE ?
+        )
+      GROUP BY e.employee_id
+      ORDER BY e.employee_code ASC
+      LIMIT 1000
+    `;
+
+    const rows = await db.getAll(sql, [startDate, endDate, 'active', q, q, q]);
+
+    res.json({
+      success: true,
+      data: rows.map(r => ({
+        employee_id: r.employee_id,
+        employee_code: r.employee_code,
+        name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+        department: r.department_name,
+        position_name: r.position_name,
+        work_type: r.work_type,
+        scheduled_days: r.scheduled_days,
+        scheduled_start_time: r.scheduled_start_time,
+        scheduled_end_time: r.scheduled_end_time,
+        present: r.present_count || 0,
+        absent: r.absent_count || 0,
+        leave: r.leave_count || 0,
+        late: r.late_count || 0,
+        overtime_days: r.overtime_count || 0,
+        start_date: startDate,
+        end_date: endDate,
+      })),
+      count: rows.length,
+      start_date: startDate,
+      end_date: endDate,
+    });
+  } catch (error) {
+    logger.error('Search monthly attendance summary error:', error);
+    next(error);
+  }
+};
 export const markAbsences = async (req, res, next) => {
   try {
     // Accept single date or range. Default: yesterday (PH time)
@@ -837,7 +983,7 @@ export const markAbsences = async (req, res, next) => {
 
     // Only active employees (with hire_date and scheduled_days for filtering)
     const employees = await db.getAll(
-      `SELECT e.employee_id, e.hire_date, e.scheduled_days
+      `SELECT e.employee_id, e.scheduled_days
        FROM employees e
        WHERE e.status = 'active'`
     );
@@ -871,24 +1017,11 @@ export const markAbsences = async (req, res, next) => {
         );
         if (onLeave) continue;
 
-        // Skip if employee is not scheduled to work on this day
-        if (emp.scheduled_days) {
-          try {
-            const scheduledDays = JSON.parse(emp.scheduled_days);
-            const targetDateObj = new Date(`${targetDate}T00:00:00`);
-            const dayName = targetDateObj.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-            if (!scheduledDays.includes(dayName)) continue;
-          } catch (e) {
-            // If scheduled_days is invalid JSON, skip this employee
-            logger.warn(`Invalid scheduled_days JSON for employee ${emp.employee_id}: ${emp.scheduled_days}`);
-            continue;
-          }
-        }
-
+        const shouldBeAtWork = isScheduledOnDate(emp.scheduled_days, targetDate);
         const attendanceId = await db.insert('attendance', {
           employee_id: emp.employee_id,
           date: targetDate,
-          status: 'absent',
+          status: shouldBeAtWork ? 'absent' : 'rest_day',
           created_by: null, // System-created
         });
         const code = generateAttendanceCode(attendanceId);

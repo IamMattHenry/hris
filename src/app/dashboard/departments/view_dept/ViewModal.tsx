@@ -9,7 +9,11 @@ interface Department {
     department_code?: string;
     department_name: string;
     description?: string;
+    supervisor_id?: number | null;
     supervisor_name?: string;
+    supervisor_first_name?: string;
+    supervisor_last_name?: string;
+    supervisor_code?: string;
     employee_count?: number;
 }
 
@@ -17,10 +21,15 @@ interface ViewDepartmentModalProps {
     isOpen: boolean;
     onClose: () => void;
     department: Department | null;
+    onViewSupervisor?: (employeeId: number) => void;
 }
 
-export default function ViewDepartmentModal({ isOpen, onClose, department }: ViewDepartmentModalProps) {
+export default function ViewDepartmentModal({ isOpen, onClose, department, onViewSupervisor }: ViewDepartmentModalProps) {
     if (!department) return null;
+
+    const supervisorName = department.supervisor_first_name && department.supervisor_last_name
+        ? `${department.supervisor_code ? `${department.supervisor_code} - ` : ""}${department.supervisor_first_name} ${department.supervisor_last_name}`
+        : department.supervisor_name || "No Supervisor Assigned";
 
     return (
         <AnimatePresence>
@@ -70,10 +79,22 @@ export default function ViewDepartmentModal({ isOpen, onClose, department }: Vie
                             />
 
                             {/* Supervisor */}
-                            {/*<InfoBox
-                                label="Department Supervisor"
-                                value={department.supervisor_name || "No Supervisor Assigned"}
-                            />*/}
+                            <div className="space-y-2">
+                                <p className="font-medium">Department Supervisor</p>
+                                {department.supervisor_id && onViewSupervisor ? (
+                                    <button
+                                        onClick={() => onViewSupervisor(department.supervisor_id as number)}
+                                        className="w-full text-left px-4 py-3 rounded-lg bg-[#fff7ec] border border-[#e6d2b5] hover:underline"
+                                    >
+                                        {supervisorName}
+                                    </button>
+                                ) : (
+                                    <InfoBox
+                                        label="Department Supervisor"
+                                        value={supervisorName}
+                                    />
+                                )}
+                            </div>
 
                             {/* Number of Employees */}
                             <InfoBox

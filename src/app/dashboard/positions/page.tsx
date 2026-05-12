@@ -30,11 +30,11 @@ export default function PositionTable() {
     top: number;
     left: number;
   } | null>(null);
-  const [sortOrder, setSortOrder] = useState<"default" | "asc" | "desc">("default");
+  const [sortOrder, setSortOrder] = useState<"default" | "asc" | "desc" | "salary-asc" | "salary-desc">("default");
 
   const menuRef = useRef<HTMLDivElement | null>(null);
 
-  const itemsPerPage = 10;
+  const itemsPerPage = 8;
 
   const canCreatePosition = can('positions.create');
   const canUpdatePosition = can('positions.update');
@@ -133,11 +133,20 @@ export default function PositionTable() {
 
     if (sortOrder !== "default") {
       list = [...list].sort((a, b) => {
-        const nameA = (a.position_name ?? "").toLowerCase();
-        const nameB = (b.position_name ?? "").toLowerCase();
-        if (nameA === nameB) return 0;
-        const comparison = nameA < nameB ? -1 : 1;
-        return sortOrder === "asc" ? comparison : -comparison;
+        if (sortOrder === "asc" || sortOrder === "desc") {
+          const nameA = (a.position_name ?? "").toLowerCase();
+          const nameB = (b.position_name ?? "").toLowerCase();
+          if (nameA === nameB) return 0;
+          const comparison = nameA < nameB ? -1 : 1;
+          return sortOrder === "asc" ? comparison : -comparison;
+        } else if (sortOrder === "salary-asc" || sortOrder === "salary-desc") {
+          const salaryA = a.default_salary != null ? Number(a.default_salary) : 0;
+          const salaryB = b.default_salary != null ? Number(b.default_salary) : 0;
+          if (salaryA === salaryB) return 0;
+          const comparison = salaryA < salaryB ? -1 : 1;
+          return sortOrder === "salary-asc" ? comparison : -comparison;
+        }
+        return 0;
       });
     }
 
@@ -270,6 +279,8 @@ export default function PositionTable() {
             <option value="default">Sort: Default</option>
             <option value="asc">Sort: Name A-Z</option>
             <option value="desc">Sort: Name Z-A</option>
+            <option value="salary-desc">Sort: Salary (High to Low)</option>
+            <option value="salary-asc">Sort: Salary (Low to High)</option>
           </select>
 
           <SearchBar placeholder="Search Position" value={searchTerm} onChange={handleSearch} />

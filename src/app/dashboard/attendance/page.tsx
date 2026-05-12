@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, ChangeEvent } from "react";
 import { Search, Calendar, RotateCw } from "lucide-react";
 import toast from "react-hot-toast";
 import ActionButton from "@/components/buttons/ActionButton";
@@ -8,7 +8,7 @@ import SearchBar from "@/components/forms/FormSearch";
 import ViewAttendanceModal from "./view_attendance/ViewModal";
 import { attendanceApi, departmentApi } from "@/lib/api";
 
-type AttendanceStatus = "present" | "absent" | "late" | "early_leave" | "half_day" | "on_leave" | "work_from_home" | "others" | "offline";
+type AttendanceStatus = "present" | "absent" | "late" | "early_leave" | "half_day" | "on_leave" | "work_from_home" | "others" | "offline" | "holiday" | "rest_day" | "overtime";
 
 interface Attendance {
   attendance_id: number | null;
@@ -26,6 +26,26 @@ interface Attendance {
   remarks?: string;
 }
 
+interface AttendanceSummaryResult {
+  employee_id: number;
+  employee_code: string;
+  name: string;
+  department?: string | null;
+  position_name?: string | null;
+  work_type?: string | null;
+  scheduled_days?: string[] | string | null;
+  scheduled_start_time?: string | null;
+  scheduled_end_time?: string | null;
+  present: number;
+  absent: number;
+  leave: number;
+  late: number;
+  overtime_days: number;
+  start_date?: string;
+  end_date?: string;
+  month?: string;
+}
+
 const STATUS_LABELS: Record<AttendanceStatus, string> = {
   present: "Present",
   absent: "Absent",
@@ -36,6 +56,9 @@ const STATUS_LABELS: Record<AttendanceStatus, string> = {
   work_from_home: "Work From Home",
   others: "Others",
   offline: "Offline",
+  holiday: "Holiday",
+  rest_day: "Rest Day",
+  overtime: "Overtime",
 };
 
 const getCurrentPHDate = () => {
@@ -57,6 +80,18 @@ export default function AttendanceTable() {
   const [departments, setDepartments] = useState<{ department_id: number, department_name: string }[]>([]);
   const [selectedDept, setSelectedDept] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [monthSearch, setMonthSearch] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [summaryResults, setSummaryResults] = useState<AttendanceSummaryResult[]>([]);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
+  const [summaryMode, setSummaryMode] = useState<'month' | 'range'>('month');
+  const [summarySortBy, setSummarySortBy] = useState<'employee_code' | 'name' | 'department' | 'present' | 'absent' | 'leave' | 'late' | 'overtime_days'>('employee_code');
+  const [summarySortOrder, setSummarySortOrder] = useState<'asc' | 'desc'>('asc');
+  const [rangeStart, setRangeStart] = useState<string>(() => `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}-01`);
+  const [rangeEnd, setRangeEnd] = useState<string>(() => getCurrentPHDate());
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10; // change page size here
 
@@ -231,6 +266,29 @@ export default function AttendanceTable() {
     day: "numeric",
   });
 
+  const sortedSummaryResults = useMemo(() => {
+    const list = [...summaryResults];
+    list.sort((a: any, b: any) => {
+      const av = a?.[summarySortBy];
+      const bv = b?.[summarySortBy];
+
+      // Numeric fields
+      const numericFields = new Set(['present', 'absent', 'leave', 'late', 'overtime_days']);
+      if (numericFields.has(summarySortBy)) {
+        const nA = Number(av) || 0;
+        const nB = Number(bv) || 0;
+        return summarySortOrder === 'asc' ? nA - nB : nB - nA;
+      }
+
+      const sA = String(av || '').toLowerCase();
+      const sB = String(bv || '').toLowerCase();
+      if (sA < sB) return summarySortOrder === 'asc' ? -1 : 1;
+      if (sA > sB) return summarySortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return list;
+  }, [summaryResults, summarySortBy, summarySortOrder]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#fff7ec] flex items-center justify-center">
@@ -255,9 +313,220 @@ export default function AttendanceTable() {
     return `${displayHours}:${minutes} ${period}`;
   };
 
+  const formatScheduledDays = (value?: string[] | string | null) => {
+    if (!value) return '-';
+    if (Array.isArray(value)) {
+      return value.length > 0 ? value.join(', ') : '-';
+    }
+
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.length > 0 ? parsed.join(', ') : '-';
+      }
+    } catch {
+      // keep raw value
+    }
+
+    return String(value);
+  };
+
+  const formatWorkDetails = (row: AttendanceSummaryResult) => {
+    const parts = [
+      row.position_name,
+      row.work_type ? row.work_type.replace(/-/g, ' ') : null,
+      row.scheduled_start_time && row.scheduled_end_time
+        ? `${row.scheduled_start_time.slice(0, 5)} - ${row.scheduled_end_time.slice(0, 5)}`
+        : null,
+      formatScheduledDays(row.scheduled_days),
+    ].filter((part): part is string => Boolean(part && part.trim()));
+
+    return parts.length > 0 ? parts.join(' • ') : '-';
+  };
+
   return (
     <div className="min-h-screen bg-[#fff7ec] p-8 space-y-6 text-gray-800 font-poppins z-30">
       {/* Header */}
+      {/* Compact Monthly Summary button (opens modal) */}
+      <div>
+        <button
+          onClick={() => setIsSummaryModalOpen(true)}
+          className="px-4 py-2 bg-[#3b2b1c] text-white rounded shadow"
+        >
+          View Attendance Summary
+        </button>
+
+        {/** Modal */}
+        {isSummaryModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={(e) => { if (e.target === e.currentTarget) setIsSummaryModalOpen(false); }}>
+            <div className="bg-white rounded-lg w-[90%] max-w-3xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Attendance Summary</h3>
+                <button onClick={() => setIsSummaryModalOpen(false)} className="text-sm text-gray-500">Close</button>
+              </div>
+
+              <div className="flex flex-wrap gap-3 items-center">
+                <div className="min-w-[220px]">
+                  <SearchBar placeholder="Search employee (code or name)" value={searchTerm} onChange={setSearchTerm} />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <label className="text-sm">Mode:</label>
+                  <select
+                    className="border rounded px-2 py-1"
+                    onChange={(e: ChangeEvent<HTMLSelectElement>) => setSummaryMode(e.target.value as 'month' | 'range')}
+                    value={summaryMode}
+                  >
+                    <option value="month">Month</option>
+                    <option value="range">Custom Range</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <label className="text-sm">Sort:</label>
+                  <select
+                    className="border rounded px-2 py-1"
+                    value={summarySortBy}
+                    onChange={(e) => setSummarySortBy(e.target.value as any)}
+                  >
+                    <option value="employee_code">Employee Code</option>
+                    <option value="name">Name</option>
+                    <option value="department">Department</option>
+                    <option value="present">Present</option>
+                    <option value="absent">Absent</option>
+                    <option value="leave">Leave</option>
+                    <option value="late">Late</option>
+                    <option value="overtime_days">OT Days</option>
+                  </select>
+
+                  <select
+                    className="border rounded px-2 py-1"
+                    value={summarySortOrder}
+                    onChange={(e) => setSummarySortOrder(e.target.value as any)}
+                  >
+                    <option value="asc">Ascending</option>
+                    <option value="desc">Descending</option>
+                  </select>
+                </div>
+
+                {summaryMode === 'month' ? (
+                  <input type="month" value={monthSearch} onChange={(e) => setMonthSearch(e.target.value)} className="border px-2 py-1 rounded" />
+                ) : (
+                  <div className="flex gap-2 items-center">
+                    <input type="date" value={rangeStart} onChange={(e) => setRangeStart(e.target.value)} className="border px-2 py-1 rounded" />
+                    <span className="text-sm">to</span>
+                    <input type="date" value={rangeEnd} onChange={(e) => setRangeEnd(e.target.value)} className="border px-2 py-1 rounded" />
+                  </div>
+                )}
+
+                <div className="ml-auto flex items-center gap-2">
+                  <button
+                    onClick={async () => {
+                      setLoadingSummary(true);
+                      try {
+                        const params: any = { search: searchTerm };
+                        if (summaryMode === 'month') params.month = monthSearch;
+                        else { params.start_date = rangeStart; params.end_date = rangeEnd; }
+                        const res = await attendanceApi.searchMonthlySummary(params);
+                        if (res.success && Array.isArray(res.data)) {
+                          setSummaryResults(res.data);
+                        } else {
+                          toast.error(res.message || 'Could not fetch summary');
+                        }
+                      } catch (e: any) {
+                        toast.error(e?.message || 'Could not fetch summary');
+                      } finally {
+                        setLoadingSummary(false);
+                      }
+                    }}
+                    className="px-3 py-2 bg-[#3b2b1c] text-white rounded"
+                  >
+                    {loadingSummary ? 'Searching...' : 'Search'}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (!summaryResults || summaryResults.length === 0) {
+                        toast.error('No data to export');
+                        return;
+                      }
+                      // Build CSV
+                      const headers = ['Employee Code','Name','Department','Position','Work Type','Scheduled Days','Start Time','End Time','Present','Absent','Leave','Late','Overtime Days','Start Date','End Date'];
+                      const rows = sortedSummaryResults.map((r: AttendanceSummaryResult) => [
+                        r.employee_code,
+                        r.name,
+                        r.department || '',
+                        r.position_name || '',
+                        r.work_type || '',
+                        formatScheduledDays(r.scheduled_days),
+                        r.scheduled_start_time || '',
+                        r.scheduled_end_time || '',
+                        r.present,
+                        r.absent,
+                        r.leave,
+                        r.late,
+                        r.overtime_days,
+                        r.start_date || r.month || '',
+                        r.end_date || '',
+                      ]);
+                      const csv = [headers.join(','), ...rows.map(r => r.map((c:any) => `"${String(c).replace(/"/g,'""')}"`).join(','))].join('\n');
+                      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `attendance_summary_${new Date().toISOString().slice(0,10)}.csv`;
+                      document.body.appendChild(a);
+                      a.click();
+                      a.remove();
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="px-3 py-2 bg-gray-200 rounded"
+                  >
+                    Export CSV
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 max-h-[50vh] overflow-auto">
+                {sortedSummaryResults.length === 0 ? (
+                  <div className="text-sm text-gray-500">No results</div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="py-2 px-3 text-left">Code</th>
+                        <th className="py-2 px-3 text-left">Name</th>
+                        <th className="py-2 px-3 text-left">Department</th>
+                        <th className="py-2 px-3 text-left">Work Details</th>
+                        <th className="py-2 px-3">Present</th>
+                        <th className="py-2 px-3">Absent</th>
+                        <th className="py-2 px-3">Leave</th>
+                        <th className="py-2 px-3">Late</th>
+                        <th className="py-2 px-3">OT Days</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedSummaryResults.map((r: AttendanceSummaryResult) => (
+                        <tr key={r.employee_id} className="border-t">
+                          <td className="py-2 px-3">{r.employee_code}</td>
+                          <td className="py-2 px-3">{r.name}</td>
+                          <td className="py-2 px-3">{r.department || '-'}</td>
+                          <td className="py-2 px-3 text-gray-600">{formatWorkDetails(r)}</td>
+                          <td className="py-2 px-3 text-center">{r.present}</td>
+                          <td className="py-2 px-3 text-center">{r.absent}</td>
+                          <td className="py-2 px-3 text-center">{r.leave}</td>
+                          <td className="py-2 px-3 text-center">{r.late}</td>
+                          <td className="py-2 px-3 text-center">{r.overtime_days}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
       <div className="flex flex-col gap-4">
 
         {/* ROW 1 — Date Today */}
@@ -440,7 +709,10 @@ export default function AttendanceTable() {
                               record.status === "on_leave" ? "bg-blue-100 text-blue-800" :
                                 record.status === "work_from_home" ? "bg-purple-100 text-purple-800" :
                                   record.status === "offline" ? "bg-gray-200 text-gray-600" :
-                                    "bg-gray-100 text-gray-800"
+                                    record.status === "holiday" ? "bg-pink-100 text-pink-800" :
+                                      record.status === "rest_day" ? "bg-indigo-100 text-indigo-800" :
+                                        record.status === "overtime" ? "bg-rose-100 text-rose-800" :
+                                          "bg-gray-100 text-gray-800"
                       }`}>
                       {STATUS_LABELS[record.status]}
                     </span>

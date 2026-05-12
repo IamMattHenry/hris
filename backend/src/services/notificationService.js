@@ -438,6 +438,7 @@ export const notifyHrUsersPayrollRunUpdate = async ({
   payPeriodStart = null,
   payPeriodEnd = null,
   grossPay = null,
+  netPay = null,
 }) => {
   try {
     const normalizedStatus = String(status || '').trim().toLowerCase();
@@ -449,6 +450,9 @@ export const notifyHrUsersPayrollRunUpdate = async ({
     const periodText = payPeriodStart && payPeriodEnd
       ? `Period: ${payPeriodStart} to ${payPeriodEnd}.`
       : null;
+    const netText = netPay == null
+      ? null
+      : `Net pay: ₱${Number(netPay).toFixed(2)}.`;
     const grossText = grossPay == null
       ? null
       : `Gross pay: ₱${Number(grossPay).toFixed(2)}.`;
@@ -465,6 +469,7 @@ export const notifyHrUsersPayrollRunUpdate = async ({
     const message = [
       statusMessageMap[normalizedStatus] || `Payroll run status changed to ${normalizedStatus}.`,
       periodText,
+      netText,
       grossText,
     ].filter(Boolean).join(' ');
 

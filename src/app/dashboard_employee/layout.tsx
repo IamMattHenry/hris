@@ -46,7 +46,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#FDF6EC]">
+      <div className="flex min-h-screen items-center justify-center bg-[#FAF6F1]">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4B0B14] mx-auto"></div>
           <p className="mt-4 text-[#3C1E1E] font-poppins">Loading...</p>
@@ -59,7 +59,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     <>
       <div className="flex flex-col min-h-screen">
         <NavBar />
-        <main className="flex-1 p-6 bg-[#FDF6EC]">{children}</main>
+        <main className="flex-1 p-6 bg-[#FAF6F1]">{children}</main>
       </div>
     </>
   );

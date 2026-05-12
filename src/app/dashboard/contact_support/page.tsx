@@ -366,11 +366,12 @@ const TechnicalSupportTab = () => {
         )}
       </div>
 
-      {/* Detail Modal */}
+      {/* DETAIL MODAL - Independent AnimatePresence */}
       <AnimatePresence>
         {showModal && selectedTicket && (
           <motion.div
-            className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+            key="detail-modal"
+            className="fixed inset-0 bg-black/60 h-screen w-screen flex items-center justify-center z-50 p-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -468,11 +469,14 @@ const TechnicalSupportTab = () => {
             </motion.div>
           </motion.div>
         )}
+      </AnimatePresence>
 
-        {/* Resolve Confirmation Modal */}
+      {/* RESOLVE CONFIRMATION MODAL - Independent AnimatePresence */}
+      <AnimatePresence>
         {showResolveModal && selectedTicket && (
           <motion.div
-            className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4"
+            key="resolve-modal"
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -493,8 +497,9 @@ const TechnicalSupportTab = () => {
 
               <textarea
                 value={resolutionText}
+                maxLength={400}
                 onChange={(e) => setResolutionText(e.target.value)}
-                className="flex-1 min-h-[140px] p-4 border border-[#E8D9C4] rounded-lg text-sm resize-y focus:outline-none focus:border-[#3D1A0B]"
+                className="flex-1 min-h-[140px] p-4 border border-[#E8D9C4] rounded-lg text-sm resize-y text-[#3b2b1c] focus:outline-none focus:border-[#3D1A0B]"
                 placeholder="Describe the resolution performed, steps taken, and any notes..."
               />
 
@@ -506,7 +511,7 @@ const TechnicalSupportTab = () => {
                     setShowResolveModal(false);
                     setResolutionError("");
                   }}
-                  className="px-5 py-2 bg-gray-200 hover:bg-gray-300 rounded-md transition"
+                  className="px-5 py-2 bg-[#3D1A0B] hover:bg-gray-300 text-white rounded-md transition"
                 >
                   Cancel
                 </button>

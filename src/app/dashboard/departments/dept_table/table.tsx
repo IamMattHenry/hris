@@ -7,6 +7,7 @@ interface Department {
   department_id: number;
   department_code?: string;
   department_name: string;
+  supervisor_id?: number | null;
   supervisor_first_name?: string;
   supervisor_last_name?: string;
   supervisor_code?: string;
@@ -18,6 +19,7 @@ interface DepartmentTableProps {
   onView?: (department: Department) => void;
   onEdit?: (department: Department) => void;
   onDelete?: (id: number) => void;
+  onViewSupervisor?: (employeeId: number) => void;
 }
 
 export default function DepartmentTable({
@@ -25,6 +27,7 @@ export default function DepartmentTable({
   onView,
   onEdit,
   onDelete,
+  onViewSupervisor,
 }: DepartmentTableProps) {
   const [menuState, setMenuState] = useState<{
     index: number;
@@ -87,7 +90,18 @@ export default function DepartmentTable({
                   {dept.department_code || `DEPT-${dept.department_id}`}
                 </td>
                 <td className="py-4 px-4">{dept.department_name}</td>
-                <td className="py-4 px-4">{supervisorName}</td>
+                <td className="py-4 px-4">
+                  {dept.supervisor_id && onViewSupervisor ? (
+                    <button
+                      onClick={() => onViewSupervisor(dept.supervisor_id as number)}
+                      className="text-left hover:underline"
+                    >
+                      {supervisorName}
+                    </button>
+                  ) : (
+                    supervisorName
+                  )}
+                </td>
                 <td className="py-4 px-4">{dept.employee_count}</td>
 
                 <td className="py-4 px-4 text-center">

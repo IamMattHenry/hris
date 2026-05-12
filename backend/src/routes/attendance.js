@@ -12,6 +12,7 @@ import {
   updateOvertimeHours,
   updateAttendanceStatus,
   getAttendanceSummary,
+  searchMonthlyAttendanceSummary,
   markAbsences,
 } from '../controllers/attendanceController.js';
 
@@ -31,6 +32,17 @@ router.get(
   verifyToken,
   requirePermission('attendance.read', 'attendance.read_department', 'attendance.read_own'),
   getAttendanceSummary
+);
+
+// Search employees and summarize attendance for a month
+router.get(
+  '/search-summary',
+  verifyToken,
+  requirePermission('attendance.read', 'attendance.read_department', 'attendance.read_own'),
+  // query: ?search=smith&month=2026-05
+  (req, res, next) => next(),
+  // controller
+  searchMonthlyAttendanceSummary
 );
 
 // Get attendance by ID
@@ -95,7 +107,7 @@ router.put(
   verifyToken,
   requirePermission('attendance.manage', 'attendance.update'),
   [
-    body('status').isIn(['present', 'absent', 'late', 'early_leave', 'half_day', 'on_leave', 'work_from_home', 'overtime', 'others']).withMessage('Invalid status'),
+    body('status').isIn(['present', 'absent', 'late', 'early_leave', 'half_day', 'on_leave', 'work_from_home', 'overtime', 'rest_day', 'holiday', 'others']).withMessage('Invalid status'),
   ],
   handleValidationErrors,
   updateAttendanceStatus

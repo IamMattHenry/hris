@@ -17,7 +17,7 @@ interface PayrollRun {
   id: number;
   pay_period_start: string;
   pay_period_end: string;
-  pay_schedule: "weekly" | "semi-monthly" | "monthly";
+  pay_schedule: "semi-monthly" | "monthly";
   status: "draft" | "pending_finance_approval" | "finance_approved" | "finance_rejected" | "finalized" | "aborted";
   gross_pay: number;
   total_deductions: number;

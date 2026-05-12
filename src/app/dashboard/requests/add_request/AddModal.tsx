@@ -84,6 +84,51 @@ export default function AddLeaveModal({
     run();
   }, [isOpen, user]);
 
+  const updateDatesOnSelection = (
+    newStart: string,
+    lType: LeaveType,
+    mType: string,
+    currentEnd: string
+  ) => {
+    if (!newStart || !lType) return currentEnd;
+
+    let daysToAdd = 0;
+    switch (lType) {
+      case "maternity":
+        if (mType === "live_birth") daysToAdd = 105;
+        else if (mType === "solo") daysToAdd = 120;
+        else if (mType === "miscarriage") daysToAdd = 60;
+        break;
+      case "paternity":
+      case "solo_parent":
+        daysToAdd = 7;
+        break;
+      case "vawc":
+        daysToAdd = 10;
+        break;
+      case "special_women":
+        daysToAdd = 60;
+        break;
+      case "bereavement":
+        daysToAdd = 3;
+        break;
+      case "half_day":
+        daysToAdd = 1;
+        break;
+      default:
+        break;
+    }
+
+    if (daysToAdd > 0) {
+      const start = new Date(newStart);
+      start.setDate(start.getDate() + (daysToAdd - 1));
+      return start.toISOString().split("T")[0];
+    } else if (!currentEnd || new Date(currentEnd) < new Date(newStart)) {
+      return newStart;
+    }
+    return currentEnd;
+  };
+
   const validate = () => {
     const newErrors: Record<string, string> = {};
     if (!formData.start_date) newErrors.start_date = "Start date is required";
@@ -190,6 +235,8 @@ export default function AddLeaveModal({
     setIsSubmitting(false);
   };
 
+  const isFixedDuration = ["maternity", "paternity", "solo_parent", "vawc", "special_women", "bereavement", "half_day"].includes(formData.leave_type);
+
   if (!isOpen) return null;
 
   return (
@@ -218,12 +265,14 @@ export default function AddLeaveModal({
             </label>
             <select
               value={formData.leave_type}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  leave_type: e.target.value as LeaveType,
-                })
-              }
+              onChange={(e) => {
+                const newLeaveType = e.target.value as LeaveType;
+                setFormData((prev) => ({
+                  ...prev,
+                  leave_type: newLeaveType,
+                  end_date: updateDatesOnSelection(prev.start_date, newLeaveType, prev.maternity_type, prev.end_date)
+                }));
+              }}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg"
             >
               {Object.entries(LEAVE_TYPE_LABELS).map(([key, label]) => (
@@ -291,9 +340,14 @@ export default function AddLeaveModal({
               type="date"
               min={today}
               value={formData.start_date}
-              onChange={(e) =>
-                setFormData({ ...formData, start_date: e.target.value })
-              }
+              onChange={(e) => {
+                const newStart = e.target.value;
+                setFormData((prev) => ({
+                  ...prev,
+                  start_date: newStart,
+                  end_date: updateDatesOnSelection(newStart, prev.leave_type, prev.maternity_type, prev.end_date)
+                }));
+              }}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg"
             />
             {errors.start_date && (
@@ -311,7 +365,8 @@ export default function AddLeaveModal({
               onChange={(e) =>
                 setFormData({ ...formData, end_date: e.target.value })
               }
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+              className={`w-full px-4 py-2 border border-gray-300 rounded-lg ${isFixedDuration ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+              readOnly={isFixedDuration}
             />
             {errors.end_date && (
               <p className="text-red-600 text-xs mt-1">{errors.end_date}</p>
@@ -325,7 +380,14 @@ export default function AddLeaveModal({
               <label className="block text-sm font-semibold mb-1">Maternity Type</label>
               <select
                 value={formData.maternity_type}
-                onChange={(e) => setFormData({ ...formData, maternity_type: e.target.value as any })}
+                onChange={(e) => {
+                  const newMaternityType = e.target.value as any;
+                  setFormData((prev) => ({
+                    ...prev,
+                    maternity_type: newMaternityType,
+                    end_date: updateDatesOnSelection(prev.start_date, prev.leave_type, newMaternityType, prev.end_date)
+                  }));
+                }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg"
               >
                 <option value="live_birth">Live Birth (105 days)</option>
