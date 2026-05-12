@@ -10,6 +10,7 @@ import {
   deletePayrollRun,
   permanentlyDeleteAbortedPayrollRun,
   finalizePayrollRun,
+  sendPayrollRunPayslipEmails,
   getPayrollPayslip,
   getPayrollContributions,
   exportPayrollContributions,
@@ -52,6 +53,8 @@ router.delete('/runs/:id', verifyToken, requirePermission('payroll.update'), del
 router.delete('/runs/:id/permanent', verifyToken, requirePermission('payroll.update'), permanentlyDeleteAbortedPayrollRun);
 
 router.patch('/runs/:id/finalize', verifyToken, requirePermission('payroll.finalize'), finalizePayrollRun);
+
+router.post('/runs/:id/send-payslip-emails', verifyToken, requirePermission('payroll.finalize'), sendPayrollRunPayslipEmails);
 
 router.patch(
   '/runs/:id/records/:employeeId',

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Eye, Lock, Pencil, Trash2, X } from "lucide-react";
+import { Eye, Lock, Mail, Pencil, Trash2, X } from "lucide-react";
 import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
 import { payrollApi } from "@/lib/api";
@@ -67,6 +67,7 @@ export default function PayrollRunDetailModal(props: any) {
 
   const [finalizing, setFinalizing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [sendingEmails, setSendingEmails] = useState(false);
   const [showFinalizeModal, setShowFinalizeModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showOverrideModal, setShowOverrideModal] = useState(false);
@@ -179,6 +180,20 @@ export default function PayrollRunDetailModal(props: any) {
       showToast.error(err.message || "Failed to finalize payroll run");
     } finally {
       setFinalizing(false);
+    }
+  };
+
+  const handleSendPayslipEmails = async () => {
+    if (!run) return;
+    try {
+      setSendingEmails(true);
+      const res = await payrollApi.sendPayslipEmails(run.id);
+      if (!res.success) throw new Error(res.message || "Failed to send payslip emails");
+      showToast.success(res.message || "Payslip emails dispatched");
+    } catch (err: any) {
+      showToast.error(err.message || "Failed to send payslip emails");
+    } finally {
+      setSendingEmails(false);
     }
   };
 
@@ -397,9 +412,19 @@ export default function PayrollRunDetailModal(props: any) {
                       />
                     </>
                   ) : run.status === "finalized" ? (
-                    <span className="px-5 py-2 rounded-lg bg-green-100 text-green-800 border border-green-300 font-semibold">
-                      FINALIZED
-                    </span>
+                    <>
+                      <button
+                        onClick={handleSendPayslipEmails}
+                        disabled={sendingEmails}
+                        className="px-5 py-2 rounded-lg bg-[#3D1A0B] text-white hover:opacity-90 disabled:opacity-60 transition inline-flex items-center gap-2"
+                      >
+                        <Mail size={16} />
+                        {sendingEmails ? "Sending..." : "Send Payslip Emails"}
+                      </button>
+                      <span className="px-5 py-2 rounded-lg bg-green-100 text-green-800 border border-green-300 font-semibold">
+                        FINALIZED
+                      </span>
+                    </>
                   ) : run.status === "aborted" ? (
                     <span className="px-5 py-2 rounded-lg bg-gray-100 text-gray-700 border border-gray-300 font-semibold">
                       ABORTED

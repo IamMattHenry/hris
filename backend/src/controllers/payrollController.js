@@ -758,6 +758,59 @@ const sendPayrollFinalizationDepartmentEmails = async ({ runId, payrollRun }) =>
   }
 };
 
+const sendPayrollRunEmployeePayslipEmails = async ({ runId, payrollRun }) => {
+  const records = await db.getAll(
+    `SELECT
+       rec.employee_id,
+       rec.gross_pay,
+       rec.total_deductions,
+       rec.withholding_tax,
+       rec.net_pay,
+       e.employee_code,
+       e.first_name,
+       e.last_name
+     FROM payroll_records rec
+     JOIN employees e ON e.employee_id = rec.employee_id
+     WHERE rec.run_id = ?
+     ORDER BY e.last_name ASC, e.first_name ASC`,
+    [runId]
+  );
+
+  let sent = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const record of records) {
+    const email = await getEmployeePrimaryEmail(record.employee_id);
+    if (!email) {
+      skipped += 1;
+      continue;
+    }
+
+    try {
+      await emailService.sendEmployeePayslipEmail({
+        to: email,
+        employeeName: `${record.first_name || ''} ${record.last_name || ''}`.trim(),
+        employeeCode: record.employee_code || '',
+        runId,
+        payPeriodStart: payrollRun.pay_period_start,
+        payPeriodEnd: payrollRun.pay_period_end,
+        payrollSchedule: payrollRun.pay_schedule,
+        grossPay: Number(record.gross_pay) || 0,
+        totalDeductions: Number(record.total_deductions) || 0,
+        withholdingTax: Number(record.withholding_tax) || 0,
+        netPay: Number(record.net_pay) || 0,
+      });
+      sent += 1;
+    } catch (error) {
+      failed += 1;
+      logger.error(`Failed sending payslip email to employee ${record.employee_id} for run ${runId}:`, error);
+    }
+  }
+
+  return { sent, skipped, failed, total: records.length };
+};
+
 export const getPayrollRuns = async (req, res, next) => {
   try {
     const { department_id, employment_type } = req.query;
@@ -1175,16 +1228,18 @@ export const createPayrollRun = async (req, res, next) => {
       }
 
       const requestTitle = `Payroll run #${runId} approval request`;
+      const netPayTotal = round2(Number(computed.summary?.net_pay) || 0);
+      const grossPayTotal = round2(Number(computed.summary?.gross_pay) || 0);
       const requestDescription = [
         `Draft payroll run #${runId} for ${periodStart} to ${periodEnd} requires Finance approval.`,
-        `Gross pay total: ₱${round2(Number(computed.summary?.gross_pay) || 0).toFixed(2)}.`,
+        `Net pay total: ₱${netPayTotal.toFixed(2)}.`,
         `Scope: ${scopeDesc.length ? scopeDesc.join(', ') : 'All employees'}.`,
       ].join(' ');
 
       const payload = {
         [titleColumn]: requestTitle,
         [descriptionColumn]: requestDescription,
-        [amountColumn]: round2(Number(computed.summary?.gross_pay) || 0),
+        [amountColumn]: netPayTotal,
       };
 
       const requestTypeColumn = findFirstExistingColumn(columns, ['request_type', 'notification_type', 'type']);
@@ -1243,7 +1298,8 @@ export const createPayrollRun = async (req, res, next) => {
           payroll_run_id: Number(runId),
           pay_period_start: periodStart,
           pay_period_end: periodEnd,
-          gross_pay: round2(Number(computed.summary?.gross_pay) || 0),
+          net_pay: netPayTotal,
+          gross_pay: grossPayTotal,
           scope_filters: scopeFilters,
         });
       }
@@ -1290,7 +1346,8 @@ export const createPayrollRun = async (req, res, next) => {
         status: 'draft',
         payPeriodStart: periodStart,
         payPeriodEnd: periodEnd,
-        grossPay: round2(Number(computed.summary?.gross_pay) || 0),
+        netPay: netPayTotal,
+        grossPay: grossPayTotal,
       });
 
       return res.status(201).json({
@@ -1650,8 +1707,9 @@ export const finalizePayrollRun = async (req, res, next) => {
       description: `Finalized payroll run #${id}`,
     });
 
-    const runGross = await db.getOne(
-      `SELECT COALESCE(SUM(gross_pay), 0) AS gross_pay
+    const runTotals = await db.getOne(
+      `SELECT COALESCE(SUM(gross_pay), 0) AS gross_pay,
+              COALESCE(SUM(net_pay), 0)   AS net_pay
        FROM payroll_records
        WHERE run_id = ?`,
       [id]
@@ -1663,7 +1721,8 @@ export const finalizePayrollRun = async (req, res, next) => {
       status: PAYROLL_RUN_STATUSES.FINALIZED,
       payPeriodStart: run.pay_period_start,
       payPeriodEnd: run.pay_period_end,
-      grossPay: Number(runGross?.gross_pay) || null,
+      netPay: Number(runTotals?.net_pay) || null,
+      grossPay: Number(runTotals?.gross_pay) || null,
     });
 
     try {
@@ -1673,6 +1732,15 @@ export const finalizePayrollRun = async (req, res, next) => {
       });
     } catch (emailError) {
       logger.error('Payroll finalization department email notification failed:', emailError);
+    }
+
+    try {
+      await sendPayrollRunEmployeePayslipEmails({
+        runId: Number(id),
+        payrollRun: run,
+      });
+    } catch (emailError) {
+      logger.error('Payroll finalization employee payslip email notification failed:', emailError);
     }
 
     res.json({
@@ -1685,6 +1753,47 @@ export const finalizePayrollRun = async (req, res, next) => {
     });
   } catch (error) {
     logger.error('Finalize payroll run error:', error);
+    next(error);
+  }
+};
+
+export const sendPayrollRunPayslipEmails = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const run = await db.getOne('SELECT * FROM payroll_runs WHERE id = ?', [id]);
+    if (!run) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payroll run not found',
+      });
+    }
+
+    if (String(run.status || '').toLowerCase() !== PAYROLL_RUN_STATUSES.FINALIZED) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payslip emails can only be sent for finalized payroll runs.',
+      });
+    }
+
+    const result = await sendPayrollRunEmployeePayslipEmails({
+      runId: Number(id),
+      payrollRun: run,
+    });
+
+    await writeActivityLog({
+      userId: req.user?.user_id || null,
+      action: 'UPDATE',
+      description: `Resent payslip emails for payroll run #${id} (sent: ${result.sent}, skipped: ${result.skipped}, failed: ${result.failed})`,
+    });
+
+    res.json({
+      success: true,
+      message: `Payslip emails dispatched: ${result.sent} sent, ${result.skipped} skipped (no email), ${result.failed} failed.`,
+      data: result,
+    });
+  } catch (error) {
+    logger.error('Send payroll payslip emails error:', error);
     next(error);
   }
 };
@@ -2376,7 +2485,7 @@ export const updateExpenseBudgetRequestStatus = async (req, res, next) => {
           : normalizedStatus === 'rejected'
             ? PAYROLL_RUN_STATUSES.FINANCE_REJECTED
             : PAYROLL_RUN_STATUSES.ABORTED,
-        grossPay: Number(current.requested_amount) || null,
+        netPay: Number(current.requested_amount) || null,
       });
     }
 

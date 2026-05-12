@@ -1038,6 +1038,16 @@ export const payrollApi = {
     });
   },
 
+  sendPayslipEmails: async (id: number | string) => {
+    return apiCall<{ sent: number; skipped: number; failed: number; total: number }>(
+      `/payroll/runs/${id}/send-payslip-emails`,
+      {
+        method: 'POST',
+        timeoutMs: 120000,
+      }
+    );
+  },
+
   overrideRecord: async (
     runId: number | string,
     employeeId: number | string,
