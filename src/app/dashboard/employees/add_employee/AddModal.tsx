@@ -334,7 +334,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
   }, [region, phLocationsData]);
 
 
-  // Update cities when province changes (for home address)
+   // Update cities when province changes (for home address)
   useEffect(() => {
     if (region && province) {
       const selectedRegion = phLocationsData.find((r: any) => r.name === region);
@@ -387,13 +387,11 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
           (p: any) => p.name
         );
         setDependentProvinces(provinceNames);
-        setDependentCities([]);
-        setDependentBarangays([]);
       } else {
         setDependentProvinces([]);
-        setDependentCities([]);
-        setDependentBarangays([]);
       }
+      setDependentCities([]);
+      setDependentBarangays([]);
     } else {
       setDependentProvinces([]);
       setDependentCities([]);
@@ -417,11 +415,10 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
             typeof c === "string" ? c : c.name
           )
         );
-        setDependentBarangays([]);
       } else {
         setDependentCities([]);
-        setDependentBarangays([]);
       }
+      setDependentBarangays([]);
     } else {
       setDependentCities([]);
       setDependentBarangays([]);
@@ -432,8 +429,7 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
     if (
       dependentRegion &&
       dependentProvince &&
-      dependentCity &&
-      phLocationsData.length > 0
+      dependentCity
     ) {
       const r = phLocationsData.find(
         (x: any) => x.name === dependentRegion
@@ -455,6 +451,9 @@ export default function AddEmployeeModal({ isOpen, onClose }: EmployeeModalProps
       setDependentBarangays([]);
     }
   }, [dependentRegion, dependentProvince, dependentCity, phLocationsData]);
+
+
+
 
   // Fetch departments when modal opens
   useEffect(() => {

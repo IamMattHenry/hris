@@ -981,7 +981,7 @@ export const markAbsences = async (req, res, next) => {
       return res.json({ success: true, message: 'No eligible past dates to process', data: { processed: [] } });
     }
 
-    // Only active employees
+    // Only active employees (with hire_date and scheduled_days for filtering)
     const employees = await db.getAll(
       `SELECT e.employee_id, e.scheduled_days
        FROM employees e
@@ -996,6 +996,9 @@ export const markAbsences = async (req, res, next) => {
     for (const targetDate of dates) {
       let inserted = 0;
       for (const emp of employees) {
+        // Skip if target date is before employee's hire date
+        if (targetDate < emp.hire_date.split('T')[0]) continue;
+
         // Skip if attendance exists for target date
         const existing = await db.getOne(
           'SELECT attendance_id FROM attendance WHERE employee_id = ? AND date = ?',
