@@ -335,6 +335,7 @@ export const getCurrentUser = async (req, res, next) => {
         u.created_at,
         e.employee_id,
         e.employee_code,
+        e.fingerprint_id,
         e.first_name,
         e.last_name,
         e.middle_name,

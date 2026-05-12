@@ -6,6 +6,7 @@ import ActionButton from "@/components/buttons/ActionButton";
 import SearchBar from "@/components/forms/FormSearch";
 import { departmentApi, employeeApi, payrollApi } from "@/lib/api";
 import { showToast } from "@/utils/toast";
+import Payroll2FAModal, { type TwoFAMethod } from "@/components/payroll/Payroll2FAModal";
 
 interface Employee {
   employee_id: number;
@@ -119,6 +120,9 @@ export default function NewPayrollRunModal(props: any) {
   const [employmentType, setEmploymentType] = useState("");
   const [notes, setNotes] = useState("");
   const [payrollBudget, setPayrollBudget] = useState<FinanceBudget | null>(null);
+
+  // 2FA state
+  const [show2FAModal, setShow2FAModal] = useState(false);
 
   const formatCurrency = (value?: number | null) => {
     if (value == null || Number.isNaN(Number(value))) return "₱0.00";
@@ -252,17 +256,21 @@ export default function NewPayrollRunModal(props: any) {
     }
   };
 
-  const handleCreate = async () => {
+  /** Called before creation — validates inputs then opens 2FA modal */
+  const handleCreateClick = () => {
     if (!periodStart || !periodEnd) {
       showToast.error("Please choose a pay period.");
       return;
     }
-
     if (periodEnd >= today) {
       showToast.error(`Payroll period must be completed. Please choose a reference date before ${today}.`);
       return;
     }
+    setShow2FAModal(true);
+  };
 
+  /** Called after 2FA is verified — actually creates the run */
+  const handleCreate = async (twoFASessionId: number, _method: TwoFAMethod) => {
     try {
       setSaving(true);
       const response = await payrollApi.createRun({
@@ -273,24 +281,16 @@ export default function NewPayrollRunModal(props: any) {
         department_id: departmentId ? Number(departmentId) : undefined,
         employment_type: employmentType || undefined,
         notes,
-      });
+        twofa_session_id: twoFASessionId,
+      } as any);
 
       if (!response.success || !response.data?.id) {
         throw new Error(response.message || "Failed to create payroll run");
       }
 
       showToast.success("Payroll run created successfully");
-
-      const newId = response.data.id;
-
-      // Two possible behaviors:
-      // 1. Redirect (original behavior)
-      // router.push(`/dashboard/payroll/${newId}`);
-
-      // 2. Close modal + notify parent (more modal-friendly)
-      onSave?.(newId);
+      onSave?.(response.data.id);
       onClose();
-
     } catch (error: any) {
       showToast.error(error.message || "Failed to create payroll run");
     } finally {
@@ -522,13 +522,24 @@ export default function NewPayrollRunModal(props: any) {
             </button>
             <ActionButton
               label={saving ? "Creating..." : "Create Payroll Run"}
-              onClick={handleCreate}
+              onClick={handleCreateClick}
               icon={Save}
               disabled={saving || loading}
             />
           </div>
         </div>
       </div>
+
+      {/* 2FA Modal — shown before creating the run */}
+      <Payroll2FAModal
+        isOpen={show2FAModal}
+        onClose={() => setShow2FAModal(false)}
+        actionType="payroll_create"
+        onVerified={(sessionId, method) => {
+          setShow2FAModal(false);
+          handleCreate(sessionId, method);
+        }}
+      />
     </>
   );
 }

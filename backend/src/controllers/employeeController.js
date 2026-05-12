@@ -1499,6 +1499,29 @@ export const updateEmployee = async (req, res, next) => {
           "employee_id = ?",
           [id]
         );
+
+        // Ensure current_salary updates are synced to the primary position
+        if (
+          Object.prototype.hasOwnProperty.call(updatesWithAudit, 'current_salary') ||
+          Object.prototype.hasOwnProperty.call(updatesWithAudit, 'salary_unit')
+        ) {
+          const syncUpdates = {};
+          if (Object.prototype.hasOwnProperty.call(updatesWithAudit, 'current_salary')) {
+            syncUpdates.salary = updatesWithAudit.current_salary;
+          }
+          if (Object.prototype.hasOwnProperty.call(updatesWithAudit, 'salary_unit')) {
+            syncUpdates.salary_unit = updatesWithAudit.salary_unit;
+          }
+
+          if (Object.keys(syncUpdates).length > 0) {
+            const setClauses = Object.keys(syncUpdates).map(k => `${k} = ?`).join(', ');
+            const setValues = Object.values(syncUpdates);
+            await db.transactionQuery(
+              `UPDATE employee_positions SET ${setClauses} WHERE employee_id = ? AND is_primary = 1`,
+              [...setValues, id]
+            );
+          }
+        }
       }
 
       // Handle address updates

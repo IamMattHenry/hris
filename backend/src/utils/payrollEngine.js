@@ -186,8 +186,13 @@ const getPayPeriodsPerMonth = (paySchedule = 'semi-monthly') => {
 };
 
 const getBaseRates = ({ employee, settings, paySchedule }) => {
-  const salaryUnit = String(employee.salary_unit || '').toLowerCase() === 'hourly' ? 'hourly' : 'monthly';
-  const currentSalary = Number(employee.current_salary) || 0;
+  const currentSalaryRaw = Number(employee.current_salary);
+  const useFallback = !currentSalaryRaw;
+  const currentSalary = useFallback ? (Number(employee.default_salary) || 0) : currentSalaryRaw;
+
+  const rawUnit = useFallback ? (employee.position_salary_unit || 'monthly') : (employee.salary_unit || 'monthly');
+  const salaryUnit = String(rawUnit).toLowerCase() === 'hourly' ? 'hourly' : 'monthly';
+
   const monthlyWorkDays = Number(settings?.monthly_work_days) > 0
     ? Number(settings.monthly_work_days)
     : 22;
@@ -342,9 +347,7 @@ const computeEmployeePayroll = ({
 
     const dailyWorkedHours = computeWorkedHours(attendance);
     const regularHoursForDay = Math.min(8, dailyWorkedHours);
-    const overtimeHoursByClock = Math.max(0, dailyWorkedHours - 8);
-    const overtimeHoursByField = Number(attendance?.overtime_hours) || 0;
-    const overtimeHours = round2(Math.max(overtimeHoursByClock, overtimeHoursByField));
+    const overtimeHours = Number(attendance?.overtime_hours) || 0;
 
     const shiftLateMinutes = (() => {
       if (!isScheduledDay || !attendance?.time_in || !employee?.scheduled_start_time) return 0;
@@ -435,11 +438,13 @@ const computeEmployeePayroll = ({
   }
 
   const expectedScheduledHours = scheduledWorkDays * 8;
-  
+
   // Track leaves and absences separately for clarity
   const unpaidLeaveHours = unpaidLeaveDays * 8;
-  // Absences: Expected hours - Worked hours - (Paid Leave + Unpaid Leave hours) - Special Holiday no work
-  const absenceHours = round2(Math.max(0, expectedScheduledHours - workedHours - (paidLeaveDays * 8) - unpaidLeaveHours - specialHolidayNoWorkHours));
+  // Absences are full days missed (no attendance record, no leave, not a holiday).
+  // Partial-day shortfalls are captured via late/undertime minutes; we should
+  // not double-deduct by also computing absenceHours from expected vs. worked.
+  const absenceHours = round2(absences * 8);
 
   const basePayForPeriod = rates.basePayForPeriod != null
     ? rates.basePayForPeriod
@@ -568,8 +573,8 @@ const computeEmployeePayroll = ({
       last_name: employee.last_name,
       employment_type: employee.employment_type,
       position_id: employee.position_id,
-      salary_unit: employee.salary_unit,
-      current_salary: Number(employee.current_salary) || 0,
+      salary_unit: (!Number(employee.current_salary) ? employee.position_salary_unit : employee.salary_unit) || 'monthly',
+      current_salary: !Number(employee.current_salary) ? (Number(employee.default_salary) || 0) : (Number(employee.current_salary) || 0),
       hire_date: employee.hire_date,
       civil_status: employee.civil_status,
     },

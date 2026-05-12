@@ -16,6 +16,12 @@ import {
   syncNegativeNetPayBalancesForRun,
 } from '../services/payrollCarryoverService.js';
 import { createNotification, notifyHrUsersBudgetAmountChange, notifyHrUsersBudgetRequestStatusChange, notifyHrUsersBudgetStatus, notifyHrUsersPayrollRunUpdate } from '../services/notificationService.js';
+import {
+  initiate2FASession,
+  verify2FASession,
+  logPayrollOperatorAction,
+  getPayrollOperatorAuditTrail,
+} from '../services/payroll2FAService.js';
 
 const round2 = (value) => Number((Number(value) || 0).toFixed(2));
 
@@ -27,6 +33,8 @@ const PAYROLL_RUN_STATUSES = Object.freeze({
   FINALIZED: 'finalized',
   ABORTED: 'aborted',
 });
+
+const HRIS_DEPARTMENT_ID = 1;
 
 let lastStaffSalariesBudgetAmountNotified = null;
 
@@ -389,7 +397,7 @@ const findFirstExistingColumn = (columns, candidates = []) => {
   return candidates.find((column) => columns.has(column)) || null;
 };
 
-const syncPayrollRunStatuses = async ({ runId, status, actorUserId = null }) => {
+const syncPayrollRunStatuses = async ({ runId, status, actorUserId = null, twoFAMethod = null, twoFAVerifiedAt = null }) => {
   const normalizedStatus = String(status || '').trim().toLowerCase();
   const now = new Date();
   const runUpdate = {
@@ -404,7 +412,10 @@ const syncPayrollRunStatuses = async ({ runId, status, actorUserId = null }) => 
 
   if (normalizedStatus === PAYROLL_RUN_STATUSES.FINALIZED) {
     runUpdate.finalized_by = actorUserId ? Number(actorUserId) : null;
+    runUpdate.finalized_by_user_id = actorUserId ? Number(actorUserId) : null;
     runUpdate.finalized_at = now;
+    runUpdate.finalizer_2fa_method = twoFAMethod;
+    runUpdate.finalizer_2fa_verified_at = twoFAVerifiedAt || now;
   }
 
   if (normalizedStatus === PAYROLL_RUN_STATUSES.ABORTED) {
@@ -769,6 +780,7 @@ export const getPayrollRuns = async (req, res, next) => {
          COUNT(rec.id) AS employee_count
        FROM payroll_runs pr
        LEFT JOIN payroll_records rec ON rec.run_id = pr.id
+       WHERE LOWER(COALESCE(pr.status, 'draft')) <> 'aborted'
        GROUP BY pr.id
        ORDER BY pr.created_at DESC`
     );
@@ -820,6 +832,7 @@ export const createPayrollRun = async (req, res, next) => {
       department_id,
       employment_type,
       notes,
+      twofa_session_id,
     } = req.body || {};
 
     const periodStart = ensureDate(pay_period_start);
@@ -845,6 +858,26 @@ export const createPayrollRun = async (req, res, next) => {
         success: false,
         message: `Payroll period must be fully completed. pay_period_end must be before today (${todayDate}).`,
       });
+    }
+
+    // Validate 2FA session if provided
+    if (twofa_session_id) {
+      const session = await db.getOne(
+        `SELECT * FROM payroll_2fa_sessions 
+         WHERE id = ? 
+         AND user_id = ? 
+         AND action_type = 'payroll_create' 
+         AND is_verified = 1 
+         AND expires_at > NOW()`,
+        [twofa_session_id, req.user?.user_id]
+      );
+
+      if (!session) {
+        return res.status(401).json({
+          success: false,
+          message: '2FA verification required or session expired for payroll creation',
+        });
+      }
     }
 
     const settings = await getLatestPayrollSettings();
@@ -936,8 +969,11 @@ export const createPayrollRun = async (req, res, next) => {
          e.scheduled_days,
          e.scheduled_start_time,
          e.scheduled_end_time${payrollFrequencyColumn ? `,
-         e.${payrollFrequencyColumn} AS pay_frequency` : ''}
+         e.${payrollFrequencyColumn} AS pay_frequency` : ''},
+         jp.default_salary,
+         jp.salary_unit AS position_salary_unit
        FROM employees e
+       LEFT JOIN job_positions jp ON e.position_id = jp.position_id
        WHERE ${employeeWhere.join(' AND ')}
        ORDER BY e.employee_id ASC`,
       employeeParams
@@ -1029,6 +1065,16 @@ export const createPayrollRun = async (req, res, next) => {
 
     await db.beginTransaction();
     try {
+      // Get 2FA method from session
+      let twoFAMethod = null;
+      if (twofa_session_id) {
+        const session = await db.transactionQuery(
+          `SELECT verification_method FROM payroll_2fa_sessions WHERE id = ?`,
+          [twofa_session_id]
+        );
+        twoFAMethod = session?.[0]?.verification_method || null;
+      }
+
       const runId = await db.transactionInsert('payroll_runs', {
         pay_period_start: periodStart,
         pay_period_end: periodEnd,
@@ -1037,6 +1083,9 @@ export const createPayrollRun = async (req, res, next) => {
         employee_scope: serializeJson(scopeFilters),
         notes: notes || null,
         created_by: req.user?.user_id || null,
+        created_by_user_id: req.user?.user_id || null,
+        creator_2fa_method: twoFAMethod,
+        creator_2fa_verified_at: twofa_session_id ? new Date() : null,
       });
 
       for (const item of computed.records) {
@@ -1162,6 +1211,16 @@ export const createPayrollRun = async (req, res, next) => {
         payload[departmentColumn] = 'Finance Department';
       }
 
+      const departmentIdColumn = findFirstExistingColumn(columns, ['department_id', 'request_department_id', 'dept_id']);
+      if (departmentIdColumn) {
+        payload[departmentIdColumn] = HRIS_DEPARTMENT_ID;
+      }
+
+      const departmentNameColumn = findFirstExistingColumn(columns, ['department_name', 'request_department_name']);
+      if (departmentNameColumn) {
+        payload[departmentNameColumn] = 'HRIS';
+      }
+
       const requestedByColumn = findFirstExistingColumn(columns, ['requested_by', 'created_by', 'user_id']);
       if (requestedByColumn) {
         payload[requestedByColumn] = req.user?.username || String(req.user?.user_id || '');
@@ -1179,6 +1238,8 @@ export const createPayrollRun = async (req, res, next) => {
         payload.metadata = serializeJson({
           request_for: 'payroll_run',
           source_module: 'payroll',
+          requested_department_id: HRIS_DEPARTMENT_ID,
+          requested_department_name: 'HRIS',
           payroll_run_id: Number(runId),
           pay_period_start: periodStart,
           pay_period_end: periodEnd,
@@ -1198,6 +1259,22 @@ export const createPayrollRun = async (req, res, next) => {
       }, 'id = ?', [runId]);
 
       await db.commit();
+
+      // Log the creation action with 2FA info
+      if (twofa_session_id) {
+        const session = await db.getOne(
+          `SELECT verification_method FROM payroll_2fa_sessions WHERE id = ?`,
+          [twofa_session_id]
+        );
+        await logPayrollOperatorAction(
+          runId,
+          req.user?.user_id,
+          'create',
+          session?.verification_method,
+          req.ip || req.connection.remoteAddress,
+          req.get('user-agent')
+        );
+      }
 
       const scopeStr = scopeDesc.length ? ` [${scopeDesc.join(', ')}]` : '';
 
@@ -1383,9 +1460,86 @@ export const deletePayrollRun = async (req, res, next) => {
   }
 };
 
+export const permanentlyDeleteAbortedPayrollRun = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const run = await db.getOne('SELECT id, pay_period_start, pay_period_end, status FROM payroll_runs WHERE id = ?', [id]);
+    if (!run) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payroll run not found',
+      });
+    }
+
+    if (String(run.status || '').toLowerCase() !== PAYROLL_RUN_STATUSES.ABORTED) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only aborted payroll runs can be permanently deleted',
+      });
+    }
+
+    await db.beginTransaction();
+    try {
+      // Delete related payroll contributions first (foreign key constraint)
+      await db.transactionQuery(
+        `DELETE FROM payroll_contributions
+         WHERE record_id IN (
+           SELECT id FROM payroll_records WHERE run_id = ?
+         )`,
+        [id]
+      );
+
+      // Delete payroll records
+      await db.transactionQuery(
+        `DELETE FROM payroll_records WHERE run_id = ?`,
+        [id]
+      );
+
+      // Delete the payroll run itself
+      await db.transactionQuery(
+        `DELETE FROM payroll_runs WHERE id = ?`,
+        [id]
+      );
+
+      // Cancel any related expense notifications
+      await db.transactionQuery(
+        `UPDATE expense_notifications
+         SET status = 'cancelled', updated_at = NOW()
+         WHERE external_reference_id = ?`,
+        [`payroll_run:${id}`]
+      );
+
+      await db.commit();
+    } catch (error) {
+      await db.rollback();
+      throw error;
+    }
+
+    await writeActivityLog({
+      userId: req.user?.user_id || null,
+      action: 'DELETE',
+      description: `Permanently deleted aborted payroll run #${id} (${run.pay_period_start} to ${run.pay_period_end})`,
+    });
+
+    res.json({
+      success: true,
+      message: 'Payroll run permanently deleted successfully',
+      data: {
+        id: Number(id),
+        message: 'Aborted payroll run and all associated records have been permanently removed',
+      },
+    });
+  } catch (error) {
+    logger.error('Permanently delete payroll run error:', error);
+    next(error);
+  }
+};
+
 export const finalizePayrollRun = async (req, res, next) => {
   try {
     const { id } = req.params;
+    const { twofa_session_id } = req.body || {};
 
     const run = await db.getOne('SELECT * FROM payroll_runs WHERE id = ?', [id]);
     if (!run) {
@@ -1409,12 +1563,46 @@ export const finalizePayrollRun = async (req, res, next) => {
       });
     }
 
+    // Validate 2FA session if provided
+    if (twofa_session_id) {
+      const session = await db.getOne(
+        `SELECT * FROM payroll_2fa_sessions 
+         WHERE id = ? 
+         AND user_id = ? 
+         AND action_type = 'payroll_finalize' 
+         AND is_verified = 1 
+         AND expires_at > NOW()`,
+        [twofa_session_id, req.user?.user_id]
+      );
+
+      if (!session) {
+        return res.status(401).json({
+          success: false,
+          message: '2FA verification required or session expired for payroll finalization',
+        });
+      }
+    }
+
     await db.beginTransaction();
     try {
+      // Get 2FA method from session
+      let twoFAMethod = null;
+      let twoFAVerifiedAt = null;
+      if (twofa_session_id) {
+        const session = await db.transactionQuery(
+          `SELECT verification_method, verified_at FROM payroll_2fa_sessions WHERE id = ?`,
+          [twofa_session_id]
+        );
+        twoFAMethod = session?.[0]?.verification_method || null;
+        twoFAVerifiedAt = session?.[0]?.verified_at || null;
+      }
+
       await syncPayrollRunStatuses({
         runId: Number(id),
         status: PAYROLL_RUN_STATUSES.FINALIZED,
         actorUserId: req.user?.user_id || null,
+        twoFAMethod,
+        twoFAVerifiedAt,
       });
 
       const finalizedRecords = await db.transactionQuery(
@@ -1438,6 +1626,22 @@ export const finalizePayrollRun = async (req, res, next) => {
     } catch (error) {
       await db.rollback();
       throw error;
+    }
+
+    // Log the finalization action with 2FA info
+    if (twofa_session_id) {
+      const session = await db.getOne(
+        `SELECT verification_method FROM payroll_2fa_sessions WHERE id = ?`,
+        [twofa_session_id]
+      );
+      await logPayrollOperatorAction(
+        Number(id),
+        req.user?.user_id,
+        'finalize',
+        session?.verification_method,
+        req.ip || req.connection.remoteAddress,
+        req.get('user-agent')
+      );
     }
 
     await writeActivityLog({
@@ -1494,6 +1698,14 @@ export const getPayrollPayslip = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Payroll run not found' });
     }
 
+    // Prevent access to payslips from aborted runs
+    if (String(run.status || '').toLowerCase() === PAYROLL_RUN_STATUSES.ABORTED) {
+      return res.status(404).json({
+        success: false,
+        message: 'This payroll run has been aborted and is no longer available',
+      });
+    }
+
     const record = await db.getOne(
       `SELECT
          rec.*,
@@ -1527,6 +1739,41 @@ export const getPayrollPayslip = async (req, res, next) => {
     const payslipData = parseJson(record.payslip_data, {});
     const breakdown = parseJson(record.json_breakdown, {});
 
+    // Get creator and finalizer information with usernames
+    let creatorInfo = null;
+    if (run.created_by_user_id) {
+      const creator = await db.getOne(
+        'SELECT u.user_id, u.username, e.first_name, e.last_name FROM users u LEFT JOIN employees e ON u.user_id = e.user_id WHERE u.user_id = ? LIMIT 1',
+        [run.created_by_user_id]
+      );
+      if (creator) {
+        creatorInfo = {
+          user_id: creator.user_id,
+          username: creator.username,
+          name: `${creator.first_name || ''} ${creator.last_name || ''}`.trim(),
+          method: run.creator_2fa_method,
+          verified_at: run.creator_2fa_verified_at,
+        };
+      }
+    }
+
+    let finalizerInfo = null;
+    if (run.finalized_by_user_id) {
+      const finalizer = await db.getOne(
+        'SELECT u.user_id, u.username, e.first_name, e.last_name FROM users u LEFT JOIN employees e ON u.user_id = e.user_id WHERE u.user_id = ? LIMIT 1',
+        [run.finalized_by_user_id]
+      );
+      if (finalizer) {
+        finalizerInfo = {
+          user_id: finalizer.user_id,
+          username: finalizer.username,
+          name: `${finalizer.first_name || ''} ${finalizer.last_name || ''}`.trim(),
+          method: run.finalizer_2fa_method,
+          verified_at: run.finalizer_2fa_verified_at,
+        };
+      }
+    }
+
     res.json({
       success: true,
       message: 'Payslip fetched successfully',
@@ -1537,6 +1784,8 @@ export const getPayrollPayslip = async (req, res, next) => {
           pay_period_end: run.pay_period_end,
           pay_schedule: run.pay_schedule,
           status: run.status,
+          creator: creatorInfo,
+          finalizer: finalizerInfo,
         },
         record: {
           id: record.id,
@@ -2439,6 +2688,116 @@ export const overridePayrollRecord = async (req, res, next) => {
     }
   } catch (error) {
     logger.error('Override payroll record error:', error);
+    next(error);
+  }
+};
+
+export const initiate2FA = async (req, res, next) => {
+  try {
+    const { actionType, preferredMethod = 'fingerprint', actionReferenceId } = req.body;
+    const userId = req.user?.user_id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+      });
+    }
+
+    const result = await initiate2FASession(
+      userId,
+      actionType,
+      actionReferenceId,
+      preferredMethod,
+      req.ip || req.connection.remoteAddress
+    );
+
+    res.json({
+      success: true,
+      message: result.userMessage,
+      data: {
+        sessionId: result.sessionId,
+        method: result.method,
+        expiresIn: result.expiresIn,
+      },
+    });
+  } catch (error) {
+    logger.error('Initiate 2FA error:', error);
+    next(error);
+  }
+};
+
+export const verify2FA = async (req, res, next) => {
+  try {
+    const { sessionId, verificationCode, method = 'fingerprint' } = req.body;
+    const userId = req.user?.user_id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+      });
+    }
+
+    const result = await verify2FASession(sessionId, verificationCode, method);
+
+    if (!result.success) {
+      return res.status(result.locked ? 429 : 400).json({
+        success: false,
+        message: result.message,
+        locked: result.locked || false,
+        attemptsRemaining: result.attemptsRemaining,
+      });
+    }
+
+    res.json({
+      success: true,
+      message: result.message,
+      data: {
+        sessionId: result.sessionId,
+        userId: result.userId,
+        actionType: result.actionType,
+        actionReferenceId: result.actionReferenceId,
+      },
+    });
+  } catch (error) {
+    logger.error('Verify 2FA error:', error);
+    next(error);
+  }
+};
+
+export const getPayrollAuditTrail = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const run = await db.getOne('SELECT * FROM payroll_runs WHERE id = ?', [id]);
+    if (!run) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payroll run not found',
+      });
+    }
+
+    const auditTrail = await getPayrollOperatorAuditTrail(id);
+
+    res.json({
+      success: true,
+      message: 'Audit trail retrieved successfully',
+      data: {
+        payroll_run_id: Number(id),
+        pay_period_start: run.pay_period_start,
+        pay_period_end: run.pay_period_end,
+        created_by: run.created_by_user_id,
+        creator_2fa_method: run.creator_2fa_method,
+        creator_2fa_verified_at: run.creator_2fa_verified_at,
+        finalized_by: run.finalized_by_user_id,
+        finalizer_2fa_method: run.finalizer_2fa_method,
+        finalizer_2fa_verified_at: run.finalizer_2fa_verified_at,
+        audit_trail: auditTrail || [],
+      },
+    });
+  } catch (error) {
+    logger.error('Get payroll audit trail error:', error);
     next(error);
   }
 };

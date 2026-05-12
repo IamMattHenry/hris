@@ -107,7 +107,7 @@ router.put(
   verifyToken,
   requirePermission('attendance.manage', 'attendance.update'),
   [
-    body('status').isIn(['present', 'absent', 'late', 'early_leave', 'half_day', 'on_leave', 'work_from_home', 'overtime', 'others']).withMessage('Invalid status'),
+    body('status').isIn(['present', 'absent', 'late', 'early_leave', 'half_day', 'on_leave', 'work_from_home', 'overtime', 'rest_day', 'holiday', 'others']).withMessage('Invalid status'),
   ],
   handleValidationErrors,
   updateAttendanceStatus

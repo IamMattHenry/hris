@@ -8,6 +8,7 @@ import {
   createPayrollRun,
   getPayrollRunDetail,
   deletePayrollRun,
+  permanentlyDeleteAbortedPayrollRun,
   finalizePayrollRun,
   getPayrollPayslip,
   getPayrollContributions,
@@ -18,6 +19,9 @@ import {
   updateExpenseBudgetRequestStatus,
   updatePayrollSettings,
   overridePayrollRecord,
+  initiate2FA,
+  verify2FA,
+  getPayrollAuditTrail,
 } from '../controllers/payrollController.js';
 
 const router = express.Router();
@@ -44,6 +48,8 @@ router.post(
 router.get('/runs/:id', verifyToken, requirePermission('payroll.read'), getPayrollRunDetail);
 
 router.delete('/runs/:id', verifyToken, requirePermission('payroll.update'), deletePayrollRun);
+
+router.delete('/runs/:id/permanent', verifyToken, requirePermission('payroll.update'), permanentlyDeleteAbortedPayrollRun);
 
 router.patch('/runs/:id/finalize', verifyToken, requirePermission('payroll.finalize'), finalizePayrollRun);
 
@@ -112,6 +118,40 @@ router.put(
   ],
   handleValidationErrors,
   updatePayrollSettings
+);
+
+// 2FA endpoints for payroll operations
+router.post(
+  '/2fa/initiate',
+  verifyToken,
+  requireRole('payroll_officer'),
+  [
+    body('actionType').isIn(['payroll_create', 'payroll_finalize']).withMessage('Invalid actionType'),
+    body('preferredMethod').optional().isIn(['fingerprint', 'qr', 'password']).withMessage('Invalid preferred 2FA method'),
+    body('actionReferenceId').optional({ nullable: true }).isInt().withMessage('actionReferenceId must be an integer'),
+  ],
+  handleValidationErrors,
+  initiate2FA
+);
+
+router.post(
+  '/2fa/verify',
+  verifyToken,
+  requireRole('payroll_officer'),
+  [
+    body('sessionId').isInt().withMessage('sessionId must be an integer'),
+    body('verificationCode').trim().notEmpty().withMessage('verificationCode is required'),
+    body('method').optional().isIn(['fingerprint', 'qr', 'password']).withMessage('Invalid verification method'),
+  ],
+  handleValidationErrors,
+  verify2FA
+);
+
+router.get(
+  '/runs/:id/audit-trail',
+  verifyToken,
+  requirePermission('payroll.read'),
+  getPayrollAuditTrail
 );
 
 export default router;

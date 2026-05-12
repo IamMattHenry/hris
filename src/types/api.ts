@@ -27,6 +27,7 @@ export interface User {
   // Associated employee info (if exists)
   employee_id?: number;
   employee_code?: string;
+  fingerprint_id?: number | null;
   first_name?: string;
   last_name?: string;
   middle_name?: string;
